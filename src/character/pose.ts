@@ -1,0 +1,141 @@
+import { CHARACTER } from '../config';
+import { AnimId, type AnimIdValue } from '../ecs/components';
+
+/**
+ * Locomotion poses for the placeholder mascot as plain numbers. Used both at runtime
+ * (procedural fallback driver) and offline (baked into the placeholder GLB's AnimationClips),
+ * so the two paths can never drift apart.
+ */
+export const POSE_KEYS = [
+  'legL', 'legR', 'armLX', 'armRX', 'armSpread',
+  'bob', 'lean', 'squash', 'headTilt',
+  'leaf0', 'leaf1', 'leaf2',
+] as const;
+export type PoseKey = (typeof POSE_KEYS)[number];
+export type Pose = Record<PoseKey, number>;
+
+/** Rest height of the hip pivot above the feet. */
+export const BODY_REST_Y = 0.32;
+/** Base sideways tilt of the green / blue / yellow sprouts. */
+export const LEAF_TILTS: readonly [number, number, number] = [0.5, 0.05, -0.45];
+/** Angular rate of the idle "clock" (rad/s). All clock-driven terms use integer multiples so baked loops are seamless. */
+export const CLOCK_RATE = 1.1;
+
+export function createPose(): Pose {
+  return {
+    legL: 0, legR: 0, armLX: 0, armRX: 0, armSpread: 0.35,
+    bob: 0, lean: 0, squash: 1, headTilt: 0,
+    leaf0: 0, leaf1: 0, leaf2: 0,
+  };
+}
+
+/** Gait cycles per second at a given ground speed: ~1.85 Hz walking, ~2.8 Hz sprinting. */
+export function gaitFrequency(speed: number): number {
+  return 0.9 + speed * 0.27;
+}
+
+/**
+ * @param gait  gait cycle phase (radians), drives walk / run
+ * @param clock idle clock (radians), drives breathing, sway and flailing
+ */
+export function computePose(state: AnimIdValue, gait: number, clock: number, speed: number, out: Pose): Pose {
+  const p = out;
+  p.legL = 0; p.legR = 0; p.armLX = 0; p.armRX = 0; p.armSpread = 0.35;
+  p.bob = 0; p.lean = 0; p.squash = 1; p.headTilt = 0;
+  let leafBase = 0;
+  let leafWave = 0;
+  let leafRate = 3;
+  let leafPhase = clock;
+
+  switch (state) {
+    case AnimId.Idle: {
+      const breathe = Math.sin(clock * 2);
+      p.armSpread = 0.38 + breathe * 0.04;
+      p.squash = 1 + breathe * 0.015;
+      p.headTilt = Math.sin(clock) * 0.04;
+      leafWave = 0.06;
+      break;
+    }
+    case AnimId.Walk:
+    case AnimId.Run: {
+      const run = state === AnimId.Run;
+      const s = Math.sin(gait);
+      const amp = run ? 0.95 : 0.6;
+      p.legL = s * amp;
+      p.legR = -s * amp;
+      p.armLX = -s * amp * 0.8;
+      p.armRX = s * amp * 0.8;
+      p.armSpread = run ? 0.3 : 0.32;
+      p.bob = Math.abs(s) * (run ? 0.07 : 0.035);
+      p.lean = Math.min(speed / CHARACTER.sprintSpeed, 1) * 0.24;
+      p.headTilt = -p.lean * 0.4;
+      // Sprouts trail behind and bounce twice per gait cycle (once per footfall).
+      leafBase = -Math.min(speed / CHARACTER.sprintSpeed, 1) * 0.35;
+      leafWave = run ? 0.1 : 0.07;
+      leafRate = 2;
+      leafPhase = gait;
+      break;
+    }
+    case AnimId.JumpRise:
+      p.legL = -0.7;
+      p.legR = 0.3;
+      p.armSpread = 1.5;
+      p.squash = 1.06;
+      leafBase = -0.25;
+      break;
+    case AnimId.Fall:
+      p.legL = -0.2;
+      p.legR = 0.2;
+      p.armSpread = 1.1 + Math.sin(clock * 12) * 0.1;
+      leafBase = 0.15;
+      leafWave = 0.08;
+      leafRate = 12;
+      break;
+    case AnimId.Land:
+      p.legL = -0.35;
+      p.legR = -0.35;
+      p.armSpread = 0.7;
+      p.squash = 0.82;
+      leafBase = 0.35;
+      break;
+  }
+
+  p.leaf0 = leafBase + Math.sin(leafPhase * leafRate) * leafWave;
+  p.leaf1 = leafBase + Math.sin(leafPhase * leafRate + 1.7) * leafWave;
+  p.leaf2 = leafBase + Math.sin(leafPhase * leafRate + 3.4) * leafWave;
+  return p;
+}
+
+/** Minimal joint shape so this module stays independent of three.js object types. */
+export interface PoseJoint {
+  position: { y: number };
+  rotation: { x: number; z: number };
+  scale: { set(x: number, y: number, z: number): unknown };
+}
+
+export interface PoseJoints {
+  body: PoseJoint;
+  head: PoseJoint;
+  armL: PoseJoint;
+  armR: PoseJoint;
+  legL: PoseJoint;
+  legR: PoseJoint;
+  leaves: readonly [PoseJoint, PoseJoint, PoseJoint];
+}
+
+export function applyPose(j: PoseJoints, p: Pose): void {
+  j.legL.rotation.x = p.legL;
+  j.legR.rotation.x = p.legR;
+  j.armL.rotation.x = p.armLX;
+  j.armR.rotation.x = p.armRX;
+  j.armL.rotation.z = p.armSpread;
+  j.armR.rotation.z = -p.armSpread;
+  j.body.position.y = BODY_REST_Y + p.bob;
+  j.body.rotation.x = p.lean;
+  const sxz = 1 / Math.sqrt(p.squash); // volume-preserving squash & stretch
+  j.body.scale.set(sxz, p.squash, sxz);
+  j.head.rotation.x = p.headTilt;
+  j.leaves[0].rotation.x = p.leaf0;
+  j.leaves[1].rotation.x = p.leaf1;
+  j.leaves[2].rotation.x = p.leaf2;
+}

@@ -1,0 +1,41 @@
+{
+  "name": "yuntech-freshman",
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "vite",
+    "build": "npm run typecheck && vite build",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.node.json",
+    "preview": "vite preview",
+    "assets:optimize": "tsx scripts/optimize-glb.ts",
+    "assets:placeholder": "tsx scripts/build-placeholder.ts",
+    "campus:fetch": "tsx scripts/fetch-campus.ts",
+    "buildings:build": "tsx scripts/build-buildings.ts"
+  },
+  "type": "module",
+  "dependencies": {
+    "@dimforge/rapier3d-compat": "^0.21.0",
+    "bitecs": "^0.4.0",
+    "comlink": "^4.4.2",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "three": "^0.186.1",
+    "zustand": "^5.0.16"
+  },
+  "devDependencies": {
+    "@gltf-transform/core": "^4.5.1",
+    "@gltf-transform/extensions": "^4.5.1",
+    "@gltf-transform/functions": "^4.5.1",
+    "@types/node": "^26.6.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@types/three": "^0.186.0",
+    "draco3dgltf": "^1.5.9",
+    "ktx2-encoder": "^0.6.0",
+    "sharp": "^0.35.5",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5",
+    "vite-plugin-glsl": "^1.6.2"
+  },
+  "private": true
+}
