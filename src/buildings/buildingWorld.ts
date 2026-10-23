@@ -1,7 +1,5 @@
 import {
   BoxGeometry,
-  BufferAttribute,
-  BufferGeometry,
   Group,
   InstancedMesh,
   Mesh,
@@ -17,6 +15,9 @@ import { RAPIER } from '../physics/physics';
 import { ResourceTracker } from '../core/resources';
 import type { CampusMaterials } from '../campus/campusMaterials';
 import type { MeshBuffers, Ring } from '../campus/campusTypes';
+import { stampFacadeStyle } from '../campus/chunkBuilder';
+import { toGeometry } from '../campus/campusWorld';
+import { DEFAULT_CAMPUS_STYLE, type FacadeStyle } from '../campus/facadeTypes';
 import type { BuildingSource, Vec2 } from './buildingTypes';
 import { buildBuildingMeshes, type BuildingMeshes, type BuildingPart, type ColliderBox } from './buildingMesh';
 import { OUTSIDE, rasterize, regionRects } from './floorGrid';
@@ -110,6 +111,7 @@ export function createHandBuiltBuilding(
   renderer: WebGLRenderer,
   campus: CampusMaterials,
   sceneTracker: ResourceTracker,
+  facadeStyle: FacadeStyle = DEFAULT_CAMPUS_STYLE,
 ): HandBuiltBuilding {
   const xf = createPlanTransform(src);
   const meshes: BuildingMeshes = buildBuildingMeshes(src);
@@ -156,6 +158,7 @@ export function createHandBuiltBuilding(
       [part.ceiling, imats.ceiling],
       [part.glass, imats.glass],
     ];
+    if (part.facade) stampFacadeStyle(part.facade, facadeStyle);
     for (const [buf, mat] of entries) {
       if (!buf) continue;
       const mesh = new Mesh(tracker.geometry(toGeometry(buf)), mat);
@@ -341,16 +344,6 @@ export function createHandBuiltBuilding(
   };
 }
 
-function toGeometry(b: MeshBuffers): BufferGeometry {
-  const g = new BufferGeometry();
-  g.setAttribute('position', new BufferAttribute(b.position, 3));
-  g.setAttribute('normal', new BufferAttribute(b.normal, 3));
-  g.setAttribute('uv', new BufferAttribute(b.uv, 2));
-  if (b.color) g.setAttribute('color', new BufferAttribute(b.color, 3));
-  g.setIndex(new BufferAttribute(b.index, 1));
-  g.computeBoundingSphere();
-  return g;
-}
 
 function cellOf(g: { x0: number; y0: number; w: number; h: number; ids: Int16Array }, x: number, y: number): number {
   const col = Math.floor((x - g.x0) / 0.1), row = Math.floor((y - g.y0) / 0.1);

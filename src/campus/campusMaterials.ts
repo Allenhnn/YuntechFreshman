@@ -9,6 +9,9 @@ import {
 } from 'three';
 import type { ResourceTracker } from '../core/resources';
 import { mulberry32 } from '../core/math';
+import facadeParsVert from '../shaders/facade/facade_pars.vert.glsl';
+import facadeParsFrag from '../shaders/facade/facade_pars.frag.glsl';
+import facadeColorFrag from '../shaders/facade/facade_color.frag.glsl';
 
 /**
  * Realistic (A1) campus materials. Textures are painted procedurally on canvases at startup:
@@ -51,38 +54,17 @@ function speckle(g: CanvasRenderingContext2D, size: number, rand: () => number, 
   g.globalAlpha = 1;
 }
 
-/** One bay x one floor of a Taiwanese campus building: tiled wall, slab band, window with frame. */
-const facadePainter: Painter = (g, s, rand) => {
-  g.fillStyle = '#f2ece2';
+/** Neutral wall grain: small facade tiles (二丁掛) plus speckle; colour comes from the facade style. */
+const wallGrainPainter: Painter = (g, s, rand) => {
+  g.fillStyle = '#ffffff';
   g.fillRect(0, 0, s, s);
-  // Small facade tiles (二丁掛) texture.
-  g.strokeStyle = 'rgba(120, 100, 80, 0.10)';
+  g.strokeStyle = 'rgba(90, 80, 70, 0.16)';
   g.lineWidth = 1;
   for (let y = 0; y < s; y += 8) {
     g.beginPath(); g.moveTo(0, y); g.lineTo(s, y); g.stroke();
     for (let x = (y / 8) % 2 ? 0 : 12; x < s; x += 24) { g.beginPath(); g.moveTo(x, y); g.lineTo(x, y + 8); g.stroke(); }
   }
-  speckle(g, s, rand, 600, ['#8a7a66', '#ffffff'], 1.2);
-  // Floor slab band at the bottom of the floor.
-  g.fillStyle = '#d9d2c6';
-  g.fillRect(0, s * 0.9, s, s * 0.1);
-  // Window: frame, glass gradient, mullions, sill shadow.
-  const x0 = s * 0.14, x1 = s * 0.86, y0 = s * 0.22, y1 = s * 0.72;
-  g.fillStyle = '#5b6066';
-  g.fillRect(x0 - 4, y0 - 4, x1 - x0 + 8, y1 - y0 + 8);
-  const glass = g.createLinearGradient(0, y0, 0, y1);
-  glass.addColorStop(0, '#7f9fb5');
-  glass.addColorStop(0.5, '#3d5466');
-  glass.addColorStop(1, '#2a3a46');
-  g.fillStyle = glass;
-  g.fillRect(x0, y0, x1 - x0, y1 - y0);
-  g.fillStyle = 'rgba(255,255,255,0.18)';
-  g.beginPath(); g.moveTo(x0, y1); g.lineTo(x0 + (x1 - x0) * 0.35, y0); g.lineTo(x0 + (x1 - x0) * 0.5, y0); g.lineTo(x0 + (x1 - x0) * 0.15, y1); g.fill();
-  g.fillStyle = '#5b6066';
-  g.fillRect((x0 + x1) / 2 - 3, y0, 6, y1 - y0);
-  g.fillRect(x0, y0 + (y1 - y0) * 0.3, x1 - x0, 4);
-  g.fillStyle = 'rgba(0,0,0,0.22)';
-  g.fillRect(x0 - 6, y1 + 4, x1 - x0 + 12, 6);
+  speckle(g, s, rand, 900, ['#8a7a66', '#ffffff', '#b0a898'], 1.2);
 };
 
 const roofPainter: Painter = (g, s, rand) => {
@@ -163,7 +145,7 @@ export function createCampusMaterials(renderer: WebGLRenderer, tracker: Resource
   const tex = (size: number, seed: number, p: Painter): Texture => paint(size, seed, p, renderer, tracker);
   const mat = (m: MeshStandardMaterial): MeshStandardMaterial => tracker.material(m);
   return {
-    facade: mat(new MeshStandardMaterial({ map: tex(256, 1, facadePainter), vertexColors: true, roughness: 0.82, metalness: 0 })),
+    facade: mat(createFacadeMaterial(tex(256, 1, wallGrainPainter))),
     roof: mat(new MeshStandardMaterial({ map: tex(128, 2, roofPainter), color: new Color(0xcfcac2), roughness: 0.95 })),
     road: mat(layer(new MeshStandardMaterial({ map: tex(256, 3, asphaltPainter), roughness: 0.92 }), 2)),
     walkway: mat(layer(new MeshStandardMaterial({ map: tex(256, 4, paverPainter), roughness: 0.9 }), 3)),
@@ -172,4 +154,25 @@ export function createCampusMaterials(renderer: WebGLRenderer, tracker: Resource
     trunk: mat(new MeshStandardMaterial({ map: tex(64, 7, barkPainter), roughness: 0.95 })),
     canopy: mat(new MeshStandardMaterial({ map: tex(128, 8, leafPainter), color: new Color(0xffffff), roughness: 0.9 })),
   };
+}
+
+/**
+ * Procedural facade (option C): wall grain × style colour, with windows, slab bands and a glazed
+ * ground floor generated from the per-vertex style (see FacadeBuilder). UV = (bays, floors).
+ */
+function createFacadeMaterial(grain: Texture): MeshStandardMaterial {
+  const m = new MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0 });
+  m.onBeforeCompile = (shader) => {
+    shader.uniforms['uWallGrain'] = { value: grain };
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', `#include <common>\n${facadeParsVert}`)
+      .replace('#include <uv_vertex>', '#include <uv_vertex>\nfacadeVertex(position);');
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', `#include <common>\n${facadeParsFrag}`)
+      .replace('#include <color_fragment>', facadeColorFrag)
+      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.12, fGlass);')
+      .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\nmetalnessFactor = mix(metalnessFactor, 0.35, fGlass);');
+  };
+  m.customProgramCacheKey = () => 'campus-facade-v1';
+  return m;
 }

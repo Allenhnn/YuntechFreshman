@@ -61,12 +61,16 @@ export interface MeshBuffers {
   uv: Float32Array<ArrayBuffer>;
   color: Float32Array<ArrayBuffer> | null;
   index: Uint32Array<ArrayBuffer>;
+  /** Extra per-vertex attributes (facade style). */
+  extra?: { name: string; size: number; array: Float32Array<ArrayBuffer> }[];
 }
 
 export interface ChunkBuild {
   cx: number;
   cz: number;
   facade: MeshBuffers | null;
+  /** Walls covered by rectified photos, one mesh per photographed building (uv into its atlas). */
+  photoWalls: { building: number; atlas: string; mesh: MeshBuffers }[];
   roof: MeshBuffers | null;
   roads: MeshBuffers | null;
   walkways: MeshBuffers | null;

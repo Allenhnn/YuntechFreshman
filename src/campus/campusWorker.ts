@@ -1,5 +1,6 @@
 import * as Comlink from 'comlink';
 import type { CampusData, ChunkBuild, Ring } from './campusTypes';
+import type { FacadeData } from './facadeTypes';
 import { ChunkBuilder, transferablesOf } from './chunkBuilder';
 
 /**
@@ -9,8 +10,8 @@ import { ChunkBuilder, transferablesOf } from './chunkBuilder';
 let builder: ChunkBuilder | null = null;
 
 const api = {
-  init(data: CampusData, exclusions: Ring[]): void {
-    builder = new ChunkBuilder(data, exclusions);
+  init(data: CampusData, exclusions: Ring[], facades: FacadeData): void {
+    builder = new ChunkBuilder(data, exclusions, facades);
   },
   build(cx: number, cz: number): ChunkBuild {
     if (!builder) throw new Error('campus worker not initialised');

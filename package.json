@@ -9,7 +9,8 @@
     "assets:optimize": "tsx scripts/optimize-glb.ts",
     "assets:placeholder": "tsx scripts/build-placeholder.ts",
     "campus:fetch": "tsx scripts/fetch-campus.ts",
-    "buildings:build": "tsx scripts/build-buildings.ts"
+    "buildings:build": "tsx scripts/build-buildings.ts",
+    "facades:build": "tsx scripts/build-facades.ts"
   },
   "type": "module",
   "dependencies": {

@@ -12,6 +12,9 @@ import {
   InstancedMesh,
   Matrix4,
   Mesh,
+  MeshStandardMaterial,
+  SRGBColorSpace,
+  type Material,
   PlaneGeometry,
   PMREMGenerator,
   Path,
@@ -25,6 +28,7 @@ import {
   type WebGLRenderer,
 } from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import * as Comlink from 'comlink';
 import { RAPIER } from '../physics/physics';
@@ -35,6 +39,7 @@ import skyFrag from '../shaders/sky.frag.glsl';
 import { createCampusMaterials, type CampusMaterials } from './campusMaterials';
 import { CHUNK_SIZE, chunkKey, chunkOf, type CampusData, type ChunkBuild, type MeshBuffers, type Ring } from './campusTypes';
 import type { CampusWorkerApi } from './campusWorker';
+import { DEFAULT_CAMPUS_STYLE, DEFAULT_TOWN_STYLE, type FacadeData } from './facadeTypes';
 
 /** Visual streaming radius (m, to the nearest point of a chunk) and unload hysteresis. */
 const LOAD_RADIUS = 600;
@@ -66,6 +71,15 @@ export interface CampusWorld {
   dispose(): void;
 }
 
+export interface CampusWorldOptions {
+  /** Extra no-tree zones (world rings), e.g. hand-built building footprints. */
+  treeExclusions?: readonly Ring[];
+  /** Rings cut out of the visual ground plane (looking down into basements). */
+  groundHoles?: readonly Ring[];
+  /** Facade styles and photo atlases (public/data/facades.json). */
+  facades?: FacadeData;
+}
+
 interface ChunkRecord {
   cx: number;
   cz: number;
@@ -85,9 +99,9 @@ export function createCampusWorld(
   renderer: WebGLRenderer,
   data: CampusData,
   tracker: ResourceTracker,
-  treeExclusions: readonly Ring[] = [],
-  groundHoles: readonly Ring[] = [],
+  options: CampusWorldOptions = {},
 ): CampusWorld {
+  const { treeExclusions = [], groundHoles = [], facades } = options;
   const root = new Group();
   root.name = 'campus';
   scene.add(root);
@@ -187,7 +201,44 @@ export function createCampusWorld(
   // --- Worker ----------------------------------------------------------------------------------
   const worker = new Worker(new URL('./campusWorker.ts', import.meta.url), { type: 'module' });
   const remote = Comlink.wrap<CampusWorkerApi>(worker);
-  const initDone = remote.init(data, [...treeExclusions]);
+  const initDone = remote.init(data, [...treeExclusions], facades ?? { styles: [DEFAULT_CAMPUS_STYLE, DEFAULT_TOWN_STYLE], building: {}, photos: {} });
+
+  // --- Photo facade atlases: one material per atlas, shared by chunks and released with the last one.
+  const ktx2 = new KTX2Loader().detectSupport(renderer);
+  const atlases = new Map<string, { material: MeshStandardMaterial; users: number }>();
+  const acquireAtlas = (url: string): MeshStandardMaterial => {
+    const hit = atlases.get(url);
+    if (hit) {
+      hit.users++;
+      return hit.material;
+    }
+    // Untextured until the KTX2 arrives; the facade tint keeps it from flashing white.
+    const material = new MeshStandardMaterial({ color: 0xd8d2c6, roughness: 0.8, metalness: 0 });
+    atlases.set(url, { material, users: 1 });
+    ktx2.loadAsync(`${import.meta.env.BASE_URL}${url}`).then(
+      (tex) => {
+        const entry = atlases.get(url);
+        if (!entry || entry.material !== material) {
+          tex.dispose();
+          return;
+        }
+        tex.colorSpace = SRGBColorSpace;
+        tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+        material.map = tex;
+        material.color.set(0xffffff);
+        material.needsUpdate = true;
+      },
+      (err: unknown) => console.warn(`[campus] facade atlas ${url} failed`, err),
+    );
+    return material;
+  };
+  const releaseAtlas = (url: string): void => {
+    const entry = atlases.get(url);
+    if (!entry || --entry.users > 0) return;
+    entry.material.map?.dispose();
+    entry.material.dispose();
+    atlases.delete(url);
+  };
 
   const chunks = new Map<string, ChunkRecord>();
   const queue: { cx: number; cz: number; d: number }[] = [];
@@ -235,7 +286,7 @@ export function createCampusWorld(
     group.name = `chunk ${rec.cx},${rec.cz}`;
     const geos: BufferGeometry[] = [];
     const instanced: InstancedMesh[] = [];
-    const add = (buf: MeshBuffers | null, mat: CampusMaterials[keyof CampusMaterials], cast: boolean): void => {
+    const add = (buf: MeshBuffers | null, mat: Material, cast: boolean): void => {
       if (!buf) return;
       const geo = toGeometry(buf);
       geos.push(geo);
@@ -245,6 +296,8 @@ export function createCampusWorld(
       group.add(mesh);
     };
     add(b.facade, mats.facade, true);
+    const usedAtlases = b.photoWalls.map((p) => p.atlas);
+    for (const p of b.photoWalls) add(p.mesh, acquireAtlas(p.atlas), true);
     add(b.roof, mats.roof, true);
     add(b.fields, mats.field, false);
     add(b.roads, mats.road, false);
@@ -288,6 +341,7 @@ export function createCampusWorld(
       group.removeFromParent();
       for (const g of geos) g.dispose();
       for (const im of instanced) im.dispose(); // shared trunk/canopy geometry stays alive
+      for (const url of usedAtlases) releaseAtlas(url);
     };
   };
 
@@ -392,6 +446,7 @@ export function createCampusWorld(
       chunks.clear();
       remote[Comlink.releaseProxy]();
       worker.terminate();
+      ktx2.dispose();
       envTarget.dispose();
       scene.environment = null;
       root.removeFromParent();
@@ -399,12 +454,13 @@ export function createCampusWorld(
   };
 }
 
-function toGeometry(b: MeshBuffers): BufferGeometry {
+export function toGeometry(b: MeshBuffers): BufferGeometry {
   const g = new BufferGeometry();
   g.setAttribute('position', new BufferAttribute(b.position, 3));
   g.setAttribute('normal', new BufferAttribute(b.normal, 3));
   g.setAttribute('uv', new BufferAttribute(b.uv, 2));
   if (b.color) g.setAttribute('color', new BufferAttribute(b.color, 3));
+  for (const e of b.extra ?? []) g.setAttribute(e.name, new BufferAttribute(e.array, e.size));
   g.setIndex(new BufferAttribute(b.index, 1));
   g.computeBoundingSphere();
   return g;

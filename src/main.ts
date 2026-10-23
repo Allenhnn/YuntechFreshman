@@ -17,6 +17,7 @@ import { initPhysics } from './physics/physics';
 import { createInput } from './input/input';
 import { ToonPalette, createOutlineMaterial, createToonRamp } from './render/toon';
 import { createCampusWorld } from './campus/campusWorld';
+import { facadeStyleOf, type FacadeData } from './campus/facadeTypes';
 import { buildingFootprintRings, buildingGroundHoles, createHandBuiltBuilding, loadBuildingSource } from './buildings/buildingWorld';
 import { campusCoinSpots } from './campus/coinSpots';
 import type { CampusData } from './campus/campusTypes';
@@ -34,6 +35,7 @@ import { createDebugHud } from './ui/debugHud';
 const PLAYER_MODEL_URL = `${import.meta.env.BASE_URL}models/mascot.glb`;
 const CAMPUS_DATA_URL = `${import.meta.env.BASE_URL}data/campus.json`;
 const LIBRARY_URL = `${import.meta.env.BASE_URL}data/buildings/library.json`;
+const FACADES_URL = `${import.meta.env.BASE_URL}data/facades.json`;
 
 const ITEM_MESSAGES: Readonly<Record<keyof typeof ITEMS, string>> = {
   studentCard: '📛 國立雲林科技大學 · 新鮮人',
@@ -91,8 +93,16 @@ async function boot(): Promise<void> {
   const campus = (await campusRes.json()) as CampusData;
   actions.setMapData(campus);
   const librarySrc = await loadBuildingSource(LIBRARY_URL);
-  const env = createCampusWorld(scene, physics, renderer, campus, sceneResources, buildingFootprintRings(librarySrc), buildingGroundHoles(librarySrc));
-  const library = createHandBuiltBuilding(librarySrc, scene, physics, renderer, env.materials, sceneResources);
+  // Facade styles / photo atlases are optional: without them every building uses the default style.
+  const facades = await fetch(FACADES_URL)
+    .then((r) => (r.ok ? (r.json() as Promise<FacadeData>) : undefined))
+    .catch(() => undefined);
+  const env = createCampusWorld(scene, physics, renderer, campus, sceneResources, {
+    treeExclusions: buildingFootprintRings(librarySrc),
+    groundHoles: buildingGroundHoles(librarySrc),
+    facades,
+  });
+  const library = createHandBuiltBuilding(librarySrc, scene, physics, renderer, env.materials, sceneResources, facadeStyleOf(facades, campus, librarySrc.osmReplaces[0] ?? librarySrc.name));
   const spawn = { x: campus.spawn.x, y: 0, z: campus.spawn.z };
   await env.loadAround(spawn.x, spawn.z, (f) => actions.setLoadProgress(0.25 + f * 0.25));
   physics.step(); // build the query pipeline before the first shape/ray casts

@@ -11,6 +11,7 @@ import {
   type MeshBuffers,
   type Ring,
 } from './campusTypes';
+import { DEFAULT_CAMPUS_STYLE, DEFAULT_TOWN_STYLE, PATTERN_ID, type FacadeData, type FacadeStyle, type PhotoEdge } from './facadeTypes';
 
 /** Facade texture covers one structural bay (m) by one floor (m). */
 export const BAY_WIDTH = 3.6;
@@ -65,6 +66,40 @@ export class GeoBuilder {
       index: new Uint32Array(this.idx),
     };
   }
+}
+
+/** Walls carrying their procedural facade style per vertex: trim + glass colours and the window grid. */
+export class FacadeBuilder extends GeoBuilder {
+  readonly trim: number[] = [];
+  readonly glass: number[] = [];
+  readonly params: number[] = [];
+
+  styled(x: number, y: number, z: number, nx: number, nz: number, u: number, v: number, s: ResolvedStyle): number {
+    this.trim.push(...s.trim);
+    this.glass.push(...s.glass);
+    this.params.push(...s.params);
+    return this.vertex(x, y, z, nx, 0, nz, u, v, s.wall);
+  }
+
+  override build(): MeshBuffers | null {
+    const b = super.build();
+    if (!b) return null;
+    b.extra = [
+      { name: 'facadeTrim', size: 3, array: new Float32Array(this.trim) },
+      { name: 'facadeGlass', size: 3, array: new Float32Array(this.glass) },
+      { name: 'facadeParams', size: 4, array: new Float32Array(this.params) },
+    ];
+    return b;
+  }
+}
+
+/** A facade style in shader form: linear colours, (window width, window height, sill, pattern + 4·groundGlass). */
+interface ResolvedStyle {
+  wall: [number, number, number];
+  trim: [number, number, number];
+  glass: [number, number, number];
+  params: [number, number, number, number];
+  bay: number;
 }
 
 // --- Geometry helpers ------------------------------------------------------------------------
@@ -125,8 +160,19 @@ function addPolygon(g: GeoBuilder, outer: Ring, holes: readonly Ring[], y: numbe
   for (const [a, b, c] of faces) g.triUp(base + a, base + b, base + c);
 }
 
-/** Extruded walls for one ring. Outer rings are CCW and holes CW, so (dz, -dx) always points away from the mass. */
-function addWalls(g: GeoBuilder, r: Ring, height: number, color: readonly [number, number, number]): void {
+/**
+ * Extruded walls for one ring. Outer rings are CCW and holes CW, so (dz, -dx) always points away
+ * from the mass. UVs are (bays, floors) so the facade shader's window grid is fract(uv); edges listed
+ * in `photo` go to `photoOut` instead, with UVs into the building's atlas.
+ */
+function addWalls(
+  g: FacadeBuilder,
+  r: Ring,
+  height: number,
+  floors: number,
+  style: ResolvedStyle,
+  photo?: { edges: ReadonlyMap<number, PhotoEdge>; out: GeoBuilder },
+): void {
   const n = r.length / 2;
   let u = 0;
   for (let i = 0; i < n; i++) {
@@ -136,15 +182,28 @@ function addWalls(g: GeoBuilder, r: Ring, height: number, color: readonly [numbe
     const len = Math.hypot(dx, dz);
     if (len < 0.05) continue;
     const nx = dz / len, nz = -dx / len;
+    const shot = photo?.edges.get(i);
+    if (shot && photo) {
+      // Photo spans ground → roof; the strip below grade reuses the bottom row.
+      const [u0, vb, u1, vt] = shot.uv;
+      const o = photo.out;
+      const p0 = o.vertex(px, WALL_BASE, pz, nx, 0, nz, u0, vb);
+      const q0 = o.vertex(qx, WALL_BASE, qz, nx, 0, nz, u1, vb);
+      const q1 = o.vertex(qx, height, qz, nx, 0, nz, u1, vt);
+      const p1 = o.vertex(px, height, pz, nx, 0, nz, u0, vt);
+      o.tri(p0, q1, q0);
+      o.tri(p0, p1, q1);
+      continue;
+    }
     // Snap the bay count per wall so windows never get cut at corners.
-    const bays = Math.max(1, Math.round(len / BAY_WIDTH));
+    const bays = Math.max(1, Math.round(len / style.bay));
     const u1 = u + bays;
-    const v1 = height / FLOOR_HEIGHT;
+    const vBase = (WALL_BASE / height) * floors;
     // Walls start below the ground plane so the wall/ground seam never forms a collision crease.
-    const p0 = g.vertex(px, WALL_BASE, pz, nx, 0, nz, u, WALL_BASE / FLOOR_HEIGHT, color);
-    const q0 = g.vertex(qx, WALL_BASE, qz, nx, 0, nz, u1, WALL_BASE / FLOOR_HEIGHT, color);
-    const q1 = g.vertex(qx, height, qz, nx, 0, nz, u1, v1, color);
-    const p1 = g.vertex(px, height, pz, nx, 0, nz, u, v1, color);
+    const p0 = g.styled(px, WALL_BASE, pz, nx, nz, u, vBase, style);
+    const q0 = g.styled(qx, WALL_BASE, qz, nx, nz, u1, vBase, style);
+    const q1 = g.styled(qx, height, qz, nx, nz, u1, floors, style);
+    const p1 = g.styled(px, height, pz, nx, nz, u, floors, style);
     g.tri(p0, q1, q0);
     g.tri(p0, p1, q1);
     u = u1;
@@ -190,9 +249,41 @@ const hexLinear = (hex: number): [number, number, number] => [
   srgbToLinear((hex & 255) / 255),
 ];
 
-/** Facade tints (multiplied with the facade texture): campus tile tones, neighbourhood townhouses. */
-const CAMPUS_TINTS = [0xd9c7ae, 0xcdb9a0, 0xe3dccf, 0xc9a58a, 0xd8d3c8].map(hexLinear);
-const TOWN_TINTS = [0xe8e2d6, 0xd6d0c4, 0xcfc2b0, 0xe0d4bf, 0xbfc4c6].map(hexLinear);
+const hexString = (hex: string): [number, number, number] => hexLinear(Number.parseInt(hex.replace('#', ''), 16));
+
+function resolveStyle(s: FacadeStyle): ResolvedStyle {
+  return {
+    wall: hexString(s.wall),
+    trim: hexString(s.trim),
+    glass: hexString(s.glass),
+    params: [s.win[0], s.win[1], s.sill, PATTERN_ID[s.pattern] + (s.groundGlass ? 4 : 0)],
+    bay: s.bay,
+  };
+}
+
+/** Gives walls built elsewhere (hand-built buildings) the facade style attributes the shader needs. */
+export function stampFacadeStyle(buf: MeshBuffers, style: FacadeStyle): void {
+  const r = resolveStyle(style);
+  const n = buf.position.length / 3;
+  const fill = (size: number, v: readonly number[]): Float32Array<ArrayBuffer> => {
+    const a = new Float32Array(n * size);
+    for (let i = 0; i < n; i++) a.set(v, i * size);
+    return a;
+  };
+  buf.color = fill(3, r.wall);
+  buf.extra = [
+    { name: 'facadeTrim', size: 3, array: fill(3, r.trim) },
+    { name: 'facadeGlass', size: 3, array: fill(3, r.glass) },
+    { name: 'facadeParams', size: 4, array: fill(4, r.params) },
+  ];
+}
+
+/** Small per-building tone variation so neighbours sharing a style don't read as clones. */
+function varied(s: ResolvedStyle, id: number): ResolvedStyle {
+  const k = 0.94 + ((Math.abs(id) * 2654435761) % 1000) / 1000 * 0.1;
+  return { ...s, wall: [s.wall[0] * k, s.wall[1] * k, s.wall[2] * k] };
+}
+
 const FIELD_COLORS: Readonly<Record<CampusField['kind'], [number, number, number]>> = {
   soccer: hexLinear(0x5f9a49),
   court: hexLinear(0x3f7d73),
@@ -222,10 +313,18 @@ export class ChunkBuilder {
   /** Extra no-tree zones (world rings), e.g. the footprints of hand-built buildings. */
   private readonly exclusions: Indexed<Ring>[];
 
+  private readonly styles: ResolvedStyle[];
+  private readonly photos = new Map<number, { atlas: string; edges: Map<number, PhotoEdge> }>();
+
   constructor(
     private readonly data: CampusData,
     exclusions: readonly Ring[] = [],
+    private readonly facades: FacadeData = { styles: [DEFAULT_CAMPUS_STYLE, DEFAULT_TOWN_STYLE], building: {}, photos: {} },
   ) {
+    this.styles = facades.styles.map(resolveStyle);
+    for (const [id, p] of Object.entries(facades.photos)) {
+      this.photos.set(Number(id), { atlas: p.atlas, edges: new Map(p.edges.map((e) => [e.edge, e])) });
+    }
     this.exclusions = exclusions.map((r) => ({ item: r, bounds: ringBounds(r) }));
     const key = (x: number, z: number): string => `${chunkOf(x)},${chunkOf(z)}`;
     const push = <T>(m: Map<string, T[]>, k: string, v: T): void => {
@@ -259,7 +358,8 @@ export class ChunkBuilder {
 
   build(cx: number, cz: number): ChunkBuild {
     const k = `${cx},${cz}`;
-    const facade = new GeoBuilder();
+    const facade = new FacadeBuilder();
+    const photoWalls: ChunkBuild['photoWalls'] = [];
     const roof = new GeoBuilder();
     const roads = new GeoBuilder();
     const walks = new GeoBuilder();
@@ -267,10 +367,14 @@ export class ChunkBuilder {
 
     for (const b of this.buildings.get(k) ?? []) {
       if (b.replacedBy) continue; // drawn and collided by its hand-built model instead
-      const tints = b.inCampus ? CAMPUS_TINTS : TOWN_TINTS;
-      const tint = tints[Math.abs(b.id) % tints.length]!;
-      addWalls(facade, b.outer, b.height, tint);
-      for (const h of b.holes) addWalls(facade, h, b.height, tint);
+      const style = varied(this.styles[this.facades.building[String(b.id)] ?? (b.inCampus ? 0 : 1)]!, b.id);
+      const floors = Math.max(1, b.levels || Math.round(b.height / 3.6));
+      const shots = this.photos.get(b.id);
+      const photoOut = shots ? new GeoBuilder() : null;
+      addWalls(facade, b.outer, b.height, floors, style, shots && photoOut ? { edges: shots.edges, out: photoOut } : undefined);
+      for (const h of b.holes) addWalls(facade, h, b.height, floors, style);
+      const photoMesh = photoOut?.build();
+      if (shots && photoMesh) photoWalls.push({ building: b.id, atlas: shots.atlas, mesh: photoMesh });
       addPolygon(roof, b.outer, b.holes, b.height, 4);
     }
     for (const f of this.fields.get(k) ?? []) addPolygon(fields, f.outer, [], Y_FIELD, 6, FIELD_COLORS[f.kind]);
@@ -282,20 +386,24 @@ export class ChunkBuilder {
 
     // Collision = building walls + roofs only (B2: simplified, trees / cars / kerbs are walk-through).
     let collider: ChunkBuild['collider'] = null;
-    if (!facade.empty) {
-      const vertices = new Float32Array(facade.pos.length + roof.pos.length);
-      vertices.set(facade.pos);
-      vertices.set(roof.pos, facade.pos.length);
-      const offset = facade.pos.length / 3;
-      const indices = new Uint32Array(facade.idx.length + roof.idx.length);
-      indices.set(facade.idx);
-      for (let i = 0; i < roof.idx.length; i++) indices[facade.idx.length + i] = roof.idx[i]! + offset;
+    const parts: { pos: ArrayLike<number>; idx: ArrayLike<number> }[] = [facade, roof, ...photoWalls.map((p) => ({ pos: p.mesh.position, idx: p.mesh.index }))];
+    if (!roof.empty) {
+      const vertices = new Float32Array(parts.reduce((n, p) => n + p.pos.length, 0));
+      const indices = new Uint32Array(parts.reduce((n, p) => n + p.idx.length, 0));
+      let vo = 0, io = 0;
+      for (const p of parts) {
+        vertices.set(p.pos, vo);
+        for (let i = 0; i < p.idx.length; i++) indices[io + i] = p.idx[i]! + vo / 3;
+        vo += p.pos.length;
+        io += p.idx.length;
+      }
       collider = { vertices, indices };
     }
 
     return {
       cx, cz,
       facade: facade.build(),
+      photoWalls,
       roof: roof.build(),
       roads: roads.build(),
       walkways: walks.build(),
@@ -350,10 +458,11 @@ export class ChunkBuilder {
 /** All transferable buffers of a build, for zero-copy postMessage. */
 export function transferablesOf(b: ChunkBuild): ArrayBuffer[] {
   const out: ArrayBuffer[] = [b.trees.buffer];
-  for (const m of [b.facade, b.roof, b.roads, b.walkways, b.fields]) {
+  for (const m of [b.facade, b.roof, b.roads, b.walkways, b.fields, ...b.photoWalls.map((p) => p.mesh)]) {
     if (!m) continue;
     out.push(m.position.buffer, m.normal.buffer, m.uv.buffer, m.index.buffer);
     if (m.color) out.push(m.color.buffer);
+    for (const e of m.extra ?? []) out.push(e.array.buffer);
   }
   if (b.collider) out.push(b.collider.vertices.buffer, b.collider.indices.buffer);
   return out;

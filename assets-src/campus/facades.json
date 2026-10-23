@@ -1,0 +1,34 @@
+{
+  "presets": {
+    "campus":      { "wall": "#e3dccf", "trim": "#c9c1b3", "glass": "#3e5566", "bay": 3.6, "floor": 3.6, "win": [0.72, 0.5],  "sill": 0.25, "pattern": "punched", "groundGlass": false },
+    "town":        { "wall": "#e8e2d6", "trim": "#bdb6aa", "glass": "#465a66", "bay": 4.0, "floor": 3.2, "win": [0.55, 0.45], "sill": 0.3,  "pattern": "punched", "groundGlass": true },
+    "engineering": { "wall": "#d8d6d0", "trim": "#a9a7a0", "glass": "#3b4f5c", "bay": 4.0, "floor": 3.8, "win": [0.9, 0.42],  "sill": 0.3,  "pattern": "ribbon",  "groundGlass": false },
+    "management":  { "wall": "#d9c7ae", "trim": "#b9a387", "glass": "#3e5566", "bay": 3.6, "floor": 3.6, "win": [0.7, 0.5],   "sill": 0.25, "pattern": "punched", "groundGlass": true },
+    "design":      { "wall": "#ecebe7", "trim": "#8d8f91", "glass": "#4a6170", "bay": 3.0, "floor": 4.0, "win": [0.85, 0.6],  "sill": 0.2,  "pattern": "ribbon",  "groundGlass": true },
+    "humanities":  { "wall": "#e0d2bc", "trim": "#bfae95", "glass": "#3e5566", "bay": 3.6, "floor": 3.6, "win": [0.68, 0.5],  "sill": 0.25, "pattern": "punched", "groundGlass": false },
+    "dorm":        { "wall": "#ece4d4", "trim": "#c4b7a2", "glass": "#4d5f6b", "bay": 3.4, "floor": 3.2, "win": [0.5, 0.48],  "sill": 0.32, "pattern": "punched", "groundGlass": false },
+    "civic":       { "wall": "#e6e2da", "trim": "#a8a49c", "glass": "#35505f", "bay": 4.2, "floor": 4.0, "win": [0.92, 0.7],  "sill": 0.12, "pattern": "curtain", "groundGlass": true },
+    "utility":     { "wall": "#d6d2c8", "trim": "#a9a49a", "glass": "#4a5a63", "bay": 4.5, "floor": 4.0, "win": [0.6, 0.25],  "sill": 0.6,  "pattern": "ribbon",  "groundGlass": false }
+  },
+  "rules": [
+    { "match": "宿舍", "preset": "dorm" },
+    { "match": "工程", "preset": "engineering" },
+    { "match": "應用科技", "preset": "engineering" },
+    { "match": "技職", "preset": "engineering" },
+    { "match": "管理", "preset": "management" },
+    { "match": "設計", "preset": "design" },
+    { "match": "藝術", "preset": "design" },
+    { "match": "人科", "preset": "humanities" },
+    { "match": "圖書館", "preset": "civic" },
+    { "match": "行政", "preset": "civic" },
+    { "match": "會議", "preset": "civic" },
+    { "match": "表演廳", "preset": "civic" },
+    { "match": "觀雲閣", "preset": "civic" },
+    { "match": "實驗室", "preset": "utility" },
+    { "match": "檢測", "preset": "utility" },
+    { "match": "警衛", "preset": "utility" },
+    { "match": "司令台", "preset": "utility" }
+  ],
+  "buildings": {},
+  "photos": {}
+}
