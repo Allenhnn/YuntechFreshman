@@ -1,8 +1,9 @@
 import { defineConfig } from 'vite';
 import glsl from 'vite-plugin-glsl';
+import { facadeToolPlugin } from './scripts/photos/devPlugin';
 
 export default defineConfig({
-  plugins: [glsl()],
+  plugins: [glsl(), facadeToolPlugin()],
   server: { port: 5173 },
   build: { target: 'es2022' },
 });

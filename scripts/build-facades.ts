@@ -24,6 +24,11 @@ const GUTTER = 8;
 const src = JSON.parse(readFileSync(SRC, 'utf8')) as FacadeSource;
 const campus = JSON.parse(readFileSync('public/data/campus.json', 'utf8')) as CampusData;
 
+const imageDecoder = async (buffer: Uint8Array): Promise<{ data: Uint8Array; width: number; height: number }> => {
+  const { data, info } = await sharp(buffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  return { data: new Uint8Array(data), width: info.width, height: info.height };
+};
+
 const preset = (name: string): FacadeStyle => {
   const p = src.presets[name];
   if (!p) throw new Error(`unknown facade preset "${name}"`);
@@ -89,6 +94,8 @@ for (const [id, entry] of Object.entries(src.photos)) {
     scale *= 0.9;
     layout = pack(scale);
   }
+  // Trim to the used width (WebGL 2 mipmaps NPOT textures; Basis needs multiples of 4).
+  const W = Math.ceil(Math.max(...layout.map((r) => r.x + r.w + GUTTER)) / 4) * 4;
   const H = Math.ceil(layout.height / 4) * 4;
 
   const composites: OverlayOptions[] = [];
@@ -101,19 +108,19 @@ for (const [id, entry] of Object.entries(src.photos)) {
       .toBuffer();
     composites.push({ input, left: r.x - GUTTER, top: r.y - GUTTER });
   }
-  const png = await sharp({ create: { width: ATLAS_W, height: H, channels: 4, background: '#808080ff' } }).composite(composites).png().toBuffer();
+  const png = await sharp({ create: { width: W, height: H, channels: 4, background: '#808080ff' } }).composite(composites).png().toBuffer();
   const ktx2 = await encodeToKTX2(new Uint8Array(png), {
-    isUASTC: false, qualityLevel: 200, generateMipmap: true, isPerceptual: true, isSetKTX2SRGBTransferFunc: true,
+    isUASTC: false, qualityLevel: 200, generateMipmap: true, isPerceptual: true, isSetKTX2SRGBTransferFunc: true, imageDecoder, enableDebug: false,
   } as Parameters<typeof encodeToKTX2>[1]);
   writeFileSync(`${ATLAS_DIR}/${id}.ktx2`, ktx2);
 
   const edges: PhotoEdge[] = walls.map((e, i) => {
     const r = layout[i]!;
     // KTX2 textures are not flipped on upload: image row 0 is v = 0, so the wall's bottom is the larger v.
-    return { edge: e.edge, uv: [r.x / ATLAS_W, (r.y + r.h) / H, (r.x + r.w) / ATLAS_W, r.y / H] };
+    return { edge: e.edge, uv: [r.x / W, (r.y + r.h) / H, (r.x + r.w) / W, r.y / H] };
   });
   photos[id] = { atlas: `data/facades/${id}.ktx2`, edges };
-  console.log(`  ${entry.name} (${id}): ${walls.length} photo walls → ${ATLAS_W}×${H} atlas, ${(ktx2.byteLength / 1024).toFixed(0)} KB${scale < 1 ? ` (scaled ${(scale * 100).toFixed(0)}%)` : ''}`);
+  console.log(`  ${entry.name} (${id}): ${walls.length} photo walls → ${W}×${H} atlas, ${(ktx2.byteLength / 1024).toFixed(0)} KB${scale < 1 ? ` (scaled ${(scale * 100).toFixed(0)}%)` : ''}`);
 }
 
 const out: FacadeData = { styles, building, photos };

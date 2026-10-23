@@ -1,6 +1,21 @@
 # Campus exteriors from your own photos: capture guide and pipeline proposal
 
-Status: **proposal, waiting for your decisions** (see "Decisions" at the end). Nothing here is implemented yet.
+Status (2026-10-23): decisions made: **C + A + B combined**, **browser rectification tool**, **suggested first batch**.
+C (procedural styles) and A (photo walls) are implemented, and now waiting for photos. B (photogrammetry) is handled per object once you have scans.
+
+## 0. Workflow (after taking photos)
+1. Export the photos as **JPG**. HEIC can't be read; on iPhone go to Settings → Camera → Formats → Most Compatible. Put them in `assets-src/photos/<OSM building name>/originals/`. The folder name must match a name in `public/data/campus.json`, such as `行政大樓`.
+2. `npm run photos:ingest` reads GPS and compass heading and guesses which wall each photo shows. It writes `assets-src/photos/index.json`.
+3. `npm run dev`, then open **http://localhost:5173/tools/facade.html**:
+   - Pick a building on the left. Click an edge on the footprint to choose a wall. L/R are the left and right ends as seen standing outside the wall.
+   - Pick a photo, then click the four wall corners in order TL → TR → BR → BL. Corners can be dragged afterwards. Mouse wheel zooms, shift-drag pans.
+   - Fill in the "section" on the right: which metres of the wall these corners cover (from the left, from the ground). The defaults are the whole wall. A long wall can be built from several sections.
+   - Press **Rectify section**, then **Save wall**. This saves to `assets-src/photos/<name>/rectified/edge-N.png` and runs `npm run facades:build` automatically.
+   - Procedural style: use the 🎯 eyedropper to sample wall, trim and glass colours from the photo, set the window pattern and proportions, then **Save style**.
+4. Reload the game to see the result. Walls without photos keep the procedural style.
+
+Files: `assets-src/campus/facades.json` (presets, name rules, sampled styles, photo-wall records) → `npm run facades:build` → `public/data/facades.json` + `public/data/facades/<id>.ktx2`.
+Git: `originals/` is ignored. Rectified PNGs, `facades.json` and the KTX2 atlases are committed.
 
 ## 1. Capture guide
 
@@ -65,7 +80,12 @@ Use the folder names from the list below; they match the OSM names. **Originals 
 
 **Recommendation:** use C as the baseline for all buildings, A for the buildings along the main route (first batch), and B for 1–3 landmarks.
 
-## 3. Decisions needed
-1. Which approach or combination: A / B / C / A+B+C.
-2. Which buildings go in the first batch (the list above, or your own).
-3. Whether to build the four-corner rectification tool in the browser (A), or rectify photos yourself in another app (Photoshop, Snapseed perspective) and upload finished, squared-up images.
+## 3. Decisions (confirmed 2026-10-23)
+1. Approach: C + A + B combined.
+2. First batch: the suggested list above.
+3. Rectification: four-corner tool in the browser (`/tools/facade.html`, dev server only).
+
+## 4. Known limitations
+- The procedural presets are **estimates** until colours and window proportions are sampled from photos.
+- A photo wall covers one OSM edge from the ground to the roof. Relief such as balconies or sunshades is flattened. Real geometry needs B.
+- Photo walls taken from an angle lose resolution. Shoot square-on where possible.

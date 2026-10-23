@@ -10,7 +10,8 @@
     "assets:placeholder": "tsx scripts/build-placeholder.ts",
     "campus:fetch": "tsx scripts/fetch-campus.ts",
     "buildings:build": "tsx scripts/build-buildings.ts",
-    "facades:build": "tsx scripts/build-facades.ts"
+    "facades:build": "tsx scripts/build-facades.ts",
+    "photos:ingest": "tsx scripts/photos/ingest.ts"
   },
   "type": "module",
   "dependencies": {

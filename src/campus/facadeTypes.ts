@@ -75,6 +75,25 @@ export function facadeStyleOf(facades: FacadeData | undefined, campus: CampusDat
   return (i !== undefined ? facades?.styles[i] : undefined) ?? DEFAULT_CAMPUS_STYLE;
 }
 
+/** assets-src/photos/index.json, written by scripts/photos/ingest.ts. */
+export interface PhotoIndexEntry {
+  file: string;
+  width?: number;
+  height?: number;
+  /** Camera position in campus metres (+X east, +Z south) and compass heading, when the EXIF has them. */
+  x?: number;
+  z?: number;
+  heading?: number;
+  /** Best-guess outer-ring edge and how sure the guess is (0–1); the tool lets you change it. */
+  edge?: number;
+  confidence?: number;
+  distance?: number;
+}
+
+export interface PhotoIndex {
+  [folder: string]: { buildingId: number | null; photos: PhotoIndexEntry[] };
+}
+
 export const PATTERN_ID: Readonly<Record<WindowPattern, number>> = { punched: 0, ribbon: 1, curtain: 2, blank: 3 };
 
 export const DEFAULT_CAMPUS_STYLE: FacadeStyle = {

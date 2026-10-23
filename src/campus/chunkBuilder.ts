@@ -184,13 +184,14 @@ function addWalls(
     const nx = dz / len, nz = -dx / len;
     const shot = photo?.edges.get(i);
     if (shot && photo) {
-      // Photo spans ground → roof; the strip below grade reuses the bottom row.
+      // Photo spans ground → roof; the strip below grade reuses the bottom row. Seen from outside,
+      // vertex i is on the viewer's right, so the image's left edge (u0) belongs to vertex i + 1.
       const [u0, vb, u1, vt] = shot.uv;
       const o = photo.out;
-      const p0 = o.vertex(px, WALL_BASE, pz, nx, 0, nz, u0, vb);
-      const q0 = o.vertex(qx, WALL_BASE, qz, nx, 0, nz, u1, vb);
-      const q1 = o.vertex(qx, height, qz, nx, 0, nz, u1, vt);
-      const p1 = o.vertex(px, height, pz, nx, 0, nz, u0, vt);
+      const p0 = o.vertex(px, WALL_BASE, pz, nx, 0, nz, u1, vb);
+      const q0 = o.vertex(qx, WALL_BASE, qz, nx, 0, nz, u0, vb);
+      const q1 = o.vertex(qx, height, qz, nx, 0, nz, u0, vt);
+      const p1 = o.vertex(px, height, pz, nx, 0, nz, u1, vt);
       o.tri(p0, q1, q0);
       o.tri(p0, p1, q1);
       continue;
