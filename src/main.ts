@@ -174,7 +174,9 @@ async function boot(): Promise<void> {
       }
       case 'teleport': {
         // Fade out, stream the destination in, land on a safe spot, fade back in.
-        const target = safeTeleportTarget(campus, cmd.x, cmd.z);
+        // Off-campus targets (e.g. old waypoints) land just inside the boundary instead.
+        const inside = env.clampInsideCampus(cmd.x, cmd.z);
+        const target = safeTeleportTarget(campus, inside.x, inside.z);
         actions.setFading(true);
         void Promise.all([env.loadAround(target.x, target.z), new Promise((r) => window.setTimeout(r, 300))]).then(() => {
           physics.step(); // register the destination's colliders before the ground ray
@@ -244,7 +246,8 @@ async function boot(): Promise<void> {
   const groundFilter = (c: { handle: number }): boolean =>
     c.handle !== groundHandle || !library.isOverBasement(Transform.x[eid]!, Transform.z[eid]!);
 
-  const cameraFilter = (c: { handle: number }): boolean => groundFilter(c) && !library.isCameraTransparent(c.handle);
+  const cameraFilter = (c: { handle: number }): boolean =>
+    groundFilter(c) && !library.isCameraTransparent(c.handle) && !env.isBoundaryCollider(c.handle);
 
   const nearestInteractable = (): (typeof library.interactables)[number] | null => {
     let best: (typeof library.interactables)[number] | null = null;
@@ -325,6 +328,7 @@ async function boot(): Promise<void> {
 
   const mouse = { dx: 0, dy: 0 };
   let accumulator = 0;
+  let lastBoundaryWarning = -Infinity;
   let last = performance.now();
   let time = 0;
 
@@ -354,6 +358,11 @@ async function boot(): Promise<void> {
       drainCommands(handleCommand);
       controller.update(world, FIXED_DT, input.consumePressed(), rig.yaw, groundFilter, ui.tester);
       physics.step();
+      // Walking into the invisible campus boundary: say why, at most every few seconds.
+      if (playing && time - lastBoundaryWarning > 4 && env.distanceToBoundary(Transform.x[eid]!, Transform.z[eid]!) < 1.2) {
+        lastBoundaryWarning = time;
+        actions.toast('🚧 校外區域禁止進入');
+      }
       const gained = coins.collect(world, Transform.x[eid]!, Transform.y[eid]!, Transform.z[eid]!, time);
       if (gained > 0) {
         actions.addCoins(gained);

@@ -63,6 +63,14 @@ export interface CampusWorld {
   readonly materials: CampusMaterials;
   /** The grade-level ground collider (hand-built basements tell physics to ignore it). */
   readonly groundCollider: RAPIER.Collider;
+  /** Inside the campus boundary (OSM relation); the player may not leave it. */
+  insideCampus(x: number, z: number): boolean;
+  /** Distance (m) to the campus boundary line. */
+  distanceToBoundary(x: number, z: number): number;
+  /** Invisible boundary walls: the camera spring arm should ignore them. */
+  isBoundaryCollider(handle: number): boolean;
+  /** Nearest point at least `margin` m inside the campus (unchanged if already that far inside). */
+  clampInsideCampus(x: number, z: number, margin?: number): { x: number; z: number };
   /** Streams chunks around the player; call every frame. */
   update(x: number, z: number): void;
   /** Resolves once every chunk within the load radius of (x, z) is built. */
@@ -195,6 +203,53 @@ export function createCampusWorld(
   for (const [x, z, sx, sz] of [[cxm - hx, czm, 0.5, hz], [cxm + hx, czm, 0.5, hz], [cxm, czm - hz, hx, 0.5], [cxm, czm + hz, hx, 0.5]] as const) {
     tracker.collider(physics.createCollider(RAPIER.ColliderDesc.cuboid(sx, 30, sz).setTranslation(x, 30, z)));
   }
+
+  // --- Campus boundary: invisible walls along the OSM campus outline ------------------------
+  const boundary = data.boundary;
+  const boundaryHandles = new Set<number>();
+  const segment = (i: number): [number, number, number, number] => {
+    const n = boundary.length / 2, j = (i + 1) % n;
+    return [boundary[i * 2]!, boundary[i * 2 + 1]!, boundary[j * 2]!, boundary[j * 2 + 1]!];
+  };
+  for (let i = 0; i < boundary.length / 2; i++) {
+    const [ax, az, bx, bz] = segment(i);
+    const len = Math.hypot(bx - ax, bz - az);
+    if (len < 0.01) continue;
+    // Box along the segment, overlapping its neighbours a little so corners have no gaps.
+    const yaw = -Math.atan2(bz - az, bx - ax);
+    const q = new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), yaw);
+    const c = tracker.collider(
+      physics.createCollider(
+        RAPIER.ColliderDesc.cuboid(len / 2 + 0.3, 25, 0.25)
+          .setTranslation((ax + bx) / 2, 20, (az + bz) / 2)
+          .setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }),
+      ),
+    );
+    boundaryHandles.add(c.handle);
+  }
+  const insideCampus = (x: number, z: number): boolean => {
+    let inside = false;
+    for (let i = 0, n = boundary.length / 2, j = n - 1; i < n; j = i++) {
+      const xi = boundary[i * 2]!, zi = boundary[i * 2 + 1]!, xj = boundary[j * 2]!, zj = boundary[j * 2 + 1]!;
+      if (zi > z !== zj > z && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) inside = !inside;
+    }
+    return inside;
+  };
+  /** Nearest point on the boundary and the inward normal there. */
+  const nearestOnBoundary = (x: number, z: number): { d: number; px: number; pz: number; nx: number; nz: number } => {
+    let best = { d: Infinity, px: x, pz: z, nx: 0, nz: 0 };
+    for (let i = 0; i < boundary.length / 2; i++) {
+      const [ax, az, bx, bz] = segment(i);
+      const dx = bx - ax, dz = bz - az, l2 = dx * dx + dz * dz || 1;
+      const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l2));
+      const px = ax + dx * t, pz = az + dz * t;
+      const d = Math.hypot(x - px, z - pz);
+      // The boundary ring is CCW in x/z, so (-dz, dx) points into the campus.
+      const l = Math.sqrt(l2);
+      if (d < best.d) best = { d, px, pz, nx: -dz / l, nz: dx / l };
+    }
+    return best;
+  };
 
   // --- Shared tree geometry --------------------------------------------------------------------
   const trunkGeo = tracker.geometry(new CylinderGeometry(0.16, 0.28, 3.2, 7).translate(0, 1.6, 0));
@@ -407,6 +462,14 @@ export function createCampusWorld(
     data,
     materials: mats,
     groundCollider,
+    insideCampus,
+    distanceToBoundary: (x, z) => nearestOnBoundary(x, z).d,
+    isBoundaryCollider: (handle) => boundaryHandles.has(handle),
+    clampInsideCampus(x, z, margin = 3) {
+      const b = nearestOnBoundary(x, z);
+      if (insideCampus(x, z) && b.d >= margin) return { x, z };
+      return { x: b.px + b.nx * margin, z: b.pz + b.nz * margin };
+    },
     update,
     loadAround(x, z, onProgress) {
       update(x, z);

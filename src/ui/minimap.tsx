@@ -257,6 +257,15 @@ function placeName(data: CampusData, x: number, z: number, radius = 40): string 
   return best;
 }
 
+function pointInRing(x: number, z: number, r: Ring): boolean {
+  let inside = false;
+  for (let i = 0, n = r.length / 2, j = n - 1; i < n; j = i++) {
+    const xi = r[i * 2]!, zi = r[i * 2 + 1]!, xj = r[j * 2]!, zj = r[j * 2 + 1]!;
+    if (zi > z !== zj > z && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
 function drawPin(g: CanvasRenderingContext2D, x: number, y: number, s: number, color: string, glyph: string): void {
   g.fillStyle = color;
   g.strokeStyle = '#fff';
@@ -428,7 +437,14 @@ export function FullMap(): ReactNode {
             onPointerUp={onPointerUp}
             onContextMenu={(e) => e.preventDefault()}
           />
-          {menu && (
+          {menu && data && !pointInRing(menu.x, menu.z, data.boundary) && (
+            <div className="map-menu" style={{ left: menu.left, top: menu.top }}>
+              <div className="title">🚧 校外區域</div>
+              <div className="note">校外禁止進入，無法傳送或設定傳送點。</div>
+              <button className="ghost" onClick={() => setMenu(null)}>關閉</button>
+            </div>
+          )}
+          {menu && data && pointInRing(menu.x, menu.z, data.boundary) && (
             <div className="map-menu" style={{ left: menu.left, top: menu.top }}>
               <div className="title">{menuName}</div>
               <button onClick={() => { api.teleportTo(menu.x, menu.z, menuName); setMenu(null); }}>🚀 傳送到這裡</button>
