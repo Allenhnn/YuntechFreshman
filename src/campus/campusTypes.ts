@@ -72,6 +72,8 @@ export interface ChunkBuild {
   /** Walls covered by rectified photos, one mesh per photographed building (uv into its atlas). */
   photoWalls: { building: number; atlas: string; mesh: MeshBuffers }[];
   roof: MeshBuffers | null;
+  /** Balconies, sunshades, pilasters, canopies, parapets, rooftop clutter (visual only). */
+  details: MeshBuffers | null;
   roads: MeshBuffers | null;
   walkways: MeshBuffers | null;
   fields: MeshBuffers | null;

@@ -11,7 +11,8 @@ import {
   type MeshBuffers,
   type Ring,
 } from './campusTypes';
-import { DEFAULT_CAMPUS_STYLE, DEFAULT_TOWN_STYLE, PATTERN_ID, type FacadeData, type FacadeStyle, type PhotoEdge } from './facadeTypes';
+import { addFacadeDetails } from './facadeDetails';
+import { DEFAULT_CAMPUS_STYLE, DEFAULT_TOWN_STYLE, DETAIL_DEFAULTS, PATTERN_ID, type FacadeData, type FacadeStyle, type PhotoEdge } from './facadeTypes';
 
 /** Facade texture covers one structural bay (m) by one floor (m). */
 export const BAY_WIDTH = 3.6;
@@ -315,6 +316,7 @@ export class ChunkBuilder {
   private readonly exclusions: Indexed<Ring>[];
 
   private readonly styles: ResolvedStyle[];
+  private readonly rawStyles: FacadeStyle[];
   private readonly photos = new Map<number, { atlas: string; edges: Map<number, PhotoEdge> }>();
 
   constructor(
@@ -322,7 +324,9 @@ export class ChunkBuilder {
     exclusions: readonly Ring[] = [],
     private readonly facades: FacadeData = { styles: [DEFAULT_CAMPUS_STYLE, DEFAULT_TOWN_STYLE], building: {}, photos: {} },
   ) {
-    this.styles = facades.styles.map(resolveStyle);
+    // Styles built before the 3D details existed lack those fields.
+    this.rawStyles = facades.styles.map((st) => ({ ...DETAIL_DEFAULTS, ...st }));
+    this.styles = this.rawStyles.map(resolveStyle);
     for (const [id, p] of Object.entries(facades.photos)) {
       this.photos.set(Number(id), { atlas: p.atlas, edges: new Map(p.edges.map((e) => [e.edge, e])) });
     }
@@ -362,18 +366,21 @@ export class ChunkBuilder {
     const facade = new FacadeBuilder();
     const photoWalls: ChunkBuild['photoWalls'] = [];
     const roof = new GeoBuilder();
+    const details = new GeoBuilder();
     const roads = new GeoBuilder();
     const walks = new GeoBuilder();
     const fields = new GeoBuilder();
 
     for (const b of this.buildings.get(k) ?? []) {
       if (b.replacedBy) continue; // drawn and collided by its hand-built model instead
-      const style = varied(this.styles[this.facades.building[String(b.id)] ?? (b.inCampus ? 0 : 1)]!, b.id);
+      const styleIndex = this.facades.building[String(b.id)] ?? (b.inCampus ? 0 : 1);
+      const style = varied(this.styles[styleIndex]!, b.id);
       const floors = Math.max(1, b.levels || Math.round(b.height / 3.6));
       const shots = this.photos.get(b.id);
       const photoOut = shots ? new GeoBuilder() : null;
       addWalls(facade, b.outer, b.height, floors, style, shots && photoOut ? { edges: shots.edges, out: photoOut } : undefined);
       for (const h of b.holes) addWalls(facade, h, b.height, floors, style);
+      addFacadeDetails(details, b, this.rawStyles[styleIndex]!, { wall: style.wall, trim: style.trim }, this.data.roads, new Set(shots?.edges.keys() ?? []));
       const photoMesh = photoOut?.build();
       if (shots && photoMesh) photoWalls.push({ building: b.id, atlas: shots.atlas, mesh: photoMesh });
       addPolygon(roof, b.outer, b.holes, b.height, 4);
@@ -406,6 +413,7 @@ export class ChunkBuilder {
       facade: facade.build(),
       photoWalls,
       roof: roof.build(),
+      details: details.build(),
       roads: roads.build(),
       walkways: walks.build(),
       fields: fields.build(),
@@ -459,7 +467,7 @@ export class ChunkBuilder {
 /** All transferable buffers of a build, for zero-copy postMessage. */
 export function transferablesOf(b: ChunkBuild): ArrayBuffer[] {
   const out: ArrayBuffer[] = [b.trees.buffer];
-  for (const m of [b.facade, b.roof, b.roads, b.walkways, b.fields, ...b.photoWalls.map((p) => p.mesh)]) {
+  for (const m of [b.facade, b.roof, b.details, b.roads, b.walkways, b.fields, ...b.photoWalls.map((p) => p.mesh)]) {
     if (!m) continue;
     out.push(m.position.buffer, m.normal.buffer, m.uv.buffer, m.index.buffer);
     if (m.color) out.push(m.color.buffer);

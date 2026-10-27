@@ -11,7 +11,7 @@
  */
 import type { CampusBuilding, CampusData } from '../campus/campusTypes';
 import type { FacadeSource, FacadeStyle, PhotoIndex, PhotoIndexEntry, PhotoSection, WindowPattern } from '../campus/facadeTypes';
-import { DEFAULT_CAMPUS_STYLE } from '../campus/facadeTypes';
+import { DEFAULT_CAMPUS_STYLE, DETAIL_DEFAULTS, type BalconyKind, type FinKind } from '../campus/facadeTypes';
 import { applyHomography, sampleBilinear, solveHomography } from './homography';
 import { createStreetViewPanel } from './streetView';
 
@@ -445,6 +445,14 @@ function currentStyle(): FacadeStyle {
     sill: num('sill'),
     pattern: $<HTMLSelectElement>('pattern').value as WindowPattern,
     groundGlass: $<HTMLInputElement>('groundGlass').checked,
+    balcony: $<HTMLSelectElement>('balcony').value as BalconyKind,
+    balconyDepth: num('balconyDepth'),
+    fins: $<HTMLSelectElement>('fins').value as FinKind,
+    finDepth: num('finDepth'),
+    columns: $<HTMLInputElement>('columns').checked,
+    canopy: $<HTMLInputElement>('canopy').checked,
+    parapet: num('parapet'),
+    rooftop: $<HTMLInputElement>('rooftop').checked,
   };
 }
 
@@ -454,13 +462,19 @@ function loadStyle(): void {
   const entry = src?.buildings[name];
   const rule = src?.rules.find((r) => name.includes(r.match));
   const base = src?.presets[entry?.preset ?? rule?.preset ?? 'campus'] ?? DEFAULT_CAMPUS_STYLE;
-  const s: FacadeStyle = { ...base, ...entry?.style };
+  const s: FacadeStyle = { ...DETAIL_DEFAULTS, ...base, ...entry?.style };
   $<HTMLInputElement>('cWall').value = s.wall;
   $<HTMLInputElement>('cTrim').value = s.trim;
   $<HTMLInputElement>('cGlass').value = s.glass;
   setNum('bay', s.bay); setNum('winW', s.win[0]); setNum('winH', s.win[1]); setNum('sill', s.sill);
   $<HTMLSelectElement>('pattern').value = s.pattern;
   $<HTMLInputElement>('groundGlass').checked = s.groundGlass;
+  $<HTMLSelectElement>('balcony').value = s.balcony;
+  $<HTMLSelectElement>('fins').value = s.fins;
+  setNum('balconyDepth', s.balconyDepth); setNum('finDepth', s.finDepth); setNum('parapet', s.parapet);
+  $<HTMLInputElement>('columns').checked = s.columns;
+  $<HTMLInputElement>('canopy').checked = s.canopy;
+  $<HTMLInputElement>('rooftop').checked = s.rooftop;
   drawStylePreview();
 }
 
@@ -483,18 +497,26 @@ function sampleColour(ix: number, iy: number, slot: 'wall' | 'trim' | 'glass'): 
   drawStylePreview();
 }
 
-/** 2D sketch of 3 floors × 5 bays in the chosen style (the game shader adds grain and lighting). */
+/**
+ * 2D elevation sketch of 3 floors × 5 bays in the chosen style, including the 3D details seen
+ * head-on (the game adds depth, grain and lighting).
+ */
 function drawStylePreview(): void {
   const c = $<HTMLCanvasElement>('stylePreview');
   const g = c.getContext('2d');
   if (!g) return;
   const s = currentStyle();
-  const floors = 3, bays = 5;
-  const fw = c.width / bays, fh = c.height / floors;
-  g.fillStyle = s.wall;
+  const floors = 3, bays = 5, floorM = 3.6;
+  const m = c.height / (floors * floorM + 2.4); // px per metre, leaving room for parapet and rooftop
+  const fh = floorM * m, fw = c.width / bays;
+  const base = c.height; // ground line
+  const roof = base - floors * fh;
+  g.fillStyle = '#15181a';
   g.fillRect(0, 0, c.width, c.height);
+  g.fillStyle = s.wall;
+  g.fillRect(0, roof, c.width, floors * fh);
   for (let f = 0; f < floors; f++) {
-    const top = c.height - (f + 1) * fh;
+    const top = base - (f + 1) * fh;
     g.fillStyle = s.trim;
     g.fillRect(0, top + fh - fh * 0.05, c.width, fh * 0.05);
     g.fillStyle = s.glass;
@@ -508,6 +530,36 @@ function drawStylePreview(): void {
       else if (s.pattern === 'ribbon') g.fillRect(b * fw, y0, fw, h);
       else if (s.pattern === 'curtain') g.fillRect(b * fw + 1, top + fh * 0.03, fw - 2, fh * 0.87);
     }
+  }
+  // Details, drawn as they would be seen head-on; a dark edge stands in for their shadow.
+  const box = (x: number, y: number, w: number, h: number, colour: string): void => {
+    g.fillStyle = colour;
+    g.fillRect(x, y, w, h);
+    g.fillStyle = 'rgba(0,0,0,0.28)';
+    g.fillRect(x, y + h, w, Math.max(2, h * 0.15));
+  };
+  if (s.columns) for (let b = 0; b <= bays; b++) box(b * fw - 0.25 * m, roof, 0.5 * m, floors * fh, s.trim);
+  for (let f = 0; f < floors; f++) {
+    const top = base - (f + 1) * fh;
+    const winTop = base - f * fh - (s.sill + s.win[1]) * fh;
+    if ((s.fins === 'horizontal' || s.fins === 'both') && !(f === 0 && s.groundGlass)) box(0, winTop - 0.12 * m, c.width, 0.12 * m + s.finDepth * m * 0.3, s.trim);
+    if ((s.fins === 'vertical' || s.fins === 'both') && f > 0) {
+      for (let b = 0; b < bays; b++) {
+        const cx = (b + 0.5) * fw, half = (fw * s.win[0]) / 2;
+        for (const x of s.pattern === 'punched' ? [cx - half, cx + half] : [b * fw]) box(x - 2, top, 4, fh, s.trim);
+      }
+    }
+    if (s.balcony !== 'none' && f > 0) {
+      const floorY = base - f * fh;
+      const spans = s.balcony === 'continuous' ? [[0.3 * m, c.width - 0.3 * m]] : Array.from({ length: bays }, (_, b) => [b * fw + 0.35 * m, (b + 1) * fw - 0.35 * m]);
+      for (const [x0, x1] of spans) box(x0!, floorY - 1.0 * m, x1! - x0!, 1.0 * m + 0.15 * m, s.trim);
+    }
+  }
+  if (s.parapet > 0) box(0, roof - s.parapet * m, c.width, s.parapet * m, s.trim);
+  if (s.canopy) box(c.width / 2 - 3 * m, base - Math.min(3.2, floorM * 0.85) * m - 0.25 * m, 6 * m, 0.25 * m, s.trim);
+  if (s.rooftop) {
+    box(c.width * 0.62, roof - 2.8 * m, 5 * m, 2.8 * m, s.wall);
+    box(c.width * 0.25, roof - 2.4 * m, 2.2 * m, 1.6 * m, '#9ea3a0');
   }
 }
 
@@ -549,7 +601,7 @@ document.querySelectorAll<HTMLButtonElement>('[data-pick]').forEach((btn) => {
     drawView();
   });
 });
-for (const id of ['cWall', 'cTrim', 'cGlass', 'pattern', 'bay', 'winW', 'winH', 'sill', 'groundGlass']) $(id).addEventListener('input', drawStylePreview);
+for (const id of ['cWall', 'cTrim', 'cGlass', 'pattern', 'bay', 'winW', 'winH', 'sill', 'groundGlass', 'balcony', 'balconyDepth', 'fins', 'finDepth', 'columns', 'canopy', 'parapet', 'rooftop']) $(id).addEventListener('input', drawStylePreview);
 
 resizeView();
 void loadState().catch((err: unknown) => log(`Failed to load: ${String(err)} (is this the Vite dev server?)`));

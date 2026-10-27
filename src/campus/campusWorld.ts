@@ -50,6 +50,8 @@ const PHYSICS_RELEASE = 120;
 const MAX_IN_FLIGHT = 2;
 /** Beyond this, chunk trees switch to a 20-triangle canopy, hide trunks and stop casting shadows. */
 const TREE_LOD_DISTANCE = 220;
+/** Beyond this, facade details (balconies, sunshades, rooftop clutter) are hidden: sub-pixel at that range. */
+const DETAIL_LOD_DISTANCE = 260;
 
 const SHADOW_EXTENT = 40;
 const SHADOW_SIZE: Readonly<Record<Exclude<ShadowQuality, 'off'>, number>> = { low: 1024, high: 2048 };
@@ -89,6 +91,7 @@ interface ChunkRecord {
   release: (() => void) | null;
   trees: { trunks: InstancedMesh; canopies: InstancedMesh } | null;
   treesFar: boolean;
+  details: Mesh | null;
   colliderData: ChunkBuild['collider'];
   collider: RAPIER.Collider | null;
 }
@@ -286,19 +289,21 @@ export function createCampusWorld(
     group.name = `chunk ${rec.cx},${rec.cz}`;
     const geos: BufferGeometry[] = [];
     const instanced: InstancedMesh[] = [];
-    const add = (buf: MeshBuffers | null, mat: Material, cast: boolean): void => {
-      if (!buf) return;
+    const add = (buf: MeshBuffers | null, mat: Material, cast: boolean): Mesh | null => {
+      if (!buf) return null;
       const geo = toGeometry(buf);
       geos.push(geo);
       const mesh = new Mesh(geo, mat);
       mesh.castShadow = cast;
       mesh.receiveShadow = true;
       group.add(mesh);
+      return mesh;
     };
     add(b.facade, mats.facade, true);
     const usedAtlases = b.photoWalls.map((p) => p.atlas);
     for (const p of b.photoWalls) add(p.mesh, acquireAtlas(p.atlas), true);
     add(b.roof, mats.roof, true);
+    rec.details = add(b.details, mats.details, true);
     add(b.fields, mats.field, false);
     add(b.roads, mats.road, false);
     add(b.walkways, mats.walkway, false);
@@ -360,7 +365,7 @@ export function createCampusWorld(
         const rec = chunks.get(key);
         if (d > LOAD_RADIUS) continue;
         if (!rec) {
-          chunks.set(key, { cx, cz, state: 'loading', cancelled: false, group: null, release: null, trees: null, treesFar: false, colliderData: null, collider: null });
+          chunks.set(key, { cx, cz, state: 'loading', cancelled: false, group: null, release: null, trees: null, treesFar: false, details: null, colliderData: null, collider: null });
           queue.push({ cx, cz, d });
         } else if (rec.cancelled) {
           rec.cancelled = false; // came back into range while its build was still in flight
@@ -379,6 +384,7 @@ export function createCampusWorld(
         }
         continue;
       }
+      if (rec.details) rec.details.visible = d < DETAIL_LOD_DISTANCE;
       if (rec.trees && (d > TREE_LOD_DISTANCE) !== rec.treesFar) {
         rec.treesFar = d > TREE_LOD_DISTANCE;
         rec.trees.canopies.geometry = rec.treesFar ? canopyFarGeo : canopyGeo;

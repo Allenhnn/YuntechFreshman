@@ -80,6 +80,17 @@
         <div class="row"><label>win h</label><input id="winH" type="number" step="0.01" /></div>
       </div>
       <div class="row"><label><input id="groundGlass" type="checkbox" /> glazed ground floor</label></div>
+      <h2>3D details (set by eye from 街景參考)</h2>
+      <div class="grid2">
+        <div class="row"><label>balcony</label><select id="balcony"><option value="none">none</option><option value="continuous">per floor</option><option value="bay">per bay</option></select></div>
+        <div class="row"><label>depth m</label><input id="balconyDepth" type="number" step="0.1" min="0.5" max="3" /></div>
+        <div class="row"><label>sunshade</label><select id="fins"><option value="none">none</option><option value="horizontal">horizontal</option><option value="vertical">vertical</option><option value="both">both</option></select></div>
+        <div class="row"><label>depth m</label><input id="finDepth" type="number" step="0.1" min="0.1" max="2" /></div>
+        <div class="row"><label>parapet m</label><input id="parapet" type="number" step="0.1" min="0" max="2" /></div>
+        <div class="row"><label><input id="columns" type="checkbox" /> columns</label></div>
+        <div class="row"><label><input id="canopy" type="checkbox" /> entrance canopy</label></div>
+        <div class="row"><label><input id="rooftop" type="checkbox" /> rooftop units</label></div>
+      </div>
       <canvas id="stylePreview" width="600" height="220"></canvas>
       <div class="row"><button id="saveStyle" class="primary">Save style</button></div>
       <h2>Log</h2>

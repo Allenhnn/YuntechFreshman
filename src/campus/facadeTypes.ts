@@ -8,6 +8,8 @@
 import type { CampusData } from './campusTypes';
 
 export type WindowPattern = 'punched' | 'ribbon' | 'curtain' | 'blank';
+export type BalconyKind = 'none' | 'continuous' | 'bay';
+export type FinKind = 'none' | 'horizontal' | 'vertical' | 'both';
 
 export interface FacadeStyle {
   /** sRGB hex colours, e.g. "#e3dccf". */
@@ -24,6 +26,24 @@ export interface FacadeStyle {
   pattern: WindowPattern;
   /** Ground floor is a glazed storefront / lobby band. */
   groundGlass: boolean;
+
+  // --- 3D details (geometry added in front of the walls; set by eye from Street View) ---
+  /** Balconies on the long walls, upper floors: one strip per floor or one per bay. */
+  balcony: BalconyKind;
+  /** Balcony depth (m). */
+  balconyDepth: number;
+  /** Sunshades: horizontal ledges above windows and / or vertical fins beside them. */
+  fins: FinKind;
+  /** Sunshade depth (m). */
+  finDepth: number;
+  /** Pilasters on every bay line. */
+  columns: boolean;
+  /** Entrance canopy on the wall facing the nearest road. */
+  canopy: boolean;
+  /** Roof parapet height (m), 0 = none. */
+  parapet: number;
+  /** Rooftop clutter: stair bulkhead, water tank, AC units. */
+  rooftop: boolean;
 }
 
 /** One photo wall inside a building's atlas: uv rect [u0, vBottom, u1, vTop], covering the whole edge from ground to roof. */
@@ -96,9 +116,16 @@ export interface PhotoIndex {
 
 export const PATTERN_ID: Readonly<Record<WindowPattern, number>> = { punched: 0, ribbon: 1, curtain: 2, blank: 3 };
 
+/** Detail defaults for styles written before the 3D details existed. */
+export const DETAIL_DEFAULTS = {
+  balcony: 'none', balconyDepth: 1.2, fins: 'none', finDepth: 0.6, columns: false, canopy: true, parapet: 0.9, rooftop: true,
+} as const satisfies Partial<FacadeStyle>;
+
 export const DEFAULT_CAMPUS_STYLE: FacadeStyle = {
   wall: '#e3dccf', trim: '#c9c1b3', glass: '#3e5566', bay: 3.6, floor: 3.6, win: [0.72, 0.5], sill: 0.25, pattern: 'punched', groundGlass: false,
+  ...DETAIL_DEFAULTS,
 };
 export const DEFAULT_TOWN_STYLE: FacadeStyle = {
   wall: '#e8e2d6', trim: '#bdb6aa', glass: '#465a66', bay: 4, floor: 3.2, win: [0.55, 0.45], sill: 0.3, pattern: 'punched', groundGlass: true,
+  ...DETAIL_DEFAULTS, balcony: 'bay', balconyDepth: 1, canopy: false, parapet: 1,
 };

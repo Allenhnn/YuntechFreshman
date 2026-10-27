@@ -19,6 +19,8 @@ import facadeColorFrag from '../shaders/facade/facade_color.frag.glsl';
  */
 export interface CampusMaterials {
   facade: MeshStandardMaterial;
+  /** Facade details (balconies, sunshades, parapets…): colour per vertex from the facade style. */
+  details: MeshStandardMaterial;
   roof: MeshStandardMaterial;
   road: MeshStandardMaterial;
   walkway: MeshStandardMaterial;
@@ -146,6 +148,7 @@ export function createCampusMaterials(renderer: WebGLRenderer, tracker: Resource
   const mat = (m: MeshStandardMaterial): MeshStandardMaterial => tracker.material(m);
   return {
     facade: mat(createFacadeMaterial(tex(256, 1, wallGrainPainter))),
+    details: mat(new MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0 })),
     roof: mat(new MeshStandardMaterial({ map: tex(128, 2, roofPainter), color: new Color(0xcfcac2), roughness: 0.95 })),
     road: mat(layer(new MeshStandardMaterial({ map: tex(256, 3, asphaltPainter), roughness: 0.92 }), 2)),
     walkway: mat(layer(new MeshStandardMaterial({ map: tex(256, 4, paverPainter), roughness: 0.9 }), 3)),
