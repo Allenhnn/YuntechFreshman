@@ -1,0 +1,58 @@
+{
+ "building": "工程一館",
+ "osm": [
+  296668599
+ ],
+ "floors": {
+  "1F": {
+   "page": "1F_e1-01.jpg",
+   "scale": 7.01,
+   "offset": [
+    0,
+    0
+   ],
+   "rooms": 29,
+   "coded": 18,
+   "legend": 27,
+   "openings": 101
+  },
+  "2F": {
+   "page": "2F_e1-03.jpg",
+   "scale": 7.01,
+   "offset": [
+    0,
+    0
+   ],
+   "rooms": 38,
+   "coded": 28,
+   "legend": 31,
+   "openings": 61
+  },
+  "3F": {
+   "page": "3F_e1-05.jpg",
+   "scale": 7.01,
+   "offset": [
+    -1,
+    -1
+   ],
+   "rooms": 61,
+   "coded": 34,
+   "legend": 43,
+   "openings": 63
+  }
+ },
+ "registration": {
+  "angleDeg": 346.0,
+  "planCentroid": [
+   50.882,
+   71.71
+  ],
+  "worldCentroid": [
+   204.735,
+   -306.725
+  ],
+  "iou": 0.791
+ },
+ "stairs": 4,
+ "accepted": true
+}

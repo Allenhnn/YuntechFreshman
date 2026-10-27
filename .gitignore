@@ -11,3 +11,7 @@ assets-src/floorplans/**/*.png
 
 # own campus photos (large originals; only processed textures are committed)
 assets-src/photos/**/originals/
+
+# derived OCR / tracing caches next to the scans
+assets-src/floorplans/**/.ocr/
+scripts/floorplan/.ocr

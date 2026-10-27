@@ -1,0 +1,72 @@
+{
+ "building": "設計一、二館",
+ "osm": [
+  296668625,
+  296668626,
+  296668627
+ ],
+ "floors": {
+  "1F": {
+   "page": "1F_f1-03.jpg",
+   "scale": 4.68,
+   "offset": [
+    0,
+    0
+   ],
+   "rooms": 63,
+   "coded": 25,
+   "legend": 48,
+   "openings": 115
+  },
+  "2F": {
+   "page": "2F_f1-05.jpg",
+   "scale": 4.74,
+   "offset": [
+    2,
+    -1
+   ],
+   "rooms": 53,
+   "coded": 20,
+   "legend": 30,
+   "openings": 66
+  },
+  "3F": {
+   "page": "3F_f1-07.jpg",
+   "scale": 4.69,
+   "offset": [
+    25,
+    -3
+   ],
+   "rooms": 63,
+   "coded": 25,
+   "legend": 47,
+   "openings": 83
+  },
+  "4F": {
+   "page": "4F_f1-09.jpg",
+   "scale": 4.69,
+   "offset": [
+    27,
+    -2
+   ],
+   "rooms": 43,
+   "coded": 17,
+   "legend": 32,
+   "openings": 51
+  }
+ },
+ "registration": {
+  "angleDeg": 80.0,
+  "planCentroid": [
+   78.246,
+   109.098
+  ],
+  "worldCentroid": [
+   36.068,
+   58.249
+  ],
+  "iou": 0.865
+ },
+ "stairs": 12,
+ "accepted": true
+}

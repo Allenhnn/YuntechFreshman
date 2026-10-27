@@ -102,7 +102,7 @@ export function addFacadeDetails(
   colors: DetailColors,
   roads: readonly CampusRoad[],
   skipEdges: ReadonlySet<number>,
-  door: Entrance | null = null,
+  doors: readonly Entrance[] = [],
 ): void {
   const floors = Math.max(1, b.levels || Math.round(b.height / 3.6));
   const fh = b.height / floors;
@@ -123,7 +123,7 @@ export function addFacadeDetails(
     if (style.columns) {
       for (let k = 0; k <= bays; k++) {
         const a = k * bw;
-        if (door?.edge === i && Math.abs(a - door.along) < DOOR_WIDTH / 2 + COLUMN_W) continue; // keep the doorway clear
+        if (doors.some((d) => d.edge === i && Math.abs(a - d.along) < DOOR_WIDTH / 2 + COLUMN_W)) continue; // keep doorways clear
         wallBox(g, w, Math.max(0, a - COLUMN_W / 2), Math.min(w.len, a + COLUMN_W / 2), 0, COLUMN_D, 0, b.height, colors.trim);
       }
     }
@@ -161,7 +161,7 @@ export function addFacadeDetails(
   });
 
   // Canopy over the entrance (or, for buildings without an interior, the wall facing the nearest road).
-  const entrance = door ?? (style.canopy ? buildingEntrance(b, roads, skipEdges) : null);
+  const entrance = doors[0] ?? (style.canopy ? buildingEntrance(b, roads, skipEdges) : null);
   if (style.canopy && entrance) {
     const w = ws[entrance.edge];
     if (w && w.len >= 6) {

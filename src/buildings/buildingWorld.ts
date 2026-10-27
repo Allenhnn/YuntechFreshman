@@ -73,28 +73,8 @@ export async function loadBuildingSource(url: string): Promise<BuildingSource> {
   return (await res.json()) as BuildingSource;
 }
 
-/** Plan → world transform helpers without needing the meshes (used before the campus is built). */
-export function createPlanTransform(src: BuildingSource): {
-  toWorld(x: number, y: number): [number, number];
-  toPlan(x: number, z: number): [number, number];
-  rotY: number;
-} {
-  const t = src.transform;
-  const a = (t.angleDeg * Math.PI) / 180;
-  const c = Math.cos(a), s = Math.sin(a);
-  return {
-    toWorld(x, y) {
-      const qx = x - t.planCentroid[0], qy = y - t.planCentroid[1];
-      return [qx * c - qy * s + t.worldCentroid[0], qx * s + qy * c + t.worldCentroid[1]];
-    },
-    toPlan(x, z) {
-      const qx = x - t.worldCentroid[0], qz = z - t.worldCentroid[1];
-      return [qx * c + qz * s + t.planCentroid[0], -qx * s + qz * c + t.planCentroid[1]];
-    },
-    // Object3D.rotation.y = φ maps (x, z) → (x cosφ + z sinφ, −x sinφ + z cosφ); we need R(+a) → φ = −a.
-    rotY: -a,
-  };
-}
+export { createPlanTransform } from './planTransform';
+import { createPlanTransform } from './planTransform';
 
 /** World rings of the plan rects where the campus ground plane is cut open. */
 export function buildingGroundHoles(src: BuildingSource): Ring[] {
@@ -124,8 +104,8 @@ export interface HandBuiltOptions {
   meshes?: BuildingMeshes;
   /** Materials and furniture kit shared by all generated interiors. */
   shared?: { imats: InteriorMaterials; kit: FurnitureKit };
-  /** World ring of the footprint: with it, the player's level comes from height alone (no plan grids). */
-  footprint?: Ring;
+  /** World rings of the footprint: with them, the player's level comes from height alone (no plan grids). */
+  footprints?: Ring[];
 }
 
 export function createHandBuiltBuilding(
@@ -308,13 +288,13 @@ export function createHandBuiltBuilding(
    * Inside: show the player's floor and its neighbours (voids look one floor up / down).
    * Outside: only the ground floor and basement (seen through doors and the stairwell).
    */
-  const ring = options.footprint;
-  const levelGrids = ring ? [] : meshes.levels.map((l) => ({ id: l.id, base: l.base, grid: rasterize(src.floors[l.id]!.spaces) }));
+  const rings = options.footprints;
+  const levelGrids = rings ? [] : meshes.levels.map((l) => ({ id: l.id, base: l.base, grid: rasterize(src.floors[l.id]!.spaces) }));
   const updateVisibility = (px: number, py: number, pz: number): void => {
     if (!interior) return;
     let current = -1;
-    if (ring) {
-      if (pointInRing(px, pz, ring)) meshes.levels.forEach((l, i) => { if (py + 0.8 >= l.base) current = i; });
+    if (rings) {
+      if (rings.some((r) => pointInRing(px, pz, r))) meshes.levels.forEach((l, i) => { if (py + 0.8 >= l.base) current = i; });
     } else {
       const [x, y] = xf.toPlan(px, pz);
       levelGrids.forEach((l, i) => {

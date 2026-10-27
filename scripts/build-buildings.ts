@@ -5,7 +5,9 @@
  *  - traced room areas are compared with the official space table (legendArea)
  */
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
-import type { BuildingSource } from '../src/buildings/buildingTypes';
+import type { BuildingSource, TracedIndex } from '../src/buildings/buildingTypes';
+import type { CampusData } from '../src/campus/campusTypes';
+import { createPlanTransform } from '../src/buildings/planTransform';
 import { applyOpenings, areaOf, boundarySegments, rasterize } from '../src/buildings/floorGrid';
 import { buildBuildingMeshes } from '../src/buildings/buildingMesh';
 
@@ -14,7 +16,69 @@ const OUT = 'public/data/buildings';
 
 let problems = 0;
 mkdirSync(OUT, { recursive: true });
-for (const dir of readdirSync(SRC)) {
+const campus = JSON.parse(readFileSync('public/data/campus.json', 'utf8')) as CampusData;
+const traced: TracedIndex = { buildings: [], entrances: {} };
+
+/**
+ * Plan exits on the ground floor → door gaps in the OSM shells. Each exit snaps to the nearest
+ * outer-ring edge within 2.5 m. Gaps in the drawn outer wall are also windows, so per shell only
+ * the (up to) 3 exits closest to a road or path are kept, at least 8 m apart.
+ */
+const MAX_SHELL_DOORS = 3;
+function roadDistance(x: number, z: number): number {
+  let best = Infinity;
+  for (const r of campus.roads) {
+    for (let k = 0; k + 3 < r.points.length; k += 2) {
+      const ax = r.points[k]!, az = r.points[k + 1]!, sx = r.points[k + 2]! - ax, sz = r.points[k + 3]! - az;
+      const t = Math.max(0, Math.min(1, ((x - ax) * sx + (z - az) * sz) / (sx * sx + sz * sz || 1)));
+      best = Math.min(best, Math.hypot(ax + sx * t - x, az + sz * t - z) - r.width / 2);
+    }
+  }
+  return best;
+}
+
+function shellEntrances(b: BuildingSource): void {
+  const xf = createPlanTransform(b);
+  const ground = b.floors[b.levels.find((l) => l.elevation === 0)?.id ?? '1F'];
+  const candidates: { id: number; edge: number; along: number; x: number; z: number; road: number }[] = [];
+  for (const o of ground?.openings ?? []) {
+    if (o.kind !== 'exit') continue;
+    const [wx, wz] = xf.toWorld((o.a[0] + o.b[0]) / 2, (o.a[1] + o.b[1]) / 2);
+    let best: { id: number; edge: number; along: number; d: number } | null = null;
+    for (const id of b.osmIds ?? []) {
+      const r = campus.buildings.find((x) => x.id === id)?.outer;
+      if (!r) continue;
+      for (let i = 0, n = r.length / 2; i < n; i++) {
+        const j = (i + 1) % n;
+        const ax = r[i * 2]!, az = r[i * 2 + 1]!, dx = r[j * 2]! - ax, dz = r[j * 2 + 1]! - az;
+        const len = Math.hypot(dx, dz);
+        if (len < 3.6) continue;
+        // The door (2.4 m) must fit on the edge: exits projecting past an end belong to another wall.
+        const t = ((wx - ax) * dx + (wz - az) * dz) / (len * len);
+        if (t * len < 1.3 || (1 - t) * len < 1.3) continue;
+        const d = Math.hypot(ax + dx * t - wx, az + dz * t - wz);
+        if (d < 2.5 && (!best || d < best.d)) best = { id, edge: i, along: t * len, d };
+      }
+    }
+    if (best) candidates.push({ ...best, x: wx, z: wz, road: roadDistance(wx, wz) });
+  }
+  candidates.sort((a, c) => a.road - c.road);
+  for (const c of candidates) {
+    const list = (traced.entrances[String(c.id)] ??= []);
+    if (list.length >= MAX_SHELL_DOORS) continue;
+    const r = campus.buildings.find((x) => x.id === c.id)!.outer;
+    const pos = (e: { edge: number; along: number }): [number, number] => {
+      const n = r.length / 2, j = (e.edge + 1) % n;
+      const ax = r[e.edge * 2]!, az = r[e.edge * 2 + 1]!, dx = r[j * 2]! - ax, dz = r[j * 2 + 1]! - az, len = Math.hypot(dx, dz);
+      return [ax + (dx / len) * e.along, az + (dz / len) * e.along];
+    };
+    const here = pos(c);
+    if (list.some((e) => { const p = pos(e); return Math.hypot(p[0] - here[0], p[1] - here[1]) < 8; })) continue;
+    list.push({ edge: c.edge, along: Math.round(c.along * 100) / 100 });
+  }
+}
+
+for (const dir of readdirSync(SRC, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name)) {
   for (const file of readdirSync(`${SRC}/${dir}`).filter((f) => f.endsWith('.source.json'))) {
     const b = JSON.parse(readFileSync(`${SRC}/${dir}/${file}`, 'utf8')) as BuildingSource;
     console.log(`\n${b.name} (${b.id})`);
@@ -52,6 +116,12 @@ for (const dir of readdirSync(SRC)) {
     }
     writeFileSync(`${OUT}/${b.id}.json`, JSON.stringify(b));
     console.log(`  → ${OUT}/${b.id}.json`);
+    if (b.osmIds?.length) {
+      traced.buildings.push({ id: b.id, name: b.name, osmIds: b.osmIds, file: `data/buildings/${b.id}.json` });
+      shellEntrances(b);
+    }
   }
 }
+writeFileSync(`${OUT}/traced.json`, JSON.stringify(traced));
+console.log(`\n${traced.buildings.length} traced buildings, ${Object.values(traced.entrances).flat().length} shell entrances → ${OUT}/traced.json`);
 if (problems) console.warn(`\n${problems} item(s) to review`);

@@ -1,0 +1,58 @@
+{
+ "building": "人科一館",
+ "osm": [
+  234786940
+ ],
+ "floors": {
+  "1F": {
+   "page": "1F_c1-01.jpg",
+   "scale": 32.53,
+   "offset": [
+    0,
+    0
+   ],
+   "rooms": 32,
+   "coded": 26,
+   "legend": 28,
+   "openings": 107
+  },
+  "2F": {
+   "page": "2F_c1-03.jpg",
+   "scale": 32.53,
+   "offset": [
+    1,
+    0
+   ],
+   "rooms": 40,
+   "coded": 32,
+   "legend": 31,
+   "openings": 59
+  },
+  "3F": {
+   "page": "3F_c1-05.jpg",
+   "scale": 32.51,
+   "offset": [
+    1,
+    0
+   ],
+   "rooms": 36,
+   "coded": 27,
+   "legend": 26,
+   "openings": 61
+  }
+ },
+ "registration": {
+  "angleDeg": 264.5,
+  "planCentroid": [
+   31.778,
+   50.538
+  ],
+  "worldCentroid": [
+   27.125,
+   -49.787
+  ],
+  "iou": 0.839
+ },
+ "stairs": 0,
+ "accepted": true
+}

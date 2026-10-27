@@ -1,0 +1,82 @@
+{
+ "building": "設計三館",
+ "osm": [
+  234786946
+ ],
+ "floors": {
+  "1F": {
+   "page": "1F_f2-03.jpg",
+   "scale": 7.56,
+   "offset": [
+    0,
+    0
+   ],
+   "rooms": 18,
+   "coded": 1,
+   "legend": 12,
+   "openings": 55
+  },
+  "2F": {
+   "page": "2F_f2-05.jpg",
+   "scale": 7.67,
+   "offset": [
+    8,
+    -5
+   ],
+   "rooms": 9,
+   "coded": 1,
+   "legend": 12,
+   "openings": 6
+  },
+  "3F": {
+   "page": "3F_f2-07.jpg",
+   "scale": 9.38,
+   "offset": [
+    1,
+    23
+   ],
+   "rooms": 9,
+   "coded": 4,
+   "legend": 13,
+   "openings": 4
+  },
+  "4F": {
+   "page": "4F_f2-09.jpg",
+   "scale": 9.2,
+   "offset": [
+    28,
+    0
+   ],
+   "rooms": 14,
+   "coded": 4,
+   "legend": 14,
+   "openings": 15
+  },
+  "5F": {
+   "page": "5F_f2-11.jpg",
+   "scale": 7.5,
+   "offset": [
+    1,
+    1
+   ],
+   "rooms": 40,
+   "coded": 4,
+   "legend": 33,
+   "openings": 85
+  }
+ },
+ "registration": {
+  "angleDeg": 346.5,
+  "planCentroid": [
+   44.53,
+   75.247
+  ],
+  "worldCentroid": [
+   130.091,
+   -1.093
+  ],
+  "iou": 0.712
+ },
+ "stairs": 0,
+ "accepted": true
+}

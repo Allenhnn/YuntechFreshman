@@ -1,0 +1,1408 @@
+{
+ "行政大樓": {
+  "1F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/483-1",
+   "files": [
+    "1F_a2-01.jpg",
+    "1F_a2-02.jpg"
+   ]
+  },
+  "2F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/484-1",
+   "files": [
+    "2F_a2-03.jpg",
+    "2F_a2-04.jpg"
+   ]
+  },
+  "3F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/485-1",
+   "files": [
+    "3F_a2-05.jpg",
+    "3F_a2-06.jpg"
+   ]
+  },
+  "4F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/486-1",
+   "files": [
+    "4F_a2-07.jpg",
+    "4F_a2-08.jpg"
+   ]
+  }
+ },
+ "司機及景觀班辦公室": {
+  "plan": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/487-1",
+   "files": [
+    "plan_i1-01.jpg",
+    "plan_i1-02.jpg"
+   ]
+  }
+ },
+ "資訊大樓(含國際會議廳)": {
+  "B1": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/488-1",
+   "files": [
+    "B1_a3-01.jpg",
+    "B1_a3-02.jpg"
+   ]
+  },
+  "1F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/489-1",
+   "files": [
+    "1F_a3-03.jpg",
+    "1F_a3-04.jpg"
+   ]
+  },
+  "2F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/490-1",
+   "files": [
+    "2F_a3-05.jpg",
+    "2F_a3-06.jpg"
+   ]
+  },
+  "3F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/491-1",
+   "files": [
+    "3F_a3-07.jpg",
+    "3F_a3-08.jpg"
+   ]
+  }
+ },
+ "雲泰表演廳": {
+  "1F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/500-1",
+   "files": [
+    "1F_a5-01.jpg",
+    "1F_a5-02.jpg"
+   ]
+  },
+  "2F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/501-1",
+   "files": [
+    "2F_a5-03.jpg",
+    "2F_a5-04.jpg"
+   ]
+  },
+  "走廊": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/502-1",
+   "files": [
+    "走廊_a5-05.jpg",
+    "走廊_a5-06.jpg"
+   ]
+  },
+  "頂樓": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/503-1",
+   "files": [
+    "頂樓_a5-07.jpg",
+    "頂樓_a5-08.jpg"
+   ]
+  }
+ },
+ "活動中心": {
+  "B1": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/504-1",
+   "files": [
+    "B1_a9-01.jpg",
+    "B1_a9-02.jpg"
+   ]
+  },
+  "1F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/505-1",
+   "files": [
+    "1F_a9-03.jpg",
+    "1F_a9-04.jpg"
+   ]
+  },
+  "2-1F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/506-1",
+   "files": [
+    "2-1F_a9-05.jpg",
+    "2-1F_a9-06.jpg"
+   ]
+  },
+  "2-2F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/507-1",
+   "files": [
+    "2-2F_a9-07.jpg",
+    "2-2F_a9-08.jpg"
+   ]
+  },
+  "3F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/508-1",
+   "files": [
+    "3F_a9-09.jpg",
+    "3F_a9-10.jpg"
+   ]
+  }
+ },
+ "體育館": {
+  "B2": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/509-1",
+   "files": [
+    "B2_a6-01.jpg",
+    "B2_a6-02.jpg"
+   ]
+  },
+  "B1": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/510-1",
+   "files": [
+    "B1_a6-03.jpg",
+    "B1_a6-04.jpg"
+   ]
+  },
+  "1F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/511-1",
+   "files": [
+    "1F_a6-05.jpg",
+    "1F_a6-06.jpg"
+   ]
+  },
+  "2F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/512-1",
+   "files": [
+    "2F_a6-07.jpg",
+    "2F_a6-08.jpg"
+   ]
+  },
+  "3F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/513-1",
+   "files": [
+    "3F_a6-09.jpg",
+    "3F_a6-10.jpg"
+   ]
+  },
+  "4F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/514-1",
+   "files": [
+    "4F_a6-11.jpg",
+    "4F_a6-12.jpg"
+   ]
+  },
+  "5F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/515-1",
+   "files": [
+    "5F_a6-13.jpg",
+    "5F_a6-14.jpg"
+   ]
+  },
+  "6F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/516-1",
+   "files": [
+    "6F_a6-15.jpg",
+    "6F_a6-16.jpg"
+   ]
+  },
+  "7F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/517-1",
+   "files": [
+    "7F_a6-17.jpg",
+    "7F_a6-18.jpg"
+   ]
+  },
+  "頂樓": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/518-1",
+   "files": [
+    "頂樓_a6-19.jpg",
+    "頂樓_a6-20.jpg"
+   ]
+  }
+ },
+ "游泳館": {
+  "B1": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/519-1",
+   "files": [
+    "B1_a7-01.jpg",
+    "B1_a7-02.jpg"
+   ]
+  },
+  "1F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/520-1",
+   "files": [
+    "1F_a7-03.jpg",
+    "1F_a7-04.jpg"
+   ]
+  },
+  "2F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/521-1",
+   "files": [
+    "2F_a7-05.jpg",
+    "2F_a7-06.jpg"
+   ]
+  },
+  "3F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/522-1",
+   "files": [
+    "3F_a7-07.jpg",
+    "3F_a7-08.jpg"
+   ]
+  }
+ },
+ "體育場平面圖": {
+  "plan": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/523-1",
+   "files": [
+    "plan_a8-01.jpg",
+    "plan_a8-02.jpg"
+   ]
+  }
+ },
+ "體育場司令台": {
+  "1F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/524-1",
+   "files": [
+    "1F_a8-03.jpg",
+    "1F_a8-04.jpg"
+   ]
+  },
+  "2F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/525-1",
+   "files": [
+    "2F_a8-05.jpg",
+    "2F_a8-06.jpg"
+   ]
+  },
+  "3F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/526-1",
+   "files": [
+    "3F_a8-07.jpg",
+    "3F_a8-08.jpg"
+   ]
+  },
+  "頂樓": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/527-1",
+   "files": [
+    "頂樓_a8-09.jpg",
+    "頂樓_a8-10.jpg"
+   ]
+  }
+ },
+ "產學研大樓": {
+  "B1": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/528-1",
+   "files": [
+    "B1_a11-01.jpg",
+    "B1_a11-02.jpg"
+   ]
+  },
+  "1F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/529-1",
+   "files": [
+    "1F_a11-03.jpg",
+    "1F_a11-04.jpg"
+   ]
+  },
+  "2F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/530-1",
+   "files": [
+    "2F_a11-05.jpg",
+    "2F_a11-06.jpg"
+   ]
+  },
+  "3F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/531-1",
+   "files": [
+    "3F_a11-07.jpg",
+    "3F_a11-08.jpg"
+   ]
+  },
+  "4F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/532-1",
+   "files": [
+    "4F_a11-09.jpg",
+    "4F_a11-10.jpg"
+   ]
+  },
+  "5F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/533-1",
+   "files": [
+    "5F_a11-11.jpg",
+    "5F_a11-12.jpg"
+   ]
+  },
+  "6F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/534-1",
+   "files": [
+    "6F_a11-13.jpg",
+    "6F_a11-14.jpg"
+   ]
+  },
+  "7F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/535-1",
+   "files": [
+    "7F_a11-15.jpg",
+    "7F_a11-16.jpg"
+   ]
+  },
+  "8F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/536-1",
+   "files": [
+    "8F_a11-17.jpg",
+    "8F_a11-18.jpg"
+   ]
+  }
+ },
+ "人科一館": {
+  "1F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/537-1",
+   "files": [
+    "1F_c1-01.jpg",
+    "1F_c1-02.jpg"
+   ]
+  },
+  "2F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/538-1",
+   "files": [
+    "2F_c1-03.jpg",
+    "2F_c1-04.jpg"
+   ]
+  },
+  "3F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/539-1",
+   "files": [
+    "3F_c1-05.jpg",
+    "3F_c1-06.jpg"
+   ]
+  }
+ },
+ "人科二館": {
+  "1F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/540-1",
+   "files": [
+    "1F_c2-01.jpg",
+    "1F_c2-02.jpg"
+   ]
+  },
+  "2F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/541-1",
+   "files": [
+    "2F_c2-03.jpg",
+    "2F_c2-04.jpg"
+   ]
+  },
+  "3F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/542-1",
+   "files": [
+    "3F_c2-05.jpg",
+    "3F_c2-06.jpg"
+   ]
+  }
+ },
+ "技職大樓": {
+  "2F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/544-1",
+   "files": [
+    "2F_c3-03.jpg",
+    "2F_c3-04.jpg"
+   ]
+  }
+ },
+ "雲旭樓": {
+  "1F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/1040-1",
+   "files": [
+    "1F_c4-01.jpg",
+    "1F_c4-02.jpg"
+   ]
+  },
+  "2F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/1041-1",
+   "files": [
+    "2F_c4-03.jpg",
+    "2F_c4-04.jpg"
+   ]
+  },
+  "3F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/1042-1",
+   "files": [
+    "3F_c4-05.jpg",
+    "3F_c4-06.jpg"
+   ]
+  }
+ },
+ "設計一、二館": {
+  "B1": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/548-1",
+   "files": [
+    "B1_f1-01.jpg",
+    "B1_f1-02.jpg"
+   ]
+  },
+  "1F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/549-1",
+   "files": [
+    "1F_f1-03.jpg",
+    "1F_f1-04.jpg",
+    "1F_f1-04-2.jpg"
+   ]
+  },
+  "2F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/550-1",
+   "files": [
+    "2F_f1-05.jpg",
+    "2F_f1-06.jpg"
+   ]
+  },
+  "3F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/551-1",
+   "files": [
+    "3F_f1-07.jpg",
+    "3F_f1-08.jpg"
+   ]
+  },
+  "4F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/552-1",
+   "files": [
+    "4F_f1-09.jpg",
+    "4F_f1-10.jpg"
+   ]
+  }
+ },
+ "設計三館": {
+  "B1": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/553-1",
+   "files": [
+    "B1_f2-01.jpg",
+    "B1_f2-02.jpg"
+   ]
+  },
+  "1F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/554-1",
+   "files": [
+    "1F_f2-03.jpg",
+    "1F_f2-04.jpg"
+   ]
+  },
+  "2F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/555-1",
+   "files": [
+    "2F_f2-05.jpg",
+    "2F_f2-06.jpg"
+   ]
+  },
+  "3F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/556-1",
+   "files": [
+    "3F_f2-07.jpg",
+    "3F_f2-08.jpg"
+   ]
+  },
+  "4F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/557-1",
+   "files": [
+    "4F_f2-09.jpg",
+    "4F_f2-10.jpg"
+   ]
+  },
+  "5F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/558-1",
+   "files": [
+    "5F_f2-11.jpg",
+    "5F_f2-12.jpg"
+   ]
+  }
+ },
+ "設計工坊": {
+  "1F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/559-1",
+   "files": [
+    "1F_f3-01.jpg",
+    "1F_f3-02.jpg"
+   ]
+  },
+  "2F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/560-1",
+   "files": [
+    "2F_f3-03.jpg",
+    "2F_f3-04.jpg"
+   ]
+  }
+ },
+ "管理一館": {
+  "1F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/561-1",
+   "files": [
+    "1F_d1-01.jpg",
+    "1F_d1-02.jpg"
+   ]
+  },
+  "2F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/562-1",
+   "files": [
+    "2F_d1-03.jpg",
+    "2F_d1-04.jpg"
+   ]
+  },
+  "3F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/563-1",
+   "files": [
+    "3F_d1-05.jpg",
+    "3F_d1-06.jpg"
+   ]
+  }
+ },
+ "管理二館": {
+  "B1": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/564-1",
+   "files": [
+    "B1_d2-01.jpg",
+    "B1_d2-02.jpg"
+   ]
+  },
+  "1F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/565-1",
+   "files": [
+    "1F_d2-03.jpg",
+    "1F_d2-04.jpg"
+   ]
+  },
+  "2F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/566-1",
+   "files": [
+    "2F_d2-05.jpg",
+    "2F_d2-06.jpg"
+   ]
+  },
+  "3F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/567-1",
+   "files": [
+    "3F_d2-07.jpg",
+    "3F_d2-08.jpg"
+   ]
+  },
+  "4F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/568-1",
+   "files": [
+    "4F_d2-09.jpg",
+    "4F_d2-10.jpg"
+   ]
+  }
+ },
+ "管理三館": {
+  "B1": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/569-1",
+   "files": [
+    "B1_d3-01.jpg",
+    "B1_d3-02.jpg"
+   ]
+  },
+  "1F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/570-1",
+   "files": [
+    "1F_d3-03.jpg",
+    "1F_d3-04.jpg"
+   ]
+  },
+  "2F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/571-1",
+   "files": [
+    "2F_d3-05.jpg",
+    "2F_d3-06.jpg"
+   ]
+  },
+  "3F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/572-1",
+   "files": [
+    "3F_d3-07.jpg",
+    "3F_d3-08.jpg"
+   ]
+  },
+  "4F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/573-1",
+   "files": [
+    "4F_d3-09.jpg",
+    "4F_d3-10.jpg"
+   ]
+  },
+  "5F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/574-1",
+   "files": [
+    "5F_d3-11.jpg",
+    "5F_d3-12.jpg"
+   ]
+  },
+  "屋頂": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/575-1",
+   "files": [
+    "屋頂_d3-13.jpg",
+    "屋頂_d3-14.jpg"
+   ]
+  }
+ },
+ "工程一館": {
+  "1F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/576-1",
+   "files": [
+    "1F_e1-01.jpg",
+    "1F_e1-02.jpg"
+   ]
+  },
+  "2F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/577-1",
+   "files": [
+    "2F_e1-03.jpg",
+    "2F_e1-04.jpg"
+   ]
+  },
+  "3F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/578-1",
+   "files": [
+    "3F_e1-05.jpg",
+    "3F_e1-06.jpg"
+   ]
+  }
+ },
+ "工程二館": {
+  "1F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/579-1",
+   "files": [
+    "1F_e2-01.jpg",
+    "1F_e2-02.jpg"
+   ]
+  },
+  "2F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/580-1",
+   "files": [
+    "2F_e2-03.jpg",
+    "2F_e2-04.jpg"
+   ]
+  },
+  "3F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/581-1",
+   "files": [
+    "3F_e2-05.jpg",
+    "3F_e2-06.jpg"
+   ]
+  },
+  "4F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/582-1",
+   "files": [
+    "4F_e2-07.jpg",
+    "4F_e2-08.jpg"
+   ]
+  }
+ },
+ "工程三館": {
+  "B1": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/583-1",
+   "files": [
+    "B1_e3-01.jpg",
+    "B1_e3-02.jpg"
+   ]
+  },
+  "1F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/584-1",
+   "files": [
+    "1F_e3-03.jpg",
+    "1F_e3-04.jpg"
+   ]
+  },
+  "2F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/585-1",
+   "files": [
+    "2F_e3-05.jpg",
+    "2F_e3-06.jpg"
+   ]
+  },
+  "3F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/586-1",
+   "files": [
+    "3F_e3-07.jpg",
+    "3F_e3-08.jpg"
+   ]
+  },
+  "4F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/587-1",
+   "files": [
+    "4F_e3-09.jpg",
+    "4F_e3-10.jpg"
+   ]
+  },
+  "5F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/588-1",
+   "files": [
+    "5F_e3-11.jpg",
+    "5F_e3-12.jpg"
+   ]
+  },
+  "6F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/589-1",
+   "files": [
+    "6F_e3-13.jpg",
+    "6F_e3-14.jpg"
+   ]
+  },
+  "7F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/590-1",
+   "files": [
+    "7F_e3-15.jpg",
+    "7F_e3-16.jpg"
+   ]
+  },
+  "8F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/591-1",
+   "files": [
+    "8F_e3-17.jpg",
+    "8F_e3-18.jpg"
+   ]
+  },
+  "9F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/592-1",
+   "files": [
+    "9F_e3-19.jpg",
+    "9F_e3-20.jpg"
+   ]
+  },
+  "10F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/593-1",
+   "files": [
+    "10F_e3-21.jpg",
+    "10F_e3-22.jpg"
+   ]
+  }
+ },
+ "工程四館": {
+  "1F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/594-1",
+   "files": [
+    "1F_e4-01.jpg",
+    "1F_e4-02.jpg"
+   ]
+  },
+  "2F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/595-1",
+   "files": [
+    "2F_e4-03.jpg",
+    "2F_e4-04.jpg"
+   ]
+  },
+  "3F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/596-1",
+   "files": [
+    "3F_e4-05.jpg",
+    "3F_e4-06.jpg"
+   ]
+  },
+  "4F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/597-1",
+   "files": [
+    "4F_e4-07.jpg",
+    "4F_e4-08.jpg"
+   ]
+  },
+  "5F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/598-1",
+   "files": [
+    "5F_e4-09.jpg",
+    "5F_e4-10.jpg"
+   ]
+  }
+ },
+ "工程五館": {
+  "1F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/599-1",
+   "files": [
+    "1F_e7-01.jpg",
+    "1F_e7-02.jpg"
+   ]
+  },
+  "2F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/600-1",
+   "files": [
+    "2F_e7-03.jpg",
+    "2F_e7-04.jpg"
+   ]
+  },
+  "3F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/601-1",
+   "files": [
+    "3F_e7-05.jpg",
+    "3F_e7-06.jpg"
+   ]
+  },
+  "4F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/602-1",
+   "files": [
+    "4F_e7-07.jpg",
+    "4F_e7-08.jpg"
+   ]
+  },
+  "5F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/603-1",
+   "files": [
+    "5F_e7-09.jpg",
+    "5F_e7-10.jpg"
+   ]
+  }
+ },
+ "工程六館": {
+  "1F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/604-1",
+   "files": [
+    "1F_e9-01.jpg",
+    "1F_e9-02.jpg"
+   ]
+  },
+  "2F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/605-1",
+   "files": [
+    "2F_e9-03.jpg",
+    "2F_e9-04.jpg"
+   ]
+  },
+  "3F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/606-1",
+   "files": [
+    "3F_e9-05.jpg",
+    "3F_e9-06.jpg"
+   ]
+  },
+  "4F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/607-1",
+   "files": [
+    "4F_e9-07.jpg",
+    "4F_e9-08.jpg"
+   ]
+  },
+  "5F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/608-1",
+   "files": [
+    "5F_e9-09.jpg",
+    "5F_e9-10.jpg"
+   ]
+  }
+ },
+ "營建實習工廠": {
+  "plan": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/609-1",
+   "files": [
+    "plan_e5-01.jpg",
+    "plan_e5-02.jpg"
+   ]
+  }
+ },
+ "大地防災與軌道技術研究中心": {
+  "1F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/610-1",
+   "files": [
+    "1F_e6-01.jpg",
+    "1F_e6-02.jpg"
+   ]
+  },
+  "2F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/611-1",
+   "files": [
+    "2F_e6-03.jpg",
+    "2F_e6-04.jpg"
+   ]
+  }
+ },
+ "營建材料試驗館": {
+  "1F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/612-1",
+   "files": [
+    "1F_e8-01.jpg",
+    "1F_e8-02.jpg"
+   ]
+  },
+  "2F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/613-1",
+   "files": [
+    "2F_e8-03.jpg",
+    "2F_e8-04.jpg"
+   ]
+  },
+  "3F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/614-1",
+   "files": [
+    "3F_e8-05.jpg",
+    "3F_e8-06.jpg"
+   ]
+  },
+  "屋頂": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/615-1",
+   "files": [
+    "屋頂_e8-07.jpg",
+    "屋頂_e8-08.jpg"
+   ]
+  }
+ },
+ "營建教學暨服務大樓": {
+  "1F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/616-1",
+   "files": [
+    "1F_e8-09.jpg",
+    "1F_e8-10.jpg"
+   ]
+  },
+  "2F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/617-1",
+   "files": [
+    "2F_e8-11.jpg",
+    "2F_e8-12.jpg"
+   ]
+  },
+  "3F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/618-1",
+   "files": [
+    "3F_e8-13.jpg",
+    "3F_e8-14.jpg"
+   ]
+  },
+  "4F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/619-1",
+   "files": [
+    "4F_e8-15.jpg",
+    "4F_e8-16.jpg"
+   ]
+  }
+ },
+ "燃燒動力及高分子加工實驗室": {
+  "plan": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/620-1",
+   "files": [
+    "plan_i2-01.jpg",
+    "plan_i2-02.jpg"
+   ]
+  }
+ },
+ "空調與消防實驗場": {
+  "plan": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/621-1",
+   "files": [
+    "plan_i3-01.jpg",
+    "plan_i3-02.jpg"
+   ]
+  }
+ },
+ "綜合教學大樓": {
+  "1F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/622-1",
+   "files": [
+    "1F_j1-01.jpg",
+    "1F_j1-02.jpg"
+   ]
+  },
+  "2F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/623-1",
+   "files": [
+    "2F_j1-03.jpg",
+    "2F_j1-04.jpg"
+   ]
+  },
+  "3F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/624-1",
+   "files": [
+    "3F_j1-05.jpg",
+    "3F_j1-06.jpg"
+   ]
+  }
+ },
+ "學生宿舍A棟": {
+  "1F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/625-1",
+   "files": [
+    "1F_b1-a01.jpg",
+    "1F_b1-a02.jpg"
+   ]
+  },
+  "2F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/626-1",
+   "files": [
+    "2F_b1-a03.jpg",
+    "2F_b1-a04.jpg"
+   ]
+  },
+  "3F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/627-1",
+   "files": [
+    "3F_b1-a05.jpg",
+    "3F_b1-a06.jpg"
+   ]
+  },
+  "4F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/628-1",
+   "files": [
+    "4F_b1-a07.jpg",
+    "4F_b1-a08.jpg"
+   ]
+  },
+  "頂樓": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/629-1",
+   "files": [
+    "頂樓_b1-a09.jpg",
+    "頂樓_b1-a10.jpg"
+   ]
+  }
+ },
+ "學生宿舍B棟": {
+  "1F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/630-1",
+   "files": [
+    "1F_b2-b01.jpg",
+    "1F_b2-b02.jpg"
+   ]
+  },
+  "2F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/631-1",
+   "files": [
+    "2F_b2-b03.jpg",
+    "2F_b2-b04.jpg"
+   ]
+  },
+  "3F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/632-1",
+   "files": [
+    "3F_b2-b05.jpg",
+    "3F_b2-b06.jpg"
+   ]
+  },
+  "4F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/633-1",
+   "files": [
+    "4F_b2-b07.jpg",
+    "4F_b2-b08.jpg"
+   ]
+  },
+  "頂樓": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/634-1",
+   "files": [
+    "頂樓_b2-b09.jpg",
+    "頂樓_b2-b10.jpg"
+   ]
+  }
+ },
+ "學生宿舍C棟": {
+  "B1": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/635-1",
+   "files": [
+    "B1_b3-c01.jpg",
+    "B1_b3-c02.jpg"
+   ]
+  },
+  "1F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/636-1",
+   "files": [
+    "1F_b3-c03.jpg",
+    "1F_b3-c04.jpg"
+   ]
+  },
+  "2F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/637-1",
+   "files": [
+    "2F_b3-c05.jpg",
+    "2F_b3-c06.jpg"
+   ]
+  },
+  "3F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/638-1",
+   "files": [
+    "3F_b3-c07.jpg",
+    "3F_b3-c08.jpg"
+   ]
+  },
+  "4F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/639-1",
+   "files": [
+    "4F_b3-c09.jpg",
+    "4F_b3-c10.jpg"
+   ]
+  },
+  "5F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/640-1",
+   "files": [
+    "5F_b3-c11.jpg",
+    "5F_b3-c12.jpg"
+   ]
+  },
+  "頂樓": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/641-1",
+   "files": [
+    "頂樓_b3-c13.jpg",
+    "頂樓_b3-c14.jpg"
+   ]
+  }
+ },
+ "學生宿舍D棟": {
+  "B1": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/642-1",
+   "files": [
+    "B1_b4-d01.jpg",
+    "B1_b4-d02.jpg"
+   ]
+  },
+  "1F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/643-1",
+   "files": [
+    "1F_b4-d03.jpg",
+    "1F_b4-d04.jpg"
+   ]
+  },
+  "2F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/644-1",
+   "files": [
+    "2F_b4-d05.jpg",
+    "2F_b4-d06.jpg"
+   ]
+  },
+  "3F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/645-1",
+   "files": [
+    "3F_b4-d07.jpg",
+    "3F_b4-d08.jpg"
+   ]
+  },
+  "4F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/646-1",
+   "files": [
+    "4F_b4-d09.jpg",
+    "4F_b4-d10.jpg"
+   ]
+  },
+  "頂樓": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/647-1",
+   "files": [
+    "頂樓_b4-d11.jpg",
+    "頂樓_b4-d12.jpg"
+   ]
+  }
+ },
+ "學生宿舍E.F棟": {
+  "1F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/648-1",
+   "files": [
+    "1F_b5-ef01.jpg",
+    "1F_b5-ef02.jpg"
+   ]
+  },
+  "2F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/649-1",
+   "files": [
+    "2F_b5-ef03.jpg",
+    "2F_b5-ef04.jpg"
+   ]
+  },
+  "3F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/650-1",
+   "files": [
+    "3F_b5-ef05.jpg",
+    "3F_b5-ef06.jpg"
+   ]
+  },
+  "4F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/651-1",
+   "files": [
+    "4F_b5-ef07.jpg",
+    "4F_b5-ef08.jpg"
+   ]
+  },
+  "5F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/652-1",
+   "files": [
+    "5F_b5-ef09.jpg",
+    "5F_b5-ef10.jpg"
+   ]
+  },
+  "屋頂": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/653-1",
+   "files": [
+    "屋頂_b5-ef11.jpg",
+    "屋頂_b5-ef12.jpg"
+   ]
+  }
+ },
+ "研究生宿舍G棟": {
+  "B1": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/654-1",
+   "files": [
+    "B1_b6-g01.jpg",
+    "B1_b6-g02.jpg"
+   ]
+  },
+  "1F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/655-1",
+   "files": [
+    "1F_b6-g03.jpg",
+    "1F_b6-g04.jpg"
+   ]
+  },
+  "2F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/656-1",
+   "files": [
+    "2F_b6-g05.jpg",
+    "2F_b6-g06.jpg"
+   ]
+  },
+  "3F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/657-1",
+   "files": [
+    "3F_b6-g07.jpg",
+    "3F_b6-g08.jpg"
+   ]
+  },
+  "4F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/658-1",
+   "files": [
+    "4F_b6-g09.jpg",
+    "4F_b6-g10.jpg"
+   ]
+  },
+  "5F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/659-1",
+   "files": [
+    "5F_b6-g11.jpg",
+    "5F_b6-g12.jpg"
+   ]
+  },
+  "6F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/660-1",
+   "files": [
+    "6F_b6-g13.jpg",
+    "6F_b6-g14.jpg"
+   ]
+  },
+  "7F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/661-1",
+   "files": [
+    "7F_b6-g15.jpg",
+    "7F_b6-g16.jpg"
+   ]
+  },
+  "8F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/662-1",
+   "files": [
+    "8F_b6-g17.jpg",
+    "8F_b6-g18.jpg"
+   ]
+  },
+  "9F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/663-1",
+   "files": [
+    "9F_b6-g19.jpg",
+    "9F_b6-g20.jpg"
+   ]
+  }
+ },
+ "研究生宿舍G棟屋突": {
+  "屋頂": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/664-1",
+   "files": [
+    "屋頂_b6-g21.jpg",
+    "屋頂_b6-g22.jpg"
+   ]
+  },
+  "1F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/665-1",
+   "files": [
+    "1F_b6-g23.jpg",
+    "1F_b6-g24.jpg"
+   ]
+  },
+  "2F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/666-1",
+   "files": [
+    "2F_b6-g25.jpg",
+    "2F_b6-g26.jpg"
+   ]
+  },
+  "3F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/667-1",
+   "files": [
+    "3F_b6-g27.jpg",
+    "3F_b6-g28.jpg"
+   ]
+  }
+ },
+ "員生餐廳": {
+  "1F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/668-1",
+   "files": [
+    "1F_a10-01.jpg",
+    "1F_a10-02.jpg"
+   ]
+  },
+  "2F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/669-1",
+   "files": [
+    "2F_a10-03.jpg",
+    "2F_a10-04.jpg"
+   ]
+  },
+  "3F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/670-1",
+   "files": [
+    "3F_a10-05.jpg",
+    "3F_a10-06.jpg"
+   ]
+  }
+ },
+ "觀雲閣(水塔)": {
+  "1-9F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/671-1",
+   "files": [
+    "1-9F_g1-01.jpg"
+   ]
+  },
+  "10F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/672-1",
+   "files": [
+    "10F_g1-02.jpg"
+   ]
+  },
+  "11F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/673-1",
+   "files": [
+    "11F_g1-03.jpg"
+   ]
+  },
+  "12F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/674-1",
+   "files": [
+    "12F_g1-04.jpg"
+   ]
+  },
+  "13F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/675-1",
+   "files": [
+    "13F_g1-05.jpg"
+   ]
+  },
+  "屋頂": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/676-1",
+   "files": [
+    "屋頂_g1-06.jpg"
+   ]
+  }
+ },
+ "水質淨化廠": {
+  "1F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/677-1",
+   "files": [
+    "1F_g2-01.jpg",
+    "1F_g2-02.jpg"
+   ]
+  },
+  "2F": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/678-1",
+   "files": [
+    "2F_g2-03.jpg",
+    "2F_g2-04.jpg"
+   ]
+  },
+  "屋頂": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/679-1",
+   "files": [
+    "屋頂_g2-05.jpg",
+    "屋頂_g2-06.jpg"
+   ]
+  }
+ },
+ "潔綠環保屋": {
+  "plan": {
+   "page": "https://ags.yuntech.edu.tw/index.php/2020-03-05-08-14-25/2021-07-28-06-30-36/item/680-1",
+   "files": [
+    "plan_g3-01.jpg",
+    "plan_g3-02.jpg"
+   ]
+  }
+ }
+}

@@ -1,0 +1,70 @@
+{
+ "building": "工程二館",
+ "osm": [
+  292500604
+ ],
+ "floors": {
+  "1F": {
+   "page": "1F_e2-01.jpg",
+   "scale": 17.98,
+   "offset": [
+    0,
+    0
+   ],
+   "rooms": 22,
+   "coded": 4,
+   "legend": 9,
+   "openings": 175
+  },
+  "2F": {
+   "page": "2F_e2-03.jpg",
+   "scale": 18.3,
+   "offset": [
+    8,
+    3
+   ],
+   "rooms": 29,
+   "coded": 24,
+   "legend": 28,
+   "openings": 10
+  },
+  "3F": {
+   "page": "3F_e2-05.jpg",
+   "scale": 6.1,
+   "offset": [
+    24,
+    0
+   ],
+   "rooms": 30,
+   "coded": 26,
+   "legend": 31,
+   "openings": 2
+  },
+  "4F": {
+   "page": "4F_e2-07.jpg",
+   "scale": 6.1,
+   "offset": [
+    24,
+    1
+   ],
+   "rooms": 15,
+   "coded": 10,
+   "legend": 14,
+   "openings": 9
+  }
+ },
+ "registration": {
+  "angleDeg": 178.0,
+  "planCentroid": [
+   68.698,
+   107.73
+  ],
+  "worldCentroid": [
+   204.871,
+   -210.621
+  ],
+  "iou": 0.43
+ },
+ "stairs": 0,
+ "accepted": false
+}

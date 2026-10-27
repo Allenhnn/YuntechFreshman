@@ -1,0 +1,58 @@
+{
+ "building": "員生餐廳",
+ "osm": [
+  234786939
+ ],
+ "floors": {
+  "1F": {
+   "page": "1F_a10-01.jpg",
+   "scale": 7.29,
+   "offset": [
+    0,
+    0
+   ],
+   "rooms": 23,
+   "coded": 0,
+   "legend": 6,
+   "openings": 102
+  },
+  "2F": {
+   "page": "2F_a10-03.jpg",
+   "scale": 7.29,
+   "offset": [
+    10,
+    0
+   ],
+   "rooms": 21,
+   "coded": 8,
+   "legend": 19,
+   "openings": 10
+  },
+  "3F": {
+   "page": "3F_a10-05.jpg",
+   "scale": 21.88,
+   "offset": [
+    21,
+    5
+   ],
+   "rooms": 7,
+   "coded": 0,
+   "legend": 0,
+   "openings": 9
+  }
+ },
+ "registration": {
+  "angleDeg": 349.0,
+  "planCentroid": [
+   48.025,
+   70.866
+  ],
+  "worldCentroid": [
+   156.385,
+   219.218
+  ],
+  "iou": 0.629
+ },
+ "stairs": 1,
+ "accepted": true
+}

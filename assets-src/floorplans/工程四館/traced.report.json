@@ -1,0 +1,82 @@
+{
+ "building": "工程四館",
+ "osm": [
+  296668603
+ ],
+ "floors": {
+  "1F": {
+   "page": "1F_e4-01.jpg",
+   "scale": 8.89,
+   "offset": [
+    0,
+    0
+   ],
+   "rooms": 56,
+   "coded": 10,
+   "legend": 20,
+   "openings": 139
+  },
+  "2F": {
+   "page": "2F_e4-03.jpg",
+   "scale": 8.9,
+   "offset": [
+    0,
+    0
+   ],
+   "rooms": 30,
+   "coded": 10,
+   "legend": 20,
+   "openings": 32
+  },
+  "3F": {
+   "page": "3F_e4-05.jpg",
+   "scale": 8.89,
+   "offset": [
+    0,
+    0
+   ],
+   "rooms": 37,
+   "coded": 29,
+   "legend": 31,
+   "openings": 41
+  },
+  "4F": {
+   "page": "4F_e4-07.jpg",
+   "scale": 8.99,
+   "offset": [
+    1,
+    1
+   ],
+   "rooms": 28,
+   "coded": 20,
+   "legend": 21,
+   "openings": 27
+  },
+  "5F": {
+   "page": "5F_e4-09.jpg",
+   "scale": 8.89,
+   "offset": [
+    0,
+    0
+   ],
+   "rooms": 28,
+   "coded": 18,
+   "legend": 21,
+   "openings": 37
+  }
+ },
+ "registration": {
+  "angleDeg": 74.0,
+  "planCentroid": [
+   41.563,
+   54.234
+  ],
+  "worldCentroid": [
+   305.917,
+   -219.388
+  ],
+  "iou": 0.699
+ },
+ "stairs": 8,
+ "accepted": true
+}

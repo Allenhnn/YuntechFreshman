@@ -1,0 +1,130 @@
+{
+ "building": "研究生宿舍G棟",
+ "osm": [
+  234786937
+ ],
+ "floors": {
+  "1F": {
+   "page": "1F_b6-g03.jpg",
+   "scale": 51.46,
+   "offset": [
+    0,
+    0
+   ],
+   "rooms": 18,
+   "coded": 10,
+   "legend": 13,
+   "openings": 283
+  },
+  "2F": {
+   "page": "2F_b6-g05.jpg",
+   "scale": 51.74,
+   "offset": [
+    1,
+    0
+   ],
+   "rooms": 22,
+   "coded": 16,
+   "legend": 18,
+   "openings": 61
+  },
+  "3F": {
+   "page": "3F_b6-g07.jpg",
+   "scale": 48.04,
+   "offset": [
+    -1,
+    3
+   ],
+   "rooms": 22,
+   "coded": 14,
+   "legend": 18,
+   "openings": 55
+  },
+  "4F": {
+   "page": "4F_b6-g09.jpg",
+   "scale": 48.04,
+   "offset": [
+    3,
+    0
+   ],
+   "rooms": 26,
+   "coded": 14,
+   "legend": 18,
+   "openings": 72
+  },
+  "5F": {
+   "page": "5F_b6-g11.jpg",
+   "scale": 48.04,
+   "offset": [
+    -1,
+    3
+   ],
+   "rooms": 22,
+   "coded": 13,
+   "legend": 18,
+   "openings": 55
+  },
+  "6F": {
+   "page": "6F_b6-g13.jpg",
+   "scale": 48.04,
+   "offset": [
+    -1,
+    3
+   ],
+   "rooms": 22,
+   "coded": 14,
+   "legend": 18,
+   "openings": 55
+  },
+  "7F": {
+   "page": "7F_b6-g15.jpg",
+   "scale": 48.04,
+   "offset": [
+    3,
+    0
+   ],
+   "rooms": 26,
+   "coded": 14,
+   "legend": 18,
+   "openings": 73
+  },
+  "8F": {
+   "page": "8F_b6-g17.jpg",
+   "scale": 48.04,
+   "offset": [
+    3,
+    0
+   ],
+   "rooms": 24,
+   "coded": 16,
+   "legend": 18,
+   "openings": 65
+  },
+  "9F": {
+   "page": "9F_b6-g19.jpg",
+   "scale": 48.04,
+   "offset": [
+    -1,
+    3
+   ],
+   "rooms": 22,
+   "coded": 14,
+   "legend": 18,
+   "openings": 55
+  }
+ },
+ "registration": {
+  "angleDeg": 30.0,
+  "planCentroid": [
+   21.086,
+   40.226
+  ],
+  "worldCentroid": [
+   -23.82,
+   270.155
+  ],
+  "iou": 0.379
+ },
+ "stairs": 0,
+ "accepted": false
+}

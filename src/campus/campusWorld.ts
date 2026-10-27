@@ -41,6 +41,7 @@ import { createCampusMaterials, type CampusMaterials } from './campusMaterials';
 import { CHUNK_SIZE, chunkKey, chunkOf, type CampusData, type ChunkBuild, type MeshBuffers, type Ring } from './campusTypes';
 import type { CampusWorkerApi } from './campusWorker';
 import { DEFAULT_CAMPUS_STYLE, DEFAULT_TOWN_STYLE, type FacadeData } from './facadeTypes';
+import type { Entrance } from './entrances';
 
 /** Visual streaming radius (m, to the nearest point of a chunk) and unload hysteresis. */
 const LOAD_RADIUS = 600;
@@ -89,6 +90,8 @@ export interface CampusWorldOptions {
   groundHoles?: readonly Ring[];
   /** Facade styles and photo atlases (public/data/facades.json). */
   facades?: FacadeData;
+  /** Shell door gaps from the traced floor plans, by OSM id. */
+  entrances?: Record<string, Entrance[]>;
 }
 
 interface ChunkRecord {
@@ -113,7 +116,7 @@ export function createCampusWorld(
   tracker: ResourceTracker,
   options: CampusWorldOptions = {},
 ): CampusWorld {
-  const { treeExclusions = [], groundHoles = [], facades } = options;
+  const { treeExclusions = [], groundHoles = [], facades, entrances = {} } = options;
   const root = new Group();
   root.name = 'campus';
   scene.add(root);
@@ -260,7 +263,7 @@ export function createCampusWorld(
   // --- Worker ----------------------------------------------------------------------------------
   const worker = new Worker(new URL('./campusWorker.ts', import.meta.url), { type: 'module' });
   const remote = Comlink.wrap<CampusWorkerApi>(worker);
-  const initDone = remote.init(data, [...treeExclusions], facades ?? { styles: [DEFAULT_CAMPUS_STYLE, DEFAULT_TOWN_STYLE], building: {}, photos: {} });
+  const initDone = remote.init(data, [...treeExclusions], facades ?? { styles: [DEFAULT_CAMPUS_STYLE, DEFAULT_TOWN_STYLE], building: {}, photos: {} }, entrances);
 
   // --- Photo facade atlases: one material per atlas, shared by chunks and released with the last one.
   const ktx2 = new KTX2Loader().detectSupport(renderer);

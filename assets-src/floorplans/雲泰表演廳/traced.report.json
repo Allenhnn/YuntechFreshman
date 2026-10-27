@@ -1,0 +1,46 @@
+{
+ "building": "雲泰表演廳",
+ "osm": [
+  234786942
+ ],
+ "floors": {
+  "1F": {
+   "page": "1F_a5-01.jpg",
+   "scale": 4.88,
+   "offset": [
+    0,
+    0
+   ],
+   "rooms": 34,
+   "coded": 7,
+   "legend": 26,
+   "openings": 187
+  },
+  "2F": {
+   "page": "2F_a5-03.jpg",
+   "scale": 14.48,
+   "offset": [
+    6,
+    10
+   ],
+   "rooms": 13,
+   "coded": 2,
+   "legend": 12,
+   "openings": 1
+  }
+ },
+ "registration": {
+  "angleDeg": 256.5,
+  "planCentroid": [
+   91.684,
+   105.446
+  ],
+  "worldCentroid": [
+   102.312,
+   -177.172
+  ],
+  "iou": 0.941
+ },
+ "stairs": 0,
+ "accepted": true
+}

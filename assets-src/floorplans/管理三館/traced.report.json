@@ -1,0 +1,82 @@
+{
+ "building": "管理三館",
+ "osm": [
+  234786943
+ ],
+ "floors": {
+  "1F": {
+   "page": "1F_d3-03.jpg",
+   "scale": 11.22,
+   "offset": [
+    0,
+    0
+   ],
+   "rooms": 33,
+   "coded": 1,
+   "legend": 11,
+   "openings": 106
+  },
+  "2F": {
+   "page": "2F_d3-05.jpg",
+   "scale": 11.04,
+   "offset": [
+    1,
+    2
+   ],
+   "rooms": 12,
+   "coded": 6,
+   "legend": 15,
+   "openings": 9
+  },
+  "3F": {
+   "page": "3F_d3-07.jpg",
+   "scale": 9.97,
+   "offset": [
+    -21,
+    -15
+   ],
+   "rooms": 15,
+   "coded": 9,
+   "legend": 11,
+   "openings": 16
+  },
+  "4F": {
+   "page": "4F_d3-09.jpg",
+   "scale": 9.77,
+   "offset": [
+    -22,
+    -19
+   ],
+   "rooms": 26,
+   "coded": 13,
+   "legend": 27,
+   "openings": 23
+  },
+  "5F": {
+   "page": "5F_d3-11.jpg",
+   "scale": 12.01,
+   "offset": [
+    -17,
+    2
+   ],
+   "rooms": 10,
+   "coded": 9,
+   "legend": 17,
+   "openings": 14
+  }
+ },
+ "registration": {
+  "angleDeg": 329.5,
+  "planCentroid": [
+   33.158,
+   48.025
+  ],
+  "worldCentroid": [
+   -212.221,
+   -215.439
+  ],
+  "iou": 0.524
+ },
+ "stairs": 0,
+ "accepted": false
+}

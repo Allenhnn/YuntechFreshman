@@ -3,7 +3,8 @@ import * as Comlink from 'comlink';
 import type { RAPIER } from '../physics/physics';
 import type { ResourceTracker } from '../core/resources';
 import type { CampusMaterials } from '../campus/campusMaterials';
-import type { CampusBuilding, CampusData } from '../campus/campusTypes';
+import type { CampusBuilding, CampusData, Ring } from '../campus/campusTypes';
+import type { TracedIndex } from '../buildings/buildingTypes';
 import { hasInterior } from '../campus/entrances';
 import type { FacadeData } from '../campus/facadeTypes';
 import { createHandBuiltBuilding, type HandBuiltBuilding } from '../buildings/buildingWorld';
@@ -21,10 +22,20 @@ const UNLOAD = 110;
 const POLL_MS = 250;
 
 interface Candidate {
-  b: CampusBuilding;
+  /** Worker key: traced building id, or the OSM id of a generated interior. */
+  key: string;
+  name: string;
+  rings: Ring[];
   cx: number;
   cz: number;
   radius: number;
+}
+
+function candidate(key: string, name: string, buildings: readonly CampusBuilding[]): Candidate {
+  const pts = buildings.flatMap((b) => Array.from({ length: b.outer.length / 2 }, (_, i) => [b.outer[i * 2]!, b.outer[i * 2 + 1]!] as const));
+  const cx = pts.reduce((a, p) => a + p[0], 0) / pts.length, cz = pts.reduce((a, p) => a + p[1], 0) / pts.length;
+  const radius = Math.max(...pts.map((p) => Math.hypot(p[0] - cx, p[1] - cz)));
+  return { key, name, rings: buildings.map((b) => b.outer), cx, cz, radius };
 }
 
 export interface InteriorManager {
@@ -42,24 +53,28 @@ export function createInteriorManager(
   campus: CampusData,
   facades: FacadeData | undefined,
   sceneTracker: ResourceTracker,
+  traced: TracedIndex | undefined,
 ): InteriorManager {
-  const candidates: Candidate[] = campus.buildings.filter(hasInterior).map((b) => {
-    let cx = 0, cz = 0;
-    const n = b.outer.length / 2;
-    for (let i = 0; i < n; i++) { cx += b.outer[i * 2]!; cz += b.outer[i * 2 + 1]!; }
-    cx /= n; cz /= n;
-    let radius = 0;
-    for (let i = 0; i < n; i++) radius = Math.max(radius, Math.hypot(b.outer[i * 2]! - cx, b.outer[i * 2 + 1]! - cz));
-    return { b, cx, cz, radius };
-  });
+  // Plan-traced buildings first (one candidate per traced building, however many OSM shells it
+  // spans), then a generated interior for every other enterable campus building.
+  const byId = new Map(campus.buildings.map((b) => [b.id, b]));
+  const covered = new Set<number>();
+  const candidates: Candidate[] = [];
+  for (const t of traced?.buildings ?? []) {
+    const shells = t.osmIds.map((id) => byId.get(id)).filter((b): b is CampusBuilding => !!b);
+    if (!shells.length) continue;
+    t.osmIds.forEach((id) => covered.add(id));
+    candidates.push(candidate(t.id, t.name, shells));
+  }
+  for (const b of campus.buildings) if (hasInterior(b) && !covered.has(b.id)) candidates.push(candidate(String(b.id), b.name ?? String(b.id), [b]));
   const shared = { imats: createInteriorMaterials(renderer, sceneTracker), kit: createFurnitureKit(sceneTracker) };
   const worker = new Worker(new URL('./interiorWorker.ts', import.meta.url), { type: 'module' });
   const remote = Comlink.wrap<InteriorWorkerApi>(worker);
-  const ready = remote.init(campus, facades ?? null);
+  const ready = remote.init(campus, facades ?? null, traced ?? null, new URL(import.meta.env.BASE_URL, location.href).href);
 
-  const loaded = new Map<number, HandBuiltBuilding>();
+  const loaded = new Map<string, HandBuiltBuilding>();
   const active: HandBuiltBuilding[] = [];
-  let inFlight: number | null = null;
+  let inFlight: string | null = null;
   let lastPoll = -Infinity;
   let disposed = false;
 
@@ -69,9 +84,9 @@ export function createInteriorManager(
   };
 
   const request = (c: Candidate): void => {
-    inFlight = c.b.id;
+    inFlight = c.key;
     void ready
-      .then(() => remote.build(c.b.id))
+      .then(() => remote.build(c.key))
       .then((built) => {
         inFlight = null;
         if (disposed || !built) return;
@@ -79,14 +94,14 @@ export function createInteriorManager(
           interiorOnly: true,
           meshes: built.meshes,
           shared,
-          footprint: c.b.outer,
+          footprints: c.rings,
         });
-        loaded.set(c.b.id, building);
+        loaded.set(c.key, building);
         syncActive();
       })
       .catch((err: unknown) => {
         inFlight = null;
-        console.warn(`[interiors] ${c.b.name ?? c.b.id} failed`, err);
+        console.warn(`[interiors] ${c.name} failed`, err);
       });
   };
 
@@ -102,12 +117,12 @@ export function createInteriorManager(
       let nextD = Infinity;
       for (const c of candidates) {
         const d = Math.max(0, Math.hypot(px - c.cx, pz - c.cz) - c.radius);
-        const have = loaded.get(c.b.id);
+        const have = loaded.get(c.key);
         if (have && d > UNLOAD) {
           have.dispose();
-          loaded.delete(c.b.id);
+          loaded.delete(c.key);
           syncActive();
-        } else if (!have && inFlight !== c.b.id && d < LOAD && d < nextD) {
+        } else if (!have && inFlight !== c.key && d < LOAD && d < nextD) {
           next = c;
           nextD = d;
         }

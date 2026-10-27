@@ -1,0 +1,142 @@
+{
+ "building": "工程三館",
+ "osm": [
+  292500313
+ ],
+ "floors": {
+  "1F": {
+   "page": "1F_e3-03.jpg",
+   "scale": 8.89,
+   "offset": [
+    0,
+    0
+   ],
+   "rooms": 19,
+   "coded": 10,
+   "legend": 12,
+   "openings": 87
+  },
+  "2F": {
+   "page": "2F_e3-05.jpg",
+   "scale": 8.96,
+   "offset": [
+    11,
+    8
+   ],
+   "rooms": 29,
+   "coded": 11,
+   "legend": 15,
+   "openings": 46
+  },
+  "3F": {
+   "page": "3F_e3-07.jpg",
+   "scale": 8.71,
+   "offset": [
+    7,
+    8
+   ],
+   "rooms": 18,
+   "coded": 13,
+   "legend": 16,
+   "openings": 16
+  },
+  "4F": {
+   "page": "4F_e3-09.jpg",
+   "scale": 8.49,
+   "offset": [
+    5,
+    6
+   ],
+   "rooms": 14,
+   "coded": 14,
+   "legend": 16,
+   "openings": 12
+  },
+  "5F": {
+   "page": "5F_e3-11.jpg",
+   "scale": 8.39,
+   "offset": [
+    3,
+    5
+   ],
+   "rooms": 20,
+   "coded": 17,
+   "legend": 19,
+   "openings": 23
+  },
+  "6F": {
+   "page": "6F_e3-13.jpg",
+   "scale": 8.31,
+   "offset": [
+    1,
+    5
+   ],
+   "rooms": 18,
+   "coded": 18,
+   "legend": 18,
+   "openings": 23
+  },
+  "7F": {
+   "page": "7F_e3-15.jpg",
+   "scale": 8.31,
+   "offset": [
+    1,
+    5
+   ],
+   "rooms": 32,
+   "coded": 26,
+   "legend": 30,
+   "openings": 44
+  },
+  "8F": {
+   "page": "8F_e3-17.jpg",
+   "scale": 8.78,
+   "offset": [
+    8,
+    11
+   ],
+   "rooms": 32,
+   "coded": 25,
+   "legend": 29,
+   "openings": 37
+  },
+  "9F": {
+   "page": "9F_e3-19.jpg",
+   "scale": 8.45,
+   "offset": [
+    4,
+    6
+   ],
+   "rooms": 29,
+   "coded": 25,
+   "legend": 28,
+   "openings": 23
+  },
+  "10F": {
+   "page": "10F_e3-21.jpg",
+   "scale": 8.31,
+   "offset": [
+    1,
+    5
+   ],
+   "rooms": 26,
+   "coded": 21,
+   "legend": 25,
+   "openings": 31
+  }
+ },
+ "registration": {
+  "angleDeg": 169.0,
+  "planCentroid": [
+   44.449,
+   60.125
+  ],
+  "worldCentroid": [
+   253.995,
+   -185.883
+  ],
+  "iou": 0.829
+ },
+ "stairs": 9,
+ "accepted": true
+}

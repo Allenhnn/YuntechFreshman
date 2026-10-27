@@ -1,0 +1,46 @@
+{
+ "building": "設計工坊",
+ "osm": [
+  234786947
+ ],
+ "floors": {
+  "1F": {
+   "page": "1F_f3-01.jpg",
+   "scale": 27.74,
+   "offset": [
+    0,
+    0
+   ],
+   "rooms": 28,
+   "coded": 13,
+   "legend": 18,
+   "openings": 68
+  },
+  "2F": {
+   "page": "2F_f3-03.jpg",
+   "scale": 8.54,
+   "offset": [
+    1,
+    -49
+   ],
+   "rooms": 7,
+   "coded": 6,
+   "legend": 6,
+   "openings": 4
+  }
+ },
+ "registration": {
+  "angleDeg": 261.0,
+  "planCentroid": [
+   38.63,
+   56.829
+  ],
+  "worldCentroid": [
+   -82.677,
+   156.149
+  ],
+  "iou": 0.738
+ },
+ "stairs": 0,
+ "accepted": true
+}

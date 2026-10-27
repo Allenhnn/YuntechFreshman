@@ -1,0 +1,58 @@
+{
+ "building": "管理一館",
+ "osm": [
+  167826282
+ ],
+ "floors": {
+  "1F": {
+   "page": "1F_d1-01.jpg",
+   "scale": 9.53,
+   "offset": [
+    0,
+    0
+   ],
+   "rooms": 35,
+   "coded": 2,
+   "legend": 22,
+   "openings": 100
+  },
+  "2F": {
+   "page": "2F_d1-03.jpg",
+   "scale": 9.16,
+   "offset": [
+    12,
+    -11
+   ],
+   "rooms": 21,
+   "coded": 13,
+   "legend": 25,
+   "openings": 14
+  },
+  "3F": {
+   "page": "3F_d1-05.jpg",
+   "scale": 8.98,
+   "offset": [
+    18,
+    -14
+   ],
+   "rooms": 28,
+   "coded": 13,
+   "legend": 37,
+   "openings": 35
+  }
+ },
+ "registration": {
+  "angleDeg": 262.5,
+  "planCentroid": [
+   35.856,
+   55.946
+  ],
+  "worldCentroid": [
+   -122.615,
+   -171.087
+  ],
+  "iou": 0.555
+ },
+ "stairs": 1,
+ "accepted": false
+}

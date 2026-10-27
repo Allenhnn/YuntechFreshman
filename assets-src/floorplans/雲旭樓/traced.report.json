@@ -1,0 +1,58 @@
+{
+ "building": "雲旭樓",
+ "osm": [
+  296668633
+ ],
+ "floors": {
+  "1F": {
+   "page": "1F_c4-01.jpg",
+   "scale": 17.71,
+   "offset": [
+    0,
+    0
+   ],
+   "rooms": 2,
+   "coded": 1,
+   "legend": 11,
+   "openings": 195
+  },
+  "2F": {
+   "page": "2F_c4-03.jpg",
+   "scale": 16.88,
+   "offset": [
+    1,
+    0
+   ],
+   "rooms": 5,
+   "coded": 2,
+   "legend": 5,
+   "openings": 0
+  },
+  "3F": {
+   "page": "3F_c4-05.jpg",
+   "scale": 17.11,
+   "offset": [
+    -10,
+    0
+   ],
+   "rooms": 4,
+   "coded": 1,
+   "legend": 3,
+   "openings": 2
+  }
+ },
+ "registration": {
+  "angleDeg": 45.0,
+  "planCentroid": [
+   22.356,
+   40.499
+  ],
+  "worldCentroid": [
+   345.32,
+   -344.959
+  ],
+  "iou": 0.18
+ },
+ "stairs": 0,
+ "accepted": false
+}

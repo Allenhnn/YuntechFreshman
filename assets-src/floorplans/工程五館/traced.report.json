@@ -1,0 +1,82 @@
+{
+ "building": "工程五館",
+ "osm": [
+  296668601
+ ],
+ "floors": {
+  "1F": {
+   "page": "1F_e7-01.jpg",
+   "scale": 27.1,
+   "offset": [
+    0,
+    0
+   ],
+   "rooms": 23,
+   "coded": 10,
+   "legend": 19,
+   "openings": 68
+  },
+  "2F": {
+   "page": "2F_e7-03.jpg",
+   "scale": 23.92,
+   "offset": [
+    -13,
+    -8
+   ],
+   "rooms": 35,
+   "coded": 18,
+   "legend": 23,
+   "openings": 37
+  },
+  "3F": {
+   "page": "3F_e7-05.jpg",
+   "scale": 10.14,
+   "offset": [
+    10,
+    7
+   ],
+   "rooms": 19,
+   "coded": 11,
+   "legend": 20,
+   "openings": 9
+  },
+  "4F": {
+   "page": "4F_e7-07.jpg",
+   "scale": 8.98,
+   "offset": [
+    -1,
+    0
+   ],
+   "rooms": 28,
+   "coded": 15,
+   "legend": 21,
+   "openings": 24
+  },
+  "5F": {
+   "page": "5F_e7-09.jpg",
+   "scale": 8.98,
+   "offset": [
+    0,
+    0
+   ],
+   "rooms": 16,
+   "coded": 6,
+   "legend": 9,
+   "openings": 21
+  }
+ },
+ "registration": {
+  "angleDeg": 83.5,
+  "planCentroid": [
+   40.498,
+   54.985
+  ],
+  "worldCentroid": [
+   284.736,
+   -317.008
+  ],
+  "iou": 0.692
+ },
+ "stairs": 0,
+ "accepted": true
+}

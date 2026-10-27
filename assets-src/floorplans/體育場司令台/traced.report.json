@@ -1,0 +1,49 @@
+{
+ "building": "體育場司令台",
+ "osm": [
+  234786930
+ ],
+ "floors": {
+  "2F": {
+   "error": "no plan page"
+  },
+  "1F": {
+   "page": "1F_a8-03.jpg",
+   "scale": 47.01,
+   "offset": [
+    0,
+    0
+   ],
+   "rooms": 8,
+   "coded": 0,
+   "legend": 0,
+   "openings": 281
+  },
+  "3F": {
+   "page": "3F_a8-07.jpg",
+   "scale": 49.07,
+   "offset": [
+    6,
+    0
+   ],
+   "rooms": 2,
+   "coded": 0,
+   "legend": 0,
+   "openings": 1
+  }
+ },
+ "registration": {
+  "angleDeg": 222,
+  "planCentroid": [
+   23.023,
+   47.351
+  ],
+  "worldCentroid": [
+   279.1,
+   -35.361
+  ],
+  "iou": 0.39
+ },
+ "stairs": 0,
+ "accepted": false
+}

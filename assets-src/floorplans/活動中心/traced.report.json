@@ -1,0 +1,58 @@
+{
+ "building": "活動中心",
+ "osm": [
+  296668597
+ ],
+ "floors": {
+  "1F": {
+   "page": "1F_a9-03.jpg",
+   "scale": 5.9,
+   "offset": [
+    0,
+    0
+   ],
+   "rooms": 34,
+   "coded": 3,
+   "legend": 28,
+   "openings": 193
+  },
+  "2F": {
+   "page": "2-1F_a9-05.jpg",
+   "scale": 17.57,
+   "offset": [
+    -6,
+    10
+   ],
+   "rooms": 37,
+   "coded": 10,
+   "legend": 39,
+   "openings": 21
+  },
+  "3F": {
+   "page": "3F_a9-09.jpg",
+   "scale": 17.58,
+   "offset": [
+    4,
+    2
+   ],
+   "rooms": 23,
+   "coded": 6,
+   "legend": 6,
+   "openings": 37
+  }
+ },
+ "registration": {
+  "angleDeg": 350.0,
+  "planCentroid": [
+   60.398,
+   88.524
+  ],
+  "worldCentroid": [
+   81.61,
+   166.089
+  ],
+  "iou": 0.633
+ },
+ "stairs": 0,
+ "accepted": true
+}

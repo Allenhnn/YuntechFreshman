@@ -86,6 +86,8 @@ export interface BuildingSource {
   id: string;
   name: string;
   osmReplaces: string[];
+  /** Traced from the 總務處 plans: OSM building ids whose shells hold this interior. */
+  osmIds?: number[];
   transform: { angleDeg: number; planCentroid: Vec2; worldCentroid: Vec2 };
   floorHeight: number;
   levels: Level[];
@@ -100,4 +102,11 @@ export interface BuildingSource {
   /** Plan rects where the campus ground plane is cut open (looking down into a basement). */
   groundOpenings?: Rect[];
   directory: { level: string; items: string[] }[];
+}
+
+/** public/data/buildings/traced.json: plan-traced interiors and where their shells get door gaps. */
+export interface TracedIndex {
+  buildings: { id: string; name: string; osmIds: number[]; file: string }[];
+  /** OSM building id → entrances (outer-ring edge, metres along it) taken from the plans' exits. */
+  entrances: Record<string, { edge: number; along: number }[]>;
 }

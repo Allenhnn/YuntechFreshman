@@ -1,0 +1,83 @@
+{
+ "building": "學生宿舍E.F棟",
+ "osm": [
+  292500724,
+  296668591
+ ],
+ "floors": {
+  "1F": {
+   "page": "1F_b5-ef01.jpg",
+   "scale": 26.3,
+   "offset": [
+    0,
+    0
+   ],
+   "rooms": 25,
+   "coded": 6,
+   "legend": 112,
+   "openings": 94
+  },
+  "2F": {
+   "page": "2F_b5-ef03.jpg",
+   "scale": 23.11,
+   "offset": [
+    -16,
+    -17
+   ],
+   "rooms": 27,
+   "coded": 10,
+   "legend": 21,
+   "openings": 47
+  },
+  "3F": {
+   "page": "3F_b5-ef05.jpg",
+   "scale": 23.11,
+   "offset": [
+    -16,
+    -17
+   ],
+   "rooms": 28,
+   "coded": 15,
+   "legend": 24,
+   "openings": 36
+  },
+  "4F": {
+   "page": "4F_b5-ef07.jpg",
+   "scale": 23.11,
+   "offset": [
+    -16,
+    -17
+   ],
+   "rooms": 27,
+   "coded": 11,
+   "legend": 21,
+   "openings": 43
+  },
+  "5F": {
+   "page": "5F_b5-ef09.jpg",
+   "scale": 23.11,
+   "offset": [
+    -16,
+    -17
+   ],
+   "rooms": 36,
+   "coded": 18,
+   "legend": 24,
+   "openings": 41
+  }
+ },
+ "registration": {
+  "angleDeg": 171.0,
+  "planCentroid": [
+   44.278,
+   56.592
+  ],
+  "worldCentroid": [
+   89.89,
+   395.979
+  ],
+  "iou": 0.465
+ },
+ "stairs": 0,
+ "accepted": false
+}

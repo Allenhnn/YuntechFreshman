@@ -1,0 +1,59 @@
+{
+ "building": "資訊大樓(含國際會議廳)",
+ "osm": [
+  296668632,
+  296668586
+ ],
+ "floors": {
+  "1F": {
+   "page": "1F_a3-03.jpg",
+   "scale": 6.33,
+   "offset": [
+    0,
+    0
+   ],
+   "rooms": 38,
+   "coded": 12,
+   "legend": 24,
+   "openings": 74
+  },
+  "2F": {
+   "page": "2F_a3-05.jpg",
+   "scale": 6.45,
+   "offset": [
+    5,
+    6
+   ],
+   "rooms": 37,
+   "coded": 11,
+   "legend": 21,
+   "openings": 78
+  },
+  "3F": {
+   "page": "3F_a3-07.jpg",
+   "scale": 6.4,
+   "offset": [
+    21,
+    32
+   ],
+   "rooms": 11,
+   "coded": 7,
+   "legend": 4,
+   "openings": 6
+  }
+ },
+ "registration": {
+  "angleDeg": 259.0,
+  "planCentroid": [
+   60.899,
+   83.185
+  ],
+  "worldCentroid": [
+   -19.139,
+   -239.578
+  ],
+  "iou": 0.754
+ },
+ "stairs": 3,
+ "accepted": true
+}

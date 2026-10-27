@@ -1,0 +1,119 @@
+{
+ "building": "產學研大樓",
+ "osm": [
+  1139732487,
+  1139732488
+ ],
+ "floors": {
+  "1F": {
+   "page": "1F_a11-03.jpg",
+   "scale": 8.63,
+   "offset": [
+    0,
+    0
+   ],
+   "rooms": 46,
+   "coded": 0,
+   "legend": 2,
+   "openings": 173
+  },
+  "2F": {
+   "page": "2F_a11-05.jpg",
+   "scale": 8.39,
+   "offset": [
+    6,
+    -3
+   ],
+   "rooms": 42,
+   "coded": 15,
+   "legend": 20,
+   "openings": 23
+  },
+  "3F": {
+   "page": "3F_a11-07.jpg",
+   "scale": 8.91,
+   "offset": [
+    13,
+    -1
+   ],
+   "rooms": 41,
+   "coded": 23,
+   "legend": 28,
+   "openings": 34
+  },
+  "4F": {
+   "page": "4F_a11-09.jpg",
+   "scale": 8.89,
+   "offset": [
+    22,
+    30
+   ],
+   "rooms": 28,
+   "coded": 12,
+   "legend": 12,
+   "openings": 28
+  },
+  "5F": {
+   "page": "5F_a11-11.jpg",
+   "scale": 8.53,
+   "offset": [
+    10,
+    42
+   ],
+   "rooms": 14,
+   "coded": 3,
+   "legend": 16,
+   "openings": 14
+  },
+  "6F": {
+   "page": "6F_a11-13.jpg",
+   "scale": 8.73,
+   "offset": [
+    0,
+    1
+   ],
+   "rooms": 21,
+   "coded": 7,
+   "legend": 13,
+   "openings": 27
+  },
+  "7F": {
+   "page": "7F_a11-15.jpg",
+   "scale": 8.82,
+   "offset": [
+    -7,
+    21
+   ],
+   "rooms": 16,
+   "coded": 3,
+   "legend": 6,
+   "openings": 24
+  },
+  "8F": {
+   "page": "8F_a11-17.jpg",
+   "scale": 8.41,
+   "offset": [
+    -108,
+    1
+   ],
+   "rooms": 1,
+   "coded": 0,
+   "legend": 8,
+   "openings": 0
+  }
+ },
+ "registration": {
+  "angleDeg": 177.5,
+  "planCentroid": [
+   46.851,
+   48.75
+  ],
+  "worldCentroid": [
+   359.811,
+   260.434
+  ],
+  "iou": 0.523
+ },
+ "stairs": 4,
+ "accepted": false
+}

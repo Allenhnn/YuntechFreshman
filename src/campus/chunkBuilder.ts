@@ -174,7 +174,7 @@ function addWalls(
   floors: number,
   style: ResolvedStyle,
   photo?: { edges: ReadonlyMap<number, PhotoEdge>; out: GeoBuilder },
-  door?: Entrance | null,
+  doors: readonly Entrance[] = [],
 ): void {
   const n = r.length / 2;
   let u = 0;
@@ -215,14 +215,16 @@ function addWalls(
       g.tri(p0, p1, q1);
     };
     // Walls start below the ground plane so the wall/ground seam never forms a collision crease.
-    if (door && door.edge === i && height > DOOR_HEIGHT + 0.2) {
-      const d0 = door.along - DOOR_WIDTH / 2, d1 = door.along + DOOR_WIDTH / 2;
-      panel(0, d0, WALL_BASE, height);
-      panel(d1, len, WALL_BASE, height);
+    const here = height > DOOR_HEIGHT + 0.2 ? doors.filter((d) => d.edge === i).sort((a, b) => a.along - b.along) : [];
+    let from = 0;
+    for (const d of here) {
+      const d0 = Math.max(from, d.along - DOOR_WIDTH / 2), d1 = Math.min(len, d.along + DOOR_WIDTH / 2);
+      if (d1 - d0 < 0.5) continue;
+      panel(from, d0, WALL_BASE, height);
       panel(d0, d1, DOOR_HEIGHT, height); // lintel over the entrance
-    } else {
-      panel(0, len, WALL_BASE, height);
+      from = d1;
     }
+    panel(from, len, WALL_BASE, height);
     u = u0 + bays;
   }
 }
@@ -338,6 +340,8 @@ export class ChunkBuilder {
     private readonly data: CampusData,
     exclusions: readonly Ring[] = [],
     private readonly facades: FacadeData = { styles: [DEFAULT_CAMPUS_STYLE, DEFAULT_TOWN_STYLE], building: {}, photos: {} },
+    /** Door gaps from the traced plans, by OSM id (overrides the single road-facing entrance). */
+    private readonly entrances: Readonly<Record<string, readonly Entrance[]>> = {},
   ) {
     // Styles built before the 3D details existed lack those fields.
     this.rawStyles = facades.styles.map((st) => ({ ...DETAIL_DEFAULTS, ...st }));
@@ -394,10 +398,12 @@ export class ChunkBuilder {
       const shots = this.photos.get(b.id);
       const photoOut = shots ? new GeoBuilder() : null;
       const photoEdges = new Set(shots?.edges.keys() ?? []);
-      const door = hasInterior(b) ? buildingEntrance(b, this.data.roads, photoEdges) : null;
-      addWalls(facade, b.outer, b.height, floors, style, shots && photoOut ? { edges: shots.edges, out: photoOut } : undefined, door);
+      // Plan-traced buildings open where the plans have exits; others get one entrance facing the road.
+      const fallback = hasInterior(b) ? buildingEntrance(b, this.data.roads, photoEdges) : null;
+      const doors = this.entrances[String(b.id)]?.filter((d) => !photoEdges.has(d.edge)) ?? (fallback ? [fallback] : []);
+      addWalls(facade, b.outer, b.height, floors, style, shots && photoOut ? { edges: shots.edges, out: photoOut } : undefined, doors);
       for (const h of b.holes) addWalls(facade, h, b.height, floors, style);
-      addFacadeDetails(details, b, this.rawStyles[styleIndex]!, { wall: style.wall, trim: style.trim }, this.data.roads, photoEdges, door);
+      addFacadeDetails(details, b, this.rawStyles[styleIndex]!, { wall: style.wall, trim: style.trim }, this.data.roads, photoEdges, doors);
       const photoMesh = photoOut?.build();
       if (shots && photoMesh) photoWalls.push({ building: b.id, atlas: shots.atlas, mesh: photoMesh });
       addPolygon(roof, b.outer, b.holes, b.height, 4);

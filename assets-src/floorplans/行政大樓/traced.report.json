@@ -1,0 +1,70 @@
+{
+ "building": "行政大樓",
+ "osm": [
+  234786945
+ ],
+ "floors": {
+  "1F": {
+   "page": "1F_a2-01.jpg",
+   "scale": 7.75,
+   "offset": [
+    0,
+    0
+   ],
+   "rooms": 34,
+   "coded": 21,
+   "legend": 34,
+   "openings": 86
+  },
+  "2F": {
+   "page": "2F_a2-03.jpg",
+   "scale": 8.3,
+   "offset": [
+    6,
+    5
+   ],
+   "rooms": 21,
+   "coded": 14,
+   "legend": 20,
+   "openings": 39
+  },
+  "3F": {
+   "page": "3F_a2-05.jpg",
+   "scale": 7.83,
+   "offset": [
+    11,
+    -4
+   ],
+   "rooms": 17,
+   "coded": 9,
+   "legend": 17,
+   "openings": 39
+  },
+  "4F": {
+   "page": "4F_a2-07.jpg",
+   "scale": 23.48,
+   "offset": [
+    16,
+    20
+   ],
+   "rooms": 3,
+   "coded": 0,
+   "legend": 0,
+   "openings": 4
+  }
+ },
+ "registration": {
+  "angleDeg": 80,
+  "planCentroid": [
+   43.951,
+   61.063
+  ],
+  "worldCentroid": [
+   86.832,
+   -272.395
+  ],
+  "iou": 0.848
+ },
+ "stairs": 0,
+ "accepted": true
+}

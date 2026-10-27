@@ -1,0 +1,72 @@
+{
+ "building": "學生宿舍A棟",
+ "osm": [
+  234786931,
+  234786932,
+  234786933
+ ],
+ "floors": {
+  "1F": {
+   "page": "1F_b1-a01.jpg",
+   "scale": 15.91,
+   "offset": [
+    0,
+    0
+   ],
+   "rooms": 23,
+   "coded": 6,
+   "legend": 28,
+   "openings": 266
+  },
+  "2F": {
+   "page": "2F_b1-a03.jpg",
+   "scale": 15.52,
+   "offset": [
+    -99,
+    -26
+   ],
+   "rooms": 15,
+   "coded": 6,
+   "legend": 40,
+   "openings": 5
+  },
+  "3F": {
+   "page": "3F_b1-a05.jpg",
+   "scale": 15.52,
+   "offset": [
+    -98,
+    -25
+   ],
+   "rooms": 17,
+   "coded": 4,
+   "legend": 37,
+   "openings": 12
+  },
+  "4F": {
+   "page": "4F_b1-a07.jpg",
+   "scale": 15.52,
+   "offset": [
+    -95,
+    -7
+   ],
+   "rooms": 16,
+   "coded": 0,
+   "legend": 24,
+   "openings": 10
+  }
+ },
+ "registration": {
+  "angleDeg": 142.5,
+  "planCentroid": [
+   44.868,
+   80.313
+  ],
+  "worldCentroid": [
+   191.606,
+   293.704
+  ],
+  "iou": 0.319
+ },
+ "stairs": 0,
+ "accepted": false
+}

@@ -27,6 +27,7 @@ import {
   type Interactable,
 } from './buildings/buildingWorld';
 import { createInteriorManager } from './interiors/interiorManager';
+import type { TracedIndex } from './buildings/buildingTypes';
 import { campusCoinSpots } from './campus/coinSpots';
 import type { CampusData } from './campus/campusTypes';
 import { spawnPlayer } from './ecs/spawn';
@@ -45,6 +46,7 @@ const PLAYER_MODEL_URL = `${import.meta.env.BASE_URL}models/mascot.glb`;
 const CAMPUS_DATA_URL = `${import.meta.env.BASE_URL}data/campus.json`;
 const LIBRARY_URL = `${import.meta.env.BASE_URL}data/buildings/library.json`;
 const FACADES_URL = `${import.meta.env.BASE_URL}data/facades.json`;
+const TRACED_URL = `${import.meta.env.BASE_URL}data/buildings/traced.json`;
 
 const ITEM_MESSAGES: Readonly<Record<keyof typeof ITEMS, string>> = {
   studentCard: '📛 國立雲林科技大學 · 新鮮人',
@@ -106,10 +108,15 @@ async function boot(): Promise<void> {
   const facades = await fetch(FACADES_URL)
     .then((r) => (r.ok ? (r.json() as Promise<FacadeData>) : undefined))
     .catch(() => undefined);
+  // Plan-traced interiors (scripts/floorplan/trace.py) and the shell door gaps they need.
+  const traced = await fetch(TRACED_URL)
+    .then((r) => (r.ok ? (r.json() as Promise<TracedIndex>) : undefined))
+    .catch(() => undefined);
   const env = createCampusWorld(scene, physics, renderer, campus, sceneResources, {
     treeExclusions: buildingFootprintRings(librarySrc),
     groundHoles: buildingGroundHoles(librarySrc),
     facades,
+    entrances: traced?.entrances,
   });
   const library = createHandBuiltBuilding(librarySrc, scene, physics, renderer, env.materials, sceneResources, {
     facadeStyle: facadeStyleOf(facades, campus, librarySrc.osmReplaces[0] ?? librarySrc.name),
@@ -120,7 +127,7 @@ async function boot(): Promise<void> {
     return custom ? { ...custom, y: 0 } : { x: campus.spawn.x, y: 0, z: campus.spawn.z, facing: campus.spawn.facing };
   };
   // Every other campus building: generated interiors streamed in near the player.
-  const interiors = createInteriorManager(scene, physics, renderer, env.materials, campus, facades, sceneResources);
+  const interiors = createInteriorManager(scene, physics, renderer, env.materials, campus, facades, sceneResources, traced);
   const buildings = (): readonly HandBuiltBuilding[] => [library, ...interiors.active];
   const buildingById = (id: string): HandBuiltBuilding | undefined => buildings().find((b) => b.source.id === id);
   const spawn = spawnPoint();

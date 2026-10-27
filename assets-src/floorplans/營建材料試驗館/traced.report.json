@@ -1,0 +1,58 @@
+{
+ "building": "營建材料試驗館",
+ "osm": [
+  296668620
+ ],
+ "floors": {
+  "1F": {
+   "page": "1F_e8-01.jpg",
+   "scale": 75.67,
+   "offset": [
+    0,
+    0
+   ],
+   "rooms": 12,
+   "coded": 4,
+   "legend": 3,
+   "openings": 157
+  },
+  "2F": {
+   "page": "2F_e8-03.jpg",
+   "scale": 77.63,
+   "offset": [
+    1,
+    -7
+   ],
+   "rooms": 10,
+   "coded": 3,
+   "legend": 3,
+   "openings": 83
+  },
+  "3F": {
+   "page": "3F_e8-05.jpg",
+   "scale": 95.18,
+   "offset": [
+    7,
+    8
+   ],
+   "rooms": 15,
+   "coded": 3,
+   "legend": 4,
+   "openings": 7
+  }
+ },
+ "registration": {
+  "angleDeg": 104.0,
+  "planCentroid": [
+   16.191,
+   19.136
+  ],
+  "worldCentroid": [
+   358.397,
+   -287.969
+  ],
+  "iou": 0.642
+ },
+ "stairs": 0,
+ "accepted": true
+}
