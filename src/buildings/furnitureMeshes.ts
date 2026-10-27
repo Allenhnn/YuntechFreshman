@@ -92,9 +92,14 @@ export function createFurnitureKit(tracker: ResourceTracker): FurnitureKit {
       unitBox(0.04, 0.44, 0.04, 0.19, 0, 0.19),
     ]) ?? unitBox(0.45, 0.9, 0.45),
   );
+  // Bed: unit footprint 1 × 1 (scaled to 0.95 × 2.0), frame + mattress + pillow at the +Z (head) end.
+  const linen = tracker.material(new MeshStandardMaterial({ color: 0xf1efe8, roughness: 0.95 }));
+  const bed = tracker.geometry(
+    mergeGeometries([unitBox(1, 0.3, 1), unitBox(0.94, 0.16, 0.97, 0, 0.3), unitBox(0.7, 0.1, 0.16, 0, 0.46, 0.38)], true) ?? unitBox(1, 0.5, 1),
+  );
   return {
-    geometry: { shelf, table, chair, plinth: tracker.geometry(unitBox(1, 1, 1)), screen: tracker.geometry(unitBox(1, 1, 1)) },
-    material: { shelf: [wood, wood, wood, wood, books, books], table: laminate, chair: fabric, plinth, screen },
+    geometry: { shelf, table, chair, plinth: tracker.geometry(unitBox(1, 1, 1)), screen: tracker.geometry(unitBox(1, 1, 1)), bed },
+    material: { shelf: [wood, wood, wood, wood, books, books], table: laminate, chair: fabric, plinth, screen, bed: [wood, linen, linen] },
   };
 }
 

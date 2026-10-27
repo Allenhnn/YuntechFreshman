@@ -1,5 +1,6 @@
 import {
   CanvasTexture,
+  DoubleSide,
   Color,
   MeshStandardMaterial,
   RepeatWrapping,
@@ -164,7 +165,8 @@ export function createCampusMaterials(renderer: WebGLRenderer, tracker: Resource
  * ground floor generated from the per-vertex style (see FacadeBuilder). UV = (bays, floors).
  */
 function createFacadeMaterial(grain: Texture): MeshStandardMaterial {
-  const m = new MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0 });
+  // Double-sided: from inside an enterable building the same shader paints the windows on the inner face.
+  const m = new MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0, side: DoubleSide });
   m.onBeforeCompile = (shader) => {
     shader.uniforms['uWallGrain'] = { value: grain };
     shader.vertexShader = shader.vertexShader

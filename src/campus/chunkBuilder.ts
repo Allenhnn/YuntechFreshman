@@ -12,6 +12,7 @@ import {
   type Ring,
 } from './campusTypes';
 import { addFacadeDetails } from './facadeDetails';
+import { DOOR_HEIGHT, DOOR_WIDTH, buildingEntrance, hasInterior, type Entrance } from './entrances';
 import { DEFAULT_CAMPUS_STYLE, DEFAULT_TOWN_STYLE, DETAIL_DEFAULTS, PATTERN_ID, type FacadeData, type FacadeStyle, type PhotoEdge } from './facadeTypes';
 
 /** Facade texture covers one structural bay (m) by one floor (m). */
@@ -173,6 +174,7 @@ function addWalls(
   floors: number,
   style: ResolvedStyle,
   photo?: { edges: ReadonlyMap<number, PhotoEdge>; out: GeoBuilder },
+  door?: Entrance | null,
 ): void {
   const n = r.length / 2;
   let u = 0;
@@ -199,16 +201,29 @@ function addWalls(
     }
     // Snap the bay count per wall so windows never get cut at corners.
     const bays = Math.max(1, Math.round(len / style.bay));
-    const u1 = u + bays;
-    const vBase = (WALL_BASE / height) * floors;
+    const u0 = u;
+    // One wall panel from a0 to a1 (m along the edge), y0 to y1; UVs stay continuous across panels.
+    const panel = (a0: number, a1: number, y0: number, y1: number): void => {
+      const ua = u0 + (bays * a0) / len, ub = u0 + (bays * a1) / len;
+      const va = (y0 / height) * floors, vb = (y1 / height) * floors;
+      const ax = px + (dx * a0) / len, az = pz + (dz * a0) / len, bx = px + (dx * a1) / len, bz = pz + (dz * a1) / len;
+      const p0 = g.styled(ax, y0, az, nx, nz, ua, va, style);
+      const q0 = g.styled(bx, y0, bz, nx, nz, ub, va, style);
+      const q1 = g.styled(bx, y1, bz, nx, nz, ub, vb, style);
+      const p1 = g.styled(ax, y1, az, nx, nz, ua, vb, style);
+      g.tri(p0, q1, q0);
+      g.tri(p0, p1, q1);
+    };
     // Walls start below the ground plane so the wall/ground seam never forms a collision crease.
-    const p0 = g.styled(px, WALL_BASE, pz, nx, nz, u, vBase, style);
-    const q0 = g.styled(qx, WALL_BASE, qz, nx, nz, u1, vBase, style);
-    const q1 = g.styled(qx, height, qz, nx, nz, u1, floors, style);
-    const p1 = g.styled(px, height, pz, nx, nz, u, floors, style);
-    g.tri(p0, q1, q0);
-    g.tri(p0, p1, q1);
-    u = u1;
+    if (door && door.edge === i && height > DOOR_HEIGHT + 0.2) {
+      const d0 = door.along - DOOR_WIDTH / 2, d1 = door.along + DOOR_WIDTH / 2;
+      panel(0, d0, WALL_BASE, height);
+      panel(d1, len, WALL_BASE, height);
+      panel(d0, d1, DOOR_HEIGHT, height); // lintel over the entrance
+    } else {
+      panel(0, len, WALL_BASE, height);
+    }
+    u = u0 + bays;
   }
 }
 
@@ -378,9 +393,11 @@ export class ChunkBuilder {
       const floors = Math.max(1, b.levels || Math.round(b.height / 3.6));
       const shots = this.photos.get(b.id);
       const photoOut = shots ? new GeoBuilder() : null;
-      addWalls(facade, b.outer, b.height, floors, style, shots && photoOut ? { edges: shots.edges, out: photoOut } : undefined);
+      const photoEdges = new Set(shots?.edges.keys() ?? []);
+      const door = hasInterior(b) ? buildingEntrance(b, this.data.roads, photoEdges) : null;
+      addWalls(facade, b.outer, b.height, floors, style, shots && photoOut ? { edges: shots.edges, out: photoOut } : undefined, door);
       for (const h of b.holes) addWalls(facade, h, b.height, floors, style);
-      addFacadeDetails(details, b, this.rawStyles[styleIndex]!, { wall: style.wall, trim: style.trim }, this.data.roads, new Set(shots?.edges.keys() ?? []));
+      addFacadeDetails(details, b, this.rawStyles[styleIndex]!, { wall: style.wall, trim: style.trim }, this.data.roads, photoEdges, door);
       const photoMesh = photoOut?.build();
       if (shots && photoMesh) photoWalls.push({ building: b.id, atlas: shots.atlas, mesh: photoMesh });
       addPolygon(roof, b.outer, b.holes, b.height, 4);

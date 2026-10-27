@@ -8,7 +8,7 @@ import type { ColliderBox } from './buildingMesh';
  * walls, doors, voids, cores and neighbouring rooms without hand placement. Keep-out circles protect
  * elevator landings, signs and stair ends.
  */
-export type FurnitureKind = 'shelf' | 'table' | 'chair' | 'plinth' | 'screen';
+export type FurnitureKind = 'shelf' | 'table' | 'chair' | 'plinth' | 'screen' | 'bed';
 
 export interface FurnitureItem {
   kind: FurnitureKind;
@@ -231,6 +231,48 @@ function discussion(ctx: Ctx, r: Rect): void {
   }
 }
 
+/** Two-person dorm room: beds along both long walls at the far end, desks after them. */
+function dormRoom(ctx: Ctx, r: Rect, door: Opening | undefined): void {
+  const [x0, y0, x1, y1] = r;
+  const alongX = x1 - x0 >= y1 - y0;
+  const lo = alongX ? x0 : y0, hi = alongX ? x1 : y1;
+  const latLo = alongX ? y0 : x0, latHi = alongX ? y1 : x1;
+  if (hi - lo < 3.2 || latHi - latLo < 2.4) return;
+  const dm = door ? (alongX ? (door.a[0] + door.b[0]) / 2 : (door.a[1] + door.b[1]) / 2) : lo;
+  const farHigh = Math.abs(dm - lo) < Math.abs(dm - hi); // door near the low end → beds at the high end
+  const dir = farHigh ? -1 : 1;
+  const end = farHigh ? hi : lo;
+  const BED_L = 2.0, BED_W = 0.95, DESK_L = 1.1, DESK_D = 0.6;
+  for (const [lat, latSide] of [[latLo + 0.1 + BED_W / 2, 1], [latHi - 0.1 - BED_W / 2, -1]] as const) {
+    const bedMid = end + dir * (0.1 + BED_L / 2);
+    const [bx0, by0, bx1, by1] = alongX
+      ? [bedMid - BED_L / 2, lat - BED_W / 2, bedMid + BED_L / 2, lat + BED_W / 2]
+      : [lat - BED_W / 2, bedMid - BED_L / 2, lat + BED_W / 2, bedMid + BED_L / 2];
+    if (fits(ctx, bx0, by0, bx1, by1, 0.05, 0)) {
+      ctx.items.push(alongX
+        ? { kind: 'bed', x: bedMid, y: ctx.base, z: lat, ry: Math.PI / 2 * -dir, sx: BED_W, sy: 1, sz: BED_L, tint: hash(bedMid, lat) }
+        : { kind: 'bed', x: lat, y: ctx.base, z: bedMid, ry: dir > 0 ? Math.PI : 0, sx: BED_W, sy: 1, sz: BED_L, tint: hash(lat, bedMid) });
+      ctx.colliders.push({ c: [(bx0 + bx1) / 2, ctx.base + 0.25, (by0 + by1) / 2], h: [(bx1 - bx0) / 2, 0.25, (by1 - by0) / 2] });
+    }
+    // Desk against the same wall, just past the bed, with a chair facing it.
+    const deskMid = end + dir * (0.1 + BED_L + 0.15 + DESK_L / 2);
+    const deskLat = latSide > 0 ? latLo + DESK_D / 2 : latHi - DESK_D / 2;
+    const [dx0, dy0, dx1, dy1] = alongX
+      ? [deskMid - DESK_L / 2, deskLat - DESK_D / 2, deskMid + DESK_L / 2, deskLat + DESK_D / 2]
+      : [deskLat - DESK_D / 2, deskMid - DESK_L / 2, deskLat + DESK_D / 2, deskMid + DESK_L / 2];
+    if (!fits(ctx, dx0, dy0, dx1, dy1, 0.05, 0)) continue;
+    const chairLat = deskLat + latSide * (DESK_D / 2 + 0.35);
+    ctx.items.push(alongX
+      ? { kind: 'table', x: deskMid, y: ctx.base, z: deskLat, ry: 0, sx: DESK_L, sy: 0.75, sz: DESK_D, tint: 0 }
+      : { kind: 'table', x: deskLat, y: ctx.base, z: deskMid, ry: Math.PI / 2, sx: DESK_L, sy: 0.75, sz: DESK_D, tint: 0 });
+    // Chair yaw 0 faces −Z: turn it to face the desk across the room's short axis.
+    const chairYaw = alongX ? (latSide > 0 ? 0 : Math.PI) : (latSide > 0 ? Math.PI / 2 : -Math.PI / 2);
+    ctx.items.push(alongX
+      ? { kind: 'chair', x: deskMid, y: ctx.base, z: chairLat, ry: chairYaw, sx: 1, sy: 1, sz: 1, tint: hash(deskMid, chairLat) }
+      : { kind: 'chair', x: chairLat, y: ctx.base, z: deskMid, ry: chairYaw, sx: 1, sy: 1, sz: 1, tint: hash(chairLat, deskMid) });
+  }
+}
+
 function plinths(ctx: Ctx, r: Rect): void {
   const [x0, y0, x1, y1] = r;
   for (let x = x0 + 2.5; x < x1 - 2; x += 4) {
@@ -268,6 +310,7 @@ export function layoutFurniture(plan: FloorPlan, grid: FloorGrid, base: number, 
         case 'theater': seating(ctx, r, false); break;
         case 'classroom': seating(ctx, r, true); break;
         case 'exhibit': plinths(ctx, r); break;
+        case 'dorm': dormRoom(ctx, r, door); break;
       }
     }
   });

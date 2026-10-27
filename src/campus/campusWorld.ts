@@ -4,6 +4,7 @@ import {
   BufferGeometry,
   Color,
   CylinderGeometry,
+  DoubleSide,
   DirectionalLight,
   Fog,
   Group,
@@ -271,7 +272,7 @@ export function createCampusWorld(
       return hit.material;
     }
     // Untextured until the KTX2 arrives; the facade tint keeps it from flashing white.
-    const material = new MeshStandardMaterial({ color: 0xd8d2c6, roughness: 0.8, metalness: 0 });
+    const material = new MeshStandardMaterial({ color: 0xd8d2c6, roughness: 0.8, metalness: 0, side: DoubleSide });
     atlases.set(url, { material, users: 1 });
     ktx2.loadAsync(`${import.meta.env.BASE_URL}${url}`).then(
       (tex) => {

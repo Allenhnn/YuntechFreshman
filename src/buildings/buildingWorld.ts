@@ -23,7 +23,16 @@ import { buildBuildingMeshes, type BuildingMeshes, type BuildingPart, type Colli
 import { OUTSIDE, rasterize, regionRects } from './floorGrid';
 import { createInteriorMaterials, type InteriorMaterials } from './interiorMaterials';
 import { buildPlates, paintDirectory, paintEntranceSign } from './signs';
-import { createFurnitureKit, instanceFurniture } from './furnitureMeshes';
+import { createFurnitureKit, instanceFurniture, type FurnitureKit } from './furnitureMeshes';
+
+function pointInRing(x: number, z: number, r: Ring): boolean {
+  let inside = false;
+  for (let i = 0, n = r.length / 2, j = n - 1; i < n; j = i++) {
+    const xi = r[i * 2]!, zi = r[i * 2 + 1]!, xj = r[j * 2]!, zj = r[j * 2 + 1]!;
+    if (zi > z !== zj > z && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) inside = !inside;
+  }
+  return inside;
+}
 
 /** Interior (partitions, floors, ceilings, plates, colliders) streams in near the building. */
 const INTERIOR_LOAD = 90;
@@ -104,6 +113,21 @@ export function buildingFootprintRings(src: BuildingSource): Ring[] {
   ]);
 }
 
+export interface HandBuiltOptions {
+  facadeStyle?: FacadeStyle;
+  /**
+   * Generated interiors inside an OSM shell: no exterior walls, roofs or signs of their own (the
+   * campus extrusion with its entrance gap is the shell).
+   */
+  interiorOnly?: boolean;
+  /** Meshes built elsewhere (the interior worker) instead of on this thread. */
+  meshes?: BuildingMeshes;
+  /** Materials and furniture kit shared by all generated interiors. */
+  shared?: { imats: InteriorMaterials; kit: FurnitureKit };
+  /** World ring of the footprint: with it, the player's level comes from height alone (no plan grids). */
+  footprint?: Ring;
+}
+
 export function createHandBuiltBuilding(
   src: BuildingSource,
   scene: Scene,
@@ -111,11 +135,12 @@ export function createHandBuiltBuilding(
   renderer: WebGLRenderer,
   campus: CampusMaterials,
   sceneTracker: ResourceTracker,
-  facadeStyle: FacadeStyle = DEFAULT_CAMPUS_STYLE,
+  options: HandBuiltOptions = {},
 ): HandBuiltBuilding {
+  const { facadeStyle = DEFAULT_CAMPUS_STYLE, interiorOnly = false } = options;
   const xf = createPlanTransform(src);
-  const meshes: BuildingMeshes = buildBuildingMeshes(src);
-  const imats: InteriorMaterials = createInteriorMaterials(renderer, sceneTracker);
+  const meshes: BuildingMeshes = options.meshes ?? buildBuildingMeshes(src);
+  const imats: InteriorMaterials = options.shared?.imats ?? createInteriorMaterials(renderer, sceneTracker);
   const [ox, oz] = xf.toWorld(0, 0);
   const rot = new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), xf.rotY);
   const rapierRot = { x: rot.x, y: rot.y, z: rot.z, w: rot.w };
@@ -168,12 +193,14 @@ export function createHandBuiltBuilding(
     }
   };
 
-  // --- Exterior: always present ----------------------------------------------------------------
+  // --- Exterior: always present (unless the campus shell stands in for it) --------------------
   const exteriorGroup = placeGroup(`${src.id}:exterior`);
   const exteriorColliders: RAPIER.Collider[] = [];
-  addPart(meshes.exterior, exteriorGroup, sceneTracker, true);
-  addColliders(meshes.exterior.colliders, exteriorColliders);
-  for (const floor of Object.values(src.floors)) {
+  if (!interiorOnly) {
+    addPart(meshes.exterior, exteriorGroup, sceneTracker, true);
+    addColliders(meshes.exterior.colliders, exteriorColliders);
+  }
+  for (const floor of interiorOnly ? [] : Object.values(src.floors)) {
     for (const sign of floor.signs) {
       if (sign.kind !== 'entrance') continue;
       const tex = paintEntranceSign(src.name.replace('暨專業大樓', ''), sceneTracker);
@@ -188,7 +215,7 @@ export function createHandBuiltBuilding(
   }
 
   // --- Interior: streamed, one group per level so floors away from the player can be hidden -------
-  const kit = createFurnitureKit(sceneTracker);
+  const kit = options.shared?.kit ?? createFurnitureKit(sceneTracker);
   interface LoadedInterior {
     root: Group;
     levels: { id: string; base: number; group: Group }[];
@@ -281,14 +308,19 @@ export function createHandBuiltBuilding(
    * Inside: show the player's floor and its neighbours (voids look one floor up / down).
    * Outside: only the ground floor and basement (seen through doors and the stairwell).
    */
-  const levelGrids = meshes.levels.map((l) => ({ id: l.id, base: l.base, grid: rasterize(src.floors[l.id]!.spaces) }));
+  const ring = options.footprint;
+  const levelGrids = ring ? [] : meshes.levels.map((l) => ({ id: l.id, base: l.base, grid: rasterize(src.floors[l.id]!.spaces) }));
   const updateVisibility = (px: number, py: number, pz: number): void => {
     if (!interior) return;
-    const [x, y] = xf.toPlan(px, pz);
     let current = -1;
-    levelGrids.forEach((l, i) => {
-      if (py + 0.8 >= l.base && cellOf(l.grid, x, y) !== OUTSIDE) current = i;
-    });
+    if (ring) {
+      if (pointInRing(px, pz, ring)) meshes.levels.forEach((l, i) => { if (py + 0.8 >= l.base) current = i; });
+    } else {
+      const [x, y] = xf.toPlan(px, pz);
+      levelGrids.forEach((l, i) => {
+        if (py + 0.8 >= l.base && cellOf(l.grid, x, y) !== OUTSIDE) current = i;
+      });
+    }
     interior.levels.forEach((l, i) => {
       l.group.visible = current < 0 ? l.base <= 0 : Math.abs(i - current) <= 1;
     });

@@ -1,6 +1,7 @@
 import { mulberry32 } from '../core/math';
 import type { CampusBuilding, CampusRoad, Ring } from './campusTypes';
 import type { FacadeStyle } from './facadeTypes';
+import { DOOR_WIDTH, buildingEntrance, type Entrance } from './entrances';
 import type { GeoBuilder } from './chunkBuilder';
 
 /**
@@ -90,27 +91,6 @@ function walls(r: Ring): WallFrame[] {
   return out;
 }
 
-/** Index of the wall whose front faces the nearest road, or -1. */
-function entranceWall(ws: readonly WallFrame[], roads: readonly CampusRoad[]): number {
-  let best = -1, bestD = 60;
-  ws.forEach((w, i) => {
-    if (w.len < 6) return;
-    const mx = w.px + w.dx * w.len / 2, mz = w.pz + w.dz * w.len / 2;
-    for (const r of roads) {
-      if (r.kind === 'walkway') continue;
-      for (let k = 0; k + 3 < r.points.length; k += 2) {
-        const ax = r.points[k]!, az = r.points[k + 1]!, bx = r.points[k + 2]!, bz = r.points[k + 3]!;
-        const sx = bx - ax, sz = bz - az;
-        const t = Math.max(0, Math.min(1, ((mx - ax) * sx + (mz - az) * sz) / (sx * sx + sz * sz || 1)));
-        const qx = ax + sx * t - mx, qz = az + sz * t - mz;
-        const d = Math.hypot(qx, qz);
-        if (d < bestD && (qx * w.nx + qz * w.nz) > d * 0.5) { bestD = d; best = i; }
-      }
-    }
-  });
-  return best;
-}
-
 /**
  * Appends one building's details to `g`. `skipEdges` are walls covered by photos (their real
  * balconies are in the image already), `floors` / `height` match the extrusion.
@@ -122,6 +102,7 @@ export function addFacadeDetails(
   colors: DetailColors,
   roads: readonly CampusRoad[],
   skipEdges: ReadonlySet<number>,
+  door: Entrance | null = null,
 ): void {
   const floors = Math.max(1, b.levels || Math.round(b.height / 3.6));
   const fh = b.height / floors;
@@ -142,6 +123,7 @@ export function addFacadeDetails(
     if (style.columns) {
       for (let k = 0; k <= bays; k++) {
         const a = k * bw;
+        if (door?.edge === i && Math.abs(a - door.along) < DOOR_WIDTH / 2 + COLUMN_W) continue; // keep the doorway clear
         wallBox(g, w, Math.max(0, a - COLUMN_W / 2), Math.min(w.len, a + COLUMN_W / 2), 0, COLUMN_D, 0, b.height, colors.trim);
       }
     }
@@ -178,12 +160,13 @@ export function addFacadeDetails(
     }
   });
 
-  if (style.canopy) {
-    const e = entranceWall(ws, roads);
-    const w = ws[e];
-    if (w && !skipEdges.has(e)) {
-      const half = Math.min(3, w.len / 2 - 0.5);
-      const mid = w.len / 2;
+  // Canopy over the entrance (or, for buildings without an interior, the wall facing the nearest road).
+  const entrance = door ?? (style.canopy ? buildingEntrance(b, roads, skipEdges) : null);
+  if (style.canopy && entrance) {
+    const w = ws[entrance.edge];
+    if (w && w.len >= 6) {
+      const mid = entrance.along;
+      const half = Math.min(3, mid - 0.3, w.len - mid - 0.3);
       const y = Math.min(3.2, fh * 0.85);
       wallBox(g, w, mid - half, mid + half, 0, 3, y, y + 0.25, colors.trim);
       for (const a of [mid - half + 0.15, mid + half - 0.3]) wallBox(g, w, a, a + 0.15, 2.7, 2.85, 0, y, colors.trim);

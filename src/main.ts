@@ -18,7 +18,15 @@ import { createInput } from './input/input';
 import { ToonPalette, createOutlineMaterial, createToonRamp } from './render/toon';
 import { createCampusWorld } from './campus/campusWorld';
 import { facadeStyleOf, type FacadeData } from './campus/facadeTypes';
-import { buildingFootprintRings, buildingGroundHoles, createHandBuiltBuilding, loadBuildingSource } from './buildings/buildingWorld';
+import {
+  buildingFootprintRings,
+  buildingGroundHoles,
+  createHandBuiltBuilding,
+  loadBuildingSource,
+  type HandBuiltBuilding,
+  type Interactable,
+} from './buildings/buildingWorld';
+import { createInteriorManager } from './interiors/interiorManager';
 import { campusCoinSpots } from './campus/coinSpots';
 import type { CampusData } from './campus/campusTypes';
 import { spawnPlayer } from './ecs/spawn';
@@ -103,12 +111,18 @@ async function boot(): Promise<void> {
     groundHoles: buildingGroundHoles(librarySrc),
     facades,
   });
-  const library = createHandBuiltBuilding(librarySrc, scene, physics, renderer, env.materials, sceneResources, facadeStyleOf(facades, campus, librarySrc.osmReplaces[0] ?? librarySrc.name));
+  const library = createHandBuiltBuilding(librarySrc, scene, physics, renderer, env.materials, sceneResources, {
+    facadeStyle: facadeStyleOf(facades, campus, librarySrc.osmReplaces[0] ?? librarySrc.name),
+  });
   // Respawn point: one chosen on the map (saved per browser), else the campus default (dorm C entrance).
   const spawnPoint = (): { x: number; y: number; z: number; facing: number } => {
     const custom = gameStore.getState().customSpawn;
     return custom ? { ...custom, y: 0 } : { x: campus.spawn.x, y: 0, z: campus.spawn.z, facing: campus.spawn.facing };
   };
+  // Every other campus building: generated interiors streamed in near the player.
+  const interiors = createInteriorManager(scene, physics, renderer, env.materials, campus, facades, sceneResources);
+  const buildings = (): readonly HandBuiltBuilding[] => [library, ...interiors.active];
+  const buildingById = (id: string): HandBuiltBuilding | undefined => buildings().find((b) => b.source.id === id);
   const spawn = spawnPoint();
   await env.loadAround(spawn.x, spawn.z, (f) => actions.setLoadProgress(0.25 + f * 0.25));
   physics.step(); // build the query pipeline before the first shape/ray casts
@@ -193,14 +207,16 @@ async function boot(): Promise<void> {
         return;
       case 'interact': {
         const target = nearestInteractable();
-        if (!target?.id.startsWith(`${library.source.id}:elevator:`)) return;
-        const current = target.id.split(':')[2] ?? '1F';
-        const directory = new Map(library.source.directory.map((d) => [d.level, d.items.join('、')]));
+        const building = target ? buildingById(target.id.split(':elevator:')[0] ?? '') : undefined;
+        if (!target || !building) return;
+        const src = building.source;
+        const current = target.id.split(':elevator:')[1] ?? '1F';
+        const directory = new Map(src.directory.map((d) => [d.level, d.items.join('、')]));
         actions.setElevator({
-          building: library.source.id,
-          title: library.source.name,
+          building: src.id,
+          title: src.name,
           current,
-          levels: library.source.levels.map((l) => ({
+          levels: src.levels.map((l) => ({
             id: l.id,
             enabled: l.built && l.elevator !== false,
             note: !l.built
@@ -214,8 +230,10 @@ async function boot(): Promise<void> {
         return;
       }
       case 'elevatorTo': {
-        const level = library.source.levels.find((l) => l.id === cmd.level);
-        const landing = library.source.floors[cmd.level]?.elevator;
+        const building = buildingById(cmd.building);
+        if (!building) return;
+        const level = building.source.levels.find((l) => l.id === cmd.level);
+        const landing = building.source.floors[cmd.level]?.elevator;
         const current = gameStore.getState().elevator?.current;
         if (!level?.built || !landing) {
           actions.toast(`${cmd.level} 尚在建置中`);
@@ -228,8 +246,8 @@ async function boot(): Promise<void> {
         // Fade out, move to the landing of the chosen floor, fade back in.
         actions.setFading(true);
         window.setTimeout(() => {
-          const [x, z] = library.planToWorld(landing.landing[0], landing.landing[1]);
-          const facing = library.planFacing(landing.facing);
+          const [x, z] = building.planToWorld(landing.landing[0], landing.landing[1]);
+          const facing = building.planFacing(landing.facing);
           teleport(x, level.elevation, z, facing);
           renderSyncSystem(world, 1);
           rig.snap(readFocus(), facing + Math.PI);
@@ -247,12 +265,12 @@ async function boot(): Promise<void> {
     c.handle !== groundHandle || !library.isOverBasement(Transform.x[eid]!, Transform.z[eid]!);
 
   const cameraFilter = (c: { handle: number }): boolean =>
-    groundFilter(c) && !library.isCameraTransparent(c.handle) && !env.isBoundaryCollider(c.handle);
+    groundFilter(c) && !env.isBoundaryCollider(c.handle) && !buildings().some((b) => b.isCameraTransparent(c.handle));
 
-  const nearestInteractable = (): (typeof library.interactables)[number] | null => {
-    let best: (typeof library.interactables)[number] | null = null;
+  const nearestInteractable = (): Interactable | null => {
+    let best: Interactable | null = null;
     let bestD = Infinity;
-    for (const it of library.interactables) {
+    for (const it of buildings().flatMap((b) => b.interactables)) {
       const d = Math.hypot(Transform.x[eid]! - it.x, Transform.z[eid]! - it.z);
       if (d < it.radius && d < bestD && Math.abs(Transform.y[eid]! - it.y) < 1.5) {
         best = it;
@@ -300,6 +318,7 @@ async function boot(): Promise<void> {
         world: env,
         scene,
         library,
+        interiors,
         /** Point the camera along a world yaw (dev inspection). */
         look(yaw: number) {
           rig.snap(readFocus(), yaw);
@@ -358,6 +377,11 @@ async function boot(): Promise<void> {
       drainCommands(handleCommand);
       controller.update(world, FIXED_DT, input.consumePressed(), rig.yaw, groundFilter, ui.tester);
       physics.step();
+      // Safety net: anything that drops the player out of the world (a missed collider) respawns them.
+      if (playing && Transform.y[eid]! < -40) {
+        handleCommand({ type: 'respawn' });
+        actions.toast('已回到重生點');
+      }
       // Walking into the invisible campus boundary: say why, at most every few seconds.
       if (playing && time - lastBoundaryWarning > 4 && env.distanceToBoundary(Transform.x[eid]!, Transform.z[eid]!) < 1.2) {
         lastBoundaryWarning = time;
@@ -382,6 +406,7 @@ async function boot(): Promise<void> {
     env.followShadow(f.x, f.z);
     env.update(f.x, f.z);
     library.update(f.x, f.y, f.z);
+    interiors.update(f.x, f.y, f.z);
     actions.setInteractPrompt(playing ? (nearestInteractable()?.prompt ?? null) : null);
 
     telemetry.x = f.x;
@@ -421,6 +446,7 @@ async function boot(): Promise<void> {
     input.dispose();
     coins.dispose(world);
     library.dispose();
+    interiors.dispose();
     env.dispose();
     player.despawn();
     assets.dispose();

@@ -18,7 +18,8 @@ export type FurnishKind =
   | 'carrel'
   | 'theater'
   | 'classroom'
-  | 'exhibit';
+  | 'exhibit'
+  | 'dorm';
 
 export interface Space {
   id: string;
