@@ -1,6 +1,6 @@
 import { defineConfig } from 'vite';
 import glsl from 'vite-plugin-glsl';
-import { facadeToolPlugin } from './scripts/photos/devPlugin';
+import { facadeToolPlugin } from './scripts/photos/devPlugin.ts';
 
 export default defineConfig({
   plugins: [glsl(), facadeToolPlugin()],

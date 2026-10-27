@@ -11,7 +11,8 @@
     "verbatimModuleSyntax": true,
     "isolatedModules": true,
     "skipLibCheck": true,
-    "noEmit": true
+    "noEmit": true,
+    "allowImportingTsExtensions": true
   },
   "include": ["scripts/**/*.ts", "scripts/**/*.d.ts", "vite.config.ts", "src/glsl.d.ts"]
 }

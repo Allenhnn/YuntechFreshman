@@ -12,7 +12,7 @@ import { execFile } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Plugin } from 'vite';
-import type { FacadeSource, FacadeStyle, PhotoSection } from '../../src/campus/facadeTypes';
+import type { FacadeSource, FacadeStyle, PhotoSection } from '../../src/campus/facadeTypes.ts';
 
 const SOURCE = 'assets-src/campus/facades.json';
 const PHOTOS = 'assets-src/photos';
