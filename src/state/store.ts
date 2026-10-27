@@ -25,6 +25,53 @@ export interface ElevatorMenu {
   levels: { id: string; enabled: boolean; note: string }[];
 }
 
+/** Dev-build testing aids (fly, noclip, speed). Never persisted; off in production builds. */
+export interface TesterState {
+  enabled: boolean;
+  fly: boolean;
+  /** Pass through walls and floors (implies fly). */
+  noclip: boolean;
+  /** Movement speed multiplier. */
+  speed: number;
+}
+export const TESTER_SPEEDS = [1, 2, 5, 10] as const;
+export const TESTER_AVAILABLE = import.meta.env.DEV;
+
+/** A saved map location, x/z in campus metres. */
+export interface Waypoint {
+  id: number;
+  name: string;
+  x: number;
+  z: number;
+}
+
+export interface SpawnPoint {
+  x: number;
+  z: number;
+  facing: number;
+}
+
+const WAYPOINTS_KEY = 'yfm.waypoints.v1';
+const SPAWN_KEY = 'yfm.spawn.v1';
+
+/** Per-browser storage that may be unavailable (private mode): failures fall back to defaults. */
+function loadJson<T>(key: string, fallback: T): T {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+function saveJson(key: string, value: unknown): void {
+  try {
+    if (value === null) localStorage.removeItem(key);
+    else localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    /* storage unavailable: keep in memory only */
+  }
+}
+
 export interface Toast {
   id: number;
   text: string;
@@ -60,6 +107,11 @@ export interface GameState {
   settings: Settings;
   /** Static top-down layout for the minimap; set once after the scene is built. */
   mapData: CampusData | null;
+
+  tester: TesterState;
+  waypoints: Waypoint[];
+  /** Respawn point chosen on the map; null = the campus default (dorm C entrance). */
+  customSpawn: SpawnPoint | null;
 }
 
 export const START_MINUTES = 8 * 60;
@@ -84,6 +136,9 @@ export const gameStore = createStore<GameState>()(() => ({
   fading: false,
   settings: loadSettings(),
   mapData: null,
+  tester: { enabled: false, fly: false, noclip: false, speed: 1 },
+  waypoints: loadJson<Waypoint[]>(WAYPOINTS_KEY, []),
+  customSpawn: loadJson<SpawnPoint | null>(SPAWN_KEY, null),
 }));
 
 export function useGame<T>(selector: (s: GameState) => T): T {
@@ -178,6 +233,33 @@ export const actions = {
   },
   clearToast(id: number): void {
     if (get().toast?.id === id) set({ toast: null });
+  },
+  setTester(patch: Partial<TesterState>): void {
+    if (!TESTER_AVAILABLE) return;
+    const next = { ...get().tester, ...patch };
+    if (!next.enabled) Object.assign(next, { fly: false, noclip: false, speed: 1 });
+    if (next.noclip) next.fly = true;
+    set({ tester: next });
+  },
+  addWaypoint(name: string, x: number, z: number): void {
+    const list = get().waypoints;
+    const waypoints = [...list, { id: Math.max(0, ...list.map((w) => w.id)) + 1, name, x, z }];
+    set({ waypoints });
+    saveJson(WAYPOINTS_KEY, waypoints);
+  },
+  renameWaypoint(id: number, name: string): void {
+    const waypoints = get().waypoints.map((w) => (w.id === id ? { ...w, name } : w));
+    set({ waypoints });
+    saveJson(WAYPOINTS_KEY, waypoints);
+  },
+  removeWaypoint(id: number): void {
+    const waypoints = get().waypoints.filter((w) => w.id !== id);
+    set({ waypoints });
+    saveJson(WAYPOINTS_KEY, waypoints);
+  },
+  setCustomSpawn(customSpawn: SpawnPoint | null): void {
+    set({ customSpawn });
+    saveJson(SPAWN_KEY, customSpawn);
   },
   updateSettings(patch: Partial<Settings>): void {
     const settings = { ...get().settings, ...patch };

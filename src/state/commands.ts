@@ -7,7 +7,9 @@ export type GameCommand =
   | { type: 'respawn' }
   | { type: 'useItem'; slot: number }
   | { type: 'interact' }
-  | { type: 'elevatorTo'; building: string; level: string };
+  | { type: 'elevatorTo'; building: string; level: string }
+  /** Map teleport: x/z in campus metres; the game finds a safe standing spot near it. */
+  | { type: 'teleport'; x: number; z: number; label: string };
 
 const queue: GameCommand[] = [];
 

@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { HOTBAR_SIZE, ITEMS } from '../state/items';
-import { actions, useGame } from '../state/store';
+import { TESTER_AVAILABLE, actions, useGame } from '../state/store';
 import { useApi } from './api';
 import { FullMap, Minimap } from './minimap';
 
@@ -74,6 +74,18 @@ function Toast(): ReactNode {
   return toast ? <div key={toast.id} className="toast">{toast.text}</div> : null;
 }
 
+function TesterBadge(): ReactNode {
+  const t = useGame((s) => s.tester);
+  if (!TESTER_AVAILABLE || !t.enabled) return null;
+  const flag = (on: boolean): ReactNode => <span className={on ? 'on' : ''}>{on ? '開' : '關'}</span>;
+  return (
+    <div className="tester-badge">
+      <b>🧪 測試員模式</b>　<kbd>F</kbd> 飛行 {flag(t.fly)}　<kbd>N</kbd> 穿牆 {flag(t.noclip)}　<kbd>+</kbd>/<kbd>-</kbd> 速度 <span className={t.speed > 1 ? 'on' : ''}>×{t.speed}</span>
+      {t.fly && <>　<kbd>Space</kbd> 上升 <kbd>C</kbd> 下降</>}　<kbd>`</kbd> 關閉
+    </div>
+  );
+}
+
 export function Hud(): ReactNode {
   const api = useApi();
   const mapMode = useGame((s) => s.mapMode);
@@ -83,6 +95,7 @@ export function Hud(): ReactNode {
     <div className="hud">
       <Clock />
       <Coins />
+      <TesterBadge />
       {mapMode === 'mini' && <Minimap />}
       {mapMode === 'mini' && <div className="osm-credit">© OpenStreetMap contributors</div>}
       <Hotbar />

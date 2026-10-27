@@ -131,7 +131,32 @@ kbd {
   background: rgba(10, 30, 20, 0.45); animation: fade-in 0.15s ease;
 }
 .fullmap .frame { position: relative; padding: 14px; border-radius: 22px; background: var(--cream); box-shadow: var(--shadow); }
-.fullmap canvas { display: block; width: min(78vmin, 720px); height: min(78vmin, 720px); border-radius: 12px; }
+.fullmap { pointer-events: auto; }
+.fullmap .map-body { display: flex; gap: 14px; }
+.fullmap .map-area { position: relative; }
+.fullmap canvas { display: block; width: min(78vmin, 720px); height: min(78vmin, 720px); border-radius: 12px; cursor: grab; touch-action: none; }
+.fullmap canvas:active { cursor: grabbing; }
+.map-menu {
+  position: absolute; transform: translate(10px, -50%); min-width: 160px; padding: 8px; border-radius: 12px;
+  background: var(--cream); box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 4px; z-index: 2; animation: pop-in 0.12s ease;
+}
+.map-menu .title { font-weight: 800; font-size: 13px; padding: 2px 6px 4px; color: var(--ink); }
+.map-menu button, .map-side button, .map-tools button {
+  border: 0; border-radius: 8px; padding: 7px 10px; background: var(--green-soft); color: var(--ink); font: inherit; font-size: 13px; text-align: left; cursor: pointer;
+}
+.map-menu button:hover, .map-side button:hover, .map-tools button:hover { background: #cfe8d6; }
+.map-menu .ghost, .map-side .ghost { background: transparent; color: var(--ink-soft); }
+.map-tools { position: absolute; right: 10px; top: 10px; display: flex; flex-direction: column; gap: 4px; }
+.map-tools button { width: 34px; height: 34px; padding: 0; text-align: center; font-size: 16px; background: var(--cream); box-shadow: 0 2px 8px rgba(10, 40, 25, 0.2); }
+.map-side { width: 210px; max-height: min(78vmin, 720px); overflow-y: auto; font-size: 13px; }
+.map-side h3 { margin: 4px 0 8px; font-size: 14px; }
+.map-side ul { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.map-side li { display: flex; gap: 4px; align-items: center; }
+.map-side .wp { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.map-side .icon { padding: 6px 8px; background: transparent; color: var(--ink-soft); }
+.map-side input { flex: 1; min-width: 0; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; font: inherit; }
+.map-side .hint { color: var(--ink-soft); margin: 0 0 8px; line-height: 1.5; }
+.map-side .hint.small { font-size: 11px; margin-top: 12px; }
 .fullmap .legend { display: flex; gap: 14px; margin-top: 10px; font-size: 12px; color: var(--ink-soft); align-items: center; flex-wrap: wrap; }
 .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 4px; vertical-align: -1px; }
 
@@ -200,3 +225,12 @@ kbd {
   .inventory { grid-template-columns: auto; }
   .key-hints { display: none; }
 }
+
+/* ---------- Tester mode (dev builds) ---------- */
+.tester-badge {
+  position: absolute; bottom: 96px; left: 50%; transform: translateX(-50%); padding: 6px 14px; white-space: nowrap; border-radius: 12px; font-size: 12px; line-height: 1.6;
+  background: rgba(120, 40, 140, 0.88); color: #fff; box-shadow: var(--shadow);
+}
+.tester-badge b { font-size: 13px; }
+.tester-badge .on { color: #ffe27a; font-weight: 700; }
+.tester-badge kbd { color: var(--ink); font-size: 10px; padding: 0 4px; }

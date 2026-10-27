@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { SETTINGS_LIMITS, type Settings } from '../state/settings';
-import { useGame, actions } from '../state/store';
+import { TESTER_AVAILABLE, useGame, actions } from '../state/store';
 import { useApi } from './api';
 
 function Brand(): ReactNode {
@@ -96,6 +96,7 @@ const CONTROLS: readonly [string, string][] = [
   ['1 – 5', '選擇快捷欄'],
   ['E', '互動（搭乘電梯）'],
   ['Esc', '暫停 / 關閉視窗'],
+  ...(TESTER_AVAILABLE ? [['`', '測試員模式（開發版）：F 飛行、N 穿牆、+/- 速度'] as [string, string]] : []),
 ];
 
 export function ControlsTable(): ReactNode {
@@ -120,6 +121,7 @@ function ControlRow({ keys, label }: { keys: string; label: string }): ReactNode
 export function SettingsPanel(): ReactNode {
   const api = useApi();
   const s = useGame((st) => st.settings);
+  const tester = useGame((st) => st.tester);
   const update = (patch: Partial<Settings>): void => api.updateSettings(patch);
   const pct = (v: number): string => `${Math.round(v * 100)}%`;
   return (
@@ -141,6 +143,7 @@ export function SettingsPanel(): ReactNode {
       <Slider label="滑鼠靈敏度" value={s.mouseSensitivity} {...SETTINGS_LIMITS.mouseSensitivity} format={(v) => `${v.toFixed(1)}×`} onChange={(v) => update({ mouseSensitivity: v })} />
       <Toggle label="反轉 Y 軸" value={s.invertY} onChange={(v) => update({ invertY: v })} />
       <Toggle label="除錯資訊" value={s.showDebug} onChange={(v) => update({ showDebug: v })} />
+      {TESTER_AVAILABLE && <Toggle label="測試員模式（開發版）" value={tester.enabled} onChange={(v) => actions.setTester({ enabled: v })} />}
     </div>
   );
 }

@@ -13,7 +13,7 @@ import { telemetry } from './state/telemetry';
 import { createCoinSystem } from './ecs/systems/coins';
 import { mountUI } from './ui/App';
 import { ResourceTracker } from './core/resources';
-import { initPhysics } from './physics/physics';
+import { RAPIER, initPhysics } from './physics/physics';
 import { createInput } from './input/input';
 import { ToonPalette, createOutlineMaterial, createToonRamp } from './render/toon';
 import { createCampusWorld } from './campus/campusWorld';
@@ -27,6 +27,7 @@ import { buildProceduralCharacter, loadCharacterModel, type CharacterModel } fro
 import { ANIM_NAMES, AnimState, CharacterMotor, Transform, Velocity } from './ecs/components';
 import { bodies, colliders, objects } from './ecs/registry';
 import { CAPSULE_CENTER_OFFSET, createCharacterControllerSystem } from './ecs/systems/characterController';
+import { safeTeleportTarget } from './game/teleport';
 import { animationSystem } from './ecs/systems/animation';
 import { renderSyncSystem } from './ecs/systems/renderSync';
 import { createThirdPersonCamera, type CameraFocus } from './camera/thirdPersonCamera';
@@ -103,7 +104,12 @@ async function boot(): Promise<void> {
     facades,
   });
   const library = createHandBuiltBuilding(librarySrc, scene, physics, renderer, env.materials, sceneResources, facadeStyleOf(facades, campus, librarySrc.osmReplaces[0] ?? librarySrc.name));
-  const spawn = { x: campus.spawn.x, y: 0, z: campus.spawn.z };
+  // Respawn point: one chosen on the map (saved per browser), else the campus default (dorm C entrance).
+  const spawnPoint = (): { x: number; y: number; z: number; facing: number } => {
+    const custom = gameStore.getState().customSpawn;
+    return custom ? { ...custom, y: 0 } : { x: campus.spawn.x, y: 0, z: campus.spawn.z, facing: campus.spawn.facing };
+  };
+  const spawn = spawnPoint();
   await env.loadAround(spawn.x, spawn.z, (f) => actions.setLoadProgress(0.25 + f * 0.25));
   physics.step(); // build the query pipeline before the first shape/ray casts
   actions.setLoadProgress(0.5);
@@ -121,7 +127,7 @@ async function boot(): Promise<void> {
     console.warn(`[assets] ${PLAYER_MODEL_URL} failed to load, using the procedural mascot`, err);
     model = buildProceduralCharacter(palette, outline, playerResources);
   }
-  const player = spawnPlayer(world, scene, physics, model, playerResources, spawn, campus.spawn.facing);
+  const player = spawnPlayer(world, scene, physics, model, playerResources, spawn, spawn.facing);
   const eid = player.eid;
   const rig = createThirdPersonCamera(camera, physics);
 
@@ -147,15 +153,39 @@ async function boot(): Promise<void> {
     Velocity.x[eid] = Velocity.y[eid] = Velocity.z[eid] = 0;
   };
   renderSyncSystem(world, 1);
-  rig.snap(readFocus(), campus.spawn.facing + Math.PI); // start behind the character
+  rig.snap(readFocus(), spawn.facing + Math.PI); // start behind the character
+
+  /** Standing height at (x, z): the first floor below 2.5 m (library 1F / B1 slab or the ground). */
+  const groundHeightAt = (x: number, z: number): number => {
+    const ray = new RAPIER.Ray({ x, y: 2.5, z }, { x: 0, y: -1, z: 0 });
+    const hit = physics.castRay(ray, 20, true, RAPIER.QueryFilterFlags.EXCLUDE_SENSORS, undefined, colliders[eid], undefined,
+      (c) => c.handle !== env.groundCollider.handle || !library.isOverBasement(x, z));
+    return hit ? 2.5 - hit.timeOfImpact : 0;
+  };
 
   const handleCommand = (cmd: GameCommand): void => {
     switch (cmd.type) {
-      case 'respawn':
-        teleport(spawn.x, spawn.y, spawn.z, campus.spawn.facing);
+      case 'respawn': {
+        const p = spawnPoint();
+        teleport(p.x, p.y, p.z, p.facing);
         renderSyncSystem(world, 1);
-        rig.snap(readFocus(), campus.spawn.facing + Math.PI);
+        rig.snap(readFocus(), p.facing + Math.PI);
         return;
+      }
+      case 'teleport': {
+        // Fade out, stream the destination in, land on a safe spot, fade back in.
+        const target = safeTeleportTarget(campus, cmd.x, cmd.z);
+        actions.setFading(true);
+        void Promise.all([env.loadAround(target.x, target.z), new Promise((r) => window.setTimeout(r, 300))]).then(() => {
+          physics.step(); // register the destination's colliders before the ground ray
+          teleport(target.x, groundHeightAt(target.x, target.z), target.z);
+          renderSyncSystem(world, 1);
+          rig.snap(readFocus(), rig.yaw);
+          actions.setFading(false);
+          actions.toast(target.outsideOf ? `已傳送到 ${cmd.label}（${target.outsideOf} 外側）` : `已傳送到 ${cmd.label}`);
+        });
+        return;
+      }
       case 'useItem':
         useItem(cmd.slot, api);
         return;
@@ -240,7 +270,7 @@ async function boot(): Promise<void> {
     debugEl.style.display = st.settings.showDebug && st.phase === 'playing' ? '' : 'none';
   };
   const applyInputGate = (st: GameState): void => {
-    input.setEnabled(st.phase === 'playing' && st.modal === 'none');
+    input.setEnabled(st.phase === 'playing' && st.modal === 'none' && st.mapMode === 'mini');
     input.setDragLook(st.lookMode === 'drag');
   };
   applySettings(gameStore.getState().settings);
@@ -249,7 +279,7 @@ async function boot(): Promise<void> {
   const unsubscribe = gameStore.subscribe((st, prev) => {
     if (st.settings !== prev.settings) applySettings(st.settings);
     if (st.settings !== prev.settings || st.phase !== prev.phase) applyDebugVisibility(st);
-    if (st.phase !== prev.phase || st.modal !== prev.modal || st.lookMode !== prev.lookMode) applyInputGate(st);
+    if (st.phase !== prev.phase || st.modal !== prev.modal || st.lookMode !== prev.lookMode || st.mapMode !== prev.mapMode) applyInputGate(st);
   });
   const onCanvasClick = (): void => api.relock();
   canvas.addEventListener('click', onCanvasClick);
@@ -322,7 +352,7 @@ async function boot(): Promise<void> {
     let steps = 0;
     while (accumulator >= FIXED_DT && steps < MAX_SUBSTEPS) {
       drainCommands(handleCommand);
-      controller.update(world, FIXED_DT, input.consumePressed(), rig.yaw, groundFilter);
+      controller.update(world, FIXED_DT, input.consumePressed(), rig.yaw, groundFilter, ui.tester);
       physics.step();
       const gained = coins.collect(world, Transform.x[eid]!, Transform.y[eid]!, Transform.z[eid]!, time);
       if (gained > 0) {

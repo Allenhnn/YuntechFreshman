@@ -13,6 +13,10 @@ import type { CampusBuilding, CampusData, CampusField, CampusRoad, FieldKind, Ri
 const RAW = 'assets-src/campus/osm-raw.json';
 const FLOORPLANS = 'assets-src/floorplans';
 const OVERRIDES = 'assets-src/campus/height-overrides.json';
+/** OSM id → building name, for buildings OSM leaves unnamed or names generically. */
+const NAME_OVERRIDES = 'assets-src/campus/name-overrides.json';
+/** Optional fixed spawn point { x, z, facing, label }; otherwise the main gate is used. */
+const SPAWN_OVERRIDE = 'assets-src/campus/spawn.json';
 const OUT = 'public/data/campus.json';
 
 /** OSM relation of 國立雲林科技大學 and its bounding box (from Nominatim). */
@@ -202,6 +206,7 @@ async function download(): Promise<OsmElement[]> {
 function convert(elements: OsmElement[]): CampusData {
   const overrides: Record<string, number> = existsSync(OVERRIDES) ? (JSON.parse(readFileSync(OVERRIDES, 'utf8')) as Record<string, number>) : {};
   if (!existsSync(OVERRIDES)) writeFileSync(OVERRIDES, '{\n  "行政大樓": 5\n}\n');
+  const nameOverrides: Record<string, string> = existsSync(NAME_OVERRIDES) ? (JSON.parse(readFileSync(NAME_OVERRIDES, 'utf8')) as Record<string, string>) : {};
 
   // Campus boundary.
   const campusRel = elements.find((e): e is OsmRelation => e.type === 'relation' && e.id === CAMPUS_RELATION);
@@ -216,7 +221,7 @@ function convert(elements: OsmElement[]): CampusData {
     if (area < 4) return;
     const [cx, cz] = centroid(outer);
     const inCampus = boundary.length >= 6 && pointInRing(cx, cz, boundary);
-    const name = tags.name;
+    const name = nameOverrides[String(id)] ?? tags.name;
     const parsedHeight = Number.parseFloat(tags.height ?? '');
     const osmLevels = Number.parseInt(tags['building:levels'] ?? '', 10);
     const levels = (name !== undefined ? overrides[name] : undefined) ?? (Number.isFinite(osmLevels) ? osmLevels : defaultLevels(name, area, inCampus));
@@ -284,7 +289,9 @@ function convert(elements: OsmElement[]): CampusData {
     .map((g) => ({ ...g, d: distToDaxue(g.c[0], g.c[1]) }))
     .sort((a, b) => a.d - b.d)[0];
   let spawn: CampusData['spawn'];
-  if (mainGate) {
+  if (existsSync(SPAWN_OVERRIDE)) {
+    spawn = JSON.parse(readFileSync(SPAWN_OVERRIDE, 'utf8')) as CampusData['spawn'];
+  } else if (mainGate) {
     spawn = { x: round2(mainGate.x), z: round2(mainGate.z), facing: facingCentre(mainGate.x, mainGate.z), label: mainGate.name };
   } else if (guard) {
     const [gx, gz] = guard.c;

@@ -1,7 +1,8 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { CampusData, Ring } from '../campus/campusTypes';
 import { telemetry } from '../state/telemetry';
-import { useGame } from '../state/store';
+import { actions, useGame } from '../state/store';
+import { useApi } from './api';
 
 /** Base map resolution: world metres → base-canvas pixels. */
 const PX_PER_M = 1.5;
@@ -216,57 +217,266 @@ export function Minimap(): ReactNode {
   );
 }
 
+const MIN_ZOOM = 1;
+const MAX_ZOOM = 14;
+/** Pointer travel (CSS px) below which a press counts as a click rather than a pan. */
+const CLICK_SLOP = 5;
+
+interface MapView {
+  zoom: number;
+  /** World point at the canvas centre. */
+  cx: number;
+  cz: number;
+}
+
+interface MapMenu {
+  /** Position in the frame (CSS px) and the world point it refers to. */
+  left: number;
+  top: number;
+  x: number;
+  z: number;
+}
+
+function centroidOf(r: Ring): [number, number] {
+  let x = 0, z = 0;
+  const n = r.length / 2;
+  for (let i = 0; i < n; i++) { x += r[i * 2]!; z += r[i * 2 + 1]!; }
+  return [x / n, z / n];
+}
+
+/** Nearest named building within `radius` m, for naming a clicked spot. */
+function placeName(data: CampusData, x: number, z: number, radius = 40): string | null {
+  let best: string | null = null;
+  let bestD = radius;
+  for (const b of data.buildings) {
+    if (!b.name) continue;
+    const [cx, cz] = centroidOf(b.outer);
+    const d = Math.hypot(cx - x, cz - z);
+    if (d < bestD) { bestD = d; best = b.name; }
+  }
+  return best;
+}
+
+function drawPin(g: CanvasRenderingContext2D, x: number, y: number, s: number, color: string, glyph: string): void {
+  g.fillStyle = color;
+  g.strokeStyle = '#fff';
+  g.lineWidth = s * 0.18;
+  g.beginPath();
+  g.arc(x, y - s * 1.2, s * 0.8, Math.PI * 0.8, Math.PI * 0.2);
+  g.lineTo(x, y);
+  g.closePath();
+  g.fill();
+  g.stroke();
+  g.fillStyle = '#fff';
+  g.font = `bold ${Math.round(s * 0.9)}px system-ui`;
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.fillText(glyph, x, y - s * 1.2);
+}
+
 export function FullMap(): ReactNode {
+  const api = useApi();
   const base = useBaseMap();
   const data = useGame((st) => st.mapData);
+  const waypoints = useGame((st) => st.waypoints);
+  const customSpawn = useGame((st) => st.customSpawn);
+  const view = useRef<MapView | null>(null);
+  const [menu, setMenu] = useState<MapMenu | null>(null);
+  const [editing, setEditing] = useState<number | null>(null);
+
+  // Map metres → canvas pixels for the current view (canvas is square, `size` device px).
+  const project = (size: number): ((x: number, z: number) => [number, number]) | null => {
+    if (!base || !data) return null;
+    const v = (view.current ??= { zoom: 1, cx: (data.bounds.minX + data.bounds.maxX) / 2, cz: (data.bounds.minZ + data.bounds.maxZ) / 2 });
+    const k = Math.min(size / base.canvas.width, size / base.canvas.height) * v.zoom;
+    const [ox, oy] = base.toPx(v.cx, v.cz);
+    return (x, z) => {
+      const [bx, by] = base.toPx(x, z);
+      return [(bx - ox) * k + size / 2, (by - oy) * k + size / 2];
+    };
+  };
+
   const canvasRef = useCanvasLoop((g, size) => {
-    if (!base || !data) return;
+    const screen = project(size);
+    const v = view.current;
+    if (!base || !data || !screen || !v) return;
     g.clearRect(0, 0, size, size);
     g.fillStyle = '#b9c9a8';
     g.fillRect(0, 0, size, size);
-    // Fit the whole map, centred.
-    const k = Math.min(size / base.canvas.width, size / base.canvas.height);
-    const offX = (size - base.canvas.width * k) / 2;
-    const offY = (size - base.canvas.height * k) / 2;
-    g.drawImage(base.canvas, offX, offY, base.canvas.width * k, base.canvas.height * k);
-    const screen = (x: number, z: number): [number, number] => {
-      const [bx, by] = base.toPx(x, z);
-      return [offX + bx * k, offY + by * k];
-    };
+    // Blit the base map through the same transform.
+    const k = Math.min(size / base.canvas.width, size / base.canvas.height) * v.zoom;
+    const [ox, oy] = base.toPx(v.cx, v.cz);
+    g.drawImage(base.canvas, size / 2 - ox * k, size / 2 - oy * k, base.canvas.width * k, base.canvas.height * k);
 
-    // Building labels (campus only), drawn unrotated on top.
-    g.font = `600 ${Math.max(10, Math.round(size * 0.015))}px system-ui, 'PingFang TC', sans-serif`;
+    const dpr = size / (g.canvas.clientWidth || size);
+    // Building labels (campus only); more appear as you zoom in.
+    g.font = `600 ${Math.round(12 * dpr)}px system-ui, 'PingFang TC', sans-serif`;
     g.textAlign = 'center';
     g.textBaseline = 'middle';
+    const seen = new Set<string>();
     for (const b of data.buildings) {
       if (!b.name || !b.inCampus) continue;
-      let cx = 0, cz = 0;
-      const n = b.outer.length / 2;
-      for (let i = 0; i < n; i++) { cx += b.outer[i * 2]!; cz += b.outer[i * 2 + 1]!; }
-      const [x, y] = screen(cx / n, cz / n);
-      g.lineWidth = 3;
+      if (v.zoom < 2.5 && seen.has(b.name)) continue; // one label per name when zoomed out
+      seen.add(b.name);
+      const [x, y] = screen(...centroidOf(b.outer));
+      if (x < -50 || y < -20 || x > size + 50 || y > size + 20) continue;
+      g.lineWidth = 3 * dpr;
       g.strokeStyle = 'rgba(255,255,255,0.85)';
       g.strokeText(b.name, x, y);
       g.fillStyle = '#3b2a20';
       g.fillText(b.name, x, y);
     }
 
+    // Respawn point and saved waypoints.
+    const sp = customSpawn ?? data.spawn;
+    drawPin(g, ...screen(sp.x, sp.z), 11 * dpr, '#1f8f4a', '⌂');
+    for (const w of waypoints) {
+      const [x, y] = screen(w.x, w.z);
+      drawPin(g, x, y, 10 * dpr, '#2f6fd0', '★');
+      g.font = `700 ${Math.round(11 * dpr)}px system-ui, 'PingFang TC', sans-serif`;
+      g.lineWidth = 3 * dpr;
+      g.strokeStyle = '#fff';
+      g.strokeText(w.name, x, y + 9 * dpr);
+      g.fillStyle = '#1d3a6b';
+      g.fillText(w.name, x, y + 9 * dpr);
+    }
+    if (menu) {
+      drawPin(g, ...screen(menu.x, menu.z), 10 * dpr, '#f08a24', '•');
+    }
+
     const [sx, sy] = screen(telemetry.x, telemetry.z);
-    const camForward = -telemetry.cameraYaw; // forward = (-sin yaw, -cos yaw) → screen angle -yaw
-    drawPlayer(g, sx, sy, Math.atan2(Math.sin(telemetry.facing), -Math.cos(telemetry.facing)), size * 0.016, camForward);
+    drawPlayer(g, sx, sy, Math.atan2(Math.sin(telemetry.facing), -Math.cos(telemetry.facing)), 11 * dpr, -telemetry.cameraYaw);
   });
 
+  /** Event position → canvas device px and world metres. */
+  const locate = (e: { clientX: number; clientY: number }): { px: number; py: number; x: number; z: number; size: number } | null => {
+    const c = canvasRef.current;
+    const v = view.current;
+    if (!c || !base || !v) return null;
+    const r = c.getBoundingClientRect();
+    const size = c.width;
+    const px = ((e.clientX - r.left) / r.width) * size, py = ((e.clientY - r.top) / r.height) * size;
+    const k = Math.min(size / base.canvas.width, size / base.canvas.height) * v.zoom;
+    // Inverse of project(): base px = (screen - size/2) / k + toPx(centre); 1 base px = 1 / PX_PER_M m.
+    return { px, py, size, x: v.cx + (px - size / 2) / k / PX_PER_M, z: v.cz + (py - size / 2) / k / PX_PER_M };
+  };
+
+  const onWheel = (e: React.WheelEvent<HTMLCanvasElement>): void => {
+    const v = view.current;
+    const at = locate(e);
+    if (!v || !at) return;
+    const zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, v.zoom * Math.exp(-e.deltaY * 0.0018)));
+    // Keep the world point under the cursor fixed.
+    const f = v.zoom / zoom;
+    v.cx = at.x - (at.x - v.cx) * f;
+    v.cz = at.z - (at.z - v.cz) * f;
+    v.zoom = zoom;
+    setMenu(null);
+  };
+
+  const drag = useRef<{ x: number; y: number; moved: number; id: number } | null>(null);
+  const onPointerDown = (e: React.PointerEvent<HTMLCanvasElement>): void => {
+    if (e.button !== 0) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    drag.current = { x: e.clientX, y: e.clientY, moved: 0, id: e.pointerId };
+  };
+  const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>): void => {
+    const d = drag.current, v = view.current, c = canvasRef.current;
+    if (!d || !v || !c || !base) return;
+    const dx = e.clientX - d.x, dy = e.clientY - d.y;
+    d.moved += Math.hypot(dx, dy);
+    d.x = e.clientX;
+    d.y = e.clientY;
+    if (d.moved < CLICK_SLOP) return;
+    const r = c.getBoundingClientRect();
+    const k = Math.min(c.width / base.canvas.width, c.width / base.canvas.height) * v.zoom * (r.width / c.width);
+    v.cx -= dx / k / PX_PER_M;
+    v.cz -= dy / k / PX_PER_M;
+    setMenu(null);
+  };
+  const onPointerUp = (e: React.PointerEvent<HTMLCanvasElement>): void => {
+    const d = drag.current;
+    drag.current = null;
+    if (!d || d.moved >= CLICK_SLOP) return;
+    const at = locate(e);
+    const frame = e.currentTarget.parentElement?.getBoundingClientRect();
+    if (!at || !frame) return;
+    setMenu({ left: e.clientX - frame.left, top: e.clientY - frame.top, x: at.x, z: at.z });
+  };
+
+  const centreOnMe = (): void => {
+    const v = view.current;
+    if (!v) return;
+    v.cx = telemetry.x;
+    v.cz = telemetry.z;
+    v.zoom = Math.max(v.zoom, 4);
+  };
+
+  const menuName = menu && data ? (placeName(data, menu.x, menu.z) ?? '自訂地點') : '';
+
   return (
-    <div className="fullmap">
+    <div className="fullmap interactive">
       <div className="frame">
-        <canvas ref={canvasRef} aria-label="校園地圖" />
-        <div className="legend">
-          <span><i style={{ background: '#d9c4a3', outline: '1px solid #9b6a4f' }} />校內建築</span>
-          <span><i style={{ background: '#d9a58f' }} />人行步道</span>
-          <span><i style={{ background: '#6faa55' }} />球場</span>
-          <span><i style={{ background: 'transparent', outline: '2px dashed #1f8f4a' }} />校園範圍</span>
-          <span style={{ marginLeft: 'auto' }}>{data?.attribution} · <kbd>M</kbd> 關閉</span>
+        <div className="map-body">
+        <div className="map-area">
+          <canvas
+            ref={canvasRef}
+            aria-label="校園地圖"
+            onWheel={onWheel}
+            onPointerDown={onPointerDown}
+            onPointerMove={onPointerMove}
+            onPointerUp={onPointerUp}
+            onContextMenu={(e) => e.preventDefault()}
+          />
+          {menu && (
+            <div className="map-menu" style={{ left: menu.left, top: menu.top }}>
+              <div className="title">{menuName}</div>
+              <button onClick={() => { api.teleportTo(menu.x, menu.z, menuName); setMenu(null); }}>🚀 傳送到這裡</button>
+              <button onClick={() => { actions.addWaypoint(menuName, menu.x, menu.z); setMenu(null); }}>★ 設為傳送點</button>
+              <button onClick={() => { actions.setCustomSpawn({ x: menu.x, z: menu.z, facing: telemetry.facing }); actions.toast(`重生點已設在 ${menuName}`); setMenu(null); }}>⌂ 設為重生點</button>
+              <button className="ghost" onClick={() => setMenu(null)}>取消</button>
+            </div>
+          )}
+          <div className="map-tools">
+            <button title="放大" onClick={() => { if (view.current) view.current.zoom = Math.min(MAX_ZOOM, view.current.zoom * 1.5); }}>＋</button>
+            <button title="縮小" onClick={() => { if (view.current) view.current.zoom = Math.max(MIN_ZOOM, view.current.zoom / 1.5); }}>－</button>
+            <button title="回到我的位置" onClick={centreOnMe}>◎</button>
+          </div>
         </div>
+        <aside className="map-side">
+          <h3>傳送點</h3>
+          {waypoints.length === 0 && <p className="hint">點地圖上的位置，選「設為傳送點」。</p>}
+          <ul>
+            {waypoints.map((w) => (
+              <li key={w.id}>
+                {editing === w.id ? (
+                  <input
+                    autoFocus
+                    defaultValue={w.name}
+                    onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter') e.currentTarget.blur(); }}
+                    onBlur={(e) => { actions.renameWaypoint(w.id, e.currentTarget.value.trim() || w.name); setEditing(null); }}
+                  />
+                ) : (
+                  <button className="wp" onClick={() => api.teleportTo(w.x, w.z, w.name)} title="傳送">★ {w.name}</button>
+                )}
+                <button className="icon" title="重新命名" onClick={() => setEditing(w.id)}>✎</button>
+                <button className="icon" title="刪除" onClick={() => actions.removeWaypoint(w.id)}>✕</button>
+              </li>
+            ))}
+          </ul>
+          <h3>重生點</h3>
+          <p className="hint">{customSpawn ? `自訂（${data ? (placeName(data, customSpawn.x, customSpawn.z) ?? '自訂地點') : ''}）` : `預設：${data?.spawn.label ?? ''}`}</p>
+          {customSpawn && <button className="ghost" onClick={() => actions.setCustomSpawn(null)}>恢復預設重生點</button>}
+          <p className="hint small">滾輪縮放 · 拖曳平移 · 點擊地點開啟選單</p>
+        </aside>
+        </div>
+      <div className="legend">
+        <span><i style={{ background: '#d9c4a3', outline: '1px solid #9b6a4f' }} />校內建築</span>
+        <span><i style={{ background: '#d9a58f' }} />人行步道</span>
+        <span><i style={{ background: '#1f8f4a' }} />重生點</span>
+        <span><i style={{ background: '#2f6fd0' }} />傳送點</span>
+        <span style={{ marginLeft: 'auto' }}>{data?.attribution} · <kbd>M</kbd> / <kbd>Esc</kbd> 關閉</span>
+      </div>
       </div>
     </div>
   );

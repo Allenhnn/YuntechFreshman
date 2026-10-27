@@ -13,12 +13,26 @@ const JUMP_VELOCITY = (2 * C.jumpHeight) / C.timeToApex;
 /** Capsule centre sits this far above the feet. */
 export const CAPSULE_CENTER_OFFSET = C.capsuleHalfHeight + C.capsuleRadius;
 
+/** Tester-mode movement modifiers (dev builds). */
+export interface MoveModifiers {
+  /** No gravity: Space rises, C descends. */
+  fly: boolean;
+  /** Ignore all collision (only meaningful while flying). */
+  noclip: boolean;
+  /** Multiplies walk / sprint / fly speed. */
+  speed: number;
+}
+
+const NORMAL: MoveModifiers = { fly: false, noclip: false, speed: 1 };
+/** Base flying speed (m/s) before sprint and the tester multiplier. */
+const FLY_SPEED = 8;
+
 export interface CharacterControllerSystem {
   /**
    * `pressed` are the action bits pressed since the previous fixed step. `filter` can exclude
    * colliders per call (e.g. the campus ground while the player is over a basement).
    */
-  update(world: World, dt: number, pressed: number, cameraYaw: number, filter?: (collider: RAPIER.Collider) => boolean): void;
+  update(world: World, dt: number, pressed: number, cameraYaw: number, filter?: (collider: RAPIER.Collider) => boolean, mods?: MoveModifiers): void;
   dispose(): void;
 }
 
@@ -36,7 +50,7 @@ export function createCharacterControllerSystem(physics: RAPIER.World, input: In
   const next = { x: 0, y: 0, z: 0 };
 
   return {
-    update(world, dt, pressed, cameraYaw, filter) {
+    update(world, dt, pressed, cameraYaw, filter, mods = NORMAL) {
       const held = input.held();
       for (const eid of query(world, [Player, Transform, Velocity, CharacterMotor, PhysicsBody])) {
         const body = bodies[eid];
@@ -68,11 +82,11 @@ export function createCharacterControllerSystem(physics: RAPIER.World, input: In
         CharacterMotor.sprinting[eid] = sprinting ? 1 : 0;
 
         // Horizontal: move toward target velocity with separate accel / decel rates.
-        const speed = sprinting ? C.sprintSpeed : C.walkSpeed;
+        const speed = (mods.fly ? FLY_SPEED * (sprinting ? 2 : 1) : sprinting ? C.sprintSpeed : C.walkSpeed) * mods.speed;
         const targetVX = dirX * speed;
         const targetVZ = dirZ * speed;
-        let rate = inputLen > 0 ? speed / C.accelTime : C.sprintSpeed / C.decelTime;
-        if (!grounded) rate *= C.airControl;
+        let rate = inputLen > 0 ? speed / C.accelTime : Math.max(speed, C.sprintSpeed) / C.decelTime;
+        if (!grounded && !mods.fly) rate *= C.airControl;
         let vx = Velocity.x[eid]!;
         let vz = Velocity.z[eid]!;
         const ddx = targetVX - vx;
@@ -91,7 +105,11 @@ export function createCharacterControllerSystem(physics: RAPIER.World, input: In
         let coyote = grounded ? C.coyoteTime : Math.max(0, CharacterMotor.coyote[eid]! - dt);
         let jumpBuffer = (pressed & Action.Jump) ? C.jumpBufferTime : Math.max(0, CharacterMotor.jumpBuffer[eid]! - dt);
         let vy = Velocity.y[eid]!;
-        if (jumpBuffer > 0 && coyote > 0) {
+        if (mods.fly) {
+          vy = (((held & Action.Jump) ? 1 : 0) - ((held & Action.Down) ? 1 : 0)) * FLY_SPEED * mods.speed * (sprinting ? 2 : 1);
+          jumpBuffer = 0;
+          coyote = C.coyoteTime; // the animation system then shows walk / run instead of a fall
+        } else if (jumpBuffer > 0 && coyote > 0) {
           vy = JUMP_VELOCITY;
           jumpBuffer = 0;
           coyote = 0;
@@ -106,20 +124,28 @@ export function createCharacterControllerSystem(physics: RAPIER.World, input: In
         desired.x = vx * dt;
         desired.y = vy * dt;
         desired.z = vz * dt;
-        // Auto-step only from the ground; mid-air it would silently add 0.35 m to the jump height.
-        if (grounded) kcc.enableAutostep(C.autostepHeight, C.autostepMinWidth, false);
-        else kcc.disableAutostep();
-        kcc.computeColliderMovement(collider, desired, RAPIER.QueryFilterFlags.EXCLUDE_SENSORS, undefined, filter);
-        const moved = kcc.computedMovement();
         const cur = body.translation();
+        let moved = desired;
+        let nowGrounded = false;
+        if (!mods.noclip) {
+          // Auto-step only from the ground; mid-air it would silently add 0.35 m to the jump height.
+          if (grounded && !mods.fly) kcc.enableAutostep(C.autostepHeight, C.autostepMinWidth, false);
+          else kcc.disableAutostep();
+          // Snapping would pull a hovering flyer back down onto the floor.
+          if (mods.fly) kcc.disableSnapToGround();
+          else kcc.enableSnapToGround(C.snapToGround);
+          kcc.computeColliderMovement(collider, desired, RAPIER.QueryFilterFlags.EXCLUDE_SENSORS, undefined, filter);
+          moved = kcc.computedMovement();
+          nowGrounded = kcc.computedGrounded();
+        }
         next.x = cur.x + moved.x;
         next.y = cur.y + moved.y;
         next.z = cur.z + moved.z;
         body.setNextKinematicTranslation(next);
 
-        const nowGrounded = kcc.computedGrounded();
         // Head bonk: upward motion blocked.
         if (vy > 0 && moved.y < desired.y - 1e-4) vy = 0;
+        if (mods.fly) nowGrounded = false;
         if (nowGrounded && !grounded && vy < 0) {
           CharacterMotor.landingSpeed[eid] = -Velocity.y[eid]!;
           CharacterMotor.landingSeq[eid] = (CharacterMotor.landingSeq[eid]! + 1) & 0xffff;

@@ -6,6 +6,8 @@ export const Action = {
   Right: 1 << 3,
   Jump: 1 << 4,
   Sprint: 1 << 5,
+  /** Fly down (tester mode). C rather than Ctrl: Ctrl+W would close the browser tab. */
+  Down: 1 << 6,
 } as const;
 export type ActionBit = (typeof Action)[keyof typeof Action];
 
@@ -21,6 +23,7 @@ export const DEFAULT_BINDINGS: Readonly<Record<string, ActionBit>> = {
   Space: Action.Jump,
   ShiftLeft: Action.Sprint,
   ShiftRight: Action.Sprint,
+  KeyC: Action.Down,
 };
 
 /** Ignore pointer-lock movement spikes some browsers emit on focus changes. */

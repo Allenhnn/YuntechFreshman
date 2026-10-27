@@ -21,6 +21,8 @@ export interface GameApi {
   elevatorTo(level: string): void;
   closeModal(): void;
   toggleMap(): void;
+  /** Map teleport (campus metres); closes the full map. */
+  teleportTo(x: number, z: number, label: string): void;
   selectHotbar(index: number): void;
   clickSlot(index: number): void;
   useItem(slot: number): void;
@@ -81,6 +83,20 @@ export function createSession(lock: PointerLock, audio: AudioBus): GameApi {
     void acquire(); // succeeds from Tab / P / clicks; Esc is not a lock-granting gesture
   };
 
+  const toggleMap = (): void => {
+    if (get().phase !== 'playing' || get().modal !== 'none') return;
+    actions.toggleMap();
+    const full = get().mapMode === 'full';
+    audio.play(full ? 'open' : 'close');
+    // The full map is interactive (zoom, pan, teleport): free the mouse while it is open.
+    if (full && lock.isLocked()) {
+      expectUnlock = true;
+      lock.release();
+    } else if (!full) {
+      void acquire();
+    }
+  };
+
   return {
     startGame: enterPlaying,
     resume: enterPlaying,
@@ -129,10 +145,12 @@ export function createSession(lock: PointerLock, audio: AudioBus): GameApi {
       dispatch({ type: 'elevatorTo', building: menu.building, level });
       closeModal();
     },
-    toggleMap() {
-      if (get().phase !== 'playing' || get().modal !== 'none') return;
-      actions.toggleMap();
-      audio.play(get().mapMode === 'full' ? 'open' : 'close');
+    toggleMap,
+    teleportTo(x, z, label) {
+      if (get().phase !== 'playing') return;
+      audio.play('click');
+      dispatch({ type: 'teleport', x, z, label });
+      if (get().mapMode === 'full') toggleMap();
     },
     selectHotbar(index) {
       actions.selectHotbar(index);
@@ -154,7 +172,7 @@ export function createSession(lock: PointerLock, audio: AudioBus): GameApi {
     },
     relock() {
       const s = get();
-      if (s.phase === 'playing' && s.modal === 'none' && !lock.isLocked()) void acquire();
+      if (s.phase === 'playing' && s.modal === 'none' && s.mapMode === 'mini' && !lock.isLocked()) void acquire();
     },
     click() {
       audio.unlock();
