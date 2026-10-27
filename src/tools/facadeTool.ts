@@ -4,6 +4,8 @@
  *     it is (m), and the section is warped onto the wall at its real size; "Save wall" stores it
  *     and rebuilds the photo atlases;
  *  C) a procedural style: sample wall / trim / glass colours with the eyedropper and tune the window grid.
+ * The 街景參考 tab shows Google Street View of the selected wall for reference only (see streetView.ts):
+ * read it by eye, never sample or save it.
  * Walls are OSM outer-ring edges. "Left" means the left end as seen standing outside the wall,
  * which is the edge's end vertex (i + 1).
  */
@@ -11,6 +13,7 @@ import type { CampusBuilding, CampusData } from '../campus/campusTypes';
 import type { FacadeSource, FacadeStyle, PhotoIndex, PhotoIndexEntry, PhotoSection, WindowPattern } from '../campus/facadeTypes';
 import { DEFAULT_CAMPUS_STYLE } from '../campus/facadeTypes';
 import { applyHomography, sampleBilinear, solveHomography } from './homography';
+import { createStreetViewPanel } from './streetView';
 
 /** Rectified texel density (px per metre), capped so one wall stays under MAX_PX per side. */
 const PX_PER_M = 40;
@@ -52,7 +55,38 @@ const state = {
   wall: null as Wall | null,
   pick: null as null | 'wall' | 'trim' | 'glass',
   view: { scale: 1, x: 0, y: 0 },
+  mode: 'photo' as 'photo' | 'street',
 };
+
+const streetView = createStreetViewPanel($('pano'), import.meta.env.VITE_GOOGLE_MAPS_KEY);
+
+/** Campus metres → WGS84 (inverse of the projection in scripts/fetch-campus.ts). */
+function toLatLng(x: number, z: number): { lat: number; lng: number } {
+  const o = state.campus?.origin ?? { lat: 0, lon: 0 };
+  const R = 6378137;
+  return { lat: o.lat - ((z / R) * 180) / Math.PI, lng: o.lon + ((x / (R * Math.cos((o.lat * Math.PI) / 180))) * 180) / Math.PI };
+}
+
+/** Street View of the selected wall, from a point 20 m in front of it. */
+function showStreetView(): void {
+  const b = state.building, wall = state.wall;
+  if (state.mode !== 'street' || !b || !wall) return;
+  const [px, pz, qx, qz] = edgeEnds(b, wall.edge);
+  const mx = (px + qx) / 2, mz = (pz + qz) / 2;
+  const nx = (qz - pz) / wall.length, nz = -(qx - px) / wall.length;
+  streetView.show(toLatLng(mx, mz), toLatLng(mx + nx * 20, mz + nz * 20)).then(log, (err: unknown) => log(`Street View: ${String(err)}`));
+}
+
+function setMode(mode: 'photo' | 'street'): void {
+  state.mode = mode;
+  $('pano').hidden = mode !== 'street';
+  view.hidden = mode === 'street';
+  $('hint').hidden = mode === 'street';
+  $('tabPhoto').classList.toggle('on', mode === 'photo');
+  $('tabStreet').classList.toggle('on', mode === 'street');
+  if (mode === 'street') showStreetView();
+  else resizeView();
+}
 
 // --- Data ------------------------------------------------------------------------------------
 
@@ -65,7 +99,9 @@ async function loadState(): Promise<void> {
   state.index = s.index;
   state.source = s.source;
   const sel = $<HTMLSelectElement>('folder');
-  const folders = Object.keys(state.index);
+  // Photo folders first, then every other named campus building (styles can be set from Street View alone).
+  const named = campus.buildings.filter((b) => b.inCampus && b.name).map((b) => b.name!);
+  const folders = [...new Set([...Object.keys(state.index), ...named.sort((a, b) => a.localeCompare(b, 'zh-Hant'))])];
   sel.innerHTML = folders.length
     ? folders.map((f) => `<option>${f}</option>`).join('')
     : '<option value="">(no photos yet: put them in assets-src/photos/&lt;name&gt;/originals/ and press Rescan)</option>';
@@ -153,6 +189,7 @@ function selectEdge(edge: number): void {
   $('edgeInfo').textContent = `edge ${edge}: ${length.toFixed(1)} m × ${b.height} m, faces ${compass}`;
   drawFootprint();
   drawWall();
+  showStreetView();
 }
 
 function drawFootprint(): void {
@@ -496,6 +533,8 @@ $('ingest').addEventListener('click', () => {
       await loadState();
     });
 });
+$('tabPhoto').addEventListener('click', () => setMode('photo'));
+$('tabStreet').addEventListener('click', () => setMode('street'));
 $('clearCorners').addEventListener('click', () => { state.corners = []; drawView(); });
 $('addSection').addEventListener('click', rectifySection);
 $('clearWall').addEventListener('click', () => {

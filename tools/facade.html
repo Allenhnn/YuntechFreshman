@@ -31,6 +31,10 @@
       #footprint, #edgeOut, #stylePreview { width: 100%; background: #15181a; border-radius: 6px; }
       #hint { position: absolute; left: 12px; top: 10px; background: rgba(0,0,0,.6); padding: 6px 10px; border-radius: 6px; pointer-events: none; }
       #log { white-space: pre-wrap; font: 11px/1.4 ui-monospace, monospace; color: var(--dim); background: #15181a; padding: 8px; border-radius: 6px; max-height: 180px; overflow: auto; }
+      #pano { position: absolute; inset: 0; background: #111416; }
+      #tabs { position: absolute; right: 12px; top: 10px; display: flex; gap: 4px; z-index: 2; }
+      .sv-msg { padding: 60px 24px; color: var(--dim); max-width: 520px; }
+      .sv-msg code { color: var(--text); }
       .muted { color: var(--dim); }
       .warn { color: var(--warn); }
     </style>
@@ -48,7 +52,9 @@
     </aside>
     <main>
       <canvas id="view"></canvas>
+      <div id="pano" hidden></div>
       <div id="hint"></div>
+      <div id="tabs"><button id="tabPhoto" class="on">照片</button><button id="tabStreet">街景參考</button></div>
     </main>
     <aside class="right">
       <h2>Section of the wall these corners cover (m)</h2>
