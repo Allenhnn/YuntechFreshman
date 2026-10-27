@@ -8,18 +8,20 @@
   "1F": {
    "page": "1F_a11-03.jpg",
    "scale": 8.63,
+   "scaleSource": "dimension/area",
    "offset": [
     0,
     0
    ],
-   "rooms": 46,
+   "rooms": 44,
    "coded": 0,
    "legend": 2,
-   "openings": 173
+   "openings": 344
   },
   "2F": {
    "page": "2F_a11-05.jpg",
    "scale": 8.39,
+   "scaleSource": "dimension/area",
    "offset": [
     6,
     -3
@@ -27,11 +29,12 @@
    "rooms": 42,
    "coded": 15,
    "legend": 20,
-   "openings": 23
+   "openings": 114
   },
   "3F": {
    "page": "3F_a11-07.jpg",
    "scale": 8.91,
+   "scaleSource": "dimension/area",
    "offset": [
     13,
     -1
@@ -39,11 +42,12 @@
    "rooms": 41,
    "coded": 23,
    "legend": 28,
-   "openings": 34
+   "openings": 107
   },
   "4F": {
    "page": "4F_a11-09.jpg",
    "scale": 8.89,
+   "scaleSource": "dimension/area",
    "offset": [
     22,
     30
@@ -51,11 +55,12 @@
    "rooms": 28,
    "coded": 12,
    "legend": 12,
-   "openings": 28
+   "openings": 72
   },
   "5F": {
    "page": "5F_a11-11.jpg",
    "scale": 8.53,
+   "scaleSource": "dimension/area",
    "offset": [
     10,
     42
@@ -63,23 +68,25 @@
    "rooms": 14,
    "coded": 3,
    "legend": 16,
-   "openings": 14
+   "openings": 42
   },
   "6F": {
    "page": "6F_a11-13.jpg",
    "scale": 8.73,
+   "scaleSource": "dimension/area",
    "offset": [
     0,
     1
    ],
-   "rooms": 21,
+   "rooms": 20,
    "coded": 7,
    "legend": 13,
-   "openings": 27
+   "openings": 82
   },
   "7F": {
    "page": "7F_a11-15.jpg",
    "scale": 8.82,
+   "scaleSource": "dimension/area",
    "offset": [
     -7,
     21
@@ -87,16 +94,17 @@
    "rooms": 16,
    "coded": 3,
    "legend": 6,
-   "openings": 24
+   "openings": 76
   },
   "8F": {
    "page": "8F_a11-17.jpg",
    "scale": 8.41,
+   "scaleSource": "dimension/area",
    "offset": [
     -108,
     1
    ],
-   "rooms": 1,
+   "rooms": 0,
    "coded": 0,
    "legend": 8,
    "openings": 0
@@ -115,5 +123,6 @@
   "iou": 0.523
  },
  "stairs": 4,
- "accepted": false
+ "accepted": false,
+ "mode": "classic"
 }

@@ -9,6 +9,7 @@
   "1F": {
    "page": "1F_f1-03.jpg",
    "scale": 4.68,
+   "scaleSource": "dimension/area",
    "offset": [
     0,
     0
@@ -16,43 +17,46 @@
    "rooms": 63,
    "coded": 25,
    "legend": 48,
-   "openings": 115
+   "openings": 463
   },
   "2F": {
    "page": "2F_f1-05.jpg",
    "scale": 4.74,
+   "scaleSource": "dimension/area",
    "offset": [
     2,
     -1
    ],
-   "rooms": 53,
+   "rooms": 49,
    "coded": 20,
    "legend": 30,
-   "openings": 66
+   "openings": 161
   },
   "3F": {
    "page": "3F_f1-07.jpg",
    "scale": 4.69,
+   "scaleSource": "dimension/area",
    "offset": [
     25,
     -3
    ],
-   "rooms": 63,
+   "rooms": 62,
    "coded": 25,
    "legend": 47,
-   "openings": 83
+   "openings": 181
   },
   "4F": {
    "page": "4F_f1-09.jpg",
    "scale": 4.69,
+   "scaleSource": "dimension/area",
    "offset": [
     27,
     -2
    ],
-   "rooms": 43,
+   "rooms": 42,
    "coded": 17,
    "legend": 32,
-   "openings": 51
+   "openings": 156
   }
  },
  "registration": {
@@ -68,5 +72,6 @@
   "iou": 0.865
  },
  "stairs": 12,
- "accepted": true
+ "accepted": true,
+ "mode": "classic"
 }

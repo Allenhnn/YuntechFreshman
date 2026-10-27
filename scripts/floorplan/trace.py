@@ -26,7 +26,11 @@ import numpy as np
 from PIL import Image
 
 ROOT = "assets-src/floorplans"
-MIN_IOU = 0.6  # below this the registration is not trusted: the building keeps its generated interior
+MIN_IOU = 0.6
+# "classic": scale from dimensions / OSM area, register the whole building mask.
+# "rooms": scale from legend room areas, register only room-sized regions (robust to site walls).
+# Each building is traced both ways and the better registration wins.
+MODE = "classic"  # below this the registration is not trusted: the building keeps its generated interior
 CELL = 0.5  # plan grid (m)
 CODE_RE = re.compile(r"(?<![0-9])([0-9]{3,4}[a-z]?)(?![0-9])")
 LEGEND_CODE_RE = re.compile(r"^([A-Z]{1,4})([0-9]{3,4}[a-z]?)")
@@ -111,7 +115,7 @@ def dark_mask(path: str) -> np.ndarray:
     return (im < 150).astype(np.uint8)
 
 
-def fill_inside(walls: np.ndarray, close_px: int) -> np.ndarray:
+def fill_inside(walls: np.ndarray, close_px: int, wings: bool = False) -> np.ndarray:
     """Building mask: pixels not reachable from the border once gaps up to ~2·close_px are closed."""
     k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (close_px * 2 + 1, close_px * 2 + 1))
     closed = cv2.dilate(walls, k)
@@ -122,8 +126,12 @@ def fill_inside(walls: np.ndarray, close_px: int) -> np.ndarray:
     n, lab, stats, _ = cv2.connectedComponentsWithStats(inside, 8)
     if n <= 1:
         return inside
-    big = 1 + int(np.argmax(stats[1:, cv2.CC_STAT_AREA]))
-    return cv2.erode((lab == big).astype(np.uint8), k)
+    # Normally the largest blob is the building. Multi-wing plans (dorms, `wings` in
+    # plan-buildings.json) draw each wing separately on one page: keep every blob of wing size.
+    areas = stats[:, cv2.CC_STAT_AREA].copy()
+    areas[0] = 0
+    keep = areas >= areas.max() * 0.1 if wings else areas == areas.max()
+    return cv2.erode(keep[lab].astype(np.uint8), k)
 
 
 def plan_scale(page: dict, mask: np.ndarray) -> float | None:
@@ -200,12 +208,12 @@ def stair_mask(walls: np.ndarray, inside: np.ndarray, scale: float) -> np.ndarra
 class FloorTrace:
     """One floor page analysed in its own pixel frame."""
 
-    def __init__(self, building: str, floor: str, name: str, page: dict, legend: dict, expect: float | None = None, osm_area: float | None = None):
+    def __init__(self, building: str, floor: str, name: str, page: dict, legend: dict, expect: float | None = None, osm_area: float | None = None, wings: bool = False):
         """`expect`: scale (px/m) implied by another floor; `osm_area`: footprint (m²) for a 1F estimate."""
-        self.floor, self.name, self.legend = floor, name, legend
+        self.floor, self.name, self.legend, self.wings = floor, name, legend, wings
         walls = dark_mask(f"{ROOT}/{building}/{name}")
         self.page_width = walls.shape[1]
-        rough = fill_inside(walls, max(3, walls.shape[1] // 150))
+        rough = fill_inside(walls, max(3, walls.shape[1] // 150), wings)
         scale = plan_scale(page, rough)
         if osm_area and rough.sum():
             # The printed dimension must agree with the OSM footprint area, else trust the area.
@@ -216,13 +224,26 @@ class FloorTrace:
             scale = expect
         if not scale:
             raise ValueError("no overall dimension label")
-        self.scale = scale
         erase_text(walls, page)
-        self.inside = fill_inside(walls, max(2, int(round(0.9 * scale))))
-        self.walls = walls * self.inside
+        self._analyse(walls, page, scale)
+        # Best scale source: legend areas of the coded rooms (immune to site walls, courtyards and
+        # partial dimension labels). Re-analyse once if it disagrees with the first guess.
+        by_rooms = self.room_scale() if MODE == "rooms" else None
+        if by_rooms and not 0.93 < by_rooms / scale < 1.07:
+            self._analyse(walls, page, by_rooms)
+            by_rooms = self.room_scale() or by_rooms
+            if not 0.93 < by_rooms / self.scale < 1.07:
+                self._analyse(walls, page, by_rooms)
+        self.scale_source = "rooms" if by_rooms else ("dimension/area")
+
+    def _analyse(self, walls_raw: np.ndarray, page: dict, scale: float) -> None:
+        self.scale = scale
+        self.inside = fill_inside(walls_raw, max(2, int(round(0.9 * scale))), self.wings)
+        self.walls = walls_raw * self.inside
         self.labels = segment_rooms(self.walls, self.inside, scale)
         self.stairs = stair_mask(self.walls, self.inside, scale)
         self.codes: dict[int, list[str]] = {}
+        legend = self.legend
         r = int(scale * 0.8)
         # Wing labels ("C1", "C2") disambiguate plans that print "101" for legend code "C1101".
         wings = [(l["text"].strip()[1:], l["box"][0] + l["box"][2] / 2, l["box"][1] + l["box"][3] / 2)
@@ -249,6 +270,18 @@ class FloorTrace:
                     if num not in lst:
                         lst.append(num)
 
+    def room_scale(self) -> float | None:
+        """px/m from rooms carrying exactly one legend code: sqrt(pixel area / table area), median."""
+        ratios = []
+        for lab, codes in self.codes.items():
+            if len(codes) != 1:
+                continue
+            area = (self.legend.get(codes[0]) or {}).get("area")
+            if not area or area < 6:
+                continue
+            ratios.append(math.sqrt(float((self.labels == lab).sum()) / area))
+        return float(np.median(ratios)) if len(ratios) >= 3 else None
+
     def grid(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Labels, stair flags and building mask resampled to CELL metres (page origin)."""
         k = CELL * self.scale
@@ -261,13 +294,26 @@ class FloorTrace:
                 x0, x1 = int(c * k), int(min(W, (c + 1) * k))
                 if y1 <= y0 or x1 <= x0 or self.inside[y0:y1, x0:x1].mean() <= 0.5:
                     continue
-                ins[r, c] = 1
                 v = self.labels[y0:y1, x0:x1]
                 v = v[v > 0]
                 if len(v):
                     vals, counts = np.unique(v, return_counts=True)
                     lab[r, c] = vals[np.argmax(counts)]
                 st[r, c] = self.stairs[y0:y1, x0:x1].mean() > 0.4
+        # "Roofed" mask for registration and floor alignment: labelled regions of room size or with
+        # a code. Huge uncoded regions are courtyards / site areas enclosed by boundary walls.
+        if MODE == "rooms":
+            sizes = {int(i): float(n) * CELL * CELL for i, n in zip(*np.unique(lab, return_counts=True)) if i}
+            for (r, c), v in np.ndenumerate(lab):
+                if v and (sizes.get(int(v), 0) < 250 or int(v) in self.codes):
+                    ins[r, c] = 1
+        else:
+            for r in range(h):
+                y0, y1 = int(r * k), int(min(H, (r + 1) * k))
+                for c in range(w):
+                    x0, x1 = int(c * k), int(min(W, (c + 1) * k))
+                    if y1 > y0 and x1 > x0 and self.inside[y0:y1, x0:x1].mean() > 0.5:
+                        ins[r, c] = 1
         return lab, st, ins
 
     def wall_density(self, x0: float, y0: float, x1: float, y1: float) -> float:
@@ -301,7 +347,7 @@ def align(ref: np.ndarray, mov: np.ndarray) -> tuple[int, int]:
     return int(dy), int(dx)
 
 
-def register(mask: np.ndarray, osm_ids: list[int]) -> dict:
+def register(mask: np.ndarray, osm_ids: list[int], hint: list[float] | None = None) -> dict:
     """Plan cells (y down) → world: rotation search + centroid alignment, best IoU with the OSM footprints."""
     rings = [osm_by_id[i]["outer"] for i in osm_ids if i in osm_by_id]
     xs = [v for r in rings for v in r[0::2]]; zs = [v for r in rings for v in r[1::2]]
@@ -329,10 +375,12 @@ def register(mask: np.ndarray, osm_ids: list[int]) -> dict:
         img = cv2.morphologyEx(img, cv2.MORPH_CLOSE, np.ones((3, 3), np.uint8))
         return int((img & world).sum()) / max(1, int((img | world).sum()))
 
-    for deg in range(0, 360, 2):
-        v = score(deg, 0, 0)
+    # Coarse search over every rotation, or only around a manual hint [centre, ±range] (degrees).
+    coarse = range(0, 360, 2) if not hint else np.arange(hint[0] - hint[1], hint[0] + hint[1] + 0.01, 1.0)
+    for deg in coarse:
+        v = score(float(deg) % 360, 0, 0)
         if v > best["iou"]:
-            best = {"iou": v, "deg": deg, "off": (0, 0)}
+            best = {"iou": v, "deg": float(deg) % 360, "off": (0, 0)}
     for deg in np.arange(best["deg"] - 2, best["deg"] + 2.01, 0.5):
         for ox in range(-6, 7, 2):
             for oy in range(-6, 7, 2):
@@ -398,6 +446,27 @@ def point_in_ring(x: float, z: float, r: list[float]) -> bool:
 
 
 def trace_building(building: str, debug: bool) -> dict:
+    """Trace in both modes, keep the one with the better registration (outputs rewritten for it)."""
+    global MODE
+    results = {}
+    for mode in ("classic", "rooms"):
+        MODE = mode
+        try:
+            results[mode] = trace_once(building, False)
+        except Exception as e:  # one mode failing is fine if the other works
+            results[mode] = {"building": building, "error": f"{type(e).__name__}: {e}"}
+    ok = {m: r for m, r in results.items() if "registration" in r}
+    if not ok:
+        return results["classic"] if "skipped" in results["classic"] else results["rooms"]
+    best = max(ok, key=lambda m: ok[m]["registration"]["iou"])
+    MODE = best
+    r = trace_once(building, debug)
+    r["mode"] = best
+    json.dump(r, open(f"{ROOT}/{building}/traced.report.json", "w", encoding="utf8"), ensure_ascii=False, indent=1)
+    return r
+
+
+def trace_once(building: str, debug: bool) -> dict:
     mapping = json.load(open(f"{ROOT}/plan-buildings.json", encoding="utf8")).get(building, {})
     osm_ids = mapping.get("osm")
     if not osm_ids:
@@ -429,11 +498,11 @@ def trace_building(building: str, debug: bool) -> dict:
         n, p = plans[0]
         try:
             if floor == "1F":
-                t = FloorTrace(building, floor, n, p, legend, osm_area=osm_area)
+                t = FloorTrace(building, floor, n, p, legend, osm_area=osm_area, wings=bool(mapping.get("wings")))
                 first = t
             else:
                 w = Image.open(f"{ROOT}/{building}/{n}").width
-                t = FloorTrace(building, floor, n, p, legend, expect=first.scale * w / first.page_width if first else None)
+                t = FloorTrace(building, floor, n, p, legend, expect=first.scale * w / first.page_width if first else None, wings=bool(mapping.get("wings")))
         except ValueError as e:
             report["floors"][floor] = {"error": str(e)}
             continue
@@ -446,7 +515,7 @@ def trace_building(building: str, debug: bool) -> dict:
     grids = {k: t.grid() for k, t in traces.items()}
     base_ins = grids[1][2]
     offsets = {k: (0, 0) if k == 1 else align(base_ins.astype(np.float32), g[2].astype(np.float32)) for k, g in grids.items()}
-    reg = register(base_ins, osm_ids)
+    reg = register(base_ins, osm_ids, mapping.get("angleHint"))
     if mapping.get("transform"):  # manual fix: {angleDeg, planCentroid, worldCentroid} in 1F page cells·CELL
         reg = {**reg, **mapping["transform"], "iou": reg["iou"], "manual": True}
     report["registration"] = reg
@@ -497,7 +566,20 @@ def trace_building(building: str, debug: bool) -> dict:
                 continue
             ys, xs = np.nonzero(cells)
             w_, h_ = int(xs.max() - xs.min() + 1), int(ys.max() - ys.min() + 1)
+            if area > 250 and not t.codes.get(i) and max(w_, h_) / max(1, min(w_, h_)) < 3.5:
+                lab[cells] = 0  # courtyard / site area inside boundary walls, not a room
+                continue
             info[i] = {"area": area, "codes": t.codes.get(i, []), "aspect": max(w_, h_) / max(1, min(w_, h_))}
+        # Wall lines and slivers between rooms are unlabelled cells: hand them to a neighbouring
+        # space (up to 1.5 m) so floors reach the walls; larger empty areas stay open.
+        known = np.isin(lab, list(info)) if info else np.zeros_like(lab, bool)
+        lab[~known] = 0
+        for _ in range(3):
+            grow = cv2.dilate(lab.astype(np.float32), np.ones((3, 3), np.uint8)).astype(np.int32)
+            fill = (lab == 0) & clip & (grow > 0)
+            if not fill.any():
+                break
+            lab[fill] = grow[fill]
         adj: dict[int, set] = {i: set() for i in info}
         for a, b in ((lab[:, :-1], lab[:, 1:]), (lab[:-1, :], lab[1:, :])):
             m = (a != b) & (a > 0) & (b > 0)
@@ -578,7 +660,7 @@ def trace_building(building: str, debug: bool) -> dict:
 
         floors[f"{k}F"] = {"bandTop": round(fh, 3), "spaces": spaces, "openings": openings, "signs": []}
         directory.append({"level": f"{k}F", "items": sorted(set(n for n in named if n not in ("空間", "儲藏室")))[:4]})
-        report["floors"][f"{k}F"] = {"page": t.name, "scale": round(t.scale, 2), "offset": list(offsets[k]), "rooms": len(spaces) - len(circ),
+        report["floors"][f"{k}F"] = {"page": t.name, "scale": round(t.scale, 2), "scaleSource": t.scale_source, "offset": list(offsets[k]), "rooms": len(spaces) - len(circ),
                                      "coded": sum(1 for i in info if info[i]["codes"]), "legend": len(t.legend), "openings": len(openings)}
         if debug:
             write_debug(building, k, lab, st, openings)
@@ -599,7 +681,9 @@ def trace_building(building: str, debug: bool) -> dict:
     }
     report["stairs"] = add_stairs(source, stair_cells, fh)
     add_elevators(source)
-    accepted = reg.get("manual") or reg["iou"] >= MIN_IOU
+    # "reviewed": a person checked the overlay (scripts/floorplan/overlay.py) and accepts the fit
+    # even though the IoU is low (multi-wing plans whose OSM shells include unroomed parts).
+    accepted = reg.get("manual") or mapping.get("reviewed") or reg["iou"] >= MIN_IOU
     report["accepted"] = bool(accepted)
     out = f"{ROOT}/{building}/traced.source.json"
     rejected = f"{ROOT}/{building}/traced.rejected.json"
@@ -746,7 +830,7 @@ def main() -> None:
         else:
             fl = " ".join(f"{k}:{v.get('rooms', '!')}/{v.get('coded', '')}" for k, v in r["floors"].items())
             mark = "OK " if r.get("accepted") else "-- "
-            print(f"{mark}{b}: IoU {r['registration']['iou']}, angle {r['registration']['angleDeg']}, stairs {r['stairs']}, floors {fl}")
+            print(f"{mark}{b}: [{r.get('mode')}] IoU {r['registration']['iou']}, angle {r['registration']['angleDeg']}, stairs {r['stairs']}, floors {fl}")
 
 
 if __name__ == "__main__":

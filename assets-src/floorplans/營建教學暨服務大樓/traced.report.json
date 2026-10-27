@@ -7,64 +7,69 @@
   "1F": {
    "page": "1F_e8-09.jpg",
    "scale": 17.64,
+   "scaleSource": "dimension/area",
    "offset": [
     0,
     0
    ],
-   "rooms": 8,
+   "rooms": 7,
    "coded": 3,
    "legend": 4,
-   "openings": 23
+   "openings": 51
   },
   "2F": {
    "page": "2F_e8-11.jpg",
    "scale": 18.23,
+   "scaleSource": "rooms",
    "offset": [
-    -42,
-    1
+    8,
+    10
    ],
-   "rooms": 1,
-   "coded": 0,
+   "rooms": 10,
+   "coded": 7,
    "legend": 8,
-   "openings": 0
+   "openings": 5
   },
   "3F": {
    "page": "3F_e8-13.jpg",
    "scale": 41.81,
+   "scaleSource": "rooms",
    "offset": [
-    3,
-    -2
+    5,
+    0
    ],
-   "rooms": 14,
+   "rooms": 13,
    "coded": 8,
    "legend": 8,
-   "openings": 2
+   "openings": 22
   },
   "4F": {
    "page": "4F_e8-15.jpg",
    "scale": 39.14,
+   "scaleSource": "dimension/area",
    "offset": [
-    33,
-    -3
+    25,
+    -4
    ],
    "rooms": 3,
    "coded": 0,
    "legend": 4,
-   "openings": 0
+   "openings": 10
   }
  },
  "registration": {
-  "angleDeg": 270.0,
+  "angleDeg": 269.0,
   "planCentroid": [
-   22.249,
-   27.479
+   24.327,
+   28.721
   ],
   "worldCentroid": [
-   386.691,
-   -303.001
+   388.691,
+   -302.001
   ],
-  "iou": 0.687
+  "iou": 0.742
  },
  "stairs": 0,
- "accepted": true
+ "accepted": true,
+ "mode": "rooms"
 }

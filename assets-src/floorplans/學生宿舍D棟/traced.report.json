@@ -2,70 +2,76 @@
  "building": "學生宿舍D棟",
  "osm": [
   296668593,
-  296668594
+  296668594,
+  296668604
  ],
  "floors": {
   "1F": {
    "page": "1F_b4-d03.jpg",
-   "scale": 57.68,
+   "scale": 23.31,
+   "scaleSource": "rooms",
    "offset": [
     0,
     0
    ],
-   "rooms": 9,
-   "coded": 3,
+   "rooms": 48,
+   "coded": 6,
    "legend": 19,
-   "openings": 193
+   "openings": 237
   },
   "2F": {
    "page": "2F_b4-d05.jpg",
-   "scale": 58.85,
+   "scale": 23.79,
+   "scaleSource": "dimension/area",
    "offset": [
-    19,
-    7
+    0,
+    -8
    ],
-   "rooms": 3,
-   "coded": 3,
+   "rooms": 52,
+   "coded": 11,
    "legend": 32,
-   "openings": 1
+   "openings": 167
   },
   "3F": {
    "page": "3F_b4-d07.jpg",
-   "scale": 58.88,
+   "scale": 23.8,
+   "scaleSource": "dimension/area",
    "offset": [
-    -24,
-    0
+    0,
+    -8
    ],
-   "rooms": 4,
-   "coded": 2,
+   "rooms": 47,
+   "coded": 18,
    "legend": 32,
-   "openings": 7
+   "openings": 148
   },
   "4F": {
    "page": "4F_b4-d09.jpg",
-   "scale": 58.88,
+   "scale": 23.8,
+   "scaleSource": "dimension/area",
    "offset": [
-    3,
-    4
+    -1,
+    -8
    ],
-   "rooms": 2,
-   "coded": 1,
+   "rooms": 44,
+   "coded": 10,
    "legend": 24,
-   "openings": 0
+   "openings": 145
   }
  },
  "registration": {
-  "angleDeg": 131.0,
+  "angleDeg": 353.0,
   "planCentroid": [
-   18.14,
-   35.157
+   44.352,
+   68.352
   ],
   "worldCentroid": [
-   4.641,
-   386.772
+   1.918,
+   403.295
   ],
-  "iou": 0.335
+  "iou": 0.523
  },
  "stairs": 0,
- "accepted": false
+ "accepted": true,
+ "mode": "rooms"
 }

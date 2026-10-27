@@ -7,6 +7,7 @@
   "1F": {
    "page": "1F_f3-01.jpg",
    "scale": 27.74,
+   "scaleSource": "dimension/area",
    "offset": [
     0,
     0
@@ -14,11 +15,12 @@
    "rooms": 28,
    "coded": 13,
    "legend": 18,
-   "openings": 68
+   "openings": 175
   },
   "2F": {
    "page": "2F_f3-03.jpg",
    "scale": 8.54,
+   "scaleSource": "dimension/area",
    "offset": [
     1,
     -49
@@ -26,7 +28,7 @@
    "rooms": 7,
    "coded": 6,
    "legend": 6,
-   "openings": 4
+   "openings": 17
   }
  },
  "registration": {
@@ -42,5 +44,6 @@
   "iou": 0.738
  },
  "stairs": 0,
- "accepted": true
+ "accepted": true,
+ "mode": "classic"
 }

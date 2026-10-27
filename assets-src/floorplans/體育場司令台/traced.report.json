@@ -10,40 +10,43 @@
   "1F": {
    "page": "1F_a8-03.jpg",
    "scale": 47.01,
+   "scaleSource": "dimension/area",
    "offset": [
     0,
     0
    ],
-   "rooms": 8,
+   "rooms": 11,
    "coded": 0,
    "legend": 0,
-   "openings": 281
+   "openings": 73
   },
   "3F": {
    "page": "3F_a8-07.jpg",
    "scale": 49.07,
+   "scaleSource": "dimension/area",
    "offset": [
-    6,
-    0
+    1,
+    1
    ],
-   "rooms": 2,
+   "rooms": 3,
    "coded": 0,
    "legend": 0,
-   "openings": 1
+   "openings": 24
   }
  },
  "registration": {
-  "angleDeg": 222,
+  "angleDeg": 260.5,
   "planCentroid": [
-   23.023,
-   47.351
+   22.39,
+   33.137
   ],
   "worldCentroid": [
    279.1,
-   -35.361
+   -36.361
   ],
-  "iou": 0.39
+  "iou": 0.648
  },
  "stairs": 0,
- "accepted": false
+ "accepted": true,
+ "mode": "rooms"
 }

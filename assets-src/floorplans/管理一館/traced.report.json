@@ -7,38 +7,41 @@
   "1F": {
    "page": "1F_d1-01.jpg",
    "scale": 9.53,
+   "scaleSource": "dimension/area",
    "offset": [
     0,
     0
    ],
-   "rooms": 35,
+   "rooms": 33,
    "coded": 2,
    "legend": 22,
-   "openings": 100
+   "openings": 250
   },
   "2F": {
    "page": "2F_d1-03.jpg",
    "scale": 9.16,
+   "scaleSource": "dimension/area",
    "offset": [
     12,
     -11
    ],
-   "rooms": 21,
+   "rooms": 20,
    "coded": 13,
    "legend": 25,
-   "openings": 14
+   "openings": 86
   },
   "3F": {
    "page": "3F_d1-05.jpg",
    "scale": 8.98,
+   "scaleSource": "dimension/area",
    "offset": [
     18,
     -14
    ],
-   "rooms": 28,
+   "rooms": 27,
    "coded": 13,
    "legend": 37,
-   "openings": 35
+   "openings": 116
   }
  },
  "registration": {
@@ -54,5 +57,6 @@
   "iou": 0.555
  },
  "stairs": 1,
- "accepted": false
+ "accepted": false,
+ "mode": "classic"
 }

@@ -7,54 +7,59 @@
   "1F": {
    "page": "1F_e9-01.jpg",
    "scale": 34.81,
+   "scaleSource": "dimension/area",
    "offset": [
     0,
     0
    ],
-   "rooms": 5,
+   "rooms": 4,
    "coded": 3,
    "legend": 11,
-   "openings": 48
+   "openings": 68
   },
   "2F": {
    "page": "2F_e9-03.jpg",
    "scale": 35.0,
+   "scaleSource": "dimension/area",
    "offset": [
     1,
     0
    ],
-   "rooms": 10,
+   "rooms": 9,
    "coded": 7,
    "legend": 11,
-   "openings": 6
+   "openings": 19
   },
   "3F": {
    "page": "3F_e9-05.jpg",
    "scale": 34.31,
-   "offset": [
-    -1,
-    0
-   ],
-   "rooms": 9,
-   "coded": 7,
-   "legend": 12,
-   "openings": 14
-  },
-  "4F": {
-   "page": "4F_e9-07.jpg",
-   "scale": 33.94,
+   "scaleSource": "dimension/area",
    "offset": [
     -1,
     0
    ],
    "rooms": 8,
+   "coded": 7,
+   "legend": 12,
+   "openings": 30
+  },
+  "4F": {
+   "page": "4F_e9-07.jpg",
+   "scale": 33.94,
+   "scaleSource": "dimension/area",
+   "offset": [
+    -1,
+    0
+   ],
+   "rooms": 7,
    "coded": 4,
    "legend": 5,
-   "openings": 4
+   "openings": 20
   },
   "5F": {
    "page": "5F_e9-09.jpg",
    "scale": 105.45,
+   "scaleSource": "dimension/area",
    "offset": [
     1,
     0
@@ -62,7 +67,7 @@
    "rooms": 2,
    "coded": 1,
    "legend": 1,
-   "openings": 1
+   "openings": 5
   }
  },
  "registration": {
@@ -78,5 +83,6 @@
   "iou": 0.685
  },
  "stairs": 0,
- "accepted": true
+ "accepted": true,
+ "mode": "classic"
 }
