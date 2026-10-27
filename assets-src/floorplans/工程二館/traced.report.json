@@ -58,6 +58,7 @@
   }
  },
  "registration": {
+  "factor": 1.0,
   "angleDeg": 178.0,
   "planCentroid": [
    68.698,
@@ -70,6 +71,6 @@
   "iou": 0.43
  },
  "stairs": 0,
- "accepted": false,
+ "accepted": true,
  "mode": "classic"
 }

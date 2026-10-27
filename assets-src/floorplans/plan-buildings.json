@@ -1,5 +1,5 @@
 {
- "_doc": "總務處 floor-plan building → OSM building ids it covers (public/data/campus.json). Ids marked '?' in a note are guesses checked by registration (IoU). Buildings with null ids are skipped. angleHint [deg, ±range] limits the rotation search (dorm plans are drawn south-up); reviewed: true accepts a fit checked by eye on the overlay. wings: true keeps every wing drawn on a page (multi-wing dorm plans).",
+ "_doc": "總務處 floor-plan building → OSM building ids it covers (public/data/campus.json). Ids marked '?' in a note are guesses checked by registration (IoU). Buildings with null ids are skipped. angleHint [deg, ±range] limits the rotation search (dorm plans are drawn south-up); reviewed: true accepts a fit checked by eye on the overlay. wings: true keeps every wing drawn on a page (multi-wing dorm plans). trustDimensions: use the printed overall dimension for scale; registerWith: OSM ids drawn on the same page that join registration (clip stays osm); crop: page fractions to analyse per floor ('*' = all). scaleSearch: also search a scale factor 0.75–1.3 when dimensions are unreadable (scaleFactor pins one).",
  "行政大樓": {
   "osm": [
    234786945
@@ -46,7 +46,12 @@
   "osm": [
    1139732487,
    1139732488
-  ]
+  ],
+  "angleHint": [
+   180,
+   15
+  ],
+  "scaleSearch": true
  },
  "人科一館": {
   "osm": [
@@ -66,7 +71,29 @@
  "雲旭樓": {
   "osm": [
    296668633
-  ]
+  ],
+  "crop": {
+   "1F": [
+    0.72,
+    0.25,
+    0.97,
+    0.6
+   ],
+   "2F": [
+    0.65,
+    0.33,
+    0.97,
+    0.72
+   ],
+   "3F": [
+    0.65,
+    0.33,
+    0.97,
+    0.8
+   ]
+  },
+  "scaleSearch": true,
+  "note": "OSM 雲旭樓 is only the east block (103-108); the page also draws the west block, connector and 109"
  },
  "設計一、二館": {
   "osm": [
@@ -88,17 +115,44 @@
  "管理一館": {
   "osm": [
    167826282
-  ]
+  ],
+  "trustDimensions": true,
+  "reviewed": true
  },
  "管理二館": {
   "osm": [
    234786944
-  ]
+  ],
+  "trustDimensions": true,
+  "crop": {
+   "*": [
+    0.17,
+    0,
+    1,
+    1
+   ]
+  },
+  "note": "page also draws part of 管理三館 left of the divider: cropped",
+  "reviewed": true
  },
  "管理三館": {
   "osm": [
    234786943
-  ]
+  ],
+  "angleHint": [
+   180,
+   20
+  ],
+  "trustDimensions": true,
+  "crop": {
+   "*": [
+    0,
+    0.46,
+    1,
+    1
+   ]
+  },
+  "note": "page also draws 管理二館's atrium above the divider: cropped"
  },
  "工程一館": {
   "osm": [
@@ -108,7 +162,8 @@
  "工程二館": {
   "osm": [
    292500604
-  ]
+  ],
+  "reviewed": true
  },
  "工程三館": {
   "osm": [

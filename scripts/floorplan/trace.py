@@ -30,7 +30,9 @@ MIN_IOU = 0.6
 # "classic": scale from dimensions / OSM area, register the whole building mask.
 # "rooms": scale from legend room areas, register only room-sized regions (robust to site walls).
 # Each building is traced both ways and the better registration wins.
-MODE = "classic"  # below this the registration is not trusted: the building keeps its generated interior
+MODE = "classic"
+# Per-building options from plan-buildings.json (set by trace_once): trustDimensions, crop, ...
+OPTS: dict = {}  # below this the registration is not trusted: the building keeps its generated interior
 CELL = 0.5  # plan grid (m)
 CODE_RE = re.compile(r"(?<![0-9])([0-9]{3,4}[a-z]?)(?![0-9])")
 LEGEND_CODE_RE = re.compile(r"^([A-Z]{1,4})([0-9]{3,4}[a-z]?)")
@@ -156,6 +158,39 @@ def plan_scale(page: dict, mask: np.ndarray) -> float | None:
     return (x1 - x0) / (best / 100)
 
 
+def dimension_line_scale(page: dict, path: str) -> float | None:
+    """px/m from the largest horizontal dimension label and the length of its own dimension line
+    (the grey line just under / over the number), independent of what the building mask caught."""
+    gray = np.asarray(Image.open(path).convert("L"))
+    H, W = gray.shape
+    best = None
+    for l in page["lines"]:
+        t = l["text"].strip()
+        if not re.fullmatch(r"[0-9]{4,5}", t):
+            continue
+        bx, by, bw, bh = l["box"]
+        if bw < bh:
+            continue
+        cx = int(bx + bw / 2)
+        run_best = 0
+        for y in list(range(int(by + bh * 0.7), int(by + bh * 2.2))) + list(range(int(by - bh * 1.2), int(by + bh * 0.3))):
+            if not 0 <= y < H or not 0 <= cx < W:
+                continue
+            row = gray[y] < 235
+            if not row[cx]:
+                continue
+            a = cx
+            while a > 0 and row[a - 1]:
+                a -= 1
+            b = cx
+            while b < W - 1 and row[b + 1]:
+                b += 1
+            run_best = max(run_best, b - a)
+        if run_best > 3 * bw and (best is None or int(t) > best[0]):
+            best = (int(t), run_best)
+    return best[1] / (best[0] / 100) if best else None
+
+
 def erase_text(walls: np.ndarray, page: dict) -> None:
     """Glyphs: dark blobs entirely inside an OCR box and no bigger than its characters."""
     n, lab, stats, _ = cv2.connectedComponentsWithStats(walls, 8)
@@ -213,9 +248,21 @@ class FloorTrace:
         self.floor, self.name, self.legend, self.wings = floor, name, legend, wings
         walls = dark_mask(f"{ROOT}/{building}/{name}")
         self.page_width = walls.shape[1]
+        # crop: {"1F": [x0, y0, x1, y1], "*": [...]} page fractions to keep (other buildings drawn on the page).
+        crop = (OPTS.get("crop") or {}).get(floor) or (OPTS.get("crop") or {}).get("*")
+        if crop:
+            H, W = walls.shape
+            x0, y0, x1, y1 = int(crop[0] * W), int(crop[1] * H), int(crop[2] * W), int(crop[3] * H)
+            keep = np.zeros_like(walls)
+            keep[y0:y1, x0:x1] = 1
+            walls *= keep
+            page = {**page, "lines": [l for l in page["lines"] if x0 <= l["box"][0] + l["box"][2] / 2 <= x1 and y0 <= l["box"][1] + l["box"][3] / 2 <= y1]}
         rough = fill_inside(walls, max(3, walls.shape[1] // 150), wings)
         scale = plan_scale(page, rough)
-        if osm_area and rough.sum():
+        by_line = dimension_line_scale(page, f"{ROOT}/{building}/{name}") if OPTS.get("trustDimensions") else None
+        if by_line:
+            scale = by_line  # the printed overall dimension, measured on its own line
+        elif osm_area and rough.sum():
             # The printed dimension must agree with the OSM footprint area, else trust the area.
             by_area = math.sqrt(float(rough.sum()) / osm_area)
             if not scale or not 0.75 < scale / by_area < 1.33:
@@ -224,6 +271,8 @@ class FloorTrace:
             scale = expect
         if not scale:
             raise ValueError("no overall dimension label")
+        if osm_area or expect is None:
+            scale /= float(OPTS.get("scaleFactor", 1.0))  # true metres = plan metres × factor
         erase_text(walls, page)
         self._analyse(walls, page, scale)
         # Best scale source: legend areas of the coded rooms (immune to site walls, courtyards and
@@ -347,7 +396,7 @@ def align(ref: np.ndarray, mov: np.ndarray) -> tuple[int, int]:
     return int(dy), int(dx)
 
 
-def register(mask: np.ndarray, osm_ids: list[int], hint: list[float] | None = None) -> dict:
+def register(mask: np.ndarray, osm_ids: list[int], hint: list[float] | None = None, scales: tuple[float, ...] = (1.0,)) -> dict:
     """Plan cells (y down) → world: rotation search + centroid alignment, best IoU with the OSM footprints."""
     rings = [osm_by_id[i]["outer"] for i in osm_ids if i in osm_by_id]
     xs = [v for r in rings for v in r[0::2]]; zs = [v for r in rings for v in r[1::2]]
@@ -362,8 +411,9 @@ def register(mask: np.ndarray, osm_ids: list[int], hint: list[float] | None = No
     wc = np.array([wx.mean(), wy.mean()])
     py, px = np.nonzero(mask)
     pc = np.array([px.mean(), py.mean()])
-    pts = np.stack([px - pc[0], py - pc[1]], 1).astype(np.float32)
-    best = {"iou": -1.0, "deg": 0, "off": (0, 0)}
+    base_pts = np.stack([px - pc[0], py - pc[1]], 1).astype(np.float32)
+    best = {"iou": -1.0, "deg": 0, "off": (0, 0), "factor": 1.0}
+    pts = base_pts
 
     def score(deg: float, ox: float, oy: float) -> float:
         a = math.radians(deg)
@@ -377,19 +427,23 @@ def register(mask: np.ndarray, osm_ids: list[int], hint: list[float] | None = No
 
     # Coarse search over every rotation, or only around a manual hint [centre, ±range] (degrees).
     coarse = range(0, 360, 2) if not hint else np.arange(hint[0] - hint[1], hint[0] + hint[1] + 0.01, 1.0)
-    for deg in coarse:
-        v = score(float(deg) % 360, 0, 0)
-        if v > best["iou"]:
-            best = {"iou": v, "deg": float(deg) % 360, "off": (0, 0)}
+    # Plan metres × factor = true metres (scale search for plans whose dimensions can't be read).
+    for factor in scales:
+        pts = base_pts * factor
+        for deg in coarse:
+            v = score(float(deg) % 360, 0, 0)
+            if v > best["iou"]:
+                best = {"iou": v, "deg": float(deg) % 360, "off": (0, 0), "factor": factor}
+    pts = base_pts * best["factor"]
     for deg in np.arange(best["deg"] - 2, best["deg"] + 2.01, 0.5):
         for ox in range(-6, 7, 2):
             for oy in range(-6, 7, 2):
                 v = score(float(deg), ox, oy)
                 if v > best["iou"]:
-                    best = {"iou": v, "deg": float(deg) % 360, "off": (ox, oy)}
+                    best = {**best, "iou": v, "deg": float(deg) % 360, "off": (ox, oy)}
     plan_c = (float(pc[0] * CELL), float(pc[1] * CELL))
     world_c = (origin[0] + (wc[0] + best["off"][0]) * res, origin[1] + (wc[1] + best["off"][1]) * res)
-    return {"angleDeg": round(best["deg"], 2), "planCentroid": [round(plan_c[0], 3), round(plan_c[1], 3)], "worldCentroid": [round(float(world_c[0]), 3), round(float(world_c[1]), 3)], "iou": round(best["iou"], 3)}
+    return {"factor": best["factor"], "angleDeg": round(best["deg"], 2), "planCentroid": [round(plan_c[0], 3), round(plan_c[1], 3)], "worldCentroid": [round(float(world_c[0]), 3), round(float(world_c[1]), 3)], "iou": round(best["iou"], 3)}
 
 
 # ---------------------------------------------------------------------------------------------
@@ -467,7 +521,13 @@ def trace_building(building: str, debug: bool) -> dict:
 
 
 def trace_once(building: str, debug: bool) -> dict:
-    mapping = json.load(open(f"{ROOT}/plan-buildings.json", encoding="utf8")).get(building, {})
+    return trace_once_with(building, debug, json.load(open(f"{ROOT}/plan-buildings.json", encoding="utf8")).get(building, {}))
+
+
+def trace_once_with(building: str, debug: bool, opts: dict) -> dict:
+    global OPTS
+    OPTS = dict(opts)
+    mapping = OPTS
     osm_ids = mapping.get("osm")
     if not osm_ids:
         return {"building": building, "skipped": mapping.get("note", "no OSM mapping")}
@@ -515,9 +575,16 @@ def trace_once(building: str, debug: bool) -> dict:
     grids = {k: t.grid() for k, t in traces.items()}
     base_ins = grids[1][2]
     offsets = {k: (0, 0) if k == 1 else align(base_ins.astype(np.float32), g[2].astype(np.float32)) for k, g in grids.items()}
-    reg = register(base_ins, osm_ids, mapping.get("angleHint"))
+    # registerWith: neighbours drawn on the same page join the registration target (not the clip).
+    scales = tuple(np.round(np.arange(0.75, 1.31, 0.05), 2)) if mapping.get("scaleSearch") and "scaleFactor" not in OPTS else (1.0,)
+    reg = register(base_ins, mapping.get("registerWith") or osm_ids, mapping.get("angleHint"), scales)
+    if reg["factor"] != 1.0:
+        # Re-trace with the corrected scale so rooms, doors and stairs are measured in true metres.
+        return trace_once_with(building, debug, {**OPTS, "scaleFactor": reg["factor"]})
     if mapping.get("transform"):  # manual fix: {angleDeg, planCentroid, worldCentroid} in 1F page cells·CELL
         reg = {**reg, **mapping["transform"], "iou": reg["iou"], "manual": True}
+    if "scaleFactor" in OPTS:
+        reg["factor"] = OPTS["scaleFactor"]
     report["registration"] = reg
 
     # Shared plan frame: 1F page cells shifted so every floor fits with a margin.
@@ -665,6 +732,8 @@ def trace_once(building: str, debug: bool) -> dict:
         if debug:
             write_debug(building, k, lab, st, openings)
 
+    # Floors with nothing traced (e.g. the upper half of a double-height hall) are not built.
+    floors = {k: v for k, v in floors.items() if v["spaces"]}
     max_floor = max(traces)
     source = {
         "id": f"plan-{osm_ids[0]}",
@@ -674,7 +743,7 @@ def trace_once(building: str, debug: bool) -> dict:
         "osmIds": osm_ids,
         "transform": {"angleDeg": reg["angleDeg"], "planCentroid": [round(pcx, 3), round(pcy, 3)], "worldCentroid": reg["worldCentroid"]},
         "floorHeight": round(fh, 3),
-        "levels": [{"id": f"{k}F", "elevation": round((k - 1) * fh, 3), "built": k in traces, "elevator": k in traces} for k in range(1, max_floor + 1)],
+        "levels": [{"id": f"{k}F", "elevation": round((k - 1) * fh, 3), "built": f"{k}F" in floors, "elevator": f"{k}F" in floors} for k in range(1, max_floor + 1)],
         "shell": {},
         "floors": floors,
         "directory": directory,

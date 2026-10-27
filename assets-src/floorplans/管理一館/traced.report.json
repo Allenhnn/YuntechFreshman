@@ -6,57 +6,58 @@
  "floors": {
   "1F": {
    "page": "1F_d1-01.jpg",
-   "scale": 9.53,
+   "scale": 6.72,
    "scaleSource": "dimension/area",
    "offset": [
     0,
     0
    ],
-   "rooms": 33,
-   "coded": 2,
+   "rooms": 55,
+   "coded": 3,
    "legend": 22,
-   "openings": 250
+   "openings": 569
   },
   "2F": {
    "page": "2F_d1-03.jpg",
-   "scale": 9.16,
+   "scale": 8.69,
    "scaleSource": "dimension/area",
    "offset": [
-    12,
-    -11
+    39,
+    34
    ],
-   "rooms": 20,
-   "coded": 13,
+   "rooms": 17,
+   "coded": 12,
    "legend": 25,
    "openings": 86
   },
   "3F": {
    "page": "3F_d1-05.jpg",
-   "scale": 8.98,
+   "scale": 8.47,
    "scaleSource": "dimension/area",
    "offset": [
-    18,
-    -14
+    41,
+    30
    ],
-   "rooms": 27,
-   "coded": 13,
+   "rooms": 26,
+   "coded": 18,
    "legend": 37,
-   "openings": 116
+   "openings": 69
   }
  },
  "registration": {
-  "angleDeg": 262.5,
+  "factor": 1.0,
+  "angleDeg": 283.0,
   "planCentroid": [
-   35.856,
-   55.946
+   51.271,
+   79.537
   ],
   "worldCentroid": [
-   -122.615,
+   -126.615,
    -171.087
   ],
-  "iou": 0.555
+  "iou": 0.571
  },
- "stairs": 1,
- "accepted": false,
+ "stairs": 0,
+ "accepted": true,
  "mode": "classic"
 }

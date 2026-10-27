@@ -8,7 +8,7 @@ import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import type { BuildingSource, TracedIndex } from '../src/buildings/buildingTypes';
 import type { CampusData } from '../src/campus/campusTypes';
 import { createPlanTransform } from '../src/buildings/planTransform';
-import { applyOpenings, areaOf, boundarySegments, rasterize } from '../src/buildings/floorGrid';
+import { CELL, OUTSIDE, applyOpenings, areaOf, boundarySegments, rasterize } from '../src/buildings/floorGrid';
 import { buildBuildingMeshes } from '../src/buildings/buildingMesh';
 
 const SRC = 'assets-src/floorplans';
@@ -78,6 +78,52 @@ function shellEntrances(b: BuildingSource): void {
   }
 }
 
+/**
+ * The traced plan sits a metre or two off the OSM shell, so the room behind a shell door can start
+ * with a wall. Walk 4 m inward from every shell entrance on the ground floor and open each interior
+ * boundary the path crosses (1.2 m wide), so every door in the shell leads somewhere.
+ */
+function clearEntrancePaths(b: BuildingSource): number {
+  const xf = createPlanTransform(b);
+  const groundId = b.levels.find((l) => l.elevation === 0)?.id ?? '1F';
+  const floor = b.floors[groundId];
+  if (!floor) return 0;
+  const grid = rasterize(floor.spaces);
+  const cellOf = (x: number, y: number): [number, number, number] => {
+    const c = Math.floor((x - grid.x0) / CELL), r = Math.floor((y - grid.y0) / CELL);
+    return [c, r, c < 0 || r < 0 || c >= grid.w || r >= grid.h ? OUTSIDE : grid.ids[r * grid.w + c]!];
+  };
+  let added = 0;
+  for (const id of b.osmIds ?? []) {
+    const ring = campus.buildings.find((x) => x.id === id)?.outer;
+    for (const e of traced.entrances[String(id)] ?? []) {
+      if (!ring) continue;
+      const n = ring.length / 2, j = (e.edge + 1) % n;
+      const ax = ring[e.edge * 2]!, az = ring[e.edge * 2 + 1]!, dx = ring[j * 2]! - ax, dz = ring[j * 2 + 1]! - az, len = Math.hypot(dx, dz);
+      const wx = ax + (dx / len) * e.along, wz = az + (dz / len) * e.along;
+      const nx = dz / len, nz = -dx / len; // outward
+      let prev: [number, number, number] | null = null;
+      for (let t = -0.5; t <= 4; t += 0.05) {
+        const [px, py] = xf.toPlan(wx - nx * t, wz - nz * t);
+        const cur = cellOf(px, py);
+        if (prev && cur[2] !== prev[2] && cur[2] !== OUTSIDE && prev[2] !== OUTSIDE) {
+          // Crossed a boundary between two spaces: vertical if the column changed, else horizontal.
+          if (cur[0] !== prev[0]) {
+            const x = grid.x0 + Math.max(cur[0], prev[0]) * CELL;
+            floor.openings.push({ kind: 'open', a: [x, py - 0.6], b: [x, py + 0.6] });
+          } else {
+            const y = grid.y0 + Math.max(cur[1], prev[1]) * CELL;
+            floor.openings.push({ kind: 'open', a: [px - 0.6, y], b: [px + 0.6, y] });
+          }
+          added++;
+        }
+        prev = cur;
+      }
+    }
+  }
+  return added;
+}
+
 for (const dir of readdirSync(SRC, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name)) {
   for (const file of readdirSync(`${SRC}/${dir}`).filter((f) => f.endsWith('.source.json'))) {
     const b = JSON.parse(readFileSync(`${SRC}/${dir}/${file}`, 'utf8')) as BuildingSource;
@@ -114,12 +160,15 @@ for (const dir of readdirSync(SRC, { withFileTypes: true }).filter((d) => d.isDi
       const count = (k: string): number => l.furniture.filter((f) => f.kind === k).length;
       console.log(`  ${l.id} furniture: ${count('shelf')} shelf units, ${count('table')} tables, ${count('chair')} chairs, ${count('plinth')} plinths, ${count('screen')} screens; ${l.part.colliders.length} + ${l.furnitureColliders.length} furniture colliders`);
     }
-    writeFileSync(`${OUT}/${b.id}.json`, JSON.stringify(b));
-    console.log(`  → ${OUT}/${b.id}.json`);
     if (b.osmIds?.length) {
       traced.buildings.push({ id: b.id, name: b.name, osmIds: b.osmIds, file: `data/buildings/${b.id}.json` });
       shellEntrances(b);
+      const opened = clearEntrancePaths(b);
+      if (opened) console.log(`  ${opened} wall(s) opened behind shell entrances`);
     }
+    // Written after the entrance paths so the opened walls are part of the output.
+    writeFileSync(`${OUT}/${b.id}.json`, JSON.stringify(b));
+    console.log(`  → ${OUT}/${b.id}.json`);
   }
 }
 writeFileSync(`${OUT}/traced.json`, JSON.stringify(traced));
