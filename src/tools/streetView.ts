@@ -20,10 +20,10 @@ interface Panorama {
 interface MapsApi {
   StreetViewPanorama: new (el: HTMLElement, opts: Record<string, unknown>) => Panorama;
   StreetViewService: new () => {
-    getPanorama(req: { location: LatLngLiteral; radius: number; preference: string; source: string }): Promise<{ data: PanoData }>;
+    getPanorama(req: { location: LatLngLiteral; radius: number; preference: string; sources: string[] }): Promise<{ data: PanoData }>;
   };
   StreetViewPreference: { NEAREST: string };
-  StreetViewSource: { OUTDOOR: string };
+  StreetViewSource: { GOOGLE: string; OUTDOOR: string };
 }
 
 declare global {
@@ -59,9 +59,14 @@ export function createStreetViewPanel(el: HTMLElement, key: string | undefined):
         return 'Street View: no key configured';
       }
       const maps = await loadMaps(key);
-      const { data } = await new maps.StreetViewService().getPanorama({
-        location: standAt, radius: 60, preference: maps.StreetViewPreference.NEAREST, source: maps.StreetViewSource.OUTDOOR,
-      });
+      // Prefer Google's own imagery; fall back to user-uploaded outdoor 360° photos when there is none.
+      const service = new maps.StreetViewService();
+      const find = (sources: string[]): Promise<{ data: PanoData } | null> =>
+        service.getPanorama({ location: standAt, radius: 60, preference: maps.StreetViewPreference.NEAREST, sources }).catch(() => null);
+      const official = await find([maps.StreetViewSource.GOOGLE]);
+      const found = official ?? (await find([maps.StreetViewSource.OUTDOOR]));
+      if (!found) return 'Street View: no panorama within 60 m of this wall';
+      const { data } = found;
       const at = data.location?.latLng;
       if (!at || !data.location?.pano) return 'Street View: no panorama within 60 m of this wall';
       // Initial heading from the panorama toward the wall's midpoint.
@@ -73,7 +78,7 @@ export function createStreetViewPanel(el: HTMLElement, key: string | undefined):
       pano.setPov({ heading: (heading + 360) % 360, pitch: 12 });
       pano.setVisible(true);
       const dist = Math.hypot((target.lat - at.lat()) * 111320, (target.lng - at.lng()) * 111320 * Math.cos(lat1));
-      return `Street View: panorama ${dist.toFixed(0)} m from the wall${data.imageDate ? `, captured ${data.imageDate}` : ''}`;
+      return `Street View: ${official ? 'Google' : 'user-uploaded'} panorama ${dist.toFixed(0)} m from the wall${data.imageDate ? `, captured ${data.imageDate}` : ''}`;
     },
   };
 }
