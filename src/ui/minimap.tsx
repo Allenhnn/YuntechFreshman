@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { CampusData, Ring } from '../campus/campusTypes';
 import { telemetry } from '../state/telemetry';
-import { actions, useGame } from '../state/store';
+import { actions, useGame, type Waypoint } from '../state/store';
 import { useApi } from './api';
 
 /** Base map resolution: world metres → base-canvas pixels. */
@@ -224,6 +224,8 @@ const MIN_ZOOM = 1;
 const MAX_ZOOM = 14;
 /** Pointer travel (CSS px) below which a press counts as a click rather than a pan. */
 const CLICK_SLOP = 5;
+/** Click distance (CSS px) that counts as hitting a pin. */
+const PIN_HIT_PX = 16;
 
 interface MapView {
   zoom: number;
@@ -238,6 +240,10 @@ interface MapMenu {
   top: number;
   x: number;
   z: number;
+  /** Saved waypoint under the click (its pin), if any. */
+  waypoint: Waypoint | null;
+  /** The click hit the custom respawn pin. */
+  onCustomSpawn: boolean;
 }
 
 function centroidOf(r: Ring): [number, number] {
@@ -295,7 +301,6 @@ export function FullMap(): ReactNode {
   const bikeStations = useGame((st) => st.bikeStations);
   const view = useRef<MapView | null>(null);
   const [menu, setMenu] = useState<MapMenu | null>(null);
-  const [editing, setEditing] = useState<number | null>(null);
 
   // Map metres → canvas pixels for the current view (canvas is w × h device px).
   const project = (w: number, h: number): ((x: number, z: number) => [number, number]) | null => {
@@ -423,7 +428,13 @@ export function FullMap(): ReactNode {
     // Beside the click, kept inside the map so it never covers the side panel or gets cut off.
     const left = Math.min(e.clientX - frame.left + 12, frame.width - 192);
     const top = Math.max(8, Math.min(e.clientY - frame.top - 90, frame.height - 208));
-    setMenu({ left, top, x: at.x, z: at.z });
+    // Pins are hit-tested in screen space so they stay easy to click at any zoom.
+    const c = e.currentTarget;
+    const metresPerCssPx = 1 / (Math.min(c.width / base!.canvas.width, c.height / base!.canvas.height) * view.current!.zoom * (frame.width / c.width) * PX_PER_M);
+    const reach = PIN_HIT_PX * metresPerCssPx;
+    const waypoint = waypoints.find((w) => Math.hypot(w.x - at.x, w.z - at.z) < reach) ?? null;
+    const onCustomSpawn = !!customSpawn && Math.hypot(customSpawn.x - at.x, customSpawn.z - at.z) < reach;
+    setMenu({ left, top, x: at.x, z: at.z, waypoint, onCustomSpawn });
   };
 
   const centreOnMe = (): void => {
@@ -434,7 +445,7 @@ export function FullMap(): ReactNode {
     v.zoom = Math.max(v.zoom, 4);
   };
 
-  const menuName = menu && data ? (placeName(data, menu.x, menu.z) ?? '自訂地點') : '';
+  const menuName = menu && data ? (menu.waypoint?.name ?? placeName(data, menu.x, menu.z) ?? '自訂地點') : '';
 
   return (
     <div className="fullmap interactive">
@@ -442,6 +453,11 @@ export function FullMap(): ReactNode {
         <header className="map-head">
           <h2>校園地圖</h2>
           <p>滾輪縮放、拖曳移動，點選地點可傳送。</p>
+          <div className="map-legend">
+            <span><i style={{ background: '#1f8f4a' }} />重生點</span>
+            <span><i style={{ background: '#2f6fd0' }} />傳送點</span>
+            <span><i style={{ background: '#0f8a8a' }} />腳踏車站</span>
+          </div>
           <span className="map-keys"><kbd>M</kbd> 關閉</span>
         </header>
         <div className="map-body">
@@ -466,8 +482,10 @@ export function FullMap(): ReactNode {
             <div className="map-menu" style={{ left: menu.left, top: menu.top }}>
               <div className="title">{menuName}</div>
               <button onClick={() => { api.teleportTo(menu.x, menu.z, menuName); setMenu(null); }}>🚀 傳送到這裡</button>
-              <button onClick={() => { actions.addWaypoint(menuName, menu.x, menu.z); setMenu(null); }}>★ 設為傳送點</button>
+              {!menu.waypoint && <button onClick={() => { actions.addWaypoint(menuName, menu.x, menu.z); setMenu(null); }}>★ 設為傳送點</button>}
               <button onClick={() => { actions.setCustomSpawn({ x: menu.x, z: menu.z, facing: telemetry.facing }); actions.toast(`重生點已設在 ${menuName}`); setMenu(null); }}>⌂ 設為重生點</button>
+              {menu.waypoint && <button onClick={() => { actions.removeWaypoint(menu.waypoint!.id); setMenu(null); }}>✕ 刪除傳送點</button>}
+              {menu.onCustomSpawn && <button onClick={() => { actions.setCustomSpawn(null); setMenu(null); }}>↺ 恢復預設重生點</button>}
               <button className="ghost" onClick={() => setMenu(null)}>取消</button>
             </div>
           )}
@@ -477,36 +495,6 @@ export function FullMap(): ReactNode {
             <button title="回到我的位置" onClick={centreOnMe}>◎</button>
           </div>
         </div>
-        <aside className="map-side">
-          <h3>傳送點</h3>
-          {waypoints.length === 0 && <p className="hint">尚未設定</p>}
-          <ul>
-            {waypoints.map((w) => (
-              <li key={w.id}>
-                {editing === w.id ? (
-                  <input
-                    autoFocus
-                    defaultValue={w.name}
-                    onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter') e.currentTarget.blur(); }}
-                    onBlur={(e) => { actions.renameWaypoint(w.id, e.currentTarget.value.trim() || w.name); setEditing(null); }}
-                  />
-                ) : (
-                  <button className="wp" onClick={() => api.teleportTo(w.x, w.z, w.name)} title="傳送">★ {w.name}</button>
-                )}
-                <button className="icon" title="重新命名" onClick={() => setEditing(w.id)}>✎</button>
-                <button className="icon" title="刪除" onClick={() => actions.removeWaypoint(w.id)}>✕</button>
-              </li>
-            ))}
-          </ul>
-          <h3>重生點</h3>
-          <p className="hint">{customSpawn ? (data ? (placeName(data, customSpawn.x, customSpawn.z) ?? '自訂地點') : '') : (data?.spawn.label ?? '')}</p>
-          {customSpawn && <button className="ghost" onClick={() => actions.setCustomSpawn(null)}>恢復預設</button>}
-          <div className="map-legend">
-            <span><i style={{ background: '#1f8f4a' }} />重生點</span>
-            <span><i style={{ background: '#2f6fd0' }} />傳送點</span>
-            <span><i style={{ background: '#0f8a8a' }} />腳踏車站</span>
-          </div>
-        </aside>
         </div>
         <p className="map-credit">{data?.attribution}</p>
       </div>

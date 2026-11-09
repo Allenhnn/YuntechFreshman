@@ -72,15 +72,15 @@ export function MenuScreen({ paused }: { paused: boolean }): ReactNode {
         <aside className="title-panel">
           <Brand />
           <p className="tagline">走進校園，開始你的大學第一天</p>
-          <div className="menu-buttons">
+          <div className="title-actions">
             <button className="btn primary" onClick={api.startGame}>開始遊戲</button>
             <button className="btn" onClick={() => open('controls')}>操作介紹</button>
             <button className="btn" onClick={() => open('settings')}>設定</button>
           </div>
           <p className="hint">{hint}</p>
           <p className="start-point">📍 起點：學生宿舍C 中庭</p>
-          <p className="footer">核心原型 v0.7 · 國立雲林科技大學校園<br />地圖資料 © OpenStreetMap contributors</p>
         </aside>
+        <p className="title-credit">核心原型 v0.7 · 國立雲林科技大學校園 · 地圖資料 © OpenStreetMap contributors</p>
       </div>
     );
   }

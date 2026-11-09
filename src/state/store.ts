@@ -253,11 +253,6 @@ export const actions = {
     set({ waypoints });
     saveJson(WAYPOINTS_KEY, waypoints);
   },
-  renameWaypoint(id: number, name: string): void {
-    const waypoints = get().waypoints.map((w) => (w.id === id ? { ...w, name } : w));
-    set({ waypoints });
-    saveJson(WAYPOINTS_KEY, waypoints);
-  },
   removeWaypoint(id: number): void {
     const waypoints = get().waypoints.filter((w) => w.id !== id);
     set({ waypoints });
