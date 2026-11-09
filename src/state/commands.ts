@@ -7,6 +7,10 @@ export type GameCommand =
   | { type: 'respawn' }
   /** Back to the new-game start point (quitting to the main menu). */
   | { type: 'toStart' }
+  /** Resume the progress stored in this browser. */
+  | { type: 'loadSave' }
+  /** Fresh progress at the new-game start point. */
+  | { type: 'newGame' }
   | { type: 'useItem'; slot: number }
   | { type: 'interact' }
   | { type: 'elevatorTo'; building: string; level: string }

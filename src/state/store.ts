@@ -4,6 +4,7 @@ import { HOTBAR_SIZE, ITEMS, starterInventory, type ItemId, type ItemStack } fro
 import { loadSettings, saveSettings, type Settings } from './settings';
 import type { CampusData } from '../campus/campusTypes';
 import type { BikeStation } from '../bikes/bikeStations';
+import { clearProgress, loadProgress, type SaveData } from './saveGame';
 
 /**
  * Single source of truth for everything the DOM UI shows. The game loop writes here only
@@ -38,21 +39,12 @@ export interface TesterState {
 export const TESTER_SPEEDS = [1, 2, 5, 10] as const;
 export const TESTER_AVAILABLE = import.meta.env.DEV;
 
-/** A saved map location, x/z in campus metres. */
-export interface Waypoint {
-  id: number;
-  name: string;
-  x: number;
-  z: number;
-}
-
 export interface SpawnPoint {
   x: number;
   z: number;
   facing: number;
 }
 
-const WAYPOINTS_KEY = 'yfm.waypoints.v1';
 const SPAWN_KEY = 'yfm.spawn.v1';
 const RACE_BEST_KEY = 'yfm.raceBest.v1';
 
@@ -131,8 +123,11 @@ export interface GameState {
   /** Best time-trial time (s), kept per browser. */
   raceBest: number | null;
   shop: ShopMenu | null;
+  /** Time-trial start line (map pin and teleport target); null when the field is absent. */
+  raceStart: { x: number; z: number } | null;
+  /** This browser holds progress that "繼續遊戲" can resume. */
+  hasSave: boolean;
   tester: TesterState;
-  waypoints: Waypoint[];
   /** Respawn point chosen on the map; null = the campus default (dorm C entrance). */
   customSpawn: SpawnPoint | null;
 }
@@ -163,8 +158,9 @@ export const gameStore = createStore<GameState>()(() => ({
   race: null,
   raceBest: loadJson<number | null>(RACE_BEST_KEY, null),
   shop: null,
+  raceStart: null,
+  hasSave: loadProgress() !== null,
   tester: { enabled: false, fly: false, noclip: false, speed: 1 },
-  waypoints: loadJson<Waypoint[]>(WAYPOINTS_KEY, []),
   customSpawn: loadJson<SpawnPoint | null>(SPAWN_KEY, null),
 }));
 
@@ -183,6 +179,22 @@ export const actions = {
   },
   setBikeStations(bikeStations: readonly BikeStation[]): void {
     set({ bikeStations });
+  },
+  setRaceStart(raceStart: { x: number; z: number } | null): void {
+    set({ raceStart });
+  },
+  setHasSave(hasSave: boolean): void {
+    if (get().hasSave !== hasSave) set({ hasSave });
+  },
+  restoreProgress(s: SaveData): void {
+    set({ coins: s.coins, gameMinutes: s.gameMinutes, inventory: s.inventory, hotbarIndex: s.hotbarIndex, heldSlot: null });
+  },
+  /** Wipes all progress (settings stay). */
+  resetProgress(): void {
+    clearProgress();
+    saveJson(RACE_BEST_KEY, null);
+    saveJson(SPAWN_KEY, null);
+    set({ coins: 0, gameMinutes: START_MINUTES, inventory: starterInventory(), hotbarIndex: 0, heldSlot: null, raceBest: null, customSpawn: null, hasSave: false });
   },
   setRace(race: RaceState | null): void {
     set({ race });
@@ -292,17 +304,6 @@ export const actions = {
     if (!next.enabled) Object.assign(next, { fly: false, noclip: false, speed: 1 });
     if (next.noclip) next.fly = true;
     set({ tester: next });
-  },
-  addWaypoint(name: string, x: number, z: number): void {
-    const list = get().waypoints;
-    const waypoints = [...list, { id: Math.max(0, ...list.map((w) => w.id)) + 1, name, x, z }];
-    set({ waypoints });
-    saveJson(WAYPOINTS_KEY, waypoints);
-  },
-  removeWaypoint(id: number): void {
-    const waypoints = get().waypoints.filter((w) => w.id !== id);
-    set({ waypoints });
-    saveJson(WAYPOINTS_KEY, waypoints);
   },
   setCustomSpawn(customSpawn: SpawnPoint | null): void {
     set({ customSpawn });

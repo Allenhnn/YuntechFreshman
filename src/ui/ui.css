@@ -274,3 +274,4 @@ kbd {
 .shop-item .icon { font-size: 26px; }
 .shop-item .name { flex: 1; text-align: left; font-weight: 700; }
 .shop-item .price { font-variant-numeric: tabular-nums; color: var(--green-dark); font-weight: 700; }
+.confirm-new { margin: 0; font-size: 14px; line-height: 1.5; color: var(--ink); text-align: center; }

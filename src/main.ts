@@ -43,11 +43,15 @@ import { createBuildingTest, placeBikeStations, stationClearings } from './bikes
 import { findMascotJoints } from './character/mascot';
 import { CLOCK_RATE, applyPose, computeRidePose, createPose } from './character/pose';
 import { safeTeleportTarget } from './game/teleport';
+import { loadProgress, saveProgress } from './state/saveGame';
 import { animationSystem } from './ecs/systems/animation';
 import { renderSyncSystem } from './ecs/systems/renderSync';
 import { createThirdPersonCamera, type CameraFocus } from './camera/thirdPersonCamera';
 import { createDebugHud } from './ui/debugHud';
 
+const AUTOSAVE_SECONDS = 5;
+/** How long a restored game waits for an upper floor to stream in. */
+const FLOOR_WAIT_MS = 10000;
 const MENU_ORBIT_RATE = 0.06;
 const MENU_ORBIT_RADIUS = 95;
 const MENU_ORBIT_HEIGHT = 46;
@@ -174,6 +178,7 @@ async function boot(): Promise<void> {
   const eid = player.eid;
   const rig = createThirdPersonCamera(camera, physics);
   const playground = createPlayground(scene, physics, campus, sceneResources);
+  actions.setRaceStart(playground?.startSpot ?? null);
   addCafeteriaSign(scene, campus, sceneResources);
   const bikes = createBikeSystem(scene, bikeStations, sceneResources);
   const insideBuilding = createBuildingTest(campus);
@@ -213,8 +218,50 @@ async function boot(): Promise<void> {
     return hit ? 2.5 - hit.timeOfImpact : 0;
   };
 
+  /** Destination of a load in progress: the world streams around it instead of the player. */
+  let streamAt: { x: number; y: number; z: number } | null = null;
+
+  /** Waits for the floor under a saved spot (an upper storey streams in); null if it never comes. */
+  const awaitFloor = async (x: number, y: number, z: number): Promise<number | null> => {
+    const ray = new RAPIER.Ray({ x, y: y + 1, z }, { x: 0, y: -1, z: 0 });
+    for (const deadline = performance.now() + FLOOR_WAIT_MS; performance.now() < deadline;) {
+      const hit = physics.castRay(ray, 2.5, true, RAPIER.QueryFilterFlags.EXCLUDE_SENSORS, undefined, colliders[eid]);
+      if (hit) return y + 1 - hit.timeOfImpact;
+      await new Promise((r) => window.setTimeout(r, 100));
+    }
+    return null;
+  };
+
   const handleCommand = (cmd: GameCommand): void => {
     switch (cmd.type) {
+      case 'loadSave': {
+        const save = loadProgress();
+        if (!save) return;
+        actions.restoreProgress(save);
+        clockSeconds = save.gameMinutes - START_MINUTES;
+        bikes.dismount();
+        playground?.cancel();
+        streamAt = save;
+        actions.setFading(true);
+        void env.loadAround(save.x, save.z).then(() => awaitFloor(save.x, save.y, save.z)).then((floor) => {
+          const p = floor === null ? spawnPoint() : { x: save.x, y: floor, z: save.z, facing: save.facing };
+          teleport(p.x, p.y, p.z, p.facing);
+          renderSyncSystem(world, 1);
+          rig.snap(readFocus(), p.facing + Math.PI);
+          streamAt = null;
+          actions.setFading(false);
+          if (floor === null) actions.toast('存檔位置載入失敗，已回到重生點');
+        });
+        return;
+      }
+      case 'newGame':
+        clockSeconds = 0;
+        bikes.dismount();
+        playground?.cancel();
+        teleport(spawn.x, spawn.y, spawn.z, spawn.facing);
+        renderSyncSystem(world, 1);
+        rig.snap(readFocus(), spawn.facing + Math.PI);
+        return;
       case 'toStart':
       case 'respawn': {
         bikes.dismount();
@@ -227,17 +274,19 @@ async function boot(): Promise<void> {
       }
       case 'teleport': {
         // Fade out, stream the destination in, land on a safe spot, fade back in.
-        // Off-campus targets (e.g. old waypoints) land just inside the boundary instead.
+        // Off-campus targets land just inside the boundary instead.
         const inside = env.clampInsideCampus(cmd.x, cmd.z);
         const target = safeTeleportTarget(campus, inside.x, inside.z);
         bikes.dismount();
         playground?.cancel();
         actions.setFading(true);
+        streamAt = { x: target.x, y: 0, z: target.z };
         void Promise.all([env.loadAround(target.x, target.z), new Promise((r) => window.setTimeout(r, 300))]).then(() => {
           physics.step(); // register the destination's colliders before the ground ray
           teleport(target.x, groundHeightAt(target.x, target.z), target.z);
           renderSyncSystem(world, 1);
           rig.snap(readFocus(), rig.yaw);
+          streamAt = null;
           actions.setFading(false);
           actions.toast(target.outsideOf ? `已傳送到 ${cmd.label}（${target.outsideOf} 外側）` : `已傳送到 ${cmd.label}`);
         });
@@ -368,7 +417,33 @@ async function boot(): Promise<void> {
   applySettings(gameStore.getState().settings);
   applyInputGate(gameStore.getState());
   applyDebugVisibility(gameStore.getState());
+  /** Stores the current progress, unless the character's position isn't a real one right now. */
+  const saveNow = (): void => {
+    const st = gameStore.getState();
+    if (streamAt || st.fading || st.tester.fly || st.tester.noclip || Transform.y[eid]! < -40) return;
+    saveProgress({
+      coins: st.coins,
+      gameMinutes: st.gameMinutes,
+      inventory: st.inventory,
+      hotbarIndex: st.hotbarIndex,
+      x: Transform.x[eid]!,
+      y: Transform.y[eid]!,
+      z: Transform.z[eid]!,
+      facing: Transform.rotY[eid]!,
+    });
+    actions.setHasSave(true);
+  };
+  const saveIfPlaying = (): void => {
+    if (gameStore.getState().phase === 'playing') saveNow();
+  };
+  const onVisibility = (): void => {
+    if (document.visibilityState === 'hidden') saveIfPlaying();
+  };
+  window.addEventListener('pagehide', saveIfPlaying);
+  document.addEventListener('visibilitychange', onVisibility);
+
   const unsubscribe = gameStore.subscribe((st, prev) => {
+    if (prev.phase === 'playing' && st.phase !== 'playing') saveNow(); // before quitting moves the player
     if (st.settings !== prev.settings) applySettings(st.settings);
     if (st.settings !== prev.settings || st.phase !== prev.phase) applyDebugVisibility(st);
     if (st.phase !== prev.phase || st.modal !== prev.modal || st.lookMode !== prev.lookMode || st.mapMode !== prev.mapMode) applyInputGate(st);
@@ -407,6 +482,7 @@ async function boot(): Promise<void> {
 
   const updateDebug = createDebugHud(debugEl, renderer);
   let clockSeconds = 0;
+  let lastSave = 0;
   let lastJumpSeq = 0;
   let lastLandingSeq = 0;
 
@@ -474,6 +550,12 @@ async function boot(): Promise<void> {
     }
     if (steps === MAX_SUBSTEPS) accumulator = 0;
 
+    if (!playing) lastSave = time;
+    else if (time - lastSave > AUTOSAVE_SECONDS) {
+      lastSave = time;
+      saveNow();
+    }
+
     // Variable-rate presentation.
     renderSyncSystem(world, accumulator / FIXED_DT);
     animationSystem(world, dt, time);
@@ -493,9 +575,10 @@ async function boot(): Promise<void> {
       camera.lookAt(spawn.x, 8, spawn.z);
     }
     env.followShadow(f.x, f.z);
-    env.update(f.x, f.z);
+    const near = streamAt ?? f;
+    env.update(near.x, near.z);
     library.update(f.x, f.y, f.z);
-    interiors.update(f.x, f.y, f.z);
+    interiors.update(near.x, near.y, near.z);
     const earned = playing ? (playground?.update(dt, time, f.x, f.z) ?? 0) : 0;
     if (earned > 0) {
       actions.addCoins(earned);
@@ -536,6 +619,8 @@ async function boot(): Promise<void> {
   import.meta.hot?.dispose(() => {
     renderer.setAnimationLoop(null);
     window.removeEventListener('resize', onResize);
+    window.removeEventListener('pagehide', saveIfPlaying);
+    document.removeEventListener('visibilitychange', onVisibility);
     canvas.removeEventListener('click', onCanvasClick);
     unsubscribe();
     removeHotkeys();

@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { SETTINGS_LIMITS, type Settings } from '../state/settings';
 import { TESTER_AVAILABLE, useGame, actions } from '../state/store';
 import { useApi } from './api';
@@ -39,6 +39,8 @@ export function MenuScreen({ paused }: { paused: boolean }): ReactNode {
   const api = useApi();
   const panel = useGame((s) => s.menuPanel);
   const hint = useGame((s) => s.menuHint);
+  const hasSave = useGame((s) => s.hasSave);
+  const [confirmingNew, setConfirmingNew] = useState(false);
   const open = (p: 'root' | 'controls' | 'settings'): void => {
     api.click();
     actions.setMenuPanel(p);
@@ -73,12 +75,25 @@ export function MenuScreen({ paused }: { paused: boolean }): ReactNode {
           <Brand />
           <p className="tagline">走進校園，開始你的大學第一天</p>
           <div className="title-actions">
-            <button className="btn primary" onClick={api.startGame}>開始遊戲</button>
-            <button className="btn" onClick={() => open('controls')}>操作介紹</button>
-            <button className="btn" onClick={() => open('settings')}>設定</button>
+            {confirmingNew ? (
+              <>
+                <p className="confirm-new">確定要開始新遊戲嗎？目前的進度會被清除，無法復原。</p>
+                <button className="btn primary" onClick={api.startGame}>清除進度並開始</button>
+                <button className="btn" onClick={() => setConfirmingNew(false)}>取消</button>
+              </>
+            ) : (
+              <>
+                {hasSave
+                  ? <button className="btn primary" onClick={api.continueGame}>繼續遊戲</button>
+                  : <button className="btn primary" onClick={api.startGame}>開始遊戲</button>}
+                {hasSave && <button className="btn" onClick={() => { api.click(); setConfirmingNew(true); }}>新遊戲</button>}
+                <button className="btn" onClick={() => open('controls')}>操作介紹</button>
+                <button className="btn" onClick={() => open('settings')}>設定</button>
+              </>
+            )}
           </div>
           <p className="hint">{hint}</p>
-          <p className="start-point">📍 起點：學生宿舍C 中庭</p>
+          <p className="start-point">{hasSave ? '💾 進度已儲存在這個瀏覽器' : '📍 起點：學生宿舍C 中庭'}</p>
         </aside>
         <p className="title-credit">核心原型 v0.7 · 國立雲林科技大學校園 · 地圖資料 © OpenStreetMap contributors</p>
       </div>

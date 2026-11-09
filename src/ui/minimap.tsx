@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { CampusData, Ring } from '../campus/campusTypes';
 import { telemetry } from '../state/telemetry';
-import { actions, useGame, type Waypoint } from '../state/store';
+import { actions, useGame } from '../state/store';
+import { outsideRing } from '../game/teleport';
 import { useApi } from './api';
 
 /** Base map resolution: world metres → base-canvas pixels. */
@@ -222,12 +223,16 @@ export function Minimap(): ReactNode {
 
 /** Buildings that stay in the world but get no name on the map. */
 const UNLABELLED = new Set(['卡璐佶', '潔綠創新園區']);
+/** Multi-block buildings that keep one label however far the map is zoomed in. */
+const SINGLE_LABEL = new Set(['學生宿舍D']);
 const MIN_ZOOM = 1;
 const MAX_ZOOM = 14;
 /** Pointer travel (CSS px) below which a press counts as a click rather than a pan. */
 const CLICK_SLOP = 5;
 /** Click distance (CSS px) that counts as hitting a pin. */
 const PIN_HIT_PX = 16;
+/** How far outside a building's wall a map teleport lands (m). */
+const DOORSTEP_M = 2.5;
 
 interface MapView {
   zoom: number;
@@ -236,14 +241,21 @@ interface MapView {
   cz: number;
 }
 
+/** A map destination; x/z is where the player lands. */
+interface MapPlace {
+  name: string;
+  x: number;
+  z: number;
+}
+
 interface MapMenu {
   /** Position in the frame (CSS px) and the world point it refers to. */
   left: number;
   top: number;
   x: number;
   z: number;
-  /** Saved waypoint under the click (its pin), if any. */
-  waypoint: Waypoint | null;
+  /** The building or facility under the click, if any. */
+  place: MapPlace | null;
   /** The click hit the custom respawn pin. */
   onCustomSpawn: boolean;
 }
@@ -253,19 +265,6 @@ function centroidOf(r: Ring): [number, number] {
   const n = r.length / 2;
   for (let i = 0; i < n; i++) { x += r[i * 2]!; z += r[i * 2 + 1]!; }
   return [x / n, z / n];
-}
-
-/** Nearest named building within `radius` m, for naming a clicked spot. */
-function placeName(data: CampusData, x: number, z: number, radius = 40): string | null {
-  let best: string | null = null;
-  let bestD = radius;
-  for (const b of data.buildings) {
-    if (!b.name || UNLABELLED.has(b.name)) continue;
-    const [cx, cz] = centroidOf(b.outer);
-    const d = Math.hypot(cx - x, cz - z);
-    if (d < bestD) { bestD = d; best = b.name; }
-  }
-  return best;
 }
 
 function pointInRing(x: number, z: number, r: Ring): boolean {
@@ -298,7 +297,7 @@ export function FullMap(): ReactNode {
   const api = useApi();
   const base = useBaseMap();
   const data = useGame((st) => st.mapData);
-  const waypoints = useGame((st) => st.waypoints);
+  const raceStart = useGame((st) => st.raceStart);
   const customSpawn = useGame((st) => st.customSpawn);
   const bikeStations = useGame((st) => st.bikeStations);
   const view = useRef<MapView | null>(null);
@@ -337,7 +336,7 @@ export function FullMap(): ReactNode {
     const placed: [number, number, number][] = [];
     for (const b of data.buildings) {
       if (!b.name || !b.inCampus || UNLABELLED.has(b.name)) continue;
-      if (v.zoom < 2.5 && seen.has(b.name)) continue; // one label per name when zoomed out
+      if ((v.zoom < 2.5 || SINGLE_LABEL.has(b.name)) && seen.has(b.name)) continue; // one label per name when zoomed out
       seen.add(b.name);
       const [x, y] = screen(...centroidOf(b.outer));
       if (x < -50 || y < -20 || x > w + 50 || y > h + 20) continue;
@@ -354,19 +353,10 @@ export function FullMap(): ReactNode {
 
     for (const st of bikeStations) drawPin(g, ...screen(st.x, st.z), 9 * dpr, '#0f8a8a', '車');
 
-    // Respawn point and saved waypoints.
+    if (raceStart) drawPin(g, ...screen(raceStart.x, raceStart.z), 10 * dpr, '#c0562b', '跑');
+
     const sp = customSpawn ?? data.spawn;
     drawPin(g, ...screen(sp.x, sp.z), 11 * dpr, '#1f8f4a', '⌂');
-    for (const w of waypoints) {
-      const [x, y] = screen(w.x, w.z);
-      drawPin(g, x, y, 10 * dpr, '#2f6fd0', '★');
-      g.font = `700 ${Math.round(11 * dpr)}px system-ui, 'PingFang TC', sans-serif`;
-      g.lineWidth = 3 * dpr;
-      g.strokeStyle = '#fff';
-      g.strokeText(w.name, x, y + 9 * dpr);
-      g.fillStyle = '#1d3a6b';
-      g.fillText(w.name, x, y + 9 * dpr);
-    }
     if (menu) {
       drawPin(g, ...screen(menu.x, menu.z), 10 * dpr, '#f08a24', '•');
     }
@@ -386,6 +376,29 @@ export function FullMap(): ReactNode {
     // Inverse of project(): base px = (screen - size/2) / k + toPx(centre); 1 base px = 1 / PX_PER_M m.
     return { x: v.cx + (px - c.width / 2) / k / PX_PER_M, z: v.cz + (py - c.height / 2) / k / PX_PER_M };
   };
+
+  /** Metres covered by one CSS pixel at the current zoom. */
+  const metresPerCssPx = (c: HTMLCanvasElement): number =>
+    1 / (Math.min(c.width / base!.canvas.width, c.height / base!.canvas.height) * view.current!.zoom * (c.getBoundingClientRect().width / c.width) * PX_PER_M);
+
+  /** The facility or named building at a world point. Pins are hit-tested in screen space. */
+  const placeAt = (x: number, z: number, reach: number): MapPlace | null => {
+    if (!data) return null;
+    const station = bikeStations.find((s) => Math.hypot(s.x - x, s.z - z) < reach);
+    if (station) return { name: station.name, x: station.x, z: station.z };
+    const raceName = '操場（跑道計時賽）';
+    if (raceStart && Math.hypot(raceStart.x - x, raceStart.z - z) < reach) return { name: raceName, ...raceStart };
+    for (const b of data.buildings) {
+      if (!b.name || !b.inCampus || UNLABELLED.has(b.name) || !pointInRing(x, z, b.outer)) continue;
+      const [cx, cz] = centroidOf(b.outer);
+      return { name: b.name, ...outsideRing(b.outer, cx, cz, DOORSTEP_M) };
+    }
+    if (raceStart && data.fields.some((f) => f.kind === 'soccer' && pointInRing(x, z, f.outer))) return { name: raceName, ...raceStart };
+    return null;
+  };
+
+  const onCustomSpawnPin = (x: number, z: number, reach: number): boolean =>
+    !!customSpawn && Math.hypot(customSpawn.x - x, customSpawn.z - z) < reach;
 
   const onWheel = (e: React.WheelEvent<HTMLCanvasElement>): void => {
     const v = view.current;
@@ -408,6 +421,11 @@ export function FullMap(): ReactNode {
   };
   const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>): void => {
     const d = drag.current, v = view.current, c = canvasRef.current;
+    if (!d && c && base && v) {
+      const at = locate(e);
+      const reach = PIN_HIT_PX * metresPerCssPx(c);
+      c.style.cursor = at && (placeAt(at.x, at.z, reach) || onCustomSpawnPin(at.x, at.z, reach)) ? 'pointer' : '';
+    }
     if (!d || !v || !c || !base) return;
     const dx = e.clientX - d.x, dy = e.clientY - d.y;
     d.moved += Math.hypot(dx, dy);
@@ -427,16 +445,17 @@ export function FullMap(): ReactNode {
     const at = locate(e);
     const frame = e.currentTarget.parentElement?.getBoundingClientRect();
     if (!at || !frame) return;
-    // Beside the click, kept inside the map so it never covers the side panel or gets cut off.
+    const reach = PIN_HIT_PX * metresPerCssPx(e.currentTarget);
+    const place = placeAt(at.x, at.z, reach);
+    const onCustomSpawn = onCustomSpawnPin(at.x, at.z, reach);
+    if (!place && !onCustomSpawn) {
+      setMenu(null); // empty ground: only named places open a menu
+      return;
+    }
+    // Beside the click, kept inside the map so it never gets cut off.
     const left = Math.min(e.clientX - frame.left + 12, frame.width - 192);
     const top = Math.max(8, Math.min(e.clientY - frame.top - 90, frame.height - 208));
-    // Pins are hit-tested in screen space so they stay easy to click at any zoom.
-    const c = e.currentTarget;
-    const metresPerCssPx = 1 / (Math.min(c.width / base!.canvas.width, c.height / base!.canvas.height) * view.current!.zoom * (frame.width / c.width) * PX_PER_M);
-    const reach = PIN_HIT_PX * metresPerCssPx;
-    const waypoint = waypoints.find((w) => Math.hypot(w.x - at.x, w.z - at.z) < reach) ?? null;
-    const onCustomSpawn = !!customSpawn && Math.hypot(customSpawn.x - at.x, customSpawn.z - at.z) < reach;
-    setMenu({ left, top, x: at.x, z: at.z, waypoint, onCustomSpawn });
+    setMenu({ left, top, x: at.x, z: at.z, place, onCustomSpawn });
   };
 
   const centreOnMe = (): void => {
@@ -447,18 +466,16 @@ export function FullMap(): ReactNode {
     v.zoom = Math.max(v.zoom, 4);
   };
 
-  const menuName = menu && data ? (menu.waypoint?.name ?? placeName(data, menu.x, menu.z) ?? '自訂地點') : '';
-
   return (
     <div className="fullmap interactive">
       <div className="frame">
         <header className="map-head">
           <h2>校園地圖</h2>
-          <p>滾輪縮放、拖曳移動，點選地點可傳送。</p>
+          <p>滾輪縮放、拖曳移動，點選建築或設施可傳送。</p>
           <div className="map-legend">
             <span><i style={{ background: '#1f8f4a' }} />重生點</span>
-            <span><i style={{ background: '#2f6fd0' }} />傳送點</span>
             <span><i style={{ background: '#0f8a8a' }} />腳踏車站</span>
+            <span><i style={{ background: '#c0562b' }} />計時賽起點</span>
           </div>
           <span className="map-keys"><kbd>M</kbd> 關閉</span>
         </header>
@@ -473,20 +490,11 @@ export function FullMap(): ReactNode {
             onPointerUp={onPointerUp}
             onContextMenu={(e) => e.preventDefault()}
           />
-          {menu && data && !pointInRing(menu.x, menu.z, data.boundary) && (
+          {menu && (
             <div className="map-menu" style={{ left: menu.left, top: menu.top }}>
-              <div className="title">🚧 校外區域</div>
-              <div className="note">校外禁止進入，無法傳送或設定傳送點。</div>
-              <button className="ghost" onClick={() => setMenu(null)}>關閉</button>
-            </div>
-          )}
-          {menu && data && pointInRing(menu.x, menu.z, data.boundary) && (
-            <div className="map-menu" style={{ left: menu.left, top: menu.top }}>
-              <div className="title">{menuName}</div>
-              <button onClick={() => { api.teleportTo(menu.x, menu.z, menuName); setMenu(null); }}>🚀 傳送到這裡</button>
-              {!menu.waypoint && <button onClick={() => { actions.addWaypoint(menuName, menu.x, menu.z); setMenu(null); }}>★ 設為傳送點</button>}
-              <button onClick={() => { actions.setCustomSpawn({ x: menu.x, z: menu.z, facing: telemetry.facing }); actions.toast(`重生點已設在 ${menuName}`); setMenu(null); }}>⌂ 設為重生點</button>
-              {menu.waypoint && <button onClick={() => { actions.removeWaypoint(menu.waypoint!.id); setMenu(null); }}>✕ 刪除傳送點</button>}
+              <div className="title">{menu.place?.name ?? '自訂重生點'}</div>
+              {menu.place && <button onClick={() => { const p = menu.place!; api.teleportTo(p.x, p.z, p.name); setMenu(null); }}>🚀 傳送到這裡</button>}
+              {menu.place && <button onClick={() => { const p = menu.place!; actions.setCustomSpawn({ x: p.x, z: p.z, facing: telemetry.facing }); actions.toast(`重生點已設在 ${p.name}`); setMenu(null); }}>⌂ 設為重生點</button>}
               {menu.onCustomSpawn && <button onClick={() => { actions.setCustomSpawn(null); setMenu(null); }}>↺ 恢復預設重生點</button>}
               <button className="ghost" onClick={() => setMenu(null)}>取消</button>
             </div>

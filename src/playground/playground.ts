@@ -42,6 +42,8 @@ const CHECK_HEIGHT = 4.4;
 export interface Playground {
   /** Player stands at the start line and no run is in progress. */
   canStart(x: number, z: number): boolean;
+  /** The start line, where the map teleport lands. */
+  readonly startSpot: { x: number; z: number };
   /** Begins the countdown; returns where to place the player. */
   start(testing: boolean): { x: number; z: number; facing: number };
   /** Abandons any run (respawn, teleport). */
@@ -355,6 +357,7 @@ export function createPlayground(scene: Scene, physics: RAPIER.World, campus: Ca
   return {
     get racing() { return run !== null; },
     get frozen() { return run?.phase === 'countdown'; },
+    startSpot: { x: startPoint[0], z: startPoint[1] },
     canStart(x, z) {
       return run === null && Math.hypot(x - startPoint[0], z - startPoint[1]) < START_REACH;
     },

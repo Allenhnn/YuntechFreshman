@@ -12,6 +12,25 @@ function pointInRing(x: number, z: number, r: Ring): boolean {
   return inside;
 }
 
+/** Where to stand just outside `r`: the outline point nearest (x, z), pushed outward. */
+export function outsideRing(r: Ring, x: number, z: number, margin = OUTSIDE_MARGIN): { x: number; z: number } {
+  const n = r.length / 2;
+  let best = { d: Infinity, x, z, nx: 0, nz: 0 };
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    const ax = r[i * 2]!, az = r[i * 2 + 1]!, bx = r[j * 2]!, bz = r[j * 2 + 1]!;
+    const dx = bx - ax, dz = bz - az;
+    const len = Math.hypot(dx, dz);
+    if (len < 1e-3) continue;
+    const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / (len * len)));
+    const px = ax + dx * t, pz = az + dz * t;
+    const d = Math.hypot(x - px, z - pz);
+    // Outer rings are CCW in x/z, so (dz, -dx) points out of the building.
+    if (d < best.d) best = { d, x: px, z: pz, nx: dz / len, nz: -dx / len };
+  }
+  return { x: best.x + best.nx * margin, z: best.z + best.nz * margin };
+}
+
 /**
  * Teleport target on the ground plane. OSM extrusions are solid (no interior), so a point inside
  * one moves to the nearest point on its outline, pushed outward. Hand-built buildings
@@ -21,22 +40,7 @@ export function safeTeleportTarget(campus: CampusData, x: number, z: number): { 
   for (const b of campus.buildings) {
     if (b.replacedBy || !pointInRing(x, z, b.outer)) continue;
     if (b.holes.some((h) => pointInRing(x, z, h))) continue; // courtyard
-    const r = b.outer;
-    const n = r.length / 2;
-    let best = { d: Infinity, x, z, nx: 0, nz: 0 };
-    for (let i = 0; i < n; i++) {
-      const j = (i + 1) % n;
-      const ax = r[i * 2]!, az = r[i * 2 + 1]!, bx = r[j * 2]!, bz = r[j * 2 + 1]!;
-      const dx = bx - ax, dz = bz - az;
-      const len = Math.hypot(dx, dz);
-      if (len < 1e-3) continue;
-      const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / (len * len)));
-      const px = ax + dx * t, pz = az + dz * t;
-      const d = Math.hypot(x - px, z - pz);
-      // Outer rings are CCW in x/z, so (dz, -dx) points out of the building.
-      if (d < best.d) best = { d, x: px, z: pz, nx: dz / len, nz: -dx / len };
-    }
-    return { x: best.x + best.nx * OUTSIDE_MARGIN, z: best.z + best.nz * OUTSIDE_MARGIN, outsideOf: b.name ?? '建築' };
+    return { ...outsideRing(b.outer, x, z), outsideOf: b.name ?? '建築' };
   }
   return { x, z, outsideOf: null };
 }

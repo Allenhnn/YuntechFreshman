@@ -10,7 +10,10 @@ import { ITEMS, type ItemId } from '../state/items';
  * audio unlock) run synchronously inside the click / keydown handler that calls them.
  */
 export interface GameApi {
+  /** Starts over: wipes any saved progress. */
   startGame(): void;
+  /** Resumes the progress saved in this browser. */
+  continueGame(): void;
   resume(): void;
   pause(): void;
   quitToMenu(): void;
@@ -101,7 +104,15 @@ export function createSession(lock: PointerLock, audio: AudioBus): GameApi {
   };
 
   return {
-    startGame: enterPlaying,
+    startGame() {
+      actions.resetProgress();
+      dispatch({ type: 'newGame' });
+      enterPlaying();
+    },
+    continueGame() {
+      dispatch({ type: 'loadSave' });
+      enterPlaying();
+    },
     resume: enterPlaying,
     pause() {
       if (get().phase !== 'playing') return;
