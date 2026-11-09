@@ -220,6 +220,8 @@ export function Minimap(): ReactNode {
   );
 }
 
+/** Buildings that stay in the world but get no name on the map. */
+const UNLABELLED = new Set(['卡璐佶', '潔綠創新園區']);
 const MIN_ZOOM = 1;
 const MAX_ZOOM = 14;
 /** Pointer travel (CSS px) below which a press counts as a click rather than a pan. */
@@ -258,7 +260,7 @@ function placeName(data: CampusData, x: number, z: number, radius = 40): string 
   let best: string | null = null;
   let bestD = radius;
   for (const b of data.buildings) {
-    if (!b.name) continue;
+    if (!b.name || UNLABELLED.has(b.name)) continue;
     const [cx, cz] = centroidOf(b.outer);
     const d = Math.hypot(cx - x, cz - z);
     if (d < bestD) { bestD = d; best = b.name; }
@@ -334,7 +336,7 @@ export function FullMap(): ReactNode {
     const seen = new Set<string>();
     const placed: [number, number, number][] = [];
     for (const b of data.buildings) {
-      if (!b.name || !b.inCampus) continue;
+      if (!b.name || !b.inCampus || UNLABELLED.has(b.name)) continue;
       if (v.zoom < 2.5 && seen.has(b.name)) continue; // one label per name when zoomed out
       seen.add(b.name);
       const [x, y] = screen(...centroidOf(b.outer));

@@ -1,6 +1,6 @@
 import type { CampusBuilding } from '../campus/campusTypes';
 import type { Entrance } from '../campus/entrances';
-import type { BuildingSource, FloorPlan, FurnishKind, Opening, Rect, Space, Stair } from '../buildings/buildingTypes';
+import type { BuildingSource, FloorPlan, FurnishKind, Opening, Rect, Space, Stair, Stall } from '../buildings/buildingTypes';
 
 /**
  * Procedural interior for an OSM building, in the same BuildingSource format as the hand-traced
@@ -304,7 +304,8 @@ export function generateInterior(b: CampusBuilding, entrance: Entrance | null, i
       openings.push({ kind: 'elevator', a: [x0 + 0.3, y], b: [x1 - 0.3, y], label: '電梯' });
       elevator = { landing: [(x0 + x1) / 2, y + 1.3], facing: [0, -1] };
     }
-    floors[levelId] = { bandTop: fh, spaces, openings, signs: [], ...(elevator ? { elevator } : {}) };
+    const stalls = k === 0 && kind === 'dining' ? placeStalls(cells, W, H, doorCell) : [];
+    floors[levelId] = { bandTop: fh, spaces, openings, signs: [], ...(elevator ? { elevator } : {}), ...(stalls.length ? { stalls } : {}) };
     directory.push({ level: levelId, items: [...roomNames].slice(0, 3) });
   });
 
@@ -350,6 +351,47 @@ export function generateInterior(b: CampusBuilding, entrance: Entrance | null, i
       directory,
     },
   };
+}
+
+const STALL_LINEUP: readonly Pick<Stall, 'name' | 'menu'>[] = [
+  { name: '自助餐', menu: 'buffet' }, { name: '麵食', menu: 'noodles' }, { name: '便當', menu: 'bento' }, { name: '飲料', menu: 'drinks' }, { name: '回收區' },
+];
+const STALL_CELLS = 11; // 5.5 m each
+const STALL_DEPTH = 6; // 3 m
+
+/**
+ * Lines the stalls up along the first open band of hall on the side away from the entrance, with
+ * their backs to that side. Uses the widest row that fits; fewer stalls if the hall is broken up.
+ */
+function placeStalls(cells: Int32Array, W: number, H: number, door: [number, number] | null): Stall[] {
+  const fromTop = !door || door[1] >= H / 2;
+  const rows = Array.from({ length: H - STALL_DEPTH + 1 }, (_, r) => (fromTop ? r : H - STALL_DEPTH - r));
+  for (let count = STALL_LINEUP.length; count >= 3; count--) {
+    const need = count * STALL_CELLS;
+    for (const r of rows) {
+      let run = 0;
+      for (let c = 0; c <= W; c++) {
+        let free = c < W;
+        for (let y = r; free && y < r + STALL_DEPTH; y++) free = cells[y * W + c] === HALL;
+        // Room to queue in front of the counters.
+        const front = fromTop ? r + STALL_DEPTH + 3 : r - 4;
+        free = free && front >= 0 && front < H && cells[front * W + c] === HALL;
+        if (free) { run++; continue; }
+        if (run >= need) {
+          const c0 = c - run + Math.floor((run - need) / 2);
+          const lineup = count === STALL_LINEUP.length ? STALL_LINEUP : [...STALL_LINEUP.slice(0, count - 1), STALL_LINEUP[STALL_LINEUP.length - 1]!];
+          return lineup.map((s, i) => ({
+            ...s,
+            at: [(c0 + (i + 0.5) * STALL_CELLS) * C, (r + STALL_DEPTH / 2) * C] as [number, number],
+            facing: [0, fromTop ? 1 : -1] as [number, number],
+            width: STALL_CELLS * C - 0.3,
+          }));
+        }
+        run = 0;
+      }
+    }
+  }
+  return [];
 }
 
 /** Greedy merge of the cells with `id` into rects [col0, row0, col1, row1). */

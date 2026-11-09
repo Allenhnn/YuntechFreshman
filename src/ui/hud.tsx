@@ -74,6 +74,20 @@ function Toast(): ReactNode {
   return toast ? <div key={toast.id} className="toast">{toast.text}</div> : null;
 }
 
+function RaceHud(): ReactNode {
+  const race = useGame((s) => s.race);
+  const best = useGame((s) => s.raceBest);
+  if (!race) return null;
+  if (race.phase === 'countdown') return <div className="race-countdown" key={race.countdown}>{race.countdown}</div>;
+  return (
+    <div className="race-hud">
+      <b>{race.time.toFixed(1)}</b> 秒
+      <span>檢查點 {race.gate}/{race.gates}</span>
+      <span>{race.testing ? '不計成績' : `最佳 ${best === null ? '—' : best.toFixed(2)}`}</span>
+    </div>
+  );
+}
+
 function TesterBadge(): ReactNode {
   const t = useGame((s) => s.tester);
   if (!TESTER_AVAILABLE || !t.enabled) return null;
@@ -96,6 +110,7 @@ export function Hud(): ReactNode {
       <Clock />
       <Coins />
       <TesterBadge />
+      <RaceHud />
       {mapMode === 'mini' && <Minimap />}
       {mapMode === 'mini' && <div className="osm-credit">© OpenStreetMap contributors</div>}
       <Hotbar />

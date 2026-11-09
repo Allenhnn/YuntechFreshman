@@ -252,3 +252,25 @@ kbd {
 .tester-badge b { font-size: 13px; }
 .tester-badge .on { color: #ffe27a; font-weight: 700; }
 .tester-badge kbd { color: var(--ink); font-size: 10px; padding: 0 4px; }
+
+/* ---------- Track time trial ---------- */
+.race-hud {
+  position: absolute; top: 14px; left: 50%; transform: translateX(-50%); display: flex; align-items: baseline; gap: 14px; padding: 8px 18px;
+  border-radius: 999px; background: var(--glass); box-shadow: var(--shadow); font-size: 13px; color: var(--ink-soft); white-space: nowrap;
+}
+.race-hud b { font-size: 26px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.race-countdown {
+  position: absolute; top: 30%; left: 50%; transform: translateX(-50%); font-size: 120px; font-weight: 800; color: #fff;
+  text-shadow: 0 6px 24px rgba(10, 40, 25, 0.55); animation: pop-in 0.25s ease;
+}
+
+/* ---------- Cafeteria menu ---------- */
+.shop-items { display: flex; flex-direction: column; gap: 8px; }
+.shop-item {
+  display: flex; align-items: center; gap: 12px; padding: 10px 14px; border: 0; border-radius: 12px; background: var(--green-soft); cursor: pointer; font: inherit;
+}
+.shop-item:hover:not(:disabled) { filter: brightness(0.96); }
+.shop-item:disabled { opacity: 0.5; cursor: not-allowed; }
+.shop-item .icon { font-size: 26px; }
+.shop-item .name { flex: 1; text-align: left; font-weight: 700; }
+.shop-item .price { font-variant-numeric: tabular-nums; color: var(--green-dark); font-weight: 700; }

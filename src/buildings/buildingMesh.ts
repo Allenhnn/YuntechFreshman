@@ -387,6 +387,8 @@ export function buildBuildingMeshes(src: BuildingSource): BuildingMeshes {
     const keepOut: KeepOut[] = [];
     if (lvl.plan.elevator) keepOut.push({ x: lvl.plan.elevator.landing[0], y: lvl.plan.elevator.landing[1], r: 2.6 });
     for (const sg of lvl.plan.signs) keepOut.push({ x: sg.at[0], y: sg.at[1], r: 1.6 });
+    // Stalls and the queue in front of them.
+    for (const st of lvl.plan.stalls ?? []) keepOut.push({ x: st.at[0] + st.facing[0] * 1.5, y: st.at[1] + st.facing[1] * 1.5, r: st.width / 2 + 2 });
     for (const o of lvl.plan.openings) keepOut.push({ x: (o.a[0] + o.b[0]) / 2, y: (o.a[1] + o.b[1]) / 2, r: 1.3 });
     for (const st of src.stairs ?? []) {
       if (st.low !== lvl.base && st.high !== lvl.base) continue;

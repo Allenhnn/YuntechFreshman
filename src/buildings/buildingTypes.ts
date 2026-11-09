@@ -53,6 +53,17 @@ export interface Sign {
   facing: Vec2;
 }
 
+/** A cafeteria stall: back against a wall, serving toward `facing`. */
+export interface Stall {
+  name: string;
+  /** Centre of the stall's footprint (plan). */
+  at: Vec2;
+  facing: Vec2;
+  width: number;
+  /** Key into STALL_MENUS; absent for non-shop counters (tray return). */
+  menu?: 'buffet' | 'noodles' | 'bento' | 'drinks';
+}
+
 export interface FloorPlan {
   /** Height of this floor's exterior band (covers double-height halls and mezzanines). */
   bandTop: number;
@@ -60,6 +71,7 @@ export interface FloorPlan {
   openings: Opening[];
   signs: Sign[];
   elevator?: { landing: Vec2; facing: Vec2 };
+  stalls?: Stall[];
 }
 
 export interface Level {

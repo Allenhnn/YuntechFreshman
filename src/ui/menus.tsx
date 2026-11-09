@@ -12,8 +12,8 @@ function Brand(): ReactNode {
         <i style={{ background: '#f2c230', transform: 'rotate(20deg)' }} />
       </div>
       <h1 className="title">
-        雲科新鮮人
-        <small>YUNTECH FRESHMAN</small>
+        雲寶寶上學趣
+        <small>YUNBAOBAO GOES TO SCHOOL</small>
       </h1>
     </>
   );

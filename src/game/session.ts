@@ -3,6 +3,7 @@ import type { PointerLock } from '../input/pointerLock';
 import { dispatch } from '../state/commands';
 import { actions, gameStore, type Modal } from '../state/store';
 import type { Settings } from '../state/settings';
+import { ITEMS, type ItemId } from '../state/items';
 
 /**
  * Everything the React UI is allowed to do. Methods that need a user gesture (pointer lock,
@@ -26,6 +27,8 @@ export interface GameApi {
   selectHotbar(index: number): void;
   clickSlot(index: number): void;
   useItem(slot: number): void;
+  /** Cafeteria stall purchase. */
+  buy(id: ItemId, price: number): void;
   respawn(): void;
   updateSettings(patch: Partial<Settings>): void;
   /** Canvas click while playing without pointer lock. */
@@ -159,6 +162,16 @@ export function createSession(lock: PointerLock, audio: AudioBus): GameApi {
     clickSlot(index) {
       actions.clickSlot(index);
       audio.play('click', 0.6);
+    },
+    buy(id, price) {
+      const problem = actions.buy(id, price);
+      if (problem) {
+        actions.toast(problem);
+        audio.play('close');
+      } else {
+        actions.toast(`買了 ${ITEMS[id].name}，放進背包了`);
+        audio.play('coin');
+      }
     },
     useItem(slot) {
       dispatch({ type: 'useItem', slot });

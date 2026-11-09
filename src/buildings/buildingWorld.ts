@@ -1,11 +1,13 @@
 import {
   BoxGeometry,
+  CanvasTexture,
   Group,
   InstancedMesh,
   Mesh,
   MeshStandardMaterial,
   PlaneGeometry,
   Quaternion,
+  SRGBColorSpace,
   Vector3,
   type Material,
   type Scene,
@@ -18,12 +20,53 @@ import type { MeshBuffers, Ring } from '../campus/campusTypes';
 import { stampFacadeStyle } from '../campus/chunkBuilder';
 import { toGeometry } from '../campus/campusWorld';
 import { DEFAULT_CAMPUS_STYLE, type FacadeStyle } from '../campus/facadeTypes';
-import type { BuildingSource, Vec2 } from './buildingTypes';
+import type { BuildingSource, Stall, Vec2 } from './buildingTypes';
 import { buildBuildingMeshes, type BuildingMeshes, type BuildingPart, type ColliderBox } from './buildingMesh';
 import { OUTSIDE, rasterize, regionRects } from './floorGrid';
 import { createInteriorMaterials, type InteriorMaterials } from './interiorMaterials';
 import { buildPlates, paintDirectory, paintEntranceSign } from './signs';
 import { createFurnitureKit, instanceFurniture, type FurnitureKit } from './furnitureMeshes';
+
+const STALL_COLORS: Readonly<Record<string, string>> = { 自助餐: '#1f8f4a', 麵食: '#c0562b', 便當: '#2c6fd6', 飲料: '#d99a1f', 回收區: '#6c7a72' };
+
+/** One stall, local +z toward the customers, origin at the centre of its floor footprint. */
+function buildStall(st: Stall, tracker: ResourceTracker, dark: Material): Group {
+  const c = document.createElement('canvas');
+  c.width = 512;
+  c.height = 96;
+  const g = c.getContext('2d');
+  const colour = STALL_COLORS[st.name] ?? '#1f8f4a';
+  if (g) {
+    g.fillStyle = colour;
+    g.fillRect(0, 0, 512, 96);
+    g.fillStyle = '#fffdf6';
+    g.font = "800 58px system-ui, 'PingFang TC', sans-serif";
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText(st.name, 256, 50);
+  }
+  const tex = tracker.texture(new CanvasTexture(c));
+  tex.colorSpace = SRGBColorSpace;
+  const w = st.width;
+  const out = new Group();
+  const wall = tracker.material(new MeshStandardMaterial({ color: 0xece6d8, roughness: 0.8 }));
+  const top = tracker.material(new MeshStandardMaterial({ color: 0xd8d4c8, roughness: 0.35, metalness: 0.2 }));
+  const box = (sx: number, sy: number, sz: number, x: number, y: number, z: number, m: Material): void => {
+    const mesh = new Mesh(tracker.geometry(new BoxGeometry(sx, sy, sz)), m);
+    mesh.position.set(x, y, z);
+    out.add(mesh);
+  };
+  box(w, 2.7, 0.14, 0, 1.35, -1.43, wall); // back panel
+  box(0.14, 2.7, 2.2, -w / 2, 1.35, -0.4, wall);
+  box(0.14, 2.7, 2.2, w / 2, 1.35, -0.4, wall);
+  box(w, 0.95, 0.7, 0, 0.475, 0.3, tracker.material(new MeshStandardMaterial({ color: colour, roughness: 0.7 }))); // counter
+  box(w + 0.1, 0.06, 0.8, 0, 0.98, 0.3, top);
+  box(w, 0.8, 0.08, 0, 2.95, 0.72, dark); // sign backing
+  const sign = new Mesh(tracker.geometry(new PlaneGeometry(w - 0.2, 0.68)), tracker.material(new MeshStandardMaterial({ map: tex, roughness: 0.6, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.15 })));
+  sign.position.set(0, 2.95, 0.77);
+  out.add(sign);
+  return out;
+}
 
 function pointInRing(x: number, z: number, r: Ring): boolean {
   let inside = false;
@@ -246,6 +289,16 @@ export function createHandBuiltBuilding(
         instanced.push(im);
       }
 
+      // Cafeteria stalls: back panel, counter, name board.
+      for (const st of src.floors[lvl.id]?.stalls ?? []) {
+        const stall = buildStall(st, tracker, frameMat);
+        stall.position.set(st.at[0], lvl.base, st.at[1]);
+        stall.rotation.y = Math.atan2(st.facing[0], st.facing[1]);
+        group.add(stall);
+        addColliders([{ c: [st.at[0], lvl.base + 0.6, st.at[1] - st.facing[1] * 0.45], h: [st.width / 2, 0.6, 1.05] }], colliders);
+        cameraTransparent.add(colliders[colliders.length - 1]!.handle);
+      }
+
       // Free-standing directory boards.
       const floor = src.floors[lvl.id];
       const dirs = floor?.signs.filter((sg) => sg.kind === 'directory') ?? [];
@@ -313,6 +366,15 @@ export function createHandBuiltBuilding(
     const [x, z] = xf.toWorld(floor.elevator.landing[0], floor.elevator.landing[1]);
     const y = src.levels.find((l) => l.id === levelId)?.elevation ?? 0;
     interactables.push({ id: `${src.id}:elevator:${levelId}`, prompt: '按 E 搭乘電梯', x, y, z, radius: ELEVATOR_REACH });
+  }
+
+  for (const [levelId, floor] of Object.entries(src.floors)) {
+    const y = src.levels.find((l) => l.id === levelId)?.elevation ?? 0;
+    (floor.stalls ?? []).forEach((st, i) => {
+      if (!st.menu) return;
+      const [x, z] = xf.toWorld(st.at[0] + st.facing[0] * 2.4, st.at[1] + st.facing[1] * 2.4);
+      interactables.push({ id: `${src.id}:stall:${levelId}:${i}`, prompt: `按 E 買${st.name}`, x, y, z, radius: 2.4 });
+    });
   }
 
   const footprintRings: Ring[] = meshes.footprint.map(([a, b, c, d]) => [

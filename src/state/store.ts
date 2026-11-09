@@ -1,6 +1,6 @@
 import { createStore } from 'zustand/vanilla';
 import { useStore } from 'zustand';
-import { HOTBAR_SIZE, ITEMS, starterInventory, type ItemStack } from './items';
+import { HOTBAR_SIZE, ITEMS, starterInventory, type ItemId, type ItemStack } from './items';
 import { loadSettings, saveSettings, type Settings } from './settings';
 import type { CampusData } from '../campus/campusTypes';
 import type { BikeStation } from '../bikes/bikeStations';
@@ -15,7 +15,7 @@ import type { BikeStation } from '../bikes/bikeStations';
  */
 export type GamePhase = 'loading' | 'menu' | 'playing' | 'paused';
 export type MenuPanel = 'root' | 'controls' | 'settings';
-export type Modal = 'none' | 'inventory' | 'phone' | 'elevator';
+export type Modal = 'none' | 'inventory' | 'phone' | 'elevator' | 'shop';
 export type MapMode = 'mini' | 'full';
 export type LookMode = 'pointerLock' | 'drag';
 
@@ -54,6 +54,7 @@ export interface SpawnPoint {
 
 const WAYPOINTS_KEY = 'yfm.waypoints.v1';
 const SPAWN_KEY = 'yfm.spawn.v1';
+const RACE_BEST_KEY = 'yfm.raceBest.v1';
 
 /** Per-browser storage that may be unavailable (private mode): failures fall back to defaults. */
 function loadJson<T>(key: string, fallback: T): T {
@@ -71,6 +72,22 @@ function saveJson(key: string, value: unknown): void {
   } catch {
     /* storage unavailable: keep in memory only */
   }
+}
+
+/** Track time-trial HUD (null when no run is in progress). */
+export interface RaceState {
+  phase: 'countdown' | 'running';
+  countdown: number;
+  time: number;
+  /** Gate being run to, 1-based. */
+  gate: number;
+  gates: number;
+  testing: boolean;
+}
+
+export interface ShopMenu {
+  title: string;
+  items: readonly { id: ItemId; price: number }[];
 }
 
 export interface Toast {
@@ -110,6 +127,10 @@ export interface GameState {
   mapData: CampusData | null;
 
   bikeStations: readonly BikeStation[];
+  race: RaceState | null;
+  /** Best time-trial time (s), kept per browser. */
+  raceBest: number | null;
+  shop: ShopMenu | null;
   tester: TesterState;
   waypoints: Waypoint[];
   /** Respawn point chosen on the map; null = the campus default (dorm C entrance). */
@@ -139,6 +160,9 @@ export const gameStore = createStore<GameState>()(() => ({
   settings: loadSettings(),
   mapData: null,
   bikeStations: [],
+  race: null,
+  raceBest: loadJson<number | null>(RACE_BEST_KEY, null),
+  shop: null,
   tester: { enabled: false, fly: false, noclip: false, speed: 1 },
   waypoints: loadJson<Waypoint[]>(WAYPOINTS_KEY, []),
   customSpawn: loadJson<SpawnPoint | null>(SPAWN_KEY, null),
@@ -159,6 +183,28 @@ export const actions = {
   },
   setBikeStations(bikeStations: readonly BikeStation[]): void {
     set({ bikeStations });
+  },
+  setRace(race: RaceState | null): void {
+    set({ race });
+  },
+  setRaceBest(raceBest: number): void {
+    set({ raceBest });
+    saveJson(RACE_BEST_KEY, raceBest);
+  },
+  setShop(shop: ShopMenu | null): void {
+    set({ shop });
+  },
+  /** Pays `price` and adds the item; returns why it could not, or null on success. */
+  buy(id: ItemId, price: number): string | null {
+    const { coins, inventory } = get();
+    if (coins < price) return `錢不夠，還差 NT$ ${price - coins}`;
+    const next = inventory.slice();
+    const i = next.findIndex((s) => s?.id === id && s.count < ITEMS[id].maxStack);
+    const slot = i >= 0 ? i : next.findIndex((s) => s === null);
+    if (slot < 0) return '背包滿了';
+    next[slot] = { id, count: (next[slot]?.count ?? 0) + 1 };
+    set({ inventory: next, coins: coins - price });
+    return null;
   },
   setLoadProgress(p: number): void {
     set({ loadProgress: p });

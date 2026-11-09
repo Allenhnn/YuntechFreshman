@@ -7,7 +7,7 @@ import { Hud } from './hud';
 import { InventoryModal } from './inventory';
 import { LoadingScreen, MenuScreen } from './menus';
 import { PhoneDrawer } from './phone';
-import { ElevatorModal, Fade, InteractPrompt } from './elevator';
+import { ElevatorModal, Fade, InteractPrompt, ShopModal } from './elevator';
 import './ui.css';
 
 function App(): ReactNode {
@@ -19,6 +19,7 @@ function App(): ReactNode {
       {phase === 'playing' && modal === 'inventory' && <InventoryModal />}
       {phase === 'playing' && modal === 'phone' && <PhoneDrawer />}
       {phase === 'playing' && modal === 'elevator' && <ElevatorModal />}
+      {phase === 'playing' && modal === 'shop' && <ShopModal />}
       {phase === 'playing' && <InteractPrompt />}
       <Fade />
       {phase === 'loading' && <LoadingScreen />}

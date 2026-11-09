@@ -7,7 +7,7 @@ import { createSession, type GameApi } from './game/session';
 import { installHotkeys } from './game/hotkeys';
 import { drainCommands, type GameCommand } from './state/commands';
 import { START_MINUTES, actions, gameStore, type GameState } from './state/store';
-import { ITEMS } from './state/items';
+import { STALL_MENUS, type ItemId } from './state/items';
 import type { Settings } from './state/settings';
 import { telemetry } from './state/telemetry';
 import { createCoinSystem } from './ecs/systems/coins';
@@ -37,6 +37,8 @@ import { ANIM_NAMES, AnimState, CharacterMotor, Transform, Velocity } from './ec
 import { bodies, colliders, objects } from './ecs/registry';
 import { CAPSULE_CENTER_OFFSET, createCharacterControllerSystem, type MoveModifiers } from './ecs/systems/characterController';
 import { createBikeSystem } from './bikes/bikeSystem';
+import { createPlayground } from './playground/playground';
+import { addCafeteriaSign } from './buildings/cafeteriaSign';
 import { createBuildingTest, placeBikeStations, stationClearings } from './bikes/bikeStations';
 import { findMascotJoints } from './character/mascot';
 import { CLOCK_RATE, applyPose, computeRidePose, createPose } from './character/pose';
@@ -55,7 +57,15 @@ const LIBRARY_URL = `${import.meta.env.BASE_URL}data/buildings/library.json`;
 const FACADES_URL = `${import.meta.env.BASE_URL}data/facades.json`;
 const TRACED_URL = `${import.meta.env.BASE_URL}data/buildings/traced.json`;
 
-const ITEM_MESSAGES: Readonly<Record<keyof typeof ITEMS, string>> = {
+const FOOD: ReadonlySet<ItemId> = new Set<ItemId>(['bread', 'bento', 'buffet', 'beefNoodles', 'plainNoodles', 'bubbleTea', 'soyMilk']);
+
+const ITEM_MESSAGES: Readonly<Record<ItemId, string>> = {
+  bento: '排骨便當好吃！',
+  buffet: '三菜一肉，吃飽了！',
+  beefNoodles: '呼嚕呼嚕… 湯頭真濃！',
+  plainNoodles: '暖暖的陽春麵。',
+  bubbleTea: '珍珠好Q！',
+  soyMilk: '冰豆漿，舒暢！',
   studentCard: '📛 國立雲林科技大學 · 新鮮人',
   waterBottle: '咕嚕咕嚕… 補充水分！',
   bread: '吃了一個菠蘿麵包，元氣滿滿！',
@@ -72,7 +82,7 @@ function useItem(slot: number, api: GameApi): void {
     api.toggleMap();
     return;
   }
-  if (stack.id === 'bread') actions.consumeItem(slot);
+  if (FOOD.has(stack.id)) actions.consumeItem(slot);
   actions.toast(ITEM_MESSAGES[stack.id]);
 }
 
@@ -163,6 +173,8 @@ async function boot(): Promise<void> {
   const player = spawnPlayer(world, scene, physics, model, playerResources, spawn, spawn.facing);
   const eid = player.eid;
   const rig = createThirdPersonCamera(camera, physics);
+  const playground = createPlayground(scene, physics, campus, sceneResources);
+  addCafeteriaSign(scene, campus, sceneResources);
   const bikes = createBikeSystem(scene, bikeStations, sceneResources);
   const insideBuilding = createBuildingTest(campus);
   const moveMods: MoveModifiers = { fly: false, noclip: false, speed: 1, bike: false, blocked: null };
@@ -206,6 +218,7 @@ async function boot(): Promise<void> {
       case 'toStart':
       case 'respawn': {
         bikes.dismount();
+        playground?.cancel();
         const p = cmd.type === 'toStart' ? spawn : spawnPoint();
         teleport(p.x, p.y, p.z, p.facing);
         renderSyncSystem(world, 1);
@@ -218,6 +231,7 @@ async function boot(): Promise<void> {
         const inside = env.clampInsideCampus(cmd.x, cmd.z);
         const target = safeTeleportTarget(campus, inside.x, inside.z);
         bikes.dismount();
+        playground?.cancel();
         actions.setFading(true);
         void Promise.all([env.loadAround(target.x, target.z), new Promise((r) => window.setTimeout(r, 300))]).then(() => {
           physics.step(); // register the destination's colliders before the ground ray
@@ -238,6 +252,23 @@ async function boot(): Promise<void> {
           return;
         }
         const target = nearestInteractable();
+        if (target?.id.includes(':stall:')) {
+          const [buildingId, , levelId, index] = target.id.split(':');
+          const stall = buildingById(buildingId ?? '')?.source.floors[levelId ?? '']?.stalls?.[Number(index)];
+          if (stall?.menu) {
+            actions.setShop({ title: stall.name, items: STALL_MENUS[stall.menu] });
+            api.openModal('shop');
+          }
+          return;
+        }
+        if (!target && playground?.canStart(Transform.x[eid]!, Transform.z[eid]!)) {
+          const p = playground.start(gameStore.getState().tester.enabled);
+          teleport(p.x, 0, p.z, p.facing);
+          renderSyncSystem(world, 1);
+          rig.snap(readFocus(), p.facing + Math.PI);
+          return;
+        }
+        if (playground?.racing) return;
         if (!target) {
           const bike = bikes.nearest(Transform.x[eid]!, Transform.y[eid]!, Transform.z[eid]!);
           if (bike >= 0) {
@@ -359,6 +390,7 @@ async function boot(): Promise<void> {
         scene,
         library,
         interiors,
+        playground,
         /** Point the camera along a world yaw (dev inspection). */
         look(yaw: number) {
           rig.snap(readFocus(), yaw);
@@ -417,7 +449,7 @@ async function boot(): Promise<void> {
       const riding = bikes.ridden >= 0;
       moveMods.fly = ui.tester.fly && !riding;
       moveMods.noclip = ui.tester.noclip && !riding;
-      moveMods.speed = ui.tester.speed;
+      moveMods.speed = playground?.frozen ? 0 : ui.tester.speed;
       moveMods.bike = riding;
       moveMods.blocked = riding ? insideBuilding : null;
       controller.update(world, FIXED_DT, input.consumePressed(), rig.yaw, groundFilter, moveMods);
@@ -464,7 +496,17 @@ async function boot(): Promise<void> {
     env.update(f.x, f.z);
     library.update(f.x, f.y, f.z);
     interiors.update(f.x, f.y, f.z);
-    actions.setInteractPrompt(!playing ? null : bikes.ridden >= 0 ? '按 E 下車' : (nearestInteractable()?.prompt ?? (bikes.nearest(f.x, f.y, f.z) >= 0 ? '按 E 騎腳踏車' : null)));
+    const earned = playing ? (playground?.update(dt, time, f.x, f.z) ?? 0) : 0;
+    if (earned > 0) {
+      actions.addCoins(earned);
+      audio.play('coin');
+    }
+    actions.setInteractPrompt(
+      !playing || playground?.racing ? null
+        : bikes.ridden >= 0 ? '按 E 下車'
+          : nearestInteractable()?.prompt
+            ?? (playground?.canStart(f.x, f.z) ? '按 E 開始跑道計時賽' : bikes.nearest(f.x, f.y, f.z) >= 0 ? '按 E 騎腳踏車' : null),
+    );
 
     telemetry.x = f.x;
     telemetry.z = f.z;
@@ -505,6 +547,7 @@ async function boot(): Promise<void> {
     library.dispose();
     interiors.dispose();
     bikes.dispose();
+    playground?.dispose();
     env.dispose();
     player.despawn();
     assets.dispose();
