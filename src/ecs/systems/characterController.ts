@@ -1,6 +1,6 @@
 import { query, type World } from 'bitecs';
 import { RAPIER } from '../../physics/physics';
-import { CHARACTER } from '../../config';
+import { BIKE, CHARACTER } from '../../config';
 import { DEG2RAD, dampAngle } from '../../core/math';
 import { Action, type Input } from '../../input/input';
 import { CharacterMotor, PhysicsBody, Player, Transform, Velocity } from '../components';
@@ -21,6 +21,10 @@ export interface MoveModifiers {
   noclip: boolean;
   /** Multiplies walk / sprint / fly speed. */
   speed: number;
+  /** Riding a bike: faster, steers along its heading, cannot jump. */
+  bike?: boolean;
+  /** Footprints the bike may not enter (door gaps would otherwise let it indoors). */
+  blocked?: ((x: number, z: number) => boolean) | null;
 }
 
 const NORMAL: MoveModifiers = { fly: false, noclip: false, speed: 1 };
@@ -77,15 +81,25 @@ export function createCharacterControllerSystem(physics: RAPIER.World, input: In
           dirZ = -ix * sin - iz * cos;
         }
 
+        // A bike rolls along its heading, which swings toward the steering direction.
+        if (mods.bike && inputLen > 0) {
+          const heading = dampAngle(Transform.rotY[eid]!, Math.atan2(dirX, dirZ), BIKE.turnSharpness, dt);
+          Transform.rotY[eid] = heading;
+          dirX = Math.sin(heading);
+          dirZ = Math.cos(heading);
+        }
+
         const grounded = CharacterMotor.grounded[eid] === 1;
         const sprinting = inputLen > 0 && (held & Action.Sprint) !== 0;
         CharacterMotor.sprinting[eid] = sprinting ? 1 : 0;
 
         // Horizontal: move toward target velocity with separate accel / decel rates.
-        const speed = (mods.fly ? FLY_SPEED * (sprinting ? 2 : 1) : sprinting ? C.sprintSpeed : C.walkSpeed) * mods.speed;
+        const speed = (mods.bike ? (sprinting ? BIKE.sprintSpeed : BIKE.speed) : mods.fly ? FLY_SPEED * (sprinting ? 2 : 1) : sprinting ? C.sprintSpeed : C.walkSpeed) * mods.speed;
         const targetVX = dirX * speed;
         const targetVZ = dirZ * speed;
-        let rate = inputLen > 0 ? speed / C.accelTime : Math.max(speed, C.sprintSpeed) / C.decelTime;
+        let rate = mods.bike
+          ? speed / (inputLen > 0 ? BIKE.accelTime : BIKE.decelTime)
+          : inputLen > 0 ? speed / C.accelTime : Math.max(speed, C.sprintSpeed) / C.decelTime;
         if (!grounded && !mods.fly) rate *= C.airControl;
         let vx = Velocity.x[eid]!;
         let vz = Velocity.z[eid]!;
@@ -103,7 +117,7 @@ export function createCharacterControllerSystem(physics: RAPIER.World, input: In
 
         // Vertical: coyote time, jump buffer, asymmetric gravity, variable jump height.
         let coyote = grounded ? C.coyoteTime : Math.max(0, CharacterMotor.coyote[eid]! - dt);
-        let jumpBuffer = (pressed & Action.Jump) ? C.jumpBufferTime : Math.max(0, CharacterMotor.jumpBuffer[eid]! - dt);
+        let jumpBuffer = (pressed & Action.Jump) && !mods.bike ? C.jumpBufferTime : Math.max(0, CharacterMotor.jumpBuffer[eid]! - dt);
         let vy = Velocity.y[eid]!;
         if (mods.fly) {
           vy = (((held & Action.Jump) ? 1 : 0) - ((held & Action.Down) ? 1 : 0)) * FLY_SPEED * mods.speed * (sprinting ? 2 : 1);
@@ -141,6 +155,12 @@ export function createCharacterControllerSystem(physics: RAPIER.World, input: In
         next.x = cur.x + moved.x;
         next.y = cur.y + moved.y;
         next.z = cur.z + moved.z;
+        if (mods.blocked?.(next.x, next.z) && !mods.blocked(cur.x, cur.z)) {
+          next.x = cur.x;
+          next.z = cur.z;
+          vx = 0;
+          vz = 0;
+        }
         body.setNextKinematicTranslation(next);
 
         // Head bonk: upward motion blocked.

@@ -1,6 +1,6 @@
 import { ACESFilmicToneMapping, PCFShadowMap, PerspectiveCamera, Scene, SRGBColorSpace, WebGLRenderer } from 'three';
 import { createWorld } from 'bitecs';
-import { CAMERA, FIXED_DT, MAX_SUBSTEPS, RENDER } from './config';
+import { CAMERA, FIXED_DT, FLOORPLAN_INTERIORS, MAX_SUBSTEPS, RENDER } from './config';
 import { createAudioBus } from './audio/audio';
 import { createPointerLock } from './input/pointerLock';
 import { createSession, type GameApi } from './game/session';
@@ -35,13 +35,20 @@ import { createAssetLoader } from './assets/loader';
 import { buildProceduralCharacter, loadCharacterModel, type CharacterModel } from './character/characterModel';
 import { ANIM_NAMES, AnimState, CharacterMotor, Transform, Velocity } from './ecs/components';
 import { bodies, colliders, objects } from './ecs/registry';
-import { CAPSULE_CENTER_OFFSET, createCharacterControllerSystem } from './ecs/systems/characterController';
+import { CAPSULE_CENTER_OFFSET, createCharacterControllerSystem, type MoveModifiers } from './ecs/systems/characterController';
+import { createBikeSystem } from './bikes/bikeSystem';
+import { createBuildingTest, placeBikeStations, stationClearings } from './bikes/bikeStations';
+import { findMascotJoints } from './character/mascot';
+import { CLOCK_RATE, applyPose, computeRidePose, createPose } from './character/pose';
 import { safeTeleportTarget } from './game/teleport';
 import { animationSystem } from './ecs/systems/animation';
 import { renderSyncSystem } from './ecs/systems/renderSync';
 import { createThirdPersonCamera, type CameraFocus } from './camera/thirdPersonCamera';
 import { createDebugHud } from './ui/debugHud';
 
+const MENU_ORBIT_RATE = 0.06;
+const MENU_ORBIT_RADIUS = 95;
+const MENU_ORBIT_HEIGHT = 46;
 const PLAYER_MODEL_URL = `${import.meta.env.BASE_URL}models/mascot.glb`;
 const CAMPUS_DATA_URL = `${import.meta.env.BASE_URL}data/campus.json`;
 const LIBRARY_URL = `${import.meta.env.BASE_URL}data/buildings/library.json`;
@@ -109,11 +116,15 @@ async function boot(): Promise<void> {
     .then((r) => (r.ok ? (r.json() as Promise<FacadeData>) : undefined))
     .catch(() => undefined);
   // Plan-traced interiors (scripts/floorplan/trace.py) and the shell door gaps they need.
-  const traced = await fetch(TRACED_URL)
-    .then((r) => (r.ok ? (r.json() as Promise<TracedIndex>) : undefined))
-    .catch(() => undefined);
+  const traced = FLOORPLAN_INTERIORS
+    ? await fetch(TRACED_URL)
+        .then((r) => (r.ok ? (r.json() as Promise<TracedIndex>) : undefined))
+        .catch(() => undefined)
+    : undefined;
+  const bikeStations = placeBikeStations(campus);
+  actions.setBikeStations(bikeStations);
   const env = createCampusWorld(scene, physics, renderer, campus, sceneResources, {
-    treeExclusions: buildingFootprintRings(librarySrc),
+    treeExclusions: [...buildingFootprintRings(librarySrc), ...stationClearings(bikeStations)],
     groundHoles: buildingGroundHoles(librarySrc),
     facades,
     entrances: traced?.entrances,
@@ -130,7 +141,8 @@ async function boot(): Promise<void> {
   const interiors = createInteriorManager(scene, physics, renderer, env.materials, campus, facades, sceneResources, traced);
   const buildings = (): readonly HandBuiltBuilding[] => [library, ...interiors.active];
   const buildingById = (id: string): HandBuiltBuilding | undefined => buildings().find((b) => b.source.id === id);
-  const spawn = spawnPoint();
+  // A new game always starts at the dorm C courtyard; a custom point only applies to respawning.
+  const spawn = { x: campus.spawn.x, y: 0, z: campus.spawn.z, facing: campus.spawn.facing };
   await env.loadAround(spawn.x, spawn.z, (f) => actions.setLoadProgress(0.25 + f * 0.25));
   physics.step(); // build the query pipeline before the first shape/ray casts
   actions.setLoadProgress(0.5);
@@ -151,6 +163,11 @@ async function boot(): Promise<void> {
   const player = spawnPlayer(world, scene, physics, model, playerResources, spawn, spawn.facing);
   const eid = player.eid;
   const rig = createThirdPersonCamera(camera, physics);
+  const bikes = createBikeSystem(scene, bikeStations, sceneResources);
+  const insideBuilding = createBuildingTest(campus);
+  const moveMods: MoveModifiers = { fly: false, noclip: false, speed: 1, bike: false, blocked: null };
+  const joints = findMascotJoints(model.root);
+  const ridePose = createPose();
 
   const focus: CameraFocus = { x: 0, y: 0, z: 0, sprinting: false, landingSeq: 0, landingSpeed: 0 };
   const readFocus = (): CameraFocus => {
@@ -186,8 +203,10 @@ async function boot(): Promise<void> {
 
   const handleCommand = (cmd: GameCommand): void => {
     switch (cmd.type) {
+      case 'toStart':
       case 'respawn': {
-        const p = spawnPoint();
+        bikes.dismount();
+        const p = cmd.type === 'toStart' ? spawn : spawnPoint();
         teleport(p.x, p.y, p.z, p.facing);
         renderSyncSystem(world, 1);
         rig.snap(readFocus(), p.facing + Math.PI);
@@ -198,6 +217,7 @@ async function boot(): Promise<void> {
         // Off-campus targets (e.g. old waypoints) land just inside the boundary instead.
         const inside = env.clampInsideCampus(cmd.x, cmd.z);
         const target = safeTeleportTarget(campus, inside.x, inside.z);
+        bikes.dismount();
         actions.setFading(true);
         void Promise.all([env.loadAround(target.x, target.z), new Promise((r) => window.setTimeout(r, 300))]).then(() => {
           physics.step(); // register the destination's colliders before the ground ray
@@ -213,7 +233,20 @@ async function boot(): Promise<void> {
         useItem(cmd.slot, api);
         return;
       case 'interact': {
+        if (bikes.ridden >= 0) {
+          bikes.dismount();
+          return;
+        }
         const target = nearestInteractable();
+        if (!target) {
+          const bike = bikes.nearest(Transform.x[eid]!, Transform.y[eid]!, Transform.z[eid]!);
+          if (bike >= 0) {
+            const b = bikes.pose(bike);
+            teleport(b.x, Transform.y[eid]!, b.z, b.yaw);
+            bikes.mount(bike);
+          }
+          return;
+        }
         const building = target ? buildingById(target.id.split(':elevator:')[0] ?? '') : undefined;
         if (!target || !building) return;
         const src = building.source;
@@ -355,6 +388,7 @@ async function boot(): Promise<void> {
   const mouse = { dx: 0, dy: 0 };
   let accumulator = 0;
   let lastBoundaryWarning = -Infinity;
+  let menuOrbit = 0.6;
   let last = performance.now();
   let time = 0;
 
@@ -373,8 +407,6 @@ async function boot(): Promise<void> {
       // Game clock: one real second = one game minute, frozen in menus.
       clockSeconds += dt;
       actions.setGameMinutes(START_MINUTES + Math.floor(clockSeconds));
-    } else if (ui.phase === 'menu') {
-      rig.rotate(dt * 14, 0); // slow attract-mode orbit behind the main menu
     }
 
     // Fixed-step simulation: commands → controller → Rapier → pickups.
@@ -382,7 +414,13 @@ async function boot(): Promise<void> {
     let steps = 0;
     while (accumulator >= FIXED_DT && steps < MAX_SUBSTEPS) {
       drainCommands(handleCommand);
-      controller.update(world, FIXED_DT, input.consumePressed(), rig.yaw, groundFilter, ui.tester);
+      const riding = bikes.ridden >= 0;
+      moveMods.fly = ui.tester.fly && !riding;
+      moveMods.noclip = ui.tester.noclip && !riding;
+      moveMods.speed = ui.tester.speed;
+      moveMods.bike = riding;
+      moveMods.blocked = riding ? insideBuilding : null;
+      controller.update(world, FIXED_DT, input.consumePressed(), rig.yaw, groundFilter, moveMods);
       physics.step();
       // Safety net: anything that drops the player out of the world (a missed collider) respawns them.
       if (playing && Transform.y[eid]! < -40) {
@@ -407,14 +445,26 @@ async function boot(): Promise<void> {
     // Variable-rate presentation.
     renderSyncSystem(world, accumulator / FIXED_DT);
     animationSystem(world, dt, time);
+    if (bikes.ridden >= 0 && objects[eid]) {
+      const o = objects[eid]!;
+      bikes.update(dt, o.position.x, o.position.y, o.position.z, o.rotation.y, Math.hypot(Velocity.x[eid]!, Velocity.z[eid]!));
+      // After the animation driver, so the seated pose wins over the locomotion clips.
+      if (joints) applyPose(joints, computeRidePose(bikes.pedal, time * CLOCK_RATE, ridePose));
+    }
     coins.render(world, time);
     const f = readFocus();
     rig.update(dt, f, colliders[eid], cameraFilter);
+    if (ui.phase === 'menu') {
+      // Title screen: a slow aerial orbit around the dorms behind the menu panel.
+      menuOrbit += dt * MENU_ORBIT_RATE;
+      camera.position.set(spawn.x + Math.cos(menuOrbit) * MENU_ORBIT_RADIUS, MENU_ORBIT_HEIGHT, spawn.z + Math.sin(menuOrbit) * MENU_ORBIT_RADIUS);
+      camera.lookAt(spawn.x, 8, spawn.z);
+    }
     env.followShadow(f.x, f.z);
     env.update(f.x, f.z);
     library.update(f.x, f.y, f.z);
     interiors.update(f.x, f.y, f.z);
-    actions.setInteractPrompt(playing ? (nearestInteractable()?.prompt ?? null) : null);
+    actions.setInteractPrompt(!playing ? null : bikes.ridden >= 0 ? '按 E 下車' : (nearestInteractable()?.prompt ?? (bikes.nearest(f.x, f.y, f.z) >= 0 ? '按 E 騎腳踏車' : null)));
 
     telemetry.x = f.x;
     telemetry.z = f.z;
@@ -454,6 +504,7 @@ async function boot(): Promise<void> {
     coins.dispose(world);
     library.dispose();
     interiors.dispose();
+    bikes.dispose();
     env.dispose();
     player.despawn();
     assets.dispose();

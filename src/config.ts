@@ -85,3 +85,21 @@ export const RENDER = {
   /** Half-extent of the sun's orthographic shadow frustum, centred on the player. */
   shadowExtent: 30,
 } as const;
+
+/**
+ * Use the interiors traced from the 總務處 floor plans (data/buildings/traced.json). Off for now:
+ * every building except the library gets a generated interior; the traced data stays in the repo.
+ */
+export const FLOORPLAN_INTERIORS = false;
+
+export const BIKE = {
+  /** Cruising and sprinting speed (m/s); walking is 3.5 and running 7. */
+  speed: 12,
+  sprintSpeed: 16,
+  accelTime: 0.8,
+  decelTime: 0.55,
+  /** How quickly the heading swings toward the steering direction. */
+  turnSharpness: 5,
+  /** Mount / dismount reach (m). */
+  reach: 2.2,
+} as const;

@@ -5,6 +5,8 @@
  */
 export type GameCommand =
   | { type: 'respawn' }
+  /** Back to the new-game start point (quitting to the main menu). */
+  | { type: 'toStart' }
   | { type: 'useItem'; slot: number }
   | { type: 'interact' }
   | { type: 'elevatorTo'; building: string; level: string }

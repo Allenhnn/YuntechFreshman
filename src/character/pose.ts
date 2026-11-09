@@ -123,6 +123,23 @@ export interface PoseJoints {
   leaves: readonly [PoseJoint, PoseJoint, PoseJoint];
 }
 
+/** Seated on a bike: raised to the saddle, leaning to the bars, legs following the pedals. */
+export function computeRidePose(pedal: number, clock: number, out: Pose): Pose {
+  out.legL = -0.95 + Math.sin(pedal) * 0.42;
+  out.legR = -0.95 - Math.sin(pedal) * 0.42;
+  out.armLX = -1.3;
+  out.armRX = -1.3;
+  out.armSpread = 0.1;
+  out.bob = 0.42;
+  out.lean = 0.2;
+  out.squash = 1;
+  out.headTilt = -0.12;
+  out.leaf0 = Math.sin(clock * 3) * 0.14 - 0.25;
+  out.leaf1 = Math.sin(clock * 3 + 1) * 0.14 - 0.25;
+  out.leaf2 = Math.sin(clock * 3 + 2) * 0.14 - 0.25;
+  return out;
+}
+
 export function applyPose(j: PoseJoints, p: Pose): void {
   j.legL.rotation.x = p.legL;
   j.legR.rotation.x = p.legR;

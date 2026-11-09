@@ -66,20 +66,35 @@ export function MenuScreen({ paused }: { paused: boolean }): ReactNode {
       </div>
     );
   }
+  if (!paused) {
+    return (
+      <div className="title-screen">
+        <aside className="title-panel">
+          <Brand />
+          <p className="tagline">走進校園，開始你的大學第一天</p>
+          <div className="menu-buttons">
+            <button className="btn primary" onClick={api.startGame}>開始遊戲</button>
+            <button className="btn" onClick={() => open('controls')}>操作介紹</button>
+            <button className="btn" onClick={() => open('settings')}>設定</button>
+          </div>
+          <p className="hint">{hint}</p>
+          <p className="start-point">📍 起點：學生宿舍C 中庭</p>
+          <p className="footer">核心原型 v0.7 · 國立雲林科技大學校園<br />地圖資料 © OpenStreetMap contributors</p>
+        </aside>
+      </div>
+    );
+  }
   return (
     <div className="screen">
       <div className="card">
-        {paused ? <h1 className="title">已暫停</h1> : <Brand />}
+        <h1 className="title">已暫停</h1>
         <div className="menu-buttons">
-          <button className="btn primary" onClick={paused ? api.resume : api.startGame}>
-            {paused ? '繼續遊戲' : '開始遊戲'}
-          </button>
+          <button className="btn primary" onClick={api.resume}>繼續遊戲</button>
           <button className="btn" onClick={() => open('controls')}>操作介紹</button>
           <button className="btn" onClick={() => open('settings')}>設定</button>
-          {paused && <button className="btn" onClick={api.quitToMenu}>回主選單</button>}
+          <button className="btn" onClick={api.quitToMenu}>回主選單</button>
         </div>
         <p className="hint">{hint}</p>
-        {!paused && <p className="footer">核心原型 v0.6 · 國立雲林科技大學校園<br />地圖資料 © OpenStreetMap contributors</p>}
       </div>
     </div>
   );
@@ -94,7 +109,7 @@ const CONTROLS: readonly [string, string][] = [
   ['P', '手機'],
   ['M', '小地圖 / 全螢幕地圖'],
   ['1 – 5', '選擇快捷欄'],
-  ['E', '互動（搭乘電梯）'],
+  ['E', '互動（搭電梯、騎 / 下腳踏車）'],
   ['Esc', '暫停 / 關閉視窗'],
   ...(TESTER_AVAILABLE ? [['`', '測試員模式（開發版）：F 飛行、N 穿牆、+/- 速度'] as [string, string]] : []),
 ];

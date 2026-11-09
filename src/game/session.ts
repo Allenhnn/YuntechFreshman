@@ -110,7 +110,7 @@ export function createSession(lock: PointerLock, audio: AudioBus): GameApi {
       audio.play('click');
       lock.release();
       actions.setPhase('menu');
-      dispatch({ type: 'respawn' });
+      dispatch({ type: 'toStart' });
     },
     toggleModal(modal) {
       if (get().phase !== 'playing') return;

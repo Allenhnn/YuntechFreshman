@@ -3,6 +3,7 @@ import { useStore } from 'zustand';
 import { HOTBAR_SIZE, ITEMS, starterInventory, type ItemStack } from './items';
 import { loadSettings, saveSettings, type Settings } from './settings';
 import type { CampusData } from '../campus/campusTypes';
+import type { BikeStation } from '../bikes/bikeStations';
 
 /**
  * Single source of truth for everything the DOM UI shows. The game loop writes here only
@@ -108,6 +109,7 @@ export interface GameState {
   /** Static top-down layout for the minimap; set once after the scene is built. */
   mapData: CampusData | null;
 
+  bikeStations: readonly BikeStation[];
   tester: TesterState;
   waypoints: Waypoint[];
   /** Respawn point chosen on the map; null = the campus default (dorm C entrance). */
@@ -136,6 +138,7 @@ export const gameStore = createStore<GameState>()(() => ({
   fading: false,
   settings: loadSettings(),
   mapData: null,
+  bikeStations: [],
   tester: { enabled: false, fly: false, noclip: false, speed: 1 },
   waypoints: loadJson<Waypoint[]>(WAYPOINTS_KEY, []),
   customSpawn: loadJson<SpawnPoint | null>(SPAWN_KEY, null),
@@ -153,6 +156,9 @@ let toastId = 0;
 export const actions = {
   setMapData(mapData: CampusData): void {
     set({ mapData });
+  },
+  setBikeStations(bikeStations: readonly BikeStation[]): void {
+    set({ bikeStations });
   },
   setLoadProgress(p: number): void {
     set({ loadProgress: p });

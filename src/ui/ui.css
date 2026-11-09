@@ -51,6 +51,19 @@
 .progress { height: 10px; margin-top: 22px; border-radius: 6px; background: var(--green-soft); overflow: hidden; }
 .progress > div { height: 100%; background: linear-gradient(90deg, var(--green), #4cc27a); transition: width 0.2s ease; }
 
+.title-screen {
+  position: absolute; inset: 0; display: flex; align-items: center; pointer-events: auto; animation: fade-in 0.35s ease;
+  background: linear-gradient(90deg, rgba(16, 48, 30, 0.5), rgba(16, 48, 30, 0.12) 46%, rgba(16, 48, 30, 0));
+}
+.title-panel {
+  width: min(372px, calc(100vw - 32px)); margin-left: clamp(16px, 7vw, 96px); padding: 30px 30px 22px; border-radius: 22px;
+  background: var(--cream); box-shadow: var(--shadow); animation: pop-in 0.3s ease;
+}
+.tagline { margin: 12px 0 0; text-align: center; font-size: 14px; color: var(--ink-soft); }
+.start-point { margin: 2px 0 0; text-align: center; font-size: 13px; font-weight: 600; color: var(--green-dark); }
+.title-panel .footer { margin-top: 12px; }
+@media (max-width: 640px) { .title-screen { justify-content: center; } .title-panel { margin-left: 0; } }
+
 /* ---------- Controls & settings ---------- */
 .controls { display: grid; grid-template-columns: auto 1fr; gap: 8px 16px; align-items: center; font-size: 14px; }
 kbd {

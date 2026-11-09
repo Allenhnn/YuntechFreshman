@@ -289,6 +289,7 @@ export function FullMap(): ReactNode {
   const data = useGame((st) => st.mapData);
   const waypoints = useGame((st) => st.waypoints);
   const customSpawn = useGame((st) => st.customSpawn);
+  const bikeStations = useGame((st) => st.bikeStations);
   const view = useRef<MapView | null>(null);
   const [menu, setMenu] = useState<MapMenu | null>(null);
   const [editing, setEditing] = useState<number | null>(null);
@@ -335,6 +336,8 @@ export function FullMap(): ReactNode {
       g.fillStyle = '#3b2a20';
       g.fillText(b.name, x, y);
     }
+
+    for (const st of bikeStations) drawPin(g, ...screen(st.x, st.z), 9 * dpr, '#0f8a8a', '車');
 
     // Respawn point and saved waypoints.
     const sp = customSpawn ?? data.spawn;
@@ -491,6 +494,7 @@ export function FullMap(): ReactNode {
         <span><i style={{ background: '#d9a58f' }} />人行步道</span>
         <span><i style={{ background: '#1f8f4a' }} />重生點</span>
         <span><i style={{ background: '#2f6fd0' }} />傳送點</span>
+        <span><i style={{ background: '#0f8a8a' }} />腳踏車站</span>
         <span style={{ marginLeft: 'auto' }}>{data?.attribution} · <kbd>M</kbd> / <kbd>Esc</kbd> 關閉</span>
       </div>
       </div>
