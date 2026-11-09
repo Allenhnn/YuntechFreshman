@@ -141,7 +141,7 @@ function drawPlayer(g: CanvasRenderingContext2D, x: number, y: number, angle: nu
 }
 
 /** Runs `draw` at ~30 fps on a DPR-scaled canvas, reading telemetry (no React renders). */
-function useCanvasLoop(draw: (g: CanvasRenderingContext2D, size: number) => void): React.RefObject<HTMLCanvasElement | null> {
+function useCanvasLoop(draw: (g: CanvasRenderingContext2D, width: number, height: number) => void): React.RefObject<HTMLCanvasElement | null> {
   const ref = useRef<HTMLCanvasElement | null>(null);
   const drawRef = useRef(draw);
   drawRef.current = draw;
@@ -156,9 +156,12 @@ function useCanvasLoop(draw: (g: CanvasRenderingContext2D, size: number) => void
       if (now - last < FRAME_INTERVAL) return;
       last = now;
       const dpr = Math.min(window.devicePixelRatio, 2);
-      const size = Math.round(canvas.clientWidth * dpr);
-      if (canvas.width !== size) canvas.width = canvas.height = size;
-      drawRef.current(g, size);
+      const width = Math.round(canvas.clientWidth * dpr), height = Math.round(canvas.clientHeight * dpr);
+      if (canvas.width !== width || canvas.height !== height) {
+        canvas.width = width;
+        canvas.height = height;
+      }
+      drawRef.current(g, width, height);
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
@@ -294,42 +297,47 @@ export function FullMap(): ReactNode {
   const [menu, setMenu] = useState<MapMenu | null>(null);
   const [editing, setEditing] = useState<number | null>(null);
 
-  // Map metres → canvas pixels for the current view (canvas is square, `size` device px).
-  const project = (size: number): ((x: number, z: number) => [number, number]) | null => {
+  // Map metres → canvas pixels for the current view (canvas is w × h device px).
+  const project = (w: number, h: number): ((x: number, z: number) => [number, number]) | null => {
     if (!base || !data) return null;
     const v = (view.current ??= { zoom: 1, cx: (data.bounds.minX + data.bounds.maxX) / 2, cz: (data.bounds.minZ + data.bounds.maxZ) / 2 });
-    const k = Math.min(size / base.canvas.width, size / base.canvas.height) * v.zoom;
+    const k = Math.min(w / base.canvas.width, h / base.canvas.height) * v.zoom;
     const [ox, oy] = base.toPx(v.cx, v.cz);
     return (x, z) => {
       const [bx, by] = base.toPx(x, z);
-      return [(bx - ox) * k + size / 2, (by - oy) * k + size / 2];
+      return [(bx - ox) * k + w / 2, (by - oy) * k + h / 2];
     };
   };
 
-  const canvasRef = useCanvasLoop((g, size) => {
-    const screen = project(size);
+  const canvasRef = useCanvasLoop((g, w, h) => {
+    const screen = project(w, h);
     const v = view.current;
     if (!base || !data || !screen || !v) return;
-    g.clearRect(0, 0, size, size);
+    g.clearRect(0, 0, w, h);
     g.fillStyle = '#b9c9a8';
-    g.fillRect(0, 0, size, size);
+    g.fillRect(0, 0, w, h);
     // Blit the base map through the same transform.
-    const k = Math.min(size / base.canvas.width, size / base.canvas.height) * v.zoom;
+    const k = Math.min(w / base.canvas.width, h / base.canvas.height) * v.zoom;
     const [ox, oy] = base.toPx(v.cx, v.cz);
-    g.drawImage(base.canvas, size / 2 - ox * k, size / 2 - oy * k, base.canvas.width * k, base.canvas.height * k);
+    g.drawImage(base.canvas, w / 2 - ox * k, h / 2 - oy * k, base.canvas.width * k, base.canvas.height * k);
 
-    const dpr = size / (g.canvas.clientWidth || size);
+    const dpr = w / (g.canvas.clientWidth || w);
     // Building labels (campus only); more appear as you zoom in.
     g.font = `600 ${Math.round(12 * dpr)}px system-ui, 'PingFang TC', sans-serif`;
     g.textAlign = 'center';
     g.textBaseline = 'middle';
     const seen = new Set<string>();
+    const placed: [number, number, number][] = [];
     for (const b of data.buildings) {
       if (!b.name || !b.inCampus) continue;
       if (v.zoom < 2.5 && seen.has(b.name)) continue; // one label per name when zoomed out
       seen.add(b.name);
       const [x, y] = screen(...centroidOf(b.outer));
-      if (x < -50 || y < -20 || x > size + 50 || y > size + 20) continue;
+      if (x < -50 || y < -20 || x > w + 50 || y > h + 20) continue;
+      // Labels that would overlap one already drawn wait until the map is zoomed in.
+      const halfW = g.measureText(b.name).width / 2 + 3 * dpr, halfH = 8 * dpr;
+      if (placed.some((p) => Math.abs(p[0] - x) < p[2] + halfW && Math.abs(p[1] - y) < halfH * 2)) continue;
+      placed.push([x, y, halfW]);
       g.lineWidth = 3 * dpr;
       g.strokeStyle = 'rgba(255,255,255,0.85)';
       g.strokeText(b.name, x, y);
@@ -361,16 +369,15 @@ export function FullMap(): ReactNode {
   });
 
   /** Event position → canvas device px and world metres. */
-  const locate = (e: { clientX: number; clientY: number }): { px: number; py: number; x: number; z: number; size: number } | null => {
+  const locate = (e: { clientX: number; clientY: number }): { x: number; z: number } | null => {
     const c = canvasRef.current;
     const v = view.current;
     if (!c || !base || !v) return null;
     const r = c.getBoundingClientRect();
-    const size = c.width;
-    const px = ((e.clientX - r.left) / r.width) * size, py = ((e.clientY - r.top) / r.height) * size;
-    const k = Math.min(size / base.canvas.width, size / base.canvas.height) * v.zoom;
+    const px = ((e.clientX - r.left) / r.width) * c.width, py = ((e.clientY - r.top) / r.height) * c.height;
+    const k = Math.min(c.width / base.canvas.width, c.height / base.canvas.height) * v.zoom;
     // Inverse of project(): base px = (screen - size/2) / k + toPx(centre); 1 base px = 1 / PX_PER_M m.
-    return { px, py, size, x: v.cx + (px - size / 2) / k / PX_PER_M, z: v.cz + (py - size / 2) / k / PX_PER_M };
+    return { x: v.cx + (px - c.width / 2) / k / PX_PER_M, z: v.cz + (py - c.height / 2) / k / PX_PER_M };
   };
 
   const onWheel = (e: React.WheelEvent<HTMLCanvasElement>): void => {
@@ -401,7 +408,7 @@ export function FullMap(): ReactNode {
     d.y = e.clientY;
     if (d.moved < CLICK_SLOP) return;
     const r = c.getBoundingClientRect();
-    const k = Math.min(c.width / base.canvas.width, c.width / base.canvas.height) * v.zoom * (r.width / c.width);
+    const k = Math.min(c.width / base.canvas.width, c.height / base.canvas.height) * v.zoom * (r.width / c.width);
     v.cx -= dx / k / PX_PER_M;
     v.cz -= dy / k / PX_PER_M;
     setMenu(null);
@@ -413,7 +420,10 @@ export function FullMap(): ReactNode {
     const at = locate(e);
     const frame = e.currentTarget.parentElement?.getBoundingClientRect();
     if (!at || !frame) return;
-    setMenu({ left: e.clientX - frame.left, top: e.clientY - frame.top, x: at.x, z: at.z });
+    // Beside the click, kept inside the map so it never covers the side panel or gets cut off.
+    const left = Math.min(e.clientX - frame.left + 12, frame.width - 192);
+    const top = Math.max(8, Math.min(e.clientY - frame.top - 90, frame.height - 208));
+    setMenu({ left, top, x: at.x, z: at.z });
   };
 
   const centreOnMe = (): void => {
@@ -429,6 +439,11 @@ export function FullMap(): ReactNode {
   return (
     <div className="fullmap interactive">
       <div className="frame">
+        <header className="map-head">
+          <h2>校園地圖</h2>
+          <p>滾輪縮放、拖曳移動，點選地點可傳送。</p>
+          <span className="map-keys"><kbd>M</kbd> 關閉</span>
+        </header>
         <div className="map-body">
         <div className="map-area">
           <canvas
@@ -464,7 +479,7 @@ export function FullMap(): ReactNode {
         </div>
         <aside className="map-side">
           <h3>傳送點</h3>
-          {waypoints.length === 0 && <p className="hint">點地圖上的位置，選「設為傳送點」。</p>}
+          {waypoints.length === 0 && <p className="hint">尚未設定</p>}
           <ul>
             {waypoints.map((w) => (
               <li key={w.id}>
@@ -484,19 +499,16 @@ export function FullMap(): ReactNode {
             ))}
           </ul>
           <h3>重生點</h3>
-          <p className="hint">{customSpawn ? `自訂（${data ? (placeName(data, customSpawn.x, customSpawn.z) ?? '自訂地點') : ''}）` : `預設：${data?.spawn.label ?? ''}`}</p>
-          {customSpawn && <button className="ghost" onClick={() => actions.setCustomSpawn(null)}>恢復預設重生點</button>}
-          <p className="hint small">滾輪縮放 · 拖曳平移 · 點擊地點開啟選單</p>
+          <p className="hint">{customSpawn ? (data ? (placeName(data, customSpawn.x, customSpawn.z) ?? '自訂地點') : '') : (data?.spawn.label ?? '')}</p>
+          {customSpawn && <button className="ghost" onClick={() => actions.setCustomSpawn(null)}>恢復預設</button>}
+          <div className="map-legend">
+            <span><i style={{ background: '#1f8f4a' }} />重生點</span>
+            <span><i style={{ background: '#2f6fd0' }} />傳送點</span>
+            <span><i style={{ background: '#0f8a8a' }} />腳踏車站</span>
+          </div>
         </aside>
         </div>
-      <div className="legend">
-        <span><i style={{ background: '#d9c4a3', outline: '1px solid #9b6a4f' }} />校內建築</span>
-        <span><i style={{ background: '#d9a58f' }} />人行步道</span>
-        <span><i style={{ background: '#1f8f4a' }} />重生點</span>
-        <span><i style={{ background: '#2f6fd0' }} />傳送點</span>
-        <span><i style={{ background: '#0f8a8a' }} />腳踏車站</span>
-        <span style={{ marginLeft: 'auto' }}>{data?.attribution} · <kbd>M</kbd> / <kbd>Esc</kbd> 關閉</span>
-      </div>
+        <p className="map-credit">{data?.attribution}</p>
       </div>
     </div>
   );
