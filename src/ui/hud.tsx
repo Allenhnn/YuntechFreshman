@@ -35,7 +35,7 @@ function Coins(): ReactNode {
   const coins = useGame((s) => s.coins);
   return (
     <div className="coins" aria-label={`新台幣 ${coins} 元`}>
-      <span className="coin-icon">10</span>
+      <span className="coin-icon" style={{ backgroundImage: `url(${import.meta.env.BASE_URL}textures/coin/reverse.png)` }} />
       {/* key change restarts the bump animation on every pickup */}
       <span key={coins} className={coins > 0 ? 'bump' : ''}>NT$ {coins.toLocaleString('zh-TW')}</span>
     </div>

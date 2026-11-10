@@ -1,19 +1,21 @@
 import { addComponent, addEntity, query, removeEntity, type World } from 'bitecs';
 import {
-  CanvasTexture,
   CylinderGeometry,
   InstancedMesh,
   Matrix4,
   MeshStandardMaterial,
   Quaternion,
   SRGBColorSpace,
+  TextureLoader,
   Vector3,
+  type Texture,
   type Scene,
 } from 'three';
 import type { ResourceTracker } from '../../core/resources';
 import { Collectible, Transform } from '../components';
 
 /** NT$10 coin, scaled up from the real 26 mm so it reads at gameplay distance. */
+const COIN_TEXTURES = `${import.meta.env.BASE_URL}textures/coin/`;
 export const COIN_VALUE = 10;
 const COIN_RADIUS = 0.25;
 const COIN_THICKNESS = 0.05;
@@ -44,11 +46,23 @@ export function createCoinSystem(
 ): CoinSystem {
   // CylinderGeometry groups: 0 = rim, 1 = top face, 2 = bottom face; faces turned to ±Z.
   const geo = tracker.geometry(new CylinderGeometry(COIN_RADIUS, COIN_RADIUS, COIN_THICKNESS, 32).rotateX(Math.PI / 2));
-  const face = tracker.material(
-    new MeshStandardMaterial({ map: tracker.texture(paintCoinFace()), metalness: 0.75, roughness: 0.32 }),
-  );
+  // Faces from the NT$10 photos: portrait (obverse) on +Z, 拾圓 / plum blossoms (reverse) on −Z.
+  const loader = new TextureLoader();
+  const faceTexture = (file: string): Texture => {
+    const t = tracker.texture(loader.load(COIN_TEXTURES + file));
+    t.colorSpace = SRGBColorSpace;
+    t.anisotropy = 4;
+    // Cap UVs (after rotateX) put the image's top toward +X on both faces: turn it upright.
+    t.center.set(0.5, 0.5);
+    t.rotation = Math.PI / 2;
+    return t;
+  };
+  const faceMat = (map: Texture): MeshStandardMaterial =>
+    tracker.material(new MeshStandardMaterial({ map, color: 0xf2f3f5, metalness: 0.55, roughness: 0.38 }));
+  const obverse = faceMat(faceTexture('obverse.png'));
+  const reverse = faceMat(faceTexture('reverse.png'));
   const rim = tracker.material(new MeshStandardMaterial({ color: 0xd6d8da, metalness: 0.85, roughness: 0.28 }));
-  const mesh = new InstancedMesh(geo, [rim, face, face], positions.length);
+  const mesh = new InstancedMesh(geo, [rim, obverse, reverse], positions.length);
   mesh.castShadow = true;
   mesh.frustumCulled = false; // instances are spread over the whole map
   scene.add(mesh);
@@ -116,48 +130,4 @@ export function createCoinSystem(
       for (const eid of eids) removeEntity(w, eid);
     },
   };
-}
-
-/**
- * Stylised NT$10 face: silver-white cupronickel, raised rim, "10" and "NT$". The portrait and
- * official motifs are deliberately left out (no faithful reproduction of currency).
- */
-function paintCoinFace(): CanvasTexture {
-  const size = 256;
-  const c = document.createElement('canvas');
-  c.width = c.height = size;
-  const g = c.getContext('2d');
-  if (g) {
-    const r = size / 2;
-    const base = g.createRadialGradient(r * 0.7, r * 0.6, r * 0.1, r, r, r);
-    base.addColorStop(0, '#f7f8f9');
-    base.addColorStop(0.7, '#c9ccd0');
-    base.addColorStop(1, '#a7abb0');
-    g.fillStyle = base;
-    g.fillRect(0, 0, size, size);
-    g.strokeStyle = '#8e9297';
-    g.lineWidth = 10;
-    g.beginPath();
-    g.arc(r, r, r - 12, 0, Math.PI * 2);
-    g.stroke();
-    g.strokeStyle = 'rgba(255,255,255,0.7)';
-    g.lineWidth = 3;
-    g.beginPath();
-    g.arc(r, r, r - 22, 0, Math.PI * 2);
-    g.stroke();
-    g.textAlign = 'center';
-    g.textBaseline = 'middle';
-    // Embossed look: dark offset then light text.
-    g.font = 'bold 118px system-ui, sans-serif';
-    g.fillStyle = 'rgba(70,74,80,0.55)';
-    g.fillText('10', r + 3, r + 8);
-    g.fillStyle = '#eef0f2';
-    g.fillText('10', r, r + 5);
-    g.font = 'bold 30px system-ui, sans-serif';
-    g.fillStyle = '#6f747a';
-    g.fillText('NT$', r, r - 66);
-  }
-  const tex = new CanvasTexture(c);
-  tex.colorSpace = SRGBColorSpace;
-  return tex;
 }
