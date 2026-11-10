@@ -275,6 +275,34 @@ export function generateInterior(b: CampusBuilding, entrance: Entrance | null, i
       spaces.push({ id: `${levelId}-hall`, name: '走廊', kind: 'lobby', ceiling, group: 'circ', rects: rectsOf(HALL) });
     }
 
+    // Dorms: the room nearest the stairs on every floor is the shared restroom.
+    if (kind === 'dorm') {
+      const [hx, hy] = core ? [(core.col + coreW / 2) * C, (core.row + coreH / 2) * C]
+        : liftOnly ? [(liftOnly.col + liftN / 2) * C, (liftOnly.row + liftN / 2) * C]
+        : doorCell ? [doorCell[0] * C, doorCell[1] * C] : [0, 0];
+      // Nearest room big enough for stalls and sinks (else the biggest one).
+      let pick: Space | null = null;
+      let pickScore = Infinity;
+      for (const sp of spaces) {
+        if (sp.kind !== 'room') continue;
+        let area = 0, cx = 0, cy = 0;
+        for (const [x0, y0, x1, y1] of sp.rects) {
+          const a = (x1 - x0) * (y1 - y0);
+          area += a;
+          cx += ((x0 + x1) / 2) * a;
+          cy += ((y0 + y1) / 2) * a;
+        }
+        const score = area >= 18 ? Math.hypot(cx / area - hx, cy / area - hy) : 1e6 - area;
+        if (score < pickScore) { pickScore = score; pick = sp; }
+      }
+      if (pick) {
+        pick.name = '共用廁所';
+        pick.kind = 'toilet';
+        pick.furnish = 'restroom';
+        roomNames.add('共用廁所');
+      }
+    }
+
     // Doors: each room gets one 1 m door on its longest run of boundary with the circulation.
     for (const [id] of spaceOf) {
       if (id < 0) continue;

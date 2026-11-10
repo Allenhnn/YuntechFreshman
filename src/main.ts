@@ -39,6 +39,7 @@ import { CAPSULE_CENTER_OFFSET, createCharacterControllerSystem, type MoveModifi
 import { createBikeSystem } from './bikes/bikeSystem';
 import { createPlayground } from './playground/playground';
 import { addCafeteriaSign } from './buildings/cafeteriaSign';
+import { MAIN_GATE_GUARDHOUSE, createMainGate } from './campus/mainGate';
 import { createBuildingTest, placeBikeStations, stationClearings } from './bikes/bikeStations';
 import { findMascotJoints } from './character/mascot';
 import { CLOCK_RATE, applyPose, computeRidePose, createPose } from './character/pose';
@@ -123,6 +124,9 @@ async function boot(): Promise<void> {
   const campusRes = await fetch(CAMPUS_DATA_URL);
   if (!campusRes.ok) throw new Error(`${CAMPUS_DATA_URL}: HTTP ${campusRes.status} (run npm run campus:fetch)`);
   const campus = (await campusRes.json()) as CampusData;
+  // The main gate's guardhouse is hand-built (campus/mainGate.ts), not extruded.
+  const guardhouse = campus.buildings.find((b) => b.id === MAIN_GATE_GUARDHOUSE);
+  if (guardhouse) guardhouse.replacedBy = 'mainGate';
   actions.setMapData(campus);
   const librarySrc = await loadBuildingSource(LIBRARY_URL);
   // Facade styles / photo atlases are optional: without them every building uses the default style.
@@ -180,6 +184,7 @@ async function boot(): Promise<void> {
   const playground = createPlayground(scene, physics, campus, sceneResources);
   actions.setRaceStart(playground?.startSpot ?? null);
   addCafeteriaSign(scene, campus, sceneResources);
+  const mainGate = createMainGate(scene, physics, campus, sceneResources);
   const bikes = createBikeSystem(scene, bikeStations, sceneResources);
   const insideBuilding = createBuildingTest(campus);
   const moveMods: MoveModifiers = { fly: false, noclip: false, speed: 1, bike: false, blocked: null };
@@ -633,6 +638,7 @@ async function boot(): Promise<void> {
     interiors.dispose();
     bikes.dispose();
     playground?.dispose();
+    mainGate?.dispose();
     env.dispose();
     player.despawn();
     assets.dispose();

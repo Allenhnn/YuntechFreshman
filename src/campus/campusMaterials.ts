@@ -29,6 +29,8 @@ export interface CampusMaterials {
   ground: MeshStandardMaterial;
   trunk: MeshStandardMaterial;
   canopy: MeshStandardMaterial;
+  /** Classroom windows in the building shells. */
+  glass: MeshStandardMaterial;
 }
 
 type Painter = (g: CanvasRenderingContext2D, size: number, rand: () => number) => void;
@@ -157,6 +159,7 @@ export function createCampusMaterials(renderer: WebGLRenderer, tracker: Resource
     ground: mat(new MeshStandardMaterial({ map: tex(256, 6, grassPainter), roughness: 1 })),
     trunk: mat(new MeshStandardMaterial({ map: tex(64, 7, barkPainter), roughness: 0.95 })),
     canopy: mat(new MeshStandardMaterial({ map: tex(128, 8, leafPainter), color: new Color(0xffffff), roughness: 0.9 })),
+    glass: mat(new MeshStandardMaterial({ color: 0x9fbccc, transparent: true, opacity: 0.45, roughness: 0.08, metalness: 0.35, side: DoubleSide, depthWrite: false })),
   };
 }
 

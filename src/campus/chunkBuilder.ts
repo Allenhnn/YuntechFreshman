@@ -13,6 +13,8 @@ import {
 } from './campusTypes';
 import { addFacadeDetails } from './facadeDetails';
 import { DOOR_HEIGHT, DOOR_WIDTH, buildingEntrance, hasInterior, type Entrance } from './entrances';
+import { buildingKind, generateInterior } from '../interiors/generateInterior';
+import { createPlanTransform } from '../buildings/planTransform';
 import { DEFAULT_CAMPUS_STYLE, DEFAULT_TOWN_STYLE, DETAIL_DEFAULTS, PATTERN_ID, type FacadeData, type FacadeStyle, type PhotoEdge } from './facadeTypes';
 
 /** Facade texture covers one structural bay (m) by one floor (m). */
@@ -167,6 +169,67 @@ function addPolygon(g: GeoBuilder, outer: Ring, holes: readonly Ring[], y: numbe
  * from the mass. UVs are (bays, floors) so the facade shader's window grid is fract(uv); edges listed
  * in `photo` go to `photoOut` instead, with UVs into the building's atlas.
  */
+/** A window opening on one outer-ring edge: metres along the edge and height above ground. */
+interface WindowCut {
+  a0: number;
+  a1: number;
+  y0: number;
+  y1: number;
+}
+
+const WIN_SILL = 0.9;
+const WIN_HEAD = 2.3;
+const WIN_STEP = 0.25;
+const FRAME_COLOR: readonly [number, number, number] = [0.42, 0.45, 0.48];
+
+/**
+ * Window bands where the generated interior (same deterministic layout the streamed interior
+ * uses) puts a classroom against the outside wall: sampled just inside each edge, per storey,
+ * one opening per classroom stretch with a pier left at either end.
+ */
+function classroomWindows(b: CampusBuilding, door: Entrance | null, skip: ReadonlySet<number>): Map<number, WindowCut[]> {
+  const out = new Map<number, WindowCut[]>();
+  const src = generateInterior(b, door)?.source;
+  if (!src) return out;
+  const xf = createPlanTransform(src);
+  const r = b.outer, n = r.length / 2;
+  for (let i = 0; i < n; i++) {
+    if (skip.has(i)) continue;
+    const j = (i + 1) % n;
+    const px = r[i * 2]!, pz = r[i * 2 + 1]!, dx = r[j * 2]! - px, dz = r[j * 2 + 1]! - pz;
+    const len = Math.hypot(dx, dz);
+    if (len < 2) continue;
+    const ux = dx / len, uz = dz / len, ix = -uz, iz = ux; // inward = −outward (rings are CCW)
+    const cuts: WindowCut[] = [];
+    for (const level of src.levels) {
+      const plan = src.floors[level.id];
+      if (!plan || level.elevation + WIN_HEAD > b.height - 0.3) continue;
+      const rooms = plan.spaces.filter((s) => s.furnish === 'classroom');
+      if (!rooms.length) continue;
+      let run: { room: number; t0: number; t1: number } | null = null;
+      const flush = (): void => {
+        if (run && run.t1 - run.t0 - 0.8 >= 0.8) cuts.push({ a0: run.t0 + 0.4, a1: run.t1 - 0.4, y0: level.elevation + WIN_SILL, y1: level.elevation + WIN_HEAD });
+        run = null;
+      };
+      for (let t = WIN_STEP / 2; t < len; t += WIN_STEP) {
+        const nearDoor = door?.edge === i && Math.abs(t - door.along) < DOOR_WIDTH / 2 + 1;
+        const [qx, qy] = xf.toPlan(px + ux * t + ix * 0.7, pz + uz * t + iz * 0.7);
+        // The front wall (the board's: the short side at the low end) keeps no windows.
+        const room = nearDoor ? -1 : rooms.findIndex((s) => s.rects.some(([x0, y0, x1, y1]) =>
+          qx >= x0 && qx <= x1 && qy >= y0 && qy <= y1 && (x1 - x0 >= y1 - y0 ? qx - x0 : qy - y0) > 1.2));
+        const cur = run as { room: number; t0: number; t1: number } | null;
+        if (room < 0 || (cur && cur.room !== room)) flush();
+        if (room < 0) continue;
+        if (!run) run = { room, t0: t - WIN_STEP / 2, t1: t + WIN_STEP / 2 };
+        else (run as { t1: number }).t1 = t + WIN_STEP / 2;
+      }
+      flush();
+    }
+    if (cuts.length) out.set(i, cuts);
+  }
+  return out;
+}
+
 function addWalls(
   g: FacadeBuilder,
   r: Ring,
@@ -175,6 +238,7 @@ function addWalls(
   style: ResolvedStyle,
   photo?: { edges: ReadonlyMap<number, PhotoEdge>; out: GeoBuilder },
   doors: readonly Entrance[] = [],
+  windows?: { cuts: ReadonlyMap<number, WindowCut[]>; glass: GeoBuilder; frames: GeoBuilder },
 ): void {
   const n = r.length / 2;
   let u = 0;
@@ -214,17 +278,59 @@ function addWalls(
       g.tri(p0, q1, q0);
       g.tri(p0, p1, q1);
     };
+    // A wall piece with this edge's window openings left out (strips between cut boundaries).
+    const cuts = windows?.cuts.get(i) ?? [];
+    const piece = (a0: number, a1: number, y0: number, y1: number): void => {
+      const xs = [a0, a1];
+      for (const c of cuts) if (c.a1 > a0 && c.a0 < a1) xs.push(Math.max(a0, c.a0), Math.min(a1, c.a1));
+      xs.sort((a, b) => a - b);
+      for (let k = 0; k + 1 < xs.length; k++) {
+        const s = xs[k]!, t = xs[k + 1]!;
+        if (t - s < 1e-3) continue;
+        const mid = (s + t) / 2;
+        let y = y0;
+        for (const c of cuts.filter((c) => c.a0 <= mid && c.a1 >= mid && c.y1 > y0 && c.y0 < y1).sort((a, b) => a.y0 - b.y0)) {
+          if (c.y0 > y) panel(s, t, y, c.y0);
+          y = Math.max(y, c.y1);
+        }
+        if (y < y1) panel(s, t, y, y1);
+      }
+    };
+    if (windows) {
+      const at = (a: number, y: number, off: number): [number, number, number] => [px + (dx * a) / len + nx * off, y, pz + (dz * a) / len + nz * off];
+      const quad = (gb: GeoBuilder, a0: number, a1: number, y0: number, y1: number, off: number, side: 1 | -1, color?: readonly [number, number, number]): void => {
+        const v = [at(a0, y0, off), at(a1, y0, off), at(a1, y1, off), at(a0, y1, off)].map(([x, y, z], k) =>
+          gb.vertex(x, y, z, nx * side, 0, nz * side, k === 1 || k === 2 ? 1 : 0, k >= 2 ? 1 : 0, color));
+        if (side > 0) { gb.tri(v[0]!, v[2]!, v[1]!); gb.tri(v[0]!, v[3]!, v[2]!); }
+        else { gb.tri(v[0]!, v[1]!, v[2]!); gb.tri(v[0]!, v[2]!, v[3]!); }
+      };
+      for (const c of cuts) {
+        quad(windows.glass, c.a0, c.a1, c.y0, c.y1, 0, 1);
+        // Aluminium frame on both faces: sill, head, jambs and mullions every ~1.2 m.
+        const bars: [number, number, number, number][] = [[c.a0, c.a1, c.y0 - 0.06, c.y0 + 0.04], [c.a0, c.a1, c.y1 - 0.05, c.y1 + 0.03]];
+        const panes = Math.max(1, Math.round((c.a1 - c.a0) / 1.2));
+        for (let k = 0; k <= panes; k++) {
+          const a = c.a0 + ((c.a1 - c.a0) * k) / panes;
+          bars.push([a - 0.035, a + 0.035, c.y0, c.y1]);
+        }
+        bars.push([c.a0, c.a1, c.y0 + (c.y1 - c.y0) * 0.72 - 0.025, c.y0 + (c.y1 - c.y0) * 0.72 + 0.025]); // transom
+        for (const [a0, a1, y0, y1] of bars) {
+          quad(windows.frames, Math.max(c.a0, a0), Math.min(c.a1, a1), y0, y1, 0.03, 1, FRAME_COLOR);
+          quad(windows.frames, Math.max(c.a0, a0), Math.min(c.a1, a1), y0, y1, -0.03, -1, FRAME_COLOR);
+        }
+      }
+    }
     // Walls start below the ground plane so the wall/ground seam never forms a collision crease.
     const here = height > DOOR_HEIGHT + 0.2 ? doors.filter((d) => d.edge === i).sort((a, b) => a.along - b.along) : [];
     let from = 0;
     for (const d of here) {
       const d0 = Math.max(from, d.along - DOOR_WIDTH / 2), d1 = Math.min(len, d.along + DOOR_WIDTH / 2);
       if (d1 - d0 < 0.5) continue;
-      panel(from, d0, WALL_BASE, height);
-      panel(d0, d1, DOOR_HEIGHT, height); // lintel over the entrance
+      piece(from, d0, WALL_BASE, height);
+      piece(d0, d1, DOOR_HEIGHT, height); // lintel over the entrance
       from = d1;
     }
-    panel(from, len, WALL_BASE, height);
+    piece(from, len, WALL_BASE, height);
     u = u0 + bays;
   }
 }
@@ -389,6 +495,7 @@ export class ChunkBuilder {
     const roads = new GeoBuilder();
     const walks = new GeoBuilder();
     const fields = new GeoBuilder();
+    const glass = new GeoBuilder();
 
     for (const b of this.buildings.get(k) ?? []) {
       if (b.replacedBy) continue; // drawn and collided by its hand-built model instead
@@ -401,7 +508,10 @@ export class ChunkBuilder {
       // Plan-traced buildings open where the plans have exits; others get one entrance facing the road.
       const fallback = hasInterior(b) ? buildingEntrance(b, this.data.roads, photoEdges) : null;
       const doors = this.entrances[String(b.id)]?.filter((d) => !photoEdges.has(d.edge)) ?? (fallback ? [fallback] : []);
-      addWalls(facade, b.outer, b.height, floors, style, shots && photoOut ? { edges: shots.edges, out: photoOut } : undefined, doors);
+      // Generated teaching interiors: real windows where a classroom meets the outside wall.
+      const cuts = !this.entrances[String(b.id)] && hasInterior(b) && buildingKind(b.name) === 'teaching' ? classroomWindows(b, fallback, photoEdges) : null;
+      addWalls(facade, b.outer, b.height, floors, style, shots && photoOut ? { edges: shots.edges, out: photoOut } : undefined, doors,
+        cuts?.size ? { cuts, glass, frames: details } : undefined);
       for (const h of b.holes) addWalls(facade, h, b.height, floors, style);
       addFacadeDetails(details, b, this.rawStyles[styleIndex]!, { wall: style.wall, trim: style.trim }, this.data.roads, photoEdges, doors);
       const photoMesh = photoOut?.build();
@@ -417,7 +527,7 @@ export class ChunkBuilder {
 
     // Collision = building walls + roofs only (B2: simplified, trees / cars / kerbs are walk-through).
     let collider: ChunkBuild['collider'] = null;
-    const parts: { pos: ArrayLike<number>; idx: ArrayLike<number> }[] = [facade, roof, ...photoWalls.map((p) => ({ pos: p.mesh.position, idx: p.mesh.index }))];
+    const parts: { pos: ArrayLike<number>; idx: ArrayLike<number> }[] = [facade, roof, glass, ...photoWalls.map((p) => ({ pos: p.mesh.position, idx: p.mesh.index }))];
     if (!roof.empty) {
       const vertices = new Float32Array(parts.reduce((n, p) => n + p.pos.length, 0));
       const indices = new Uint32Array(parts.reduce((n, p) => n + p.idx.length, 0));
@@ -440,6 +550,7 @@ export class ChunkBuilder {
       roads: roads.build(),
       walkways: walks.build(),
       fields: fields.build(),
+      glass: glass.build(),
       trees: this.scatterTrees(cx, cz),
       collider,
     };
@@ -490,7 +601,7 @@ export class ChunkBuilder {
 /** All transferable buffers of a build, for zero-copy postMessage. */
 export function transferablesOf(b: ChunkBuild): ArrayBuffer[] {
   const out: ArrayBuffer[] = [b.trees.buffer];
-  for (const m of [b.facade, b.roof, b.details, b.roads, b.walkways, b.fields, ...b.photoWalls.map((p) => p.mesh)]) {
+  for (const m of [b.facade, b.roof, b.details, b.roads, b.walkways, b.fields, b.glass, ...b.photoWalls.map((p) => p.mesh)]) {
     if (!m) continue;
     out.push(m.position.buffer, m.normal.buffer, m.uv.buffer, m.index.buffer);
     if (m.color) out.push(m.color.buffer);

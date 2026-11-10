@@ -77,6 +77,8 @@ export interface ChunkBuild {
   roads: MeshBuffers | null;
   walkways: MeshBuffers | null;
   fields: MeshBuffers | null;
+  /** Classroom window panes cut into teaching-building walls (transparent; solid for collision). */
+  glass: MeshBuffers | null;
   /** Tree instances: [x, z, scale, rotation, colourShift] per tree. */
   trees: Float32Array<ArrayBuffer>;
   /** Static collision for building walls + roofs (B2: trees, cars and kerbs are not collidable). */
