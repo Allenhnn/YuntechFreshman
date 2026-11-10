@@ -13,6 +13,9 @@ export type GameCommand =
   | { type: 'newGame' }
   /** Abandon the track time trial in progress. */
   | { type: 'leaveRace' }
+  /** Start navigating to a map place (x, z in campus metres). */
+  | { type: 'navigate'; x: number; z: number; name: string }
+  | { type: 'stopNav' }
   | { type: 'useItem'; slot: number }
   | { type: 'interact' }
   | { type: 'elevatorTo'; building: string; level: string }

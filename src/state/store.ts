@@ -82,6 +82,15 @@ export interface ShopMenu {
   items: readonly { id: ItemId; price: number }[];
 }
 
+/** Navigation in progress: goal, route (flat x, z) and metres left along it. */
+export interface NavState {
+  name: string;
+  x: number;
+  z: number;
+  path: number[];
+  remaining: number;
+}
+
 /** Centre-screen area title (entering a building, the sports ground, the gate). */
 export interface AreaBanner {
   id: number;
@@ -116,6 +125,7 @@ export interface GameState {
   heldSlot: number | null;
   toast: Toast | null;
   areaBanner: AreaBanner | null;
+  nav: NavState | null;
   /** Prompt for the nearest interactable (e.g. "按 E 搭乘電梯"), or null. */
   interactPrompt: string | null;
   elevator: ElevatorMenu | null;
@@ -158,6 +168,7 @@ export const gameStore = createStore<GameState>()(() => ({
   heldSlot: null,
   toast: null,
   areaBanner: null,
+  nav: null,
   interactPrompt: null,
   elevator: null,
   fading: false,
@@ -303,6 +314,13 @@ export const actions = {
   },
   toast(text: string): void {
     set({ toast: { id: ++toastId, text } });
+  },
+  setNav(nav: NavState | null): void {
+    set({ nav });
+  },
+  setNavRemaining(remaining: number): void {
+    const nav = get().nav;
+    if (nav && Math.abs(nav.remaining - remaining) >= 1) set({ nav: { ...nav, remaining } });
   },
   showArea(title: string, subtitle = ''): void {
     set({ areaBanner: { id: ++toastId, title, subtitle } });

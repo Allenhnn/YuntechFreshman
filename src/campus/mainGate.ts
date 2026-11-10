@@ -48,6 +48,14 @@ export function inGateZone(x: number, z: number): boolean {
   return a > -40 && a < 48 && n > -6 && n < 40;
 }
 
+/** Where the map's 大門 entry lands: on the gate road just inside the boundary. */
+export function gateSpot(): { x: number; z: number } {
+  const len = Math.hypot(ROAD_DIR[0], ROAD_DIR[1]);
+  const ax = ROAD_DIR[0] / len, az = ROAD_DIR[1] / len;
+  const a = GUARD.a - 6, n = 32;
+  return { x: ORIGIN[0] + ax * a - az * n, z: ORIGIN[1] + az * a + ax * n };
+}
+
 /** The forecourt and guardhouse island, for the area banner. */
 export function inGateArea(x: number, z: number): boolean {
   const [a, n] = toGate(x, z);

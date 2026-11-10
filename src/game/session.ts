@@ -30,6 +30,10 @@ export interface GameApi {
   selectHotbar(index: number): void;
   clickSlot(index: number): void;
   useItem(slot: number): void;
+  /** Starts navigation to a map place; closes the full map. */
+  navigateTo(x: number, z: number, name: string): void;
+  /** Ends navigation (button or X). */
+  stopNav(): void;
   /** Quits the track time trial (button or Q). */
   leaveRace(): void;
   /** Cafeteria stall purchase. */
@@ -185,6 +189,17 @@ export function createSession(lock: PointerLock, audio: AudioBus): GameApi {
         actions.toast(`買了 ${ITEMS[id].name}，放進背包了`);
         audio.play('coin');
       }
+    },
+    navigateTo(x, z, name) {
+      if (get().phase !== 'playing') return;
+      audio.play('click');
+      dispatch({ type: 'navigate', x, z, name });
+      if (get().mapMode === 'full') toggleMap();
+    },
+    stopNav() {
+      if (!get().nav) return;
+      audio.play('close');
+      dispatch({ type: 'stopNav' });
     },
     leaveRace() {
       if (get().race) {

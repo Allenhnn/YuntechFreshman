@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { CampusData, Ring } from '../campus/campusTypes';
 import { telemetry } from '../state/telemetry';
-import { actions, useGame } from '../state/store';
+import { actions, gameStore, useGame } from '../state/store';
+import { gateSpot } from '../campus/mainGate';
 import { outsideRing } from '../game/teleport';
 import { UNLABELLED_NAMES } from '../campus/placeNames';
 import { useApi } from './api';
@@ -192,6 +193,19 @@ export function Minimap(): ReactNode {
     g.scale(scale, scale);
     const [px, py] = base.toPx(telemetry.x, telemetry.z);
     g.drawImage(base.canvas, -px, -py);
+    const nav = gameStore.getState().nav;
+    if (nav) {
+      const pts = nav.path.map((v, i) => (i % 2 === 0 ? base.toPx(v, nav.path[i + 1]!)[0] - px : base.toPx(nav.path[i - 1]!, v)[1] - py));
+      strokeRoute(g, pts, 1 / scale, size / 180);
+      const [gx, gy] = base.toPx(nav.x, nav.z);
+      g.fillStyle = '#2f6fd0';
+      g.strokeStyle = '#fff';
+      g.lineWidth = (2.5 * size) / 180 / scale;
+      g.beginPath();
+      g.arc(gx - px, gy - py, (6 * size) / 180 / scale, 0, Math.PI * 2);
+      g.fill();
+      g.stroke();
+    }
     g.restore();
 
     // Facing relative to the rotated map.
@@ -235,6 +249,8 @@ const CLICK_SLOP = 5;
 const PIN_HIT_PX = 16;
 /** How far outside a building's wall a map teleport lands (m). */
 const DOORSTEP_M = 2.5;
+/** Zoom the full map opens at, centred on the player. */
+const OPEN_ZOOM = 3.5;
 
 interface MapView {
   zoom: number;
@@ -248,6 +264,10 @@ interface MapPlace {
   name: string;
   x: number;
   z: number;
+  /** Search-result label: 建築 / 設施 / 腳踏車站. */
+  kind: string;
+  /** Footprint outline to highlight on hover (buildings). */
+  ring?: Ring;
 }
 
 interface MapMenu {
@@ -278,6 +298,24 @@ function pointInRing(x: number, z: number, r: Ring): boolean {
   return inside;
 }
 
+/** Route polyline (flat x, y in the current transform): white casing under a blue line. */
+function strokeRoute(g: CanvasRenderingContext2D, pts: readonly number[], unit: number, s: number): void {
+  if (pts.length < 4) return;
+  g.save();
+  g.lineCap = 'round';
+  g.lineJoin = 'round';
+  g.beginPath();
+  g.moveTo(pts[0]!, pts[1]!);
+  for (let i = 2; i < pts.length; i += 2) g.lineTo(pts[i]!, pts[i + 1]!);
+  g.strokeStyle = '#ffffff';
+  g.lineWidth = 9 * s * unit;
+  g.stroke();
+  g.strokeStyle = '#2f6fd0';
+  g.lineWidth = 5 * s * unit;
+  g.stroke();
+  g.restore();
+}
+
 function drawPin(g: CanvasRenderingContext2D, x: number, y: number, s: number, color: string, glyph: string): void {
   g.fillStyle = color;
   g.strokeStyle = '#fff';
@@ -302,13 +340,54 @@ export function FullMap(): ReactNode {
   const raceStart = useGame((st) => st.raceStart);
   const customSpawn = useGame((st) => st.customSpawn);
   const bikeStations = useGame((st) => st.bikeStations);
+  const nav = useGame((st) => st.nav);
   const view = useRef<MapView | null>(null);
+  /** Where the view is gliding to (search result, fit route); manual pan / zoom cancels it. */
+  const glide = useRef<MapView | null>(null);
+  const hover = useRef<{ place: MapPlace; sx: number; sy: number } | null>(null);
   const [menu, setMenu] = useState<MapMenu | null>(null);
+  const [query, setQuery] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [sel, setSel] = useState(0);
+
+  // Every searchable place: one entry per building name (its largest block), facilities, bike stations.
+  const places = useMemo((): MapPlace[] => {
+    if (!data) return [];
+    const byName = new Map<string, { b: (typeof data.buildings)[number]; area: number }>();
+    for (const b of data.buildings) {
+      if (!b.name || !b.inCampus || UNLABELLED.has(b.name)) continue;
+      let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
+      for (let i = 0; i < b.outer.length; i += 2) {
+        x0 = Math.min(x0, b.outer[i]!); x1 = Math.max(x1, b.outer[i]!);
+        z0 = Math.min(z0, b.outer[i + 1]!); z1 = Math.max(z1, b.outer[i + 1]!);
+      }
+      const area = (x1 - x0) * (z1 - z0);
+      if ((byName.get(b.name)?.area ?? -1) < area) byName.set(b.name, { b, area });
+    }
+    const out: MapPlace[] = [...byName.values()].map(({ b }) => {
+      const [cx, cz] = centroidOf(b.outer);
+      return { name: b.name!, kind: '建築', ring: b.outer, ...outsideRing(b.outer, cx, cz, DOORSTEP_M) };
+    });
+    if (raceStart) out.push({ name: '操場（跑道計時賽）', kind: '設施', ...raceStart });
+    out.push({ name: '大門', kind: '設施', ...gateSpot() });
+    for (const st of bikeStations) out.push({ name: st.name, kind: '腳踏車站', x: st.x, z: st.z });
+    return out;
+  }, [data, raceStart, bikeStations]);
+  const results = useMemo(() => {
+    const q = query.replace(/\s+/g, '').toLowerCase();
+    if (!q) return [];
+    return places
+      .filter((p) => p.name.toLowerCase().includes(q))
+      .map((p) => ({ p, d: Math.hypot(p.x - telemetry.x, p.z - telemetry.z) }))
+      .sort((a, b) => Number(!a.p.name.startsWith(query.trim())) - Number(!b.p.name.startsWith(query.trim())) || a.d - b.d)
+      .slice(0, 8);
+  }, [query, places]);
 
   // Map metres → canvas pixels for the current view (canvas is w × h device px).
   const project = (w: number, h: number): ((x: number, z: number) => [number, number]) | null => {
     if (!base || !data) return null;
-    const v = (view.current ??= { zoom: 1, cx: (data.bounds.minX + data.bounds.maxX) / 2, cz: (data.bounds.minZ + data.bounds.maxZ) / 2 });
+    // Opens centred on the player, zoomed in enough to read the buildings around.
+    const v = (view.current ??= { zoom: OPEN_ZOOM, cx: telemetry.x, cz: telemetry.z });
     const k = Math.min(w / base.canvas.width, h / base.canvas.height) * v.zoom;
     const [ox, oy] = base.toPx(v.cx, v.cz);
     return (x, z) => {
@@ -321,6 +400,13 @@ export function FullMap(): ReactNode {
     const screen = project(w, h);
     const v = view.current;
     if (!base || !data || !screen || !v) return;
+    const t = glide.current;
+    if (t) {
+      v.cx += (t.cx - v.cx) * 0.2;
+      v.cz += (t.cz - v.cz) * 0.2;
+      v.zoom += (t.zoom - v.zoom) * 0.2;
+      if (Math.hypot(t.cx - v.cx, t.cz - v.cz) < 0.3 && Math.abs(t.zoom - v.zoom) < 0.01) glide.current = null;
+    }
     g.clearRect(0, 0, w, h);
     g.fillStyle = '#b9c9a8';
     g.fillRect(0, 0, w, h);
@@ -359,6 +445,53 @@ export function FullMap(): ReactNode {
 
     const sp = customSpawn ?? data.spawn;
     drawPin(g, ...screen(sp.x, sp.z), 11 * dpr, '#1f8f4a', '⌂');
+    // Route and goal.
+    const route = gameStore.getState().nav;
+    if (route) {
+      const pts: number[] = [];
+      for (let i = 0; i < route.path.length; i += 2) pts.push(...screen(route.path[i]!, route.path[i + 1]!));
+      strokeRoute(g, pts, dpr, 1);
+      drawPin(g, ...screen(route.x, route.z), 12 * dpr, '#2f6fd0', '🏁');
+    }
+
+    // Hovered place: outline (or ring round the pin) and a name tag by the cursor.
+    const hv = hover.current;
+    if (hv) {
+      g.save();
+      g.strokeStyle = '#f08a24';
+      g.fillStyle = 'rgba(240, 138, 36, 0.18)';
+      g.lineWidth = 3 * dpr;
+      g.lineJoin = 'round';
+      g.beginPath();
+      if (hv.place.ring) {
+        const r = hv.place.ring;
+        for (let i = 0; i < r.length; i += 2) {
+          const [x, y] = screen(r[i]!, r[i + 1]!);
+          if (i === 0) g.moveTo(x, y);
+          else g.lineTo(x, y);
+        }
+        g.closePath();
+      } else {
+        const [x, y] = screen(hv.place.x, hv.place.z);
+        g.arc(x, y - 11 * dpr, 15 * dpr, 0, Math.PI * 2);
+      }
+      g.fill();
+      g.stroke();
+      g.font = `700 ${Math.round(13 * dpr)}px system-ui, 'PingFang TC', sans-serif`;
+      g.textAlign = 'left';
+      g.textBaseline = 'middle';
+      const label = hv.place.name;
+      const tw = g.measureText(label).width + 16 * dpr, th = 24 * dpr;
+      const tx = Math.min(hv.sx + 14 * dpr, w - tw - 4 * dpr), ty = Math.max(th / 2 + 4 * dpr, hv.sy - 18 * dpr);
+      g.fillStyle = 'rgba(30, 40, 34, 0.88)';
+      g.beginPath();
+      g.roundRect(tx, ty - th / 2, tw, th, 7 * dpr);
+      g.fill();
+      g.fillStyle = '#fff';
+      g.fillText(label, tx + 8 * dpr, ty + 1);
+      g.restore();
+    }
+
     if (menu) {
       drawPin(g, ...screen(menu.x, menu.z), 10 * dpr, '#f08a24', '•');
     }
@@ -387,15 +520,16 @@ export function FullMap(): ReactNode {
   const placeAt = (x: number, z: number, reach: number): MapPlace | null => {
     if (!data) return null;
     const station = bikeStations.find((s) => Math.hypot(s.x - x, s.z - z) < reach);
-    if (station) return { name: station.name, x: station.x, z: station.z };
+    if (station) return { name: station.name, kind: '腳踏車站', x: station.x, z: station.z };
     const raceName = '操場（跑道計時賽）';
-    if (raceStart && Math.hypot(raceStart.x - x, raceStart.z - z) < reach) return { name: raceName, ...raceStart };
+    if (raceStart && Math.hypot(raceStart.x - x, raceStart.z - z) < reach) return { name: raceName, kind: '設施', ...raceStart };
     for (const b of data.buildings) {
       if (!b.name || !b.inCampus || UNLABELLED.has(b.name) || !pointInRing(x, z, b.outer)) continue;
       const [cx, cz] = centroidOf(b.outer);
-      return { name: b.name, ...outsideRing(b.outer, cx, cz, DOORSTEP_M) };
+      return { name: b.name, kind: '建築', ring: b.outer, ...outsideRing(b.outer, cx, cz, DOORSTEP_M) };
     }
-    if (raceStart && data.fields.some((f) => f.kind === 'soccer' && pointInRing(x, z, f.outer))) return { name: raceName, ...raceStart };
+    const field = raceStart ? data.fields.find((f) => f.kind === 'soccer' && pointInRing(x, z, f.outer)) : undefined;
+    if (raceStart && field) return { name: raceName, kind: '設施', ring: field.outer, ...raceStart };
     return null;
   };
 
@@ -412,6 +546,7 @@ export function FullMap(): ReactNode {
     v.cx = at.x - (at.x - v.cx) * f;
     v.cz = at.z - (at.z - v.cz) * f;
     v.zoom = zoom;
+    glide.current = null;
     setMenu(null);
   };
 
@@ -426,7 +561,10 @@ export function FullMap(): ReactNode {
     if (!d && c && base && v) {
       const at = locate(e);
       const reach = PIN_HIT_PX * metresPerCssPx(c);
-      c.style.cursor = at && (placeAt(at.x, at.z, reach) || onCustomSpawnPin(at.x, at.z, reach)) ? 'pointer' : '';
+      const place = at ? placeAt(at.x, at.z, reach) : null;
+      const r = c.getBoundingClientRect();
+      hover.current = place ? { place, sx: ((e.clientX - r.left) / r.width) * c.width, sy: ((e.clientY - r.top) / r.height) * c.height } : null;
+      c.style.cursor = place || (at && onCustomSpawnPin(at.x, at.z, reach)) ? 'pointer' : '';
     }
     if (!d || !v || !c || !base) return;
     const dx = e.clientX - d.x, dy = e.clientY - d.y;
@@ -438,6 +576,8 @@ export function FullMap(): ReactNode {
     const k = Math.min(c.width / base.canvas.width, c.height / base.canvas.height) * v.zoom * (r.width / c.width);
     v.cx -= dx / k / PX_PER_M;
     v.cz -= dy / k / PX_PER_M;
+    glide.current = null;
+    hover.current = null;
     setMenu(null);
   };
   const onPointerUp = (e: React.PointerEvent<HTMLCanvasElement>): void => {
@@ -463,23 +603,117 @@ export function FullMap(): ReactNode {
   const centreOnMe = (): void => {
     const v = view.current;
     if (!v) return;
-    v.cx = telemetry.x;
-    v.cz = telemetry.z;
-    v.zoom = Math.max(v.zoom, 4);
+    glide.current = { cx: telemetry.x, cz: telemetry.z, zoom: Math.max(v.zoom, OPEN_ZOOM) };
   };
+  const zoomBy = (f: number): void => {
+    const v = view.current;
+    if (!v) return;
+    glide.current = { cx: glide.current?.cx ?? v.cx, cz: glide.current?.cz ?? v.cz, zoom: Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, (glide.current?.zoom ?? v.zoom) * f)) };
+    setMenu(null);
+  };
+  /** Zoom so the whole route (and the player) fits the view. */
+  const fitRoute = (): void => {
+    const c = canvasRef.current;
+    if (!nav || !c || !base) return;
+    let x0 = telemetry.x, x1 = telemetry.x, z0 = telemetry.z, z1 = telemetry.z;
+    for (let i = 0; i < nav.path.length; i += 2) {
+      x0 = Math.min(x0, nav.path[i]!); x1 = Math.max(x1, nav.path[i]!);
+      z0 = Math.min(z0, nav.path[i + 1]!); z1 = Math.max(z1, nav.path[i + 1]!);
+    }
+    const fit = Math.min(c.width / ((x1 - x0 + 40) * PX_PER_M), c.height / ((z1 - z0 + 40) * PX_PER_M));
+    const zoom = fit / Math.min(c.width / base.canvas.width, c.height / base.canvas.height);
+    glide.current = { cx: (x0 + x1) / 2, cz: (z0 + z1) / 2, zoom: Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom)) };
+    setMenu(null);
+  };
+  /** Search result chosen: glide there and open its menu at the centre of the map. */
+  const choose = (p: MapPlace): void => {
+    const c = canvasRef.current;
+    const v = view.current;
+    if (!c || !v) return;
+    glide.current = { cx: p.x, cz: p.z, zoom: Math.max(v.zoom, 6) };
+    const r = c.getBoundingClientRect();
+    setMenu({ left: Math.min(r.width / 2 + 12, r.width - 192), top: Math.max(8, r.height / 2 - 90), x: p.x, z: p.z, place: p, onCustomSpawn: false });
+    setQuery('');
+    setSearchOpen(false);
+    c.focus();
+  };
+  const onDoubleClick = (e: React.MouseEvent<HTMLCanvasElement>): void => {
+    const v = view.current;
+    const at = locate(e);
+    if (!v || !at) return;
+    const zoom = Math.min(MAX_ZOOM, v.zoom * 2);
+    const f = v.zoom / zoom;
+    glide.current = { cx: at.x - (at.x - v.cx) * f, cz: at.z - (at.z - v.cz) * f, zoom };
+    setMenu(null);
+  };
+
+  // Keyboard while the map is open (not while typing): +/- zoom, arrows pan.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.target instanceof HTMLInputElement) return;
+      const c = canvasRef.current, v = view.current;
+      if (!c || !v || !base) return;
+      const step = 80 * metresPerCssPx(c);
+      const pan = (dx: number, dz: number): void => {
+        e.preventDefault();
+        const t = glide.current ?? { ...v };
+        glide.current = { ...t, cx: t.cx + dx * step, cz: t.cz + dz * step };
+        setMenu(null);
+      };
+      switch (e.code) {
+        case 'Equal': case 'NumpadAdd': zoomBy(1.5); break;
+        case 'Minus': case 'NumpadSubtract': zoomBy(1 / 1.5); break;
+        case 'ArrowLeft': pan(-1, 0); break;
+        case 'ArrowRight': pan(1, 0); break;
+        case 'ArrowUp': pan(0, -1); break;
+        case 'ArrowDown': pan(0, 1); break;
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
 
   return (
     <div className="fullmap interactive">
       <div className="frame">
         <header className="map-head">
           <h2>校園地圖</h2>
-          <p>滾輪縮放、拖曳移動，點選建築或設施可傳送。</p>
+          <div className="map-search">
+            <input
+              type="search"
+              placeholder="🔍 搜尋建築或設施…"
+              value={query}
+              onChange={(e) => { setQuery(e.target.value); setSel(0); setSearchOpen(true); }}
+              onFocus={() => setSearchOpen(true)}
+              onBlur={() => window.setTimeout(() => setSearchOpen(false), 150)}
+              onKeyDown={(e) => {
+                e.stopPropagation(); // typed letters are not game hotkeys
+                if (e.key === 'ArrowDown') { e.preventDefault(); setSel((s) => Math.min(s + 1, results.length - 1)); }
+                else if (e.key === 'ArrowUp') { e.preventDefault(); setSel((s) => Math.max(s - 1, 0)); }
+                else if (e.key === 'Enter' && results[sel]) choose(results[sel].p);
+                else if (e.key === 'Escape') { if (query) setQuery(''); else e.currentTarget.blur(); }
+              }}
+            />
+            {searchOpen && query && (
+              <ul className="map-results">
+                {results.length === 0 && <li className="empty">找不到「{query}」</li>}
+                {results.map(({ p, d }, i) => (
+                  <li key={`${p.kind}:${p.name}`} className={i === sel ? 'sel' : ''} onMouseDown={(e) => { e.preventDefault(); choose(p); }} onMouseEnter={() => setSel(i)}>
+                    <span className="name">{p.name}</span>
+                    <span className="kind">{p.kind}</span>
+                    <span className="dist">{d >= 1000 ? `${(d / 1000).toFixed(1)} km` : `${Math.round(d)} m`}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
           <div className="map-legend">
             <span><i style={{ background: '#1f8f4a' }} />重生點</span>
             <span><i style={{ background: '#0f8a8a' }} />腳踏車站</span>
             <span><i style={{ background: '#c0562b' }} />計時賽起點</span>
+            {nav && <span><i style={{ background: '#2f6fd0' }} />導航路線</span>}
           </div>
-          <span className="map-keys"><kbd>M</kbd> 關閉</span>
+          <span className="map-keys"><kbd>＋</kbd><kbd>－</kbd> 縮放　<kbd>←↑→↓</kbd> 移動　<kbd>M</kbd> 關閉</span>
         </header>
         <div className="map-body">
         <div className="map-area">
@@ -490,11 +724,17 @@ export function FullMap(): ReactNode {
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
+            onPointerLeave={() => { hover.current = null; }}
+            onDoubleClick={onDoubleClick}
+            tabIndex={-1}
             onContextMenu={(e) => e.preventDefault()}
           />
           {menu && (
             <div className="map-menu" style={{ left: menu.left, top: menu.top }}>
               <div className="title">{menu.place?.name ?? '自訂重生點'}</div>
+              {menu.place && (nav?.name === menu.place.name
+                ? <button onClick={() => { api.stopNav(); setMenu(null); }}>✕ 結束導航</button>
+                : <button className="primary" onClick={() => { const p = menu.place!; api.navigateTo(p.x, p.z, p.name); setMenu(null); }}>🧭 導航到這裡</button>)}
               {menu.place && <button onClick={() => { const p = menu.place!; api.teleportTo(p.x, p.z, p.name); setMenu(null); }}>🚀 傳送到這裡</button>}
               {menu.place && <button onClick={() => { const p = menu.place!; actions.setCustomSpawn({ x: p.x, z: p.z, facing: telemetry.facing }); actions.toast(`重生點已設在 ${p.name}`); setMenu(null); }}>⌂ 設為重生點</button>}
               {menu.onCustomSpawn && <button onClick={() => { actions.setCustomSpawn(null); setMenu(null); }}>↺ 恢復預設重生點</button>}
@@ -502,9 +742,10 @@ export function FullMap(): ReactNode {
             </div>
           )}
           <div className="map-tools">
-            <button title="放大" onClick={() => { if (view.current) view.current.zoom = Math.min(MAX_ZOOM, view.current.zoom * 1.5); }}>＋</button>
-            <button title="縮小" onClick={() => { if (view.current) view.current.zoom = Math.max(MIN_ZOOM, view.current.zoom / 1.5); }}>－</button>
+            <button title="放大（＋）" onClick={() => zoomBy(1.5)}>＋</button>
+            <button title="縮小（－）" onClick={() => zoomBy(1 / 1.5)}>－</button>
             <button title="回到我的位置" onClick={centreOnMe}>◎</button>
+            {nav && <button title="顯示導航全程" onClick={fitRoute}>🧭</button>}
           </div>
         </div>
         </div>

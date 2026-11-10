@@ -5,7 +5,7 @@ import type { PointerLock } from '../input/pointerLock';
 
 /**
  * UI hotkeys (not gameplay actions, which go through input.ts at the fixed step):
- *   Tab  背包     P  手機     M  小地圖 ⇄ 全螢幕     1–5  快捷欄     E  互動（電梯）     Q  離開計時賽
+ *   Tab  背包     P  手機     M  小地圖 ⇄ 全螢幕     1–5  快捷欄     E  互動（電梯）     Q  離開計時賽     X  結束導航
  *   Esc  關閉視窗；未鎖定滑鼠時暫停（鎖定時由 pointerlockchange 處理）
  * 測試員模式（僅開發版）：`  開關     F  飛行     N  穿牆     + / -  速度倍率
  */
@@ -45,6 +45,8 @@ export function installHotkeys(api: GameApi, lock: PointerLock): () => void {
   const onKeyDown = (e: KeyboardEvent): void => {
     const s = gameStore.getState();
     if (s.phase !== 'playing' || e.repeat) return;
+    // Typing in a field (map search) is not a hotkey.
+    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
     if (TESTER_AVAILABLE && s.modal === 'none' && testerKey(e.code)) return;
     switch (e.code) {
       case 'Tab':
@@ -56,6 +58,9 @@ export function installHotkeys(api: GameApi, lock: PointerLock): () => void {
         return;
       case 'KeyM':
         api.toggleMap();
+        return;
+      case 'KeyX':
+        if (s.nav && s.modal === 'none' && s.mapMode === 'mini') api.stopNav();
         return;
       case 'KeyQ':
         if (s.race) api.leaveRace();

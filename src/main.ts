@@ -47,6 +47,8 @@ import { createBuildingTest, placeBikeStations, stationClearings } from './bikes
 import { findMascotJoints } from './character/mascot';
 import { CLOCK_RATE, applyPose, computeRidePose, createPose } from './character/pose';
 import { safeTeleportTarget } from './game/teleport';
+import { buildNavGraph, pathAhead, progressOn } from './game/navGraph';
+import { createNavLine } from './game/navLine';
 import { loadProgress, saveProgress } from './state/saveGame';
 import { animationSystem } from './ecs/systems/animation';
 import { renderSyncSystem } from './ecs/systems/renderSync';
@@ -189,6 +191,8 @@ async function boot(): Promise<void> {
   addCafeteriaSign(scene, campus, sceneResources);
   const mainGate = createMainGate(scene, physics, campus, sceneResources);
   addBoundaryZone(scene, campus, sceneResources, inGateZone);
+  const navGraph = buildNavGraph(campus);
+  const navLine = createNavLine(scene, sceneResources);
   const bikes = createBikeSystem(scene, bikeStations, sceneResources);
   const insideBuilding = createBuildingTest(campus);
   const moveMods: MoveModifiers = { fly: false, noclip: false, speed: 1, bike: false, blocked: null };
@@ -275,6 +279,32 @@ async function boot(): Promise<void> {
     return null;
   };
   let introPending = false;
+  // --- Navigation upkeep: trim the guide as the player walks, reroute when far off it, arrive.
+  let lastNavCheck = 0;
+  let lastReroute = -Infinity;
+  const NAV_ARRIVE = 6, NAV_OFF_ROUTE = 15;
+  const updateNav = (now: number, x: number, z: number): void => {
+    const nav = gameStore.getState().nav;
+    if (!nav || now - lastNavCheck < 0.3) return;
+    lastNavCheck = now;
+    if (Math.hypot(nav.x - x, nav.z - z) < NAV_ARRIVE) {
+      actions.setNav(null);
+      navLine.set(null);
+      actions.toast(`🏁 已抵達 ${nav.name}`);
+      audio.play('coin');
+      return;
+    }
+    const prog = progressOn(nav.path, x, z);
+    if (prog.off > NAV_OFF_ROUTE && now - lastReroute > 2) {
+      lastReroute = now;
+      const path = navGraph.route(x, z, nav.x, nav.z);
+      actions.setNav({ ...nav, path, remaining: progressOn(path, x, z).remaining });
+      navLine.set(path);
+      return;
+    }
+    actions.setNavRemaining(prog.remaining + prog.off);
+    navLine.set(pathAhead(nav.path, x, z));
+  };
   let areaKey: string | null = null;
   let lastAreaCheck = 0;
   const areaShownAt = new Map<string, number>();
@@ -316,6 +346,8 @@ async function boot(): Promise<void> {
     switch (cmd.type) {
       case 'loadSave': {
         introPending = true;
+        actions.setNav(null);
+        navLine.set(null);
         const save = loadProgress();
         if (!save) return;
         actions.restoreProgress(save);
@@ -335,6 +367,20 @@ async function boot(): Promise<void> {
         });
         return;
       }
+      case 'navigate': {
+        const px = Transform.x[eid]!, pz = Transform.z[eid]!;
+        const path = navGraph.route(px, pz, cmd.x, cmd.z);
+        actions.setNav({ name: cmd.name, x: cmd.x, z: cmd.z, path, remaining: progressOn(path, px, pz).remaining });
+        navLine.set(path);
+        lastReroute = time;
+        actions.toast(`開始導航：${cmd.name}`);
+        return;
+      }
+      case 'stopNav':
+        actions.setNav(null);
+        navLine.set(null);
+        actions.toast('已結束導航');
+        return;
       case 'leaveRace':
         if (playground?.racing) {
           playground.cancel();
@@ -343,6 +389,8 @@ async function boot(): Promise<void> {
         return;
       case 'newGame':
         introPending = true;
+        actions.setNav(null);
+        navLine.set(null);
         clockSeconds = 0;
         bikes.dismount();
         playground?.cancel();
@@ -639,6 +687,8 @@ async function boot(): Promise<void> {
     if (steps === MAX_SUBSTEPS) accumulator = 0;
 
     if (playing && !streamAt && !ui.fading) updateArea(time, Transform.x[eid]!, Transform.y[eid]!, Transform.z[eid]!);
+    if (playing && !streamAt && !ui.fading) updateNav(time, Transform.x[eid]!, Transform.z[eid]!);
+    navLine.update(dt, time);
     if (!playing) lastSave = time;
     else if (time - lastSave > AUTOSAVE_SECONDS) {
       lastSave = time;
@@ -723,6 +773,7 @@ async function boot(): Promise<void> {
     bikes.dispose();
     playground?.dispose();
     mainGate?.dispose();
+    navLine.dispose();
     env.dispose();
     player.despawn();
     assets.dispose();

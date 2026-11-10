@@ -98,6 +98,26 @@ function RaceHud(): ReactNode {
   );
 }
 
+/** Navigation bar under the top edge: goal, distance left, walking time, end button. */
+function NavBar(): ReactNode {
+  const api = useApi();
+  const nav = useGame((s) => s.nav);
+  const racing = useGame((s) => s.race !== null);
+  if (!nav) return null;
+  const m = Math.round(nav.remaining);
+  const secs = Math.max(1, Math.round(nav.remaining / 3.5));
+  const eta = secs < 60 ? `${secs} 秒` : `${Math.floor(secs / 60)} 分 ${secs % 60} 秒`;
+  return (
+    <div className={`nav-bar${racing ? ' lower' : ''}`}>
+      <span className="nav-icon">🧭</span>
+      <span className="nav-goal">{nav.name}</span>
+      <span className="nav-dist">{m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${m} m`}</span>
+      <span className="nav-eta">步行約 {eta}</span>
+      <button className="nav-stop interactive" onClick={api.stopNav}>結束 <kbd>X</kbd></button>
+    </div>
+  );
+}
+
 /** Area title in the middle of the screen: fades in, holds, fades out (CSS), then clears. */
 function AreaBannerView(): ReactNode {
   const banner = useGame((s) => s.areaBanner);
@@ -140,6 +160,7 @@ export function Hud(): ReactNode {
       <TesterBadge />
       <RaceHud />
       <AreaBannerView />
+      <NavBar />
       {mapMode === 'mini' && <Minimap />}
       {mapMode === 'mini' && <div className="osm-credit">© OpenStreetMap contributors</div>}
       <Hotbar />
