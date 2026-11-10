@@ -163,23 +163,11 @@ export function createMainGate(scene: Scene, physics: RAPIER.World, campus: Camp
     return add(new BoxGeometry(w, h, d), mat, a, y0 + h / 2, n);
   };
 
-  // --- 大學路三段 here is two one-way carriageways (n −4…4 and 8…16): lane lines and zebra crossings.
+  // Road markings on 大學路三段 and the campus lanes come from campus/roadMarkings.ts; these are the forecourt's own.
   const white = std(0xf4f2ea, 0.7, { polygonOffset: true, polygonOffsetFactor: -7, polygonOffsetUnits: -7 });
-  const yellow = std(0xe9c13a, 0.7, { polygonOffset: true, polygonOffsetFactor: -7, polygonOffsetUnits: -7 });
   const mark = (w: number, d: number, a: number, n: number, mat: Material = white): void => {
     add(new PlaneGeometry(w, d).rotateX(-Math.PI / 2), mat, a, 0.072, n).castShadow = false;
   };
-  for (const c of [0, 12]) {
-    for (let a = -70; a < 70; a += 6) if (a < -31 || a > 35) mark(3, 0.15, a, c); // lane divider dashes
-    for (const e of [-3.75, 3.75]) mark(140, 0.12, 0, c + e); // edge lines
-  }
-  mark(140, 0.12, 0, 5.6, yellow);
-  mark(140, 0.12, 0, 6.4, yellow);
-  for (const za of [-29, 33]) {
-    for (let n = -3.5; n <= 15.6; n += 1) if (n < 4 || n > 8) mark(4, 0.5, za, n); // zebra stripes
-    mark(0.4, 8, za - 3, 0); // stop lines before the crossings
-    mark(0.4, 8, za + 3, 12);
-  }
 
   // --- Forecourt: a red-brick trapezoid from the kerb (n 16.5) narrowing to the guardhouse island.
   const brickTex = canvasTexture(256, 256, bricks, tracker);
@@ -345,11 +333,11 @@ export function createMainGate(scene: Scene, physics: RAPIER.World, campus: Camp
   // --- Boulevard to the fountain: planted median with a tree row, street trees outside both lanes.
   const grassMat = std(0x5f9a45, 0.95, { polygonOffset: true, polygonOffsetFactor: -5, polygonOffsetUnits: -5 });
   const kerb = std(0xc9c6bd, 0.85);
-  box(10, 0.15, 40, 2, 0, 88, kerb, false);
-  paving([[-2.8, 68.2], [6.8, 68.2], [6.8, 107.8], [-2.8, 107.8]], grassMat, 4, 0.16);
+  box(6.4, 0.15, 36, 2, 0, 88, kerb, false); // between the two 8 m lanes
+  paving([[-1.0, 70.2], [5.0, 70.2], [5.0, 105.8], [-1.0, 105.8]], grassMat, 4, 0.16);
   const trees: [number, number, number][] = []; // a, n, scale
   for (let n = 72; n <= 104; n += 8) trees.push([2, n, 1]);
-  for (let n = 62; n <= 106; n += 7) trees.push([-12.5, n, 1.1], [16.5, n + 3, 1.1]);
+  for (let n = 62; n <= 106; n += 7) trees.push([-13.5, n, 1.1], [17.5, n + 3, 1.1]);
   // Tree belt along the road on both sides of the gate, inside the boundary.
   for (let a = -100; a <= -30; a += 7) trees.push([a, 30, 1.25], [a + 3.5, 37, 1.15]);
   for (let a = 62; a <= 110; a += 7) trees.push([a, 30, 1.25], [a + 3.5, 37, 1.15]);

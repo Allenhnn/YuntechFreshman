@@ -367,6 +367,7 @@ export function createCampusWorld(
     add(b.roads, mats.road, false);
     add(b.walkways, mats.walkway, false);
     add(b.glass, mats.glass, false);
+    add(b.marks, mats.marking, false);
 
     const treeCount = b.trees.length / 5;
     if (treeCount > 0) {

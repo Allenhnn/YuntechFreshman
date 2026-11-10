@@ -13,7 +13,9 @@ import {
 } from './campusTypes';
 import { addFacadeDetails } from './facadeDetails';
 import { DOOR_HEIGHT, DOOR_WIDTH, buildingEntrance, hasInterior, type Entrance } from './entrances';
-import { buildingKind, generateInterior } from '../interiors/generateInterior';
+import { SHELL_WALL, buildingKind, generateInterior } from '../interiors/generateInterior';
+import type { BuildingSource } from '../buildings/buildingTypes';
+import { RoadMarker } from './roadMarkings';
 import { createPlanTransform } from '../buildings/planTransform';
 import { DEFAULT_CAMPUS_STYLE, DEFAULT_TOWN_STYLE, DETAIL_DEFAULTS, PATTERN_ID, type FacadeData, type FacadeStyle, type PhotoEdge } from './facadeTypes';
 
@@ -180,17 +182,20 @@ interface WindowCut {
 const WIN_SILL = 0.9;
 const WIN_HEAD = 2.3;
 const WIN_STEP = 0.25;
+/** How far inside the facade the classroom probe sits: past the shell wall and the plan raster's slack. */
+const WIN_PROBE = SHELL_WALL + 1.0;
 const FRAME_COLOR: readonly [number, number, number] = [0.42, 0.45, 0.48];
+const INNER_WALL: readonly [number, number, number] = [0.9, 0.89, 0.86];
+const SLAB_TOP: readonly [number, number, number] = [0.8, 0.79, 0.76];
+const SLAB_UNDER: readonly [number, number, number] = [0.93, 0.93, 0.91];
 
 /**
  * Window bands where the generated interior (same deterministic layout the streamed interior
  * uses) puts a classroom against the outside wall: sampled just inside each edge, per storey,
  * one opening per classroom stretch with a pier left at either end.
  */
-function classroomWindows(b: CampusBuilding, door: Entrance | null, skip: ReadonlySet<number>): Map<number, WindowCut[]> {
+function classroomWindows(b: CampusBuilding, src: BuildingSource, door: Entrance | null, skip: ReadonlySet<number>): Map<number, WindowCut[]> {
   const out = new Map<number, WindowCut[]>();
-  const src = generateInterior(b, door)?.source;
-  if (!src) return out;
   const xf = createPlanTransform(src);
   const r = b.outer, n = r.length / 2;
   for (let i = 0; i < n; i++) {
@@ -213,10 +218,10 @@ function classroomWindows(b: CampusBuilding, door: Entrance | null, skip: Readon
       };
       for (let t = WIN_STEP / 2; t < len; t += WIN_STEP) {
         const nearDoor = door?.edge === i && Math.abs(t - door.along) < DOOR_WIDTH / 2 + 1;
-        const [qx, qy] = xf.toPlan(px + ux * t + ix * 0.7, pz + uz * t + iz * 0.7);
+        const [qx, qy] = xf.toPlan(px + ux * t + ix * WIN_PROBE, pz + uz * t + iz * WIN_PROBE);
         // The front wall (the board's: the short side at the low end) keeps no windows.
         const room = nearDoor ? -1 : rooms.findIndex((s) => s.rects.some(([x0, y0, x1, y1]) =>
-          qx >= x0 && qx <= x1 && qy >= y0 && qy <= y1 && (x1 - x0 >= y1 - y0 ? qx - x0 : qy - y0) > 1.2));
+          qx >= x0 && qx <= x1 && qy >= y0 && qy <= y1 && (x1 - x0 >= y1 - y0 ? qx - x0 : qy - y0) > 1.6));
         const cur = run as { room: number; t0: number; t1: number } | null;
         if (room < 0 || (cur && cur.room !== room)) flush();
         if (room < 0) continue;
@@ -239,6 +244,8 @@ function addWalls(
   photo?: { edges: ReadonlyMap<number, PhotoEdge>; out: GeoBuilder },
   doors: readonly Entrance[] = [],
   windows?: { cuts: ReadonlyMap<number, WindowCut[]>; glass: GeoBuilder; frames: GeoBuilder },
+  /** Heavy outer wall: an inner face `t` m inside the facade plus reveals round every opening. */
+  thick?: { out: GeoBuilder; t: number },
 ): void {
   const n = r.length / 2;
   let u = 0;
@@ -249,8 +256,32 @@ function addWalls(
     const len = Math.hypot(dx, dz);
     if (len < 0.05) continue;
     const nx = dz / len, nz = -dx / len;
+    const at = (a: number, y: number, off: number): [number, number, number] => [px + (dx * a) / len + nx * off, y, pz + (dz * a) / len + nz * off];
+    const quad = (gb: GeoBuilder, a0: number, a1: number, y0: number, y1: number, off: number, side: 1 | -1, color?: readonly [number, number, number]): void => {
+      const v = [at(a0, y0, off), at(a1, y0, off), at(a1, y1, off), at(a0, y1, off)].map(([x, y, z], k) =>
+        gb.vertex(x, y, z, nx * side, 0, nz * side, k === 1 || k === 2 ? 1 : 0, k >= 2 ? 1 : 0, color));
+      if (side > 0) { gb.tri(v[0]!, v[2]!, v[1]!); gb.tri(v[0]!, v[3]!, v[2]!); }
+      else { gb.tri(v[0]!, v[1]!, v[2]!); gb.tri(v[0]!, v[2]!, v[3]!); }
+    };
+    const T = thick?.t ?? 0;
+    // Inner face of the thick wall; runs T past the edge ends so corners close either way round.
+    const inner = (a0: number, a1: number, y0: number, y1: number): void => {
+      if (thick) quad(thick.out, a0 <= 1e-3 ? -T : a0, a1 >= len - 1e-3 ? len + T : a1, Math.max(0, y0), y1, -T, -1, INNER_WALL);
+    };
+    // Reveal across the wall thickness: `pts` are (a, y) corners on the facade plane, swept inward.
+    const reveal = (a0: number, y0: number, a1: number, y1: number): void => {
+      if (!thick) return;
+      const o = thick.out;
+      const c = [at(a0, y0, 0), at(a1, y1, 0), at(a1, y1, -T), at(a0, y0, -T)];
+      for (const flip of [false, true]) {
+        const v = c.map(([x, y, z]) => o.vertex(x, y, z, 0, flip ? -1 : 1, 0, 0, 0, INNER_WALL));
+        if (flip) { o.tri(v[0]!, v[2]!, v[1]!); o.tri(v[0]!, v[3]!, v[2]!); }
+        else { o.tri(v[0]!, v[1]!, v[2]!); o.tri(v[0]!, v[2]!, v[3]!); }
+      }
+    };
     const shot = photo?.edges.get(i);
     if (shot && photo) {
+      inner(0, len, 0, height);
       // Photo spans ground → roof; the strip below grade reuses the bottom row. Seen from outside,
       // vertex i is on the viewer's right, so the image's left edge (u0) belongs to vertex i + 1.
       const [u0, vb, u1, vt] = shot.uv;
@@ -280,7 +311,7 @@ function addWalls(
     };
     // A wall piece with this edge's window openings left out (strips between cut boundaries).
     const cuts = windows?.cuts.get(i) ?? [];
-    const piece = (a0: number, a1: number, y0: number, y1: number): void => {
+    const piece = (a0: number, a1: number, y0: number, y1: number, emit: (a0: number, a1: number, y0: number, y1: number) => void = panel): void => {
       const xs = [a0, a1];
       for (const c of cuts) if (c.a1 > a0 && c.a0 < a1) xs.push(Math.max(a0, c.a0), Math.min(a1, c.a1));
       xs.sort((a, b) => a - b);
@@ -290,22 +321,20 @@ function addWalls(
         const mid = (s + t) / 2;
         let y = y0;
         for (const c of cuts.filter((c) => c.a0 <= mid && c.a1 >= mid && c.y1 > y0 && c.y0 < y1).sort((a, b) => a.y0 - b.y0)) {
-          if (c.y0 > y) panel(s, t, y, c.y0);
+          if (c.y0 > y) emit(s, t, y, c.y0);
           y = Math.max(y, c.y1);
         }
-        if (y < y1) panel(s, t, y, y1);
+        if (y < y1) emit(s, t, y, y1);
       }
     };
     if (windows) {
-      const at = (a: number, y: number, off: number): [number, number, number] => [px + (dx * a) / len + nx * off, y, pz + (dz * a) / len + nz * off];
-      const quad = (gb: GeoBuilder, a0: number, a1: number, y0: number, y1: number, off: number, side: 1 | -1, color?: readonly [number, number, number]): void => {
-        const v = [at(a0, y0, off), at(a1, y0, off), at(a1, y1, off), at(a0, y1, off)].map(([x, y, z], k) =>
-          gb.vertex(x, y, z, nx * side, 0, nz * side, k === 1 || k === 2 ? 1 : 0, k >= 2 ? 1 : 0, color));
-        if (side > 0) { gb.tri(v[0]!, v[2]!, v[1]!); gb.tri(v[0]!, v[3]!, v[2]!); }
-        else { gb.tri(v[0]!, v[1]!, v[2]!); gb.tri(v[0]!, v[2]!, v[3]!); }
-      };
+      const set = -T * 0.4; // the glazing sits back in the wall
       for (const c of cuts) {
-        quad(windows.glass, c.a0, c.a1, c.y0, c.y1, 0, 1);
+        quad(windows.glass, c.a0, c.a1, c.y0, c.y1, set, 1);
+        reveal(c.a0, c.y0, c.a1, c.y0); // sill
+        reveal(c.a0, c.y1, c.a1, c.y1); // head
+        reveal(c.a0, c.y0, c.a0, c.y1); // jambs
+        reveal(c.a1, c.y0, c.a1, c.y1);
         // Aluminium frame on both faces: sill, head, jambs and mullions every ~1.2 m.
         const bars: [number, number, number, number][] = [[c.a0, c.a1, c.y0 - 0.06, c.y0 + 0.04], [c.a0, c.a1, c.y1 - 0.05, c.y1 + 0.03]];
         const panes = Math.max(1, Math.round((c.a1 - c.a0) / 1.2));
@@ -315,8 +344,8 @@ function addWalls(
         }
         bars.push([c.a0, c.a1, c.y0 + (c.y1 - c.y0) * 0.72 - 0.025, c.y0 + (c.y1 - c.y0) * 0.72 + 0.025]); // transom
         for (const [a0, a1, y0, y1] of bars) {
-          quad(windows.frames, Math.max(c.a0, a0), Math.min(c.a1, a1), y0, y1, 0.03, 1, FRAME_COLOR);
-          quad(windows.frames, Math.max(c.a0, a0), Math.min(c.a1, a1), y0, y1, -0.03, -1, FRAME_COLOR);
+          quad(windows.frames, Math.max(c.a0, a0), Math.min(c.a1, a1), y0, y1, set + 0.03, 1, FRAME_COLOR);
+          quad(windows.frames, Math.max(c.a0, a0), Math.min(c.a1, a1), y0, y1, set - 0.03, -1, FRAME_COLOR);
         }
       }
     }
@@ -328,10 +357,50 @@ function addWalls(
       if (d1 - d0 < 0.5) continue;
       piece(from, d0, WALL_BASE, height);
       piece(d0, d1, DOOR_HEIGHT, height); // lintel over the entrance
+      piece(from, d0, 0, height, inner);
+      piece(d0, d1, DOOR_HEIGHT, height, inner);
+      reveal(d0, 0, d0, DOOR_HEIGHT);
+      reveal(d1, 0, d1, DOOR_HEIGHT);
+      reveal(d0, DOOR_HEIGHT, d1, DOOR_HEIGHT);
       from = d1;
     }
     piece(from, len, WALL_BASE, height);
+    piece(from, len, 0, height, inner);
     u = u0 + bays;
+  }
+}
+
+/**
+ * Storey slabs for a building with a generated interior: the interior's floor stops at its plan
+ * raster, so the shell supplies the floor (and the ceiling below) out to the wall. Stair and
+ * elevator shafts stay open.
+ */
+function addSlabs(visual: GeoBuilder, solid: GeoBuilder, b: CampusBuilding, src: BuildingSource): void {
+  const xf = createPlanTransform(src);
+  for (const level of src.levels) {
+    const plan = src.floors[level.id];
+    if (!plan) continue;
+    const shafts: Ring[] = [];
+    if (level.elevation > 0.1) {
+      for (const s of plan.spaces) {
+        if (s.kind !== 'stair' && s.kind !== 'elevator' && s.kind !== 'void') continue;
+        for (const [x0, y0, x1, y1] of s.rects) {
+          shafts.push([...xf.toWorld(x0 - 0.1, y0 - 0.1), ...xf.toWorld(x1 + 0.1, y0 - 0.1), ...xf.toWorld(x1 + 0.1, y1 + 0.1), ...xf.toWorld(x0 - 0.1, y1 + 0.1)]);
+        }
+      }
+    }
+    const holes = [...b.holes, ...shafts];
+    const top = level.elevation + 0.06; // just under the interior's floor finish
+    addPolygon(visual, b.outer, holes, top, 4, SLAB_TOP);
+    addPolygon(solid, b.outer, holes, top, 4);
+    if (level.elevation > 0.1) {
+      // Underside, facing down: the ceiling of the storey below where the interior has none.
+      const tmp = new GeoBuilder();
+      addPolygon(tmp, b.outer, holes, level.elevation - 0.25, 4);
+      const base = visual.pos.length / 3;
+      for (let i = 0; i < tmp.pos.length; i += 3) visual.vertex(tmp.pos[i]!, tmp.pos[i + 1]!, tmp.pos[i + 2]!, 0, -1, 0, 0, 0, SLAB_UNDER);
+      for (let i = 0; i < tmp.idx.length; i += 3) visual.tri(base + tmp.idx[i]!, base + tmp.idx[i + 2]!, base + tmp.idx[i + 1]!);
+    }
   }
 }
 
@@ -441,6 +510,7 @@ export class ChunkBuilder {
   private readonly styles: ResolvedStyle[];
   private readonly rawStyles: FacadeStyle[];
   private readonly photos = new Map<number, { atlas: string; edges: Map<number, PhotoEdge> }>();
+  private readonly marker: RoadMarker;
 
   constructor(
     private readonly data: CampusData,
@@ -456,6 +526,7 @@ export class ChunkBuilder {
       this.photos.set(Number(id), { atlas: p.atlas, edges: new Map(p.edges.map((e) => [e.edge, e])) });
     }
     this.exclusions = exclusions.map((r) => ({ item: r, bounds: ringBounds(r) }));
+    this.marker = new RoadMarker(data);
     const key = (x: number, z: number): string => `${chunkOf(x)},${chunkOf(z)}`;
     const push = <T>(m: Map<string, T[]>, k: string, v: T): void => {
       const list = m.get(k);
@@ -496,6 +567,8 @@ export class ChunkBuilder {
     const walks = new GeoBuilder();
     const fields = new GeoBuilder();
     const glass = new GeoBuilder();
+    const marks = new GeoBuilder();
+    const slabs = new GeoBuilder(); // collision only: storey floors between the interior and the shell wall
 
     for (const b of this.buildings.get(k) ?? []) {
       if (b.replacedBy) continue; // drawn and collided by its hand-built model instead
@@ -510,10 +583,14 @@ export class ChunkBuilder {
       const fallback = hasInterior(b) ? buildingEntrance(b, this.data.roads, photoEdges) : null;
       const doors = this.entrances[String(b.id)]?.filter((d) => !photoEdges.has(d.edge)) ?? (fallback ? [fallback] : []);
       // Generated teaching interiors: real windows where a classroom meets the outside wall.
-      const cuts = !this.entrances[String(b.id)] && hasInterior(b) && buildingKind(b.name) === 'teaching' ? classroomWindows(b, fallback, photoEdges) : null;
+      // Buildings with a generated interior get a heavy shell: thick outer walls and a slab per storey.
+      const interior = !this.entrances[String(b.id)] && hasInterior(b) ? generateInterior(b, fallback)?.source ?? null : null;
+      const thick = interior ? { out: details, t: SHELL_WALL } : undefined;
+      const cuts = interior && buildingKind(b.name) === 'teaching' ? classroomWindows(b, interior, fallback, photoEdges) : null;
       addWalls(facade, b.outer, b.height, floors, style, shots && photoOut ? { edges: shots.edges, out: photoOut } : undefined, doors,
-        cuts?.size ? { cuts, glass, frames: details } : undefined);
-      for (const h of b.holes) addWalls(facade, h, b.height, floors, style);
+        cuts?.size ? { cuts, glass, frames: details } : undefined, thick);
+      for (const h of b.holes) addWalls(facade, h, b.height, floors, style, undefined, [], undefined, thick);
+      if (interior) addSlabs(details, slabs, b, interior);
       addFacadeDetails(details, b, this.rawStyles[styleIndex]!, { wall: style.wall, trim: style.trim }, this.data.roads, photoEdges, doors);
       const photoMesh = photoOut?.build();
       if (shots && photoMesh) photoWalls.push({ building: b.id, atlas: shots.atlas, mesh: photoMesh });
@@ -523,12 +600,15 @@ export class ChunkBuilder {
     for (const { road, from, to } of this.roadSegs.get(k) ?? []) {
       const pts = road.points.slice(from * 2, to * 2 + 2);
       if (road.kind === 'walkway') addRibbon(walks, pts, road.width, Y_WALK, 2);
-      else addRibbon(roads, pts, road.width, Y_ROAD, 6);
+      else {
+        addRibbon(roads, pts, road.width, Y_ROAD, 6);
+        this.marker.emit(marks, road, from, to);
+      }
     }
 
     // Collision = building walls + roofs only (B2: simplified, trees / cars / kerbs are walk-through).
     let collider: ChunkBuild['collider'] = null;
-    const parts: { pos: ArrayLike<number>; idx: ArrayLike<number> }[] = [facade, roof, glass, ...photoWalls.map((p) => ({ pos: p.mesh.position, idx: p.mesh.index }))];
+    const parts: { pos: ArrayLike<number>; idx: ArrayLike<number> }[] = [facade, roof, glass, slabs, ...photoWalls.map((p) => ({ pos: p.mesh.position, idx: p.mesh.index }))];
     if (!roof.empty) {
       const vertices = new Float32Array(parts.reduce((n, p) => n + p.pos.length, 0));
       const indices = new Uint32Array(parts.reduce((n, p) => n + p.idx.length, 0));
@@ -552,6 +632,7 @@ export class ChunkBuilder {
       walkways: walks.build(),
       fields: fields.build(),
       glass: glass.build(),
+      marks: marks.build(),
       trees: this.scatterTrees(cx, cz),
       collider,
     };
@@ -602,7 +683,7 @@ export class ChunkBuilder {
 /** All transferable buffers of a build, for zero-copy postMessage. */
 export function transferablesOf(b: ChunkBuild): ArrayBuffer[] {
   const out: ArrayBuffer[] = [b.trees.buffer];
-  for (const m of [b.facade, b.roof, b.details, b.roads, b.walkways, b.fields, b.glass, ...b.photoWalls.map((p) => p.mesh)]) {
+  for (const m of [b.facade, b.roof, b.details, b.roads, b.walkways, b.fields, b.glass, b.marks, ...b.photoWalls.map((p) => p.mesh)]) {
     if (!m) continue;
     out.push(m.position.buffer, m.normal.buffer, m.uv.buffer, m.index.buffer);
     if (m.color) out.push(m.color.buffer);

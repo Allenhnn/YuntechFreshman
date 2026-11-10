@@ -17,9 +17,9 @@ export type BuildingKind = 'dorm' | 'teaching' | 'office' | 'dining' | 'hall' | 
 
 const C = 0.5;
 /** Thickness of the building shell's outer wall (m); interiors stay clear of it. */
-export const SHELL_WALL = 0; // TODO 0.4 once the thick shell wall and floor slabs exist in chunkBuilder
+export const SHELL_WALL = 0.4;
 /** How far partitions reach past the plan edge to meet the shell wall's inner face (m). */
-const WALL_REACH = 0; // TODO 0.7 together with SHELL_WALL
+const WALL_REACH = 0.7;
 const CORRIDOR_CELLS = 5; // 2.5 m
 const MIN_CORRIDOR_DEPTH = 10; // m of footprint depth needed for corridor + rooms
 const CORE_W = 4.3; // two 2.1 m flights + 0.1 m gap

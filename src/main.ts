@@ -41,7 +41,7 @@ import { createPlayground } from './playground/playground';
 import { addCafeteriaSign } from './buildings/cafeteriaSign';
 import { MAIN_GATE_GUARDHOUSE, createMainGate, gateTreeExclusions, inGateZone } from './campus/mainGate';
 import { addBoundaryZone } from './campus/boundaryZone';
-import { includeLongtanRoad } from './campus/campusFixes';
+import { includeLongtanRoad, widenCampusRoads } from './campus/campusFixes';
 import { SCOOTER_LOTS, createScooterLots } from './campus/scooterLots';
 import { createSensorGates } from './campus/sensorGates';
 import { inGateArea } from './campus/mainGate';
@@ -52,7 +52,7 @@ import { CLOCK_RATE, applyPose, computeRidePose, createPose } from './character/
 import { safeTeleportTarget } from './game/teleport';
 import { buildNavGraph, pathAhead, progressOn } from './game/navGraph';
 import { createNavLine } from './game/navLine';
-import { loadProgress, saveProgress } from './state/saveGame';
+import { INTERIOR_LAYOUT, loadProgress, saveProgress } from './state/saveGame';
 import { animationSystem } from './ecs/systems/animation';
 import { renderSyncSystem } from './ecs/systems/renderSync';
 import { createThirdPersonCamera, type CameraFocus } from './camera/thirdPersonCamera';
@@ -136,6 +136,7 @@ async function boot(): Promise<void> {
   const guardhouse = campus.buildings.find((b) => b.id === MAIN_GATE_GUARDHOUSE);
   if (guardhouse) guardhouse.replacedBy = 'mainGate';
   includeLongtanRoad(campus);
+  widenCampusRoads(campus);
   campus.parking = SCOOTER_LOTS.map((l) => ({ name: l.name, ring: l.ring }));
   actions.setMapData(campus);
   const librarySrc = await loadBuildingSource(LIBRARY_URL);
@@ -366,13 +367,16 @@ async function boot(): Promise<void> {
         streamAt = save;
         actions.setFading(true);
         void env.loadAround(save.x, save.z).then(() => awaitFloor(save.x, save.y, save.z)).then((floor) => {
-          const p = floor === null ? spawnPoint() : { x: save.x, y: floor, z: save.z, facing: save.facing };
+          // An indoor spot saved under an older interior layout may now be inside a wall: use the respawn point.
+          const stale = save.layout !== INTERIOR_LAYOUT && insideBuilding(save.x, save.z);
+          const p = floor === null || stale ? spawnPoint() : { x: save.x, y: floor, z: save.z, facing: save.facing };
           teleport(p.x, p.y, p.z, p.facing);
           renderSyncSystem(world, 1);
           rig.snap(readFocus(), p.facing + Math.PI);
           streamAt = null;
           actions.setFading(false);
           if (floor === null) actions.toast('存檔位置載入失敗，已回到重生點');
+          else if (stale) actions.toast('室內格局已更新，已回到重生點（金錢與物品保留）');
         });
         return;
       }
@@ -575,6 +579,7 @@ async function boot(): Promise<void> {
       y: Transform.y[eid]!,
       z: Transform.z[eid]!,
       facing: Transform.rotY[eid]!,
+      layout: INTERIOR_LAYOUT,
     });
     actions.setHasSave(true);
   };

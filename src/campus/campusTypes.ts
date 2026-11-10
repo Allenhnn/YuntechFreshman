@@ -79,6 +79,8 @@ export interface ChunkBuild {
   roads: MeshBuffers | null;
   walkways: MeshBuffers | null;
   fields: MeshBuffers | null;
+  /** Painted road markings (colour per vertex). */
+  marks: MeshBuffers | null;
   /** Classroom window panes cut into teaching-building walls (transparent; solid for collision). */
   glass: MeshBuffers | null;
   /** Tree instances: [x, z, scale, rotation, colourShift] per tree. */

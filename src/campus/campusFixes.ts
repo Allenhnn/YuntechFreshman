@@ -34,3 +34,24 @@ export function includeLongtanRoad(campus: CampusData): void {
   const corner = [-121, -51];
   campus.boundary = [...b.slice(0, from * 2), ...corner, ...pts, ...b.slice(to * 2 + 2)];
 }
+
+/** Campus vehicle lanes (OSM `service`, 5 m) become 8 m two-lane roads; 龍潭路 and public roads keep their width. */
+const CAMPUS_LANE = 8;
+
+export function widenCampusRoads(campus: CampusData): void {
+  const inside = (x: number, z: number): boolean => {
+    const r = campus.boundary;
+    let hit = false;
+    for (let i = 0, n = r.length / 2, j = n - 1; i < n; j = i++) {
+      const xi = r[i * 2]!, zi = r[i * 2 + 1]!, xj = r[j * 2]!, zj = r[j * 2 + 1]!;
+      if (zi > z !== zj > z && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) hit = !hit;
+    }
+    return hit;
+  };
+  for (const road of campus.roads) {
+    if (road.kind !== 'service' || road.width >= CAMPUS_LANE) continue;
+    let within = 0;
+    for (let i = 0; i < road.points.length; i += 2) if (inside(road.points[i]!, road.points[i + 1]!)) within++;
+    if (within * 2 >= road.points.length / 2) road.width = CAMPUS_LANE;
+  }
+}

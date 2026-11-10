@@ -13,9 +13,13 @@ export interface SaveData {
   y: number;
   z: number;
   facing: number;
+  /** Interior layout generation the position was saved under (see INTERIOR_LAYOUT). */
+  layout?: number;
 }
 
 const SAVE_KEY = 'yfm.save.v1';
+/** Bumped when generated interiors are re-laid-out: an indoor position from an older layout may now be inside a wall. */
+export const INTERIOR_LAYOUT = 2;
 
 const finite = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 
@@ -43,6 +47,7 @@ export function loadProgress(): SaveData | null {
       y: d.y,
       z: d.z,
       facing: d.facing,
+      ...(finite(d.layout) ? { layout: d.layout } : {}),
     };
   } catch {
     return null;
