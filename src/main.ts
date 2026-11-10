@@ -41,6 +41,9 @@ import { createPlayground } from './playground/playground';
 import { addCafeteriaSign } from './buildings/cafeteriaSign';
 import { MAIN_GATE_GUARDHOUSE, createMainGate, gateTreeExclusions, inGateZone } from './campus/mainGate';
 import { addBoundaryZone } from './campus/boundaryZone';
+import { includeLongtanRoad } from './campus/campusFixes';
+import { SCOOTER_LOTS, createScooterLots } from './campus/scooterLots';
+import { createSensorGates } from './campus/sensorGates';
 import { inGateArea } from './campus/mainGate';
 import { UNLABELLED_NAMES } from './campus/placeNames';
 import { createBuildingTest, placeBikeStations, stationClearings } from './bikes/bikeStations';
@@ -132,6 +135,8 @@ async function boot(): Promise<void> {
   // The main gate's guardhouse is hand-built (campus/mainGate.ts), not extruded.
   const guardhouse = campus.buildings.find((b) => b.id === MAIN_GATE_GUARDHOUSE);
   if (guardhouse) guardhouse.replacedBy = 'mainGate';
+  includeLongtanRoad(campus);
+  campus.parking = SCOOTER_LOTS.map((l) => ({ name: l.name, ring: l.ring }));
   actions.setMapData(campus);
   const librarySrc = await loadBuildingSource(LIBRARY_URL);
   // Facade styles / photo atlases are optional: without them every building uses the default style.
@@ -147,7 +152,7 @@ async function boot(): Promise<void> {
   const bikeStations = placeBikeStations(campus);
   actions.setBikeStations(bikeStations);
   const env = createCampusWorld(scene, physics, renderer, campus, sceneResources, {
-    treeExclusions: [...buildingFootprintRings(librarySrc), ...stationClearings(bikeStations), ...gateTreeExclusions()],
+    treeExclusions: [...buildingFootprintRings(librarySrc), ...stationClearings(bikeStations), ...gateTreeExclusions(), ...SCOOTER_LOTS.map((l) => l.ring)],
     groundHoles: buildingGroundHoles(librarySrc),
     facades,
     entrances: traced?.entrances,
@@ -191,6 +196,8 @@ async function boot(): Promise<void> {
   addCafeteriaSign(scene, campus, sceneResources);
   const mainGate = createMainGate(scene, physics, campus, sceneResources);
   addBoundaryZone(scene, campus, sceneResources, inGateZone);
+  const scooterLots = createScooterLots(scene, physics, campus, sceneResources);
+  const sensorGates = createSensorGates(scene, physics, sceneResources);
   const navGraph = buildNavGraph(campus);
   const navLine = createNavLine(scene, sceneResources);
   const bikes = createBikeSystem(scene, bikeStations, sceneResources);
@@ -275,6 +282,8 @@ async function boot(): Promise<void> {
       return { key: `${name}|${floor}`, title: name, subtitle: `${floor}F` };
     }
     if (nearField(x, z)) return { key: '操場', title: '操場', subtitle: '跑道計時賽' };
+    const lot = campus.parking?.find((l) => inRing(x, z, l.ring));
+    if (lot) return { key: lot.name, title: '機車停車場', subtitle: lot.name.replace(/^機車停車場（|）$/g, '') };
     if (inGateArea(x, z)) return { key: '大門', title: '大門', subtitle: '國立雲林科技大學' };
     return null;
   };
@@ -689,6 +698,9 @@ async function boot(): Promise<void> {
     if (playing && !streamAt && !ui.fading) updateArea(time, Transform.x[eid]!, Transform.y[eid]!, Transform.z[eid]!);
     if (playing && !streamAt && !ui.fading) updateNav(time, Transform.x[eid]!, Transform.z[eid]!);
     navLine.update(dt, time);
+    const gateEvent = sensorGates.update(dt, time, Transform.x[eid]!, Transform.z[eid]!, ui.inventory.some((s) => s?.id === 'studentCard'));
+    if (playing && gateEvent === 'opened') { actions.toast('嗶！學生證感應成功'); audio.play('click'); }
+    else if (playing && gateEvent === 'noCard') actions.toast('🚫 需要學生證感應才能通過');
     if (!playing) lastSave = time;
     else if (time - lastSave > AUTOSAVE_SECONDS) {
       lastSave = time;
@@ -774,6 +786,8 @@ async function boot(): Promise<void> {
     playground?.dispose();
     mainGate?.dispose();
     navLine.dispose();
+    scooterLots.dispose();
+    sensorGates.dispose();
     env.dispose();
     player.despawn();
     assets.dispose();

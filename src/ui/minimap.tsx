@@ -62,6 +62,13 @@ function renderBaseMap(data: CampusData): BaseMap {
     g.fill();
   }
 
+  for (const lot of data.parking ?? []) {
+    g.fillStyle = '#b4b2ab';
+    g.beginPath();
+    ringPath(g, lot.ring, toPx);
+    g.fill();
+  }
+
   g.lineCap = 'round';
   g.lineJoin = 'round';
   for (const kind of ['walkway', 'service', 'minor', 'major'] as const) {
@@ -289,6 +296,13 @@ function centroidOf(r: Ring): [number, number] {
   return [x / n, z / n];
 }
 
+/** Where a scooter park's teleport / navigation lands: the clear strip along its first short side. */
+function lotCentre(r: Ring): { x: number; z: number } {
+  const mx = (r[0]! + r[6]!) / 2, mz = (r[1]! + r[7]!) / 2;
+  const dx = r[2]! - r[0]!, dz = r[3]! - r[1]!, len = Math.hypot(dx, dz) || 1;
+  return { x: mx + (dx / len) * 0.5, z: mz + (dz / len) * 0.5 };
+}
+
 function pointInRing(x: number, z: number, r: Ring): boolean {
   let inside = false;
   for (let i = 0, n = r.length / 2, j = n - 1; i < n; j = i++) {
@@ -369,6 +383,7 @@ export function FullMap(): ReactNode {
       return { name: b.name!, kind: '建築', ring: b.outer, ...outsideRing(b.outer, cx, cz, DOORSTEP_M) };
     });
     if (raceStart) out.push({ name: '操場（跑道計時賽）', kind: '設施', ...raceStart });
+    for (const lot of data.parking ?? []) out.push({ name: lot.name, kind: '停車場', ring: lot.ring, ...lotCentre(lot.ring) });
     out.push({ name: '大門', kind: '設施', ...gateSpot() });
     for (const st of bikeStations) out.push({ name: st.name, kind: '腳踏車站', x: st.x, z: st.z });
     return out;
@@ -528,6 +543,8 @@ export function FullMap(): ReactNode {
       const [cx, cz] = centroidOf(b.outer);
       return { name: b.name, kind: '建築', ring: b.outer, ...outsideRing(b.outer, cx, cz, DOORSTEP_M) };
     }
+    const lot = data.parking?.find((l) => pointInRing(x, z, l.ring));
+    if (lot) return { name: lot.name, kind: '停車場', ring: lot.ring, ...lotCentre(lot.ring) };
     const field = raceStart ? data.fields.find((f) => f.kind === 'soccer' && pointInRing(x, z, f.outer)) : undefined;
     if (raceStart && field) return { name: raceName, kind: '設施', ring: field.outer, ...raceStart };
     return null;
