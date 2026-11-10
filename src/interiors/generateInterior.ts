@@ -16,6 +16,10 @@ import type { BuildingSource, FloorPlan, FurnishKind, Opening, Rect, Space, Stai
 export type BuildingKind = 'dorm' | 'teaching' | 'office' | 'dining' | 'hall' | 'utility';
 
 const C = 0.5;
+/** Thickness of the building shell's outer wall (m); interiors stay clear of it. */
+export const SHELL_WALL = 0; // TODO 0.4 once the thick shell wall and floor slabs exist in chunkBuilder
+/** How far partitions reach past the plan edge to meet the shell wall's inner face (m). */
+const WALL_REACH = 0; // TODO 0.7 together with SHELL_WALL
 const CORRIDOR_CELLS = 5; // 2.5 m
 const MIN_CORRIDOR_DEPTH = 10; // m of footprint depth needed for corridor + rooms
 const CORE_W = 4.3; // two 2.1 m flights + 0.1 m gap
@@ -95,12 +99,25 @@ export function generateInterior(b: CampusBuilding, entrance: Entrance | null, i
     }
     return inside;
   };
+  // The shell wall is SHELL_WALL thick (campus/chunkBuilder.ts): keep plan cells clear of it.
+  const rings = [local, ...holes];
+  const edgeClear = (x: number, y: number): boolean => {
+    for (const pts of rings) {
+      for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+        const [ax, ay] = pts[j]!, [bx, by] = pts[i]!;
+        const ex = bx - ax, ey = by - ay;
+        const t = Math.max(0, Math.min(1, ((x - ax) * ex + (y - ay) * ey) / (ex * ex + ey * ey || 1)));
+        if (Math.hypot(x - ax - ex * t, y - ay - ey * t) < SHELL_WALL + 0.05) return false;
+      }
+    }
+    return true;
+  };
   // Plan coordinates start at 0: plan x = u − U0, plan y = v − V0.
   const footprint = new Int8Array(W * H);
   for (let row = 0; row < H; row++) {
     for (let col = 0; col < W; col++) {
       const u = U0 + (col + 0.5) * C, v = V0 + (row + 0.5) * C;
-      footprint[row * W + col] = inPoly(local, u, v) && !holes.some((h) => inPoly(h, u, v)) ? 1 : 0;
+      footprint[row * W + col] = inPoly(local, u, v) && !holes.some((h) => inPoly(h, u, v)) && edgeClear(u, v) ? 1 : 0;
     }
   }
   const at = (col: number, row: number): boolean => col >= 0 && row >= 0 && col < W && row < H && footprint[row * W + col] === 1;
@@ -234,6 +251,8 @@ export function generateInterior(b: CampusBuilding, entrance: Entrance | null, i
       }
     }
 
+    tidyRooms(cells, W, H, roomCols);
+
     // Region → space index.
     const spaces: Space[] = [];
     const openings: Opening[] = [];
@@ -262,7 +281,7 @@ export function generateInterior(b: CampusBuilding, entrance: Entrance | null, i
         const { name, furnish } = spec.room(area);
         roomNames.add(name);
         const code = `${k + 1}${String(roomNo).padStart(2, '0')}`;
-        space = { id: `${levelId}-${code}`, code, name, kind: 'room', ceiling, rects, ...(furnish ? { furnish } : {}) };
+        space = { id: `${levelId}-${code}`, code, name, kind: 'room', ceiling, rects, furnishMain: true, ...(furnish ? { furnish } : {}) };
       }
       spaceOf.set(id, spaces.length);
       spaces.push(space);
@@ -371,6 +390,7 @@ export function generateInterior(b: CampusBuilding, entrance: Entrance | null, i
       osmReplaces: [],
       transform: { angleDeg, planCentroid: [-U0, -V0], worldCentroid: [cx, cz] },
       floorHeight: fh,
+      wallReach: WALL_REACH,
       levels: levelIds.map((lid, k) => ({ id: lid, elevation: k * fh, built: true, elevator: core?.liftCol != null || liftOnly !== null })),
       shell: {},
       floors,
@@ -423,6 +443,73 @@ function placeStalls(cells: Int32Array, W: number, H: number, door: [number, num
 }
 
 /** Greedy merge of the cells with `id` into rects [col0, row0, col1, row1). */
+/**
+ * Regularises the room cells of one floor:
+ *  1. each run of room columns along a corridor side is cut into equal-width rooms (no leftover
+ *     strips at the ends of a wing or beside the stair core);
+ *  2. rooms that are too small, too narrow or cut off from the circulation are merged into the
+ *     neighbouring room they share the most wall with (or into the hall when they have none).
+ */
+function tidyRooms(cells: Int32Array, W: number, H: number, roomCols: number): void {
+  for (const side of [0, 1]) {
+    const has = new Uint8Array(W);
+    for (let i = 0; i < cells.length; i++) if (cells[i]! >= 0 && Math.floor(cells[i]! / 10000) === side) has[i % W] = 1;
+    let run = 0;
+    for (let c0 = 0; c0 < W; c0++) {
+      if (!has[c0]) continue;
+      let c1 = c0;
+      while (c1 < W && has[c1]) c1++;
+      const len = c1 - c0, parts = Math.max(1, Math.round(len / roomCols));
+      for (let row = 0; row < H; row++) {
+        for (let col = c0; col < c1; col++) {
+          const v = cells[row * W + col]!;
+          if (v >= 0 && Math.floor(v / 10000) === side) cells[row * W + col] = side * 10000 + run * 100 + Math.min(parts - 1, Math.floor(((col - c0) * parts) / len));
+        }
+      }
+      run++;
+      c0 = c1;
+    }
+  }
+  const MIN_AREA = 9 / (C * C), MIN_SPAN = 2.4 / C;
+  for (let pass = 0; pass < 6; pass++) {
+    const stat = new Map<number, { n: number; c0: number; c1: number; r0: number; r1: number; circ: number; nb: Map<number, number> }>();
+    for (let row = 0; row < H; row++) {
+      for (let col = 0; col < W; col++) {
+        const v = cells[row * W + col]!;
+        if (v < 0) continue;
+        const s = stat.get(v) ?? stat.set(v, { n: 0, c0: col, c1: col, r0: row, r1: row, circ: 0, nb: new Map() }).get(v)!;
+        s.n++;
+        s.c0 = Math.min(s.c0, col); s.c1 = Math.max(s.c1, col);
+        s.r0 = Math.min(s.r0, row); s.r1 = Math.max(s.r1, row);
+        for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+          const c = col + dc, r = row + dr;
+          if (c < 0 || r < 0 || c >= W || r >= H) continue;
+          const o = cells[r * W + c]!;
+          if (o === CORRIDOR || o === HALL) s.circ++;
+          else if (o >= 0 && o !== v) s.nb.set(o, (s.nb.get(o) ?? 0) + 1);
+        }
+      }
+    }
+    let changed = false;
+    // Smallest first, one merge per room per pass, so a chain of slivers folds up cleanly.
+    const merged = new Set<number>();
+    for (const [id, s] of [...stat].sort((a, b) => a[1].n - b[1].n)) {
+      if (merged.has(id)) continue;
+      const bad = s.n < MIN_AREA || Math.min(s.c1 - s.c0 + 1, s.r1 - s.r0 + 1) < MIN_SPAN || s.circ < 2;
+      if (!bad) continue;
+      let into = HALL, most = 0;
+      for (const [o, k] of s.nb) if (!merged.has(o) && k > most) { most = k; into = o; }
+      // An isolated pocket with no room beside it and no way in is not floor space at all.
+      if (into === HALL && s.circ === 0) into = OUT;
+      for (let i = 0; i < cells.length; i++) if (cells[i] === id) cells[i] = into;
+      merged.add(id);
+      if (into >= 0) merged.add(into);
+      changed = true;
+    }
+    if (!changed) break;
+  }
+}
+
 function mergeCells(cells: Int32Array, W: number, H: number, id: number): [number, number, number, number][] {
   const used = new Uint8Array(W * H);
   const out: [number, number, number, number][] = [];

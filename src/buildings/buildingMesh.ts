@@ -185,6 +185,7 @@ function buildModelledFloor(
   doors: DoorPanel[],
   plates: PlateSpot[],
   floorH: number,
+  reach = 0,
 ): void {
   const { plan, grid, base } = lvl;
   const underground = base < 0;
@@ -232,6 +233,16 @@ function buildModelledFloor(
       const key = `${p.axis}:${p.at.toFixed(2)}:`;
       if (!ends.has(`${key}${p.from.toFixed(2)}e`)) from -= WALL_T / 2;
       if (!ends.has(`${key}${p.to.toFixed(2)}`)) to += WALL_T / 2;
+    }
+
+    // Generated interiors stop short of the shell wall: partitions that end at the plan edge reach on to it.
+    if (!kind && A && B && reach > 0) {
+      const openEnd = (along: number): boolean => {
+        const [ax, ay] = sidePoint(p, along, -1), [bx, by] = sidePoint(p, along, 1);
+        return cellAt(grid, ax, ay) === OUTSIDE && cellAt(grid, bx, by) === OUTSIDE;
+      };
+      if (openEnd(p.from - 0.25)) from = p.from - reach;
+      if (openEnd(p.to + 0.25)) to = p.to + reach;
     }
 
     let y0 = base;
@@ -381,7 +392,7 @@ export function buildBuildingMeshes(src: BuildingSource): BuildingMeshes {
     const below = modelled[i - 1];
     const above = modelled[i + 1];
     // Only floors that sit directly on top of each other interact (B1 under 1F, 1F under its mezzanine).
-    buildModelledFloor(lvl, below && lvl.base - below.base <= fh + 0.01 && lvl.base > 0 ? below : undefined, above && above.base - lvl.base < lvl.plan.bandTop ? above : undefined, ext, int, doors, plates, fh);
+    buildModelledFloor(lvl, below && lvl.base - below.base <= fh + 0.01 && lvl.base > 0 ? below : undefined, above && above.base - lvl.base < lvl.plan.bandTop ? above : undefined, ext, int, doors, plates, fh, src.wallReach ?? 0);
 
     // Furniture keeps clear of elevator landings, signs, doorways and stair ends on this level.
     const keepOut: KeepOut[] = [];

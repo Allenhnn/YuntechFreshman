@@ -379,7 +379,9 @@ export function layoutFurniture(plan: FloorPlan, grid: FloorGrid, base: number, 
       const mx = (o.a[0] + o.b[0]) / 2, my = (o.a[1] + o.b[1]) / 2;
       return mx >= a - 0.05 && mx <= c + 0.05 && my >= b - 0.05 && my <= d + 0.05;
     }));
-    for (const r of s.rects) {
+    const area = (q: Rect): number => (q[2] - q[0]) * (q[3] - q[1]);
+    const rects = s.furnishMain ? [s.rects.reduce((a, q) => (area(q) > area(a) ? q : a))] : s.rects;
+    for (const r of rects) {
       switch (s.furnish) {
         case 'stacks': stacks(ctx, r, 2.1, 1.6, true); break;
         case 'periodicals': stacks(ctx, r, 1.4, 2.4, true); break;

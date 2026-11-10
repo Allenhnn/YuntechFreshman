@@ -35,6 +35,8 @@ export interface Space {
   noCeiling?: boolean;
   /** Spaces sharing a group are one room split only to vary the ceiling (no wall between them). */
   group?: string;
+  /** Lay furniture out in the largest rect only (generated rooms whose edges follow a raster). */
+  furnishMain?: boolean;
   /** Furniture layout to generate inside this space. */
   furnish?: FurnishKind;
   rects: Rect[];
@@ -103,6 +105,8 @@ export interface BuildingSource {
   osmIds?: number[];
   transform: { angleDeg: number; planCentroid: Vec2; worldCentroid: Vec2 };
   floorHeight: number;
+  /** Generated interiors: partitions that end at the plan edge reach this far further, to the shell wall (m). */
+  wallReach?: number;
   levels: Level[];
   /** Exterior massing of floors without a modelled interior: rect unions per level id. */
   shell: Record<string, Rect[]>;
