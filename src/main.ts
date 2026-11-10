@@ -39,7 +39,7 @@ import { CAPSULE_CENTER_OFFSET, createCharacterControllerSystem, type MoveModifi
 import { createBikeSystem } from './bikes/bikeSystem';
 import { createPlayground } from './playground/playground';
 import { addCafeteriaSign } from './buildings/cafeteriaSign';
-import { MAIN_GATE_GUARDHOUSE, createMainGate, inGateZone } from './campus/mainGate';
+import { MAIN_GATE_GUARDHOUSE, createMainGate, gateTreeExclusions, inGateZone } from './campus/mainGate';
 import { addBoundaryZone } from './campus/boundaryZone';
 import { inGateArea } from './campus/mainGate';
 import { UNLABELLED_NAMES } from './campus/placeNames';
@@ -147,7 +147,7 @@ async function boot(): Promise<void> {
   const bikeStations = placeBikeStations(campus);
   actions.setBikeStations(bikeStations);
   const env = createCampusWorld(scene, physics, renderer, campus, sceneResources, {
-    treeExclusions: [...buildingFootprintRings(librarySrc), ...stationClearings(bikeStations)],
+    treeExclusions: [...buildingFootprintRings(librarySrc), ...stationClearings(bikeStations), ...gateTreeExclusions()],
     groundHoles: buildingGroundHoles(librarySrc),
     facades,
     entrances: traced?.entrances,

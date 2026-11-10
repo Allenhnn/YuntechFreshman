@@ -1,5 +1,15 @@
 import {
   BoxGeometry,
+  CircleGeometry,
+  Color,
+  ConeGeometry,
+  InstancedMesh,
+  Matrix4,
+  RingGeometry,
+  Shape,
+  ShapeGeometry,
+  TorusGeometry,
+  Vector2,
   CanvasTexture,
   CylinderGeometry,
   Group,
@@ -15,6 +25,7 @@ import {
   type Material,
   type Scene,
 } from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RAPIER } from '../physics/physics';
 import type { ResourceTracker } from '../core/resources';
 import type { CampusData } from './campusTypes';
@@ -46,6 +57,15 @@ function toGate(x: number, z: number): [number, number] {
 export function inGateZone(x: number, z: number): boolean {
   const [a, n] = toGate(x, z);
   return a > -40 && a < 48 && n > -6 && n < 40;
+}
+
+/** No-tree zones (world rings) for the campus scatter: forecourt, boulevard median and the fountain. */
+export function gateTreeExclusions(): number[][] {
+  const len = Math.hypot(ROAD_DIR[0], ROAD_DIR[1]);
+  const ax = ROAD_DIR[0] / len, az = ROAD_DIR[1] / len;
+  const w = (a: number, n: number): [number, number] => [ORIGIN[0] + ax * a - az * n, ORIGIN[1] + az * a + ax * n];
+  const rect = (a0: number, a1: number, n0: number, n1: number): number[] => [...w(a0, n0), ...w(a1, n0), ...w(a1, n1), ...w(a0, n1)];
+  return [rect(-30, 34, 14, 70), rect(-4, 8, 66, 110), rect(-9, 13, 118, 140)];
 }
 
 /** Where the map's 大門 entry lands: on the gate road just inside the boundary. */
@@ -143,38 +163,64 @@ export function createMainGate(scene: Scene, physics: RAPIER.World, campus: Camp
     return add(new BoxGeometry(w, h, d), mat, a, y0 + h / 2, n);
   };
 
-  // --- Forecourt: red brick from the kerb to the guardhouse, white lane markings.
-  const brickTex = canvasTexture(256, 256, bricks, tracker);
-  brickTex.wrapS = brickTex.wrapT = RepeatWrapping;
-  const brick = std(0xffffff, 0.92, { map: brickTex, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
-  const paving = (a0: number, a1: number, n0: number, n1: number): void => {
-    const g = new PlaneGeometry(a1 - a0, n1 - n0).rotateX(-Math.PI / 2);
-    const uv = g.getAttribute('uv');
-    for (let i = 0; i < uv.count; i++) uv.setXY(i, (uv.getX(i) * (a1 - a0)) / 2.4, (uv.getY(i) * (n1 - n0)) / 2.4);
-    const m = add(g, brick, (a0 + a1) / 2, 0.065, (n0 + n1) / 2);
-    m.castShadow = false;
+  // --- 大學路三段 here is two one-way carriageways (n −4…4 and 8…16): lane lines and zebra crossings.
+  const white = std(0xf4f2ea, 0.7, { polygonOffset: true, polygonOffsetFactor: -7, polygonOffsetUnits: -7 });
+  const yellow = std(0xe9c13a, 0.7, { polygonOffset: true, polygonOffsetFactor: -7, polygonOffsetUnits: -7 });
+  const mark = (w: number, d: number, a: number, n: number, mat: Material = white): void => {
+    add(new PlaneGeometry(w, d).rotateX(-Math.PI / 2), mat, a, 0.072, n).castShadow = false;
   };
-  paving(-38, 46, 4.5, 24.5);
-  paving(-14, 18, 24.5, 55);
-  const white = std(0xf4f2ea, 0.7, { polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
-  const mark = (w: number, d: number, a: number, n: number): void => {
-    add(new PlaneGeometry(w, d).rotateX(-Math.PI / 2), white, a, 0.07, n).castShadow = false;
-  };
-  mark(30, 0.4, 2, 6.5); // stop line
-  for (let n = 9; n < 52; n += 4) mark(0.18, 2, GUARD.a, n < 38 ? n : n + 20); // centre dashes up to the guardhouse
-  for (const [a, n] of [[-6, 14], [10, 14], [-6, 30], [10, 30]] as const) {
-    mark(0.35, 2.4, a, n); // lane arrows: shaft + head
-    add(new PlaneGeometry(1.1, 1.1).rotateX(-Math.PI / 2).rotateY(Math.PI / 4), white, a, 0.07, n + 1.4).castShadow = false;
+  for (const c of [0, 12]) {
+    for (let a = -70; a < 70; a += 6) if (a < -31 || a > 35) mark(3, 0.15, a, c); // lane divider dashes
+    for (const e of [-3.75, 3.75]) mark(140, 0.12, 0, c + e); // edge lines
+  }
+  mark(140, 0.12, 0, 5.6, yellow);
+  mark(140, 0.12, 0, 6.4, yellow);
+  for (const za of [-29, 33]) {
+    for (let n = -3.5; n <= 15.6; n += 1) if (n < 4 || n > 8) mark(4, 0.5, za, n); // zebra stripes
+    mark(0.4, 8, za - 3, 0); // stop lines before the crossings
+    mark(0.4, 8, za + 3, 12);
   }
 
-  // --- Low walls with flower planters along the road.
+  // --- Forecourt: a red-brick trapezoid from the kerb (n 16.5) narrowing to the guardhouse island.
+  const brickTex = canvasTexture(256, 256, bricks, tracker);
+  brickTex.wrapS = brickTex.wrapT = RepeatWrapping;
+  const brick = std(0xffffff, 0.92, { map: brickTex, polygonOffset: true, polygonOffsetFactor: -5, polygonOffsetUnits: -5 });
+  /** Flat paving polygon in local (a, n), UVs in `tile`-metre repeats. */
+  const paving = (pts: readonly [number, number][], mat: Material, tile: number, y = 0.065): void => {
+    const shape = new Shape(pts.map(([a, n]) => new Vector2(a, -n)));
+    const g = new ShapeGeometry(shape).rotateX(-Math.PI / 2);
+    const uv = g.getAttribute('uv');
+    for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) / tile, uv.getY(i) / tile);
+    add(g, mat, 0, y, 0).castShadow = false;
+  };
+  paving([[-26, 16.5], [30, 16.5], [16, 40], [16, 58], [-12, 58], [-12, 40]], brick, 2.4);
+  for (let n = 19; n < 38; n += 4) mark(0.18, 2, GUARD.a, n); // centre dashes to the guardhouse
+  for (const [a, n, out] of [[-5, 24, false], [10, 24, true], [-5, 33, false], [10, 33, true]] as const) {
+    mark(0.35, 2.4, a, n); // lane arrows: in on the west lane, out on the east
+    add(new PlaneGeometry(1.1, 1.1).rotateX(-Math.PI / 2).rotateY(Math.PI / 4), white, a, 0.072, n + (out ? -1.4 : 1.4)).castShadow = false;
+  }
+  // Grey checker paving across both lanes behind the guardhouse.
+  const checkerTex = canvasTexture(128, 128, (g) => {
+    for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) {
+      g.fillStyle = (i + j) % 2 ? '#9a9c9a' : '#c4c5c1';
+      g.fillRect(i * 32, j * 32, 32, 32);
+    }
+    g.strokeStyle = '#7d7f7c';
+    g.lineWidth = 2;
+    for (let k = 0; k <= 128; k += 32) { g.beginPath(); g.moveTo(k, 0); g.lineTo(k, 128); g.moveTo(0, k); g.lineTo(128, k); g.stroke(); }
+  }, tracker);
+  checkerTex.wrapS = checkerTex.wrapT = RepeatWrapping;
+  paving([[-12, 58], [16, 58], [16, 68], [-12, 68]], std(0xffffff, 0.9, { map: checkerTex, polygonOffset: true, polygonOffsetFactor: -5, polygonOffsetUnits: -5 }), 2.4);
+
+  // --- Low walls with flower planters along the road, either side of the forecourt.
   const concrete = std(0xbdb9b1, 0.9);
   const capMat = std(0xd2cfc8, 0.8);
   const planterMat = std(0x9d9a93, 0.9);
   const flowerTex = canvasTexture(128, 128, flowers, tracker);
   flowerTex.wrapS = flowerTex.wrapT = RepeatWrapping;
   const flowerMat = std(0xffffff, 0.95, { map: flowerTex });
-  const WALL_N = 24.6;
+  const WALL_N = 19.2;
+  const BARRIER_N = 25;
   const wall = (a0: number, a1: number): void => {
     const w = a1 - a0, mid = (a0 + a1) / 2;
     box(w, 1.7, 0.6, mid, 0, WALL_N, concrete, true);
@@ -183,10 +229,10 @@ export function createMainGate(scene: Scene, physics: RAPIER.World, campus: Camp
     const f = box(w - 0.6, 0.18, 0.7, mid, 0.42, WALL_N - 0.85, flowerMat);
     f.castShadow = false;
   };
-  wall(-38, -27.5);
-  wall(-21, -12);
-  wall(17, 27);
-  wall(29, 46);
+  wall(-48, -38);
+  wall(-36.5, -27.5);
+  wall(31.5, 41);
+  wall(42.5, 52);
 
   // School-name plate on the west wall, facing the road.
   const plateTex = canvasTexture(1024, 160, (g) => {
@@ -206,12 +252,12 @@ export function createMainGate(scene: Scene, physics: RAPIER.World, campus: Camp
     g.textAlign = 'left';
     g.fillText('國立雲林科技大學', 175, 86);
   }, tracker);
-  const plate = add(new PlaneGeometry(6.4, 1.0), std(0xffffff, 0.6, { map: plateTex }), -16.5, 1.05, WALL_N - 0.31, Math.PI);
+  const plate = add(new PlaneGeometry(6.4, 1.0), std(0xffffff, 0.6, { map: plateTex }), -32, 1.05, WALL_N - 0.31, Math.PI);
   plate.castShadow = false;
 
   // --- Name pillar with the sculpture on top.
   const stone = std(0xa9aaa5, 0.85);
-  const P = { a: -24.2, n: 21.8 };
+  const P = { a: -23.5, n: 20 }; // right front corner of the forecourt, by the kerb
   box(2.8, 0.8, 2.8, P.a, 0, P.n, stone, true);
   const SHAFT_H = 11;
   add(new CylinderGeometry(0.9, 0.95, SHAFT_H, 8), stone, P.a, 0.8 + SHAFT_H / 2, P.n, Math.PI / 8);
@@ -274,25 +320,86 @@ export function createMainGate(scene: Scene, physics: RAPIER.World, campus: Camp
   }, tracker);
   stripeTex.wrapS = RepeatWrapping;
   stripeTex.repeat.set(4, 1);
-  box(0.5, 1.1, 0.5, -11.4, 0, WALL_N, std(0xd9b420, 0.6), true);
-  box(0.5, 1.1, 0.5, 16.4, 0, WALL_N, std(0xd9b420, 0.6), true);
-  add(new BoxGeometry(27.4, 0.12, 0.12), std(0xffffff, 0.6, { map: stripeTex }), 2.5, 0.95, WALL_N);
+  box(0.5, 1.1, 0.5, -11.4, 0, BARRIER_N, std(0xd9b420, 0.6), true);
+  box(0.5, 1.1, 0.5, 16.4, 0, BARRIER_N, std(0xd9b420, 0.6), true);
+  add(new BoxGeometry(27.4, 0.12, 0.12), std(0xffffff, 0.6, { map: stripeTex }), 2.5, 0.95, BARRIER_N);
 
   // --- Traffic signals at both corners, heads over the road.
   const poleMat = std(0x6f7377, 0.5, { metalness: 0.5 });
   const headMat = std(0x1c1d1f, 0.6);
   const lamp = (color: number): MeshStandardMaterial => tracker.material(new MeshStandardMaterial({ color, roughness: 0.4, emissive: color, emissiveIntensity: 0.6 }));
-  for (const [a, armDir] of [[-36.5, 1], [44.5, -1]] as const) {
-    const n = 5.2;
+  for (const [a, armDir] of [[-37.2, 1], [41.8, -1]] as const) {
+    const n = 17.2;
     add(new CylinderGeometry(0.11, 0.13, 6, 10), poleMat, a, 3, n);
     {
       const [wx, wz] = toWorld(a, n);
       colliders.push(tracker.collider(physics.createCollider(RAPIER.ColliderDesc.cylinder(3, 0.15).setTranslation(wx, 3, wz))));
     }
-    box(5.2, 0.12, 0.12, a + armDir * 2.6, 5.7, n, poleMat);
-    const ha = a + armDir * 4.6;
-    box(1.0, 0.36, 0.3, ha, 5.25, n, headMat);
-    [0xd8322a, 0xf2b31b, 0x2fb35a].forEach((c, i) => box(0.24, 0.24, 0.05, ha + (i - 1) * 0.3, 5.31, n - 0.17, lamp(c)));
+    // Arm reaches out over the near carriageway; the head faces oncoming traffic.
+    box(0.12, 0.12, 6, a, 5.7, n - 3, poleMat);
+    const hn = n - 5.4;
+    box(0.3, 0.36, 1.0, a, 5.25, hn, headMat);
+    [0xd8322a, 0xf2b31b, 0x2fb35a].forEach((c, i) => box(0.05, 0.24, 0.24, a - armDir * 0.17, 5.31, hn + (i - 1) * 0.3, lamp(c)));
+  }
+
+  // --- Boulevard to the fountain: planted median with a tree row, street trees outside both lanes.
+  const grassMat = std(0x5f9a45, 0.95, { polygonOffset: true, polygonOffsetFactor: -5, polygonOffsetUnits: -5 });
+  const kerb = std(0xc9c6bd, 0.85);
+  box(10, 0.15, 40, 2, 0, 88, kerb, false);
+  paving([[-2.8, 68.2], [6.8, 68.2], [6.8, 107.8], [-2.8, 107.8]], grassMat, 4, 0.16);
+  const trees: [number, number, number][] = []; // a, n, scale
+  for (let n = 72; n <= 104; n += 8) trees.push([2, n, 1]);
+  for (let n = 62; n <= 106; n += 7) trees.push([-12.5, n, 1.1], [16.5, n + 3, 1.1]);
+  // Tree belt along the road on both sides of the gate, inside the boundary.
+  for (let a = -100; a <= -30; a += 7) trees.push([a, 30, 1.25], [a + 3.5, 37, 1.15]);
+  for (let a = 62; a <= 110; a += 7) trees.push([a, 30, 1.25], [a + 3.5, 37, 1.15]);
+  const trunkGeo = tracker.geometry(new CylinderGeometry(0.22, 0.32, 3.2, 8).translate(0, 1.6, 0));
+  const canopyGeo = tracker.geometry(mergeGeometries([
+    new IcosahedronGeometry(2.4, 1).translate(0, 4.6, 0),
+    new IcosahedronGeometry(1.8, 1).translate(1.3, 4.1, 0.6),
+    new IcosahedronGeometry(1.7, 1).translate(-1.2, 4.3, -0.7),
+    new IcosahedronGeometry(1.5, 1).translate(0.2, 5.8, -0.3),
+  ])!);
+  const trunkMesh = new InstancedMesh(trunkGeo, std(0x6b4f3a, 0.95), trees.length);
+  const canopyMesh = new InstancedMesh(canopyGeo, std(0x3f7f35, 0.9, { flatShading: true }), trees.length);
+  const tm = new Matrix4(), tq = new Quaternion(), tp = new Vector3(), ts = new Vector3(), tint = new Color();
+  trees.forEach(([a, n, k], i) => {
+    const jitter = Math.sin(a * 12.9898 + n * 78.233) * 0.5 + 0.5;
+    tq.setFromAxisAngle(new Vector3(0, 1, 0), jitter * Math.PI * 2);
+    const sc = k * (0.85 + jitter * 0.3);
+    tm.compose(tp.set(a, 0, n), tq, ts.set(sc, sc, sc));
+    trunkMesh.setMatrixAt(i, tm);
+    canopyMesh.setMatrixAt(i, tm);
+    canopyMesh.setColorAt(i, tint.setHSL(0.27 + jitter * 0.05, 0.42, 0.3 + jitter * 0.08));
+    const [wx, wz] = toWorld(a, n);
+    colliders.push(tracker.collider(physics.createCollider(RAPIER.ColliderDesc.cylinder(1.6 * sc, 0.3 * sc).setTranslation(wx, 1.6 * sc, wz))));
+  });
+  for (const m of [trunkMesh, canopyMesh]) {
+    m.castShadow = true;
+    m.receiveShadow = true;
+    m.computeBoundingSphere();
+    root.add(m);
+  }
+
+  // --- Fountain roundabout at the head of the boulevard: ring path, lawn, octagonal basin, jets.
+  const F = { a: 2, n: 129 };
+  const ringPave = std(0xdedbd2, 0.85, { polygonOffset: true, polygonOffsetFactor: -5, polygonOffsetUnits: -5 });
+  add(new RingGeometry(8.4, 10.4, 48).rotateX(-Math.PI / 2), ringPave, F.a, 0.066, F.n).castShadow = false;
+  add(new CircleGeometry(8.4, 48).rotateX(-Math.PI / 2), grassMat, F.a, 0.07, F.n).castShadow = false;
+  add(new TorusGeometry(8.2, 0.28, 6, 48).rotateX(Math.PI / 2), std(0x2f6b2c, 0.9), F.a, 0.25, F.n); // low hedge
+  add(new CylinderGeometry(4.2, 4.4, 0.55, 8), std(0xcfccc3, 0.8), F.a, 0.275, F.n, Math.PI / 8);
+  add(new CylinderGeometry(3.85, 3.85, 0.04, 8), std(0x4f8fb5, 0.15, { metalness: 0.3, emissive: new Color(0x1e4a66), emissiveIntensity: 0.25 }), F.a, 0.5, F.n, Math.PI / 8);
+  add(new CylinderGeometry(0.9, 1.2, 0.9, 8), std(0xcfccc3, 0.8), F.a, 0.9, F.n);
+  add(new CylinderGeometry(0.35, 0.5, 1.1, 8), std(0xcfccc3, 0.8), F.a, 1.9, F.n);
+  const spray = std(0xffffff, 0.2, { transparent: true, opacity: 0.55, depthWrite: false });
+  add(new ConeGeometry(0.9, 2.2, 16, 1, true).rotateX(Math.PI), spray, F.a, 3.3, F.n).castShadow = false;
+  for (let k = 0; k < 8; k++) {
+    const t = (k / 8) * Math.PI * 2;
+    add(new ConeGeometry(0.18, 1.2, 8, 1, true), spray, F.a + Math.cos(t) * 2.6, 1.1, F.n + Math.sin(t) * 2.6).castShadow = false;
+  }
+  {
+    const [wx, wz] = toWorld(F.a, F.n);
+    colliders.push(tracker.collider(physics.createCollider(RAPIER.ColliderDesc.cylinder(0.3, 4.3).setTranslation(wx, 0.3, wz))));
   }
 
   return {
