@@ -3,6 +3,7 @@ import type { CampusData, Ring } from '../campus/campusTypes';
 import { telemetry } from '../state/telemetry';
 import { actions, useGame } from '../state/store';
 import { outsideRing } from '../game/teleport';
+import { UNLABELLED_NAMES } from '../campus/placeNames';
 import { useApi } from './api';
 
 /** Base map resolution: world metres → base-canvas pixels. */
@@ -78,6 +79,7 @@ function renderBaseMap(data: CampusData): BaseMap {
   }
 
   for (const b of data.buildings) {
+    if (!b.inCampus) continue; // off-campus buildings are not built
     g.fillStyle = b.inCampus ? '#d9c4a3' : '#cfcac2';
     g.strokeStyle = b.inCampus ? '#9b6a4f' : '#a19c94';
     g.lineWidth = 1.5;
@@ -222,7 +224,7 @@ export function Minimap(): ReactNode {
 }
 
 /** Buildings that stay in the world but get no name on the map. */
-const UNLABELLED = new Set(['卡璐佶', '潔綠創新園區']);
+const UNLABELLED = UNLABELLED_NAMES;
 /** Multi-block buildings that keep one label however far the map is zoomed in. */
 const SINGLE_LABEL = new Set(['學生宿舍D']);
 const MIN_ZOOM = 1;

@@ -39,7 +39,10 @@ import { CAPSULE_CENTER_OFFSET, createCharacterControllerSystem, type MoveModifi
 import { createBikeSystem } from './bikes/bikeSystem';
 import { createPlayground } from './playground/playground';
 import { addCafeteriaSign } from './buildings/cafeteriaSign';
-import { MAIN_GATE_GUARDHOUSE, createMainGate } from './campus/mainGate';
+import { MAIN_GATE_GUARDHOUSE, createMainGate, inGateZone } from './campus/mainGate';
+import { addBoundaryZone } from './campus/boundaryZone';
+import { inGateArea } from './campus/mainGate';
+import { UNLABELLED_NAMES } from './campus/placeNames';
 import { createBuildingTest, placeBikeStations, stationClearings } from './bikes/bikeStations';
 import { findMascotJoints } from './character/mascot';
 import { CLOCK_RATE, applyPose, computeRidePose, createPose } from './character/pose';
@@ -185,6 +188,7 @@ async function boot(): Promise<void> {
   actions.setRaceStart(playground?.startSpot ?? null);
   addCafeteriaSign(scene, campus, sceneResources);
   const mainGate = createMainGate(scene, physics, campus, sceneResources);
+  addBoundaryZone(scene, campus, sceneResources, inGateZone);
   const bikes = createBikeSystem(scene, bikeStations, sceneResources);
   const insideBuilding = createBuildingTest(campus);
   const moveMods: MoveModifiers = { fly: false, noclip: false, speed: 1, bike: false, blocked: null };
@@ -223,6 +227,77 @@ async function boot(): Promise<void> {
     return hit ? 2.5 - hit.timeOfImpact : 0;
   };
 
+  // --- Area banner: which named place the player is in (building + storey, sports ground, gate).
+  const areaBuildings = campus.buildings
+    .filter((b) => b.name && b.inCampus && !UNLABELLED_NAMES.has(b.name))
+    .map((b) => {
+      let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
+      for (let i = 0; i < b.outer.length; i += 2) {
+        x0 = Math.min(x0, b.outer[i]!); x1 = Math.max(x1, b.outer[i]!);
+        z0 = Math.min(z0, b.outer[i + 1]!); z1 = Math.max(z1, b.outer[i + 1]!);
+      }
+      return { b, x0, z0, x1, z1, storey: b.height / Math.max(1, b.levels) };
+    });
+  const inRing = (x: number, z: number, r: readonly number[]): boolean => {
+    let inside = false;
+    for (let i = 0, n = r.length / 2, j = n - 1; i < n; j = i++) {
+      const xi = r[i * 2]!, zi = r[i * 2 + 1]!, xj = r[j * 2]!, zj = r[j * 2 + 1]!;
+      if (zi > z !== zj > z && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) inside = !inside;
+    }
+    return inside;
+  };
+  const sportsField = playground
+    ? campus.fields.filter((f) => f.kind === 'soccer').sort((a, b) =>
+      Math.hypot(a.outer[0]! - playground.startSpot.x, a.outer[1]! - playground.startSpot.z) - Math.hypot(b.outer[0]! - playground.startSpot.x, b.outer[1]! - playground.startSpot.z))[0]
+    : undefined;
+  const nearField = (x: number, z: number): boolean => {
+    if (!sportsField) return false;
+    if (inRing(x, z, sportsField.outer)) return true;
+    const r = sportsField.outer;
+    for (let i = 0, n = r.length / 2; i < n; i++) {
+      const j = (i + 1) % n;
+      const ax = r[i * 2]!, az = r[i * 2 + 1]!, dx = r[j * 2]! - ax, dz = r[j * 2 + 1]! - az;
+      const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz || 1)));
+      if (Math.hypot(x - ax - dx * t, z - az - dz * t) < 14) return true; // the track around the pitch
+    }
+    return false;
+  };
+  const areaAt = (x: number, y: number, z: number): { key: string; title: string; subtitle: string } | null => {
+    for (const a of areaBuildings) {
+      if (x < a.x0 || x > a.x1 || z < a.z0 || z > a.z1 || !inRing(x, z, a.b.outer)) continue;
+      const name = a.b.name!;
+      if (a.b.levels <= 1) return { key: name, title: name, subtitle: '' };
+      const floor = Math.max(1, Math.floor((y + 0.4) / a.storey) + 1);
+      return { key: `${name}|${floor}`, title: name, subtitle: `${floor}F` };
+    }
+    if (nearField(x, z)) return { key: '操場', title: '操場', subtitle: '跑道計時賽' };
+    if (inGateArea(x, z)) return { key: '大門', title: '大門', subtitle: '國立雲林科技大學' };
+    return null;
+  };
+  let introPending = false;
+  let areaKey: string | null = null;
+  let lastAreaCheck = 0;
+  const areaShownAt = new Map<string, number>();
+  const AREA_REPEAT_S = 20;
+  const updateArea = (now: number, x: number, y: number, z: number): void => {
+    if (now - lastAreaCheck < 0.25) return;
+    lastAreaCheck = now;
+    const area = areaAt(x, y, z);
+    if (introPending) {
+      introPending = false;
+      areaKey = area?.key ?? null;
+      if (area) areaShownAt.set(area.key, now);
+      actions.showArea(area?.title ?? '國立雲林科技大學', area ? area.subtitle : '雲寶寶上學趣');
+      return;
+    }
+    const key = area?.key ?? null;
+    if (key === areaKey) return;
+    areaKey = key;
+    if (!area || now - (areaShownAt.get(area.key) ?? -Infinity) < AREA_REPEAT_S) return;
+    areaShownAt.set(area.key, now);
+    actions.showArea(area.title, area.subtitle);
+  };
+
   /** Destination of a load in progress: the world streams around it instead of the player. */
   let streamAt: { x: number; y: number; z: number } | null = null;
 
@@ -240,6 +315,7 @@ async function boot(): Promise<void> {
   const handleCommand = (cmd: GameCommand): void => {
     switch (cmd.type) {
       case 'loadSave': {
+        introPending = true;
         const save = loadProgress();
         if (!save) return;
         actions.restoreProgress(save);
@@ -259,7 +335,14 @@ async function boot(): Promise<void> {
         });
         return;
       }
+      case 'leaveRace':
+        if (playground?.racing) {
+          playground.cancel();
+          actions.toast('已離開計時賽');
+        }
+        return;
       case 'newGame':
+        introPending = true;
         clockSeconds = 0;
         bikes.dismount();
         playground?.cancel();
@@ -555,6 +638,7 @@ async function boot(): Promise<void> {
     }
     if (steps === MAX_SUBSTEPS) accumulator = 0;
 
+    if (playing && !streamAt && !ui.fading) updateArea(time, Transform.x[eid]!, Transform.y[eid]!, Transform.z[eid]!);
     if (!playing) lastSave = time;
     else if (time - lastSave > AUTOSAVE_SECONDS) {
       lastSave = time;

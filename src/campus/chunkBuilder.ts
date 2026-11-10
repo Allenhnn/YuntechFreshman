@@ -499,6 +499,7 @@ export class ChunkBuilder {
 
     for (const b of this.buildings.get(k) ?? []) {
       if (b.replacedBy) continue; // drawn and collided by its hand-built model instead
+      if (!b.inCampus) continue; // off campus: no-go zone, nothing built there
       const styleIndex = this.facades.building[String(b.id)] ?? (b.inCampus ? 0 : 1);
       const style = varied(this.styles[styleIndex]!, b.id);
       const floors = Math.max(1, b.levels || Math.round(b.height / 3.6));
@@ -518,7 +519,7 @@ export class ChunkBuilder {
       if (shots && photoMesh) photoWalls.push({ building: b.id, atlas: shots.atlas, mesh: photoMesh });
       addPolygon(roof, b.outer, b.holes, b.height, 4);
     }
-    for (const f of this.fields.get(k) ?? []) addPolygon(fields, f.outer, [], Y_FIELD, 6, FIELD_COLORS[f.kind]);
+    for (const f of this.fields.get(k) ?? []) if (pointInRing(...ringCentroid(f.outer), this.data.boundary)) addPolygon(fields, f.outer, [], Y_FIELD, 6, FIELD_COLORS[f.kind]);
     for (const { road, from, to } of this.roadSegs.get(k) ?? []) {
       const pts = road.points.slice(from * 2, to * 2 + 2);
       if (road.kind === 'walkway') addRibbon(walks, pts, road.width, Y_WALK, 2);
@@ -578,7 +579,7 @@ export class ChunkBuilder {
         const r = rand();
         if (x < bounds.minX - 60 || x > bounds.maxX + 60 || z < bounds.minZ - 60 || z > bounds.maxZ + 60) continue;
         const campus = pointInRing(x, z, boundary);
-        if (r > (campus ? 0.32 : 0.1)) continue;
+        if (!campus || r > 0.32) continue; // no trees off campus
         if (buildings.some(({ item, bounds: [a, b, c, d] }) => x > a - 4 && x < c + 4 && z > b - 4 && z < d + 4 && (pointInRing(x, z, item.outer) || distToRingEdge(x, z, item.outer) < 4))) continue;
         if (this.exclusions.some(({ item, bounds: [a, b, c, d] }) => x > a - 4 && x < c + 4 && z > b - 4 && z < d + 4 && (pointInRing(x, z, item) || distToRingEdge(x, z, item) < 4))) continue;
         if (fields.some(({ item, bounds: [a, b, c, d] }) => x > a - 2 && x < c + 2 && z > b - 2 && z < d + 2 && (pointInRing(x, z, item.outer) || distToRingEdge(x, z, item.outer) < 2))) continue;

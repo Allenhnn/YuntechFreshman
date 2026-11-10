@@ -30,6 +30,8 @@ export interface GameApi {
   selectHotbar(index: number): void;
   clickSlot(index: number): void;
   useItem(slot: number): void;
+  /** Quits the track time trial (button or Q). */
+  leaveRace(): void;
   /** Cafeteria stall purchase. */
   buy(id: ItemId, price: number): void;
   respawn(): void;
@@ -182,6 +184,12 @@ export function createSession(lock: PointerLock, audio: AudioBus): GameApi {
       } else {
         actions.toast(`買了 ${ITEMS[id].name}，放進背包了`);
         audio.play('coin');
+      }
+    },
+    leaveRace() {
+      if (get().race) {
+        audio.play('close');
+        dispatch({ type: 'leaveRace' });
       }
     },
     useItem(slot) {

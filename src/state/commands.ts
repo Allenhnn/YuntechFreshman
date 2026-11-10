@@ -11,6 +11,8 @@ export type GameCommand =
   | { type: 'loadSave' }
   /** Fresh progress at the new-game start point. */
   | { type: 'newGame' }
+  /** Abandon the track time trial in progress. */
+  | { type: 'leaveRace' }
   | { type: 'useItem'; slot: number }
   | { type: 'interact' }
   | { type: 'elevatorTo'; building: string; level: string }

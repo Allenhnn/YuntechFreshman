@@ -82,6 +82,13 @@ export interface ShopMenu {
   items: readonly { id: ItemId; price: number }[];
 }
 
+/** Centre-screen area title (entering a building, the sports ground, the gate). */
+export interface AreaBanner {
+  id: number;
+  title: string;
+  subtitle: string;
+}
+
 export interface Toast {
   id: number;
   text: string;
@@ -108,6 +115,7 @@ export interface GameState {
   /** Inventory slot picked up for moving, or null. */
   heldSlot: number | null;
   toast: Toast | null;
+  areaBanner: AreaBanner | null;
   /** Prompt for the nearest interactable (e.g. "按 E 搭乘電梯"), or null. */
   interactPrompt: string | null;
   elevator: ElevatorMenu | null;
@@ -149,6 +157,7 @@ export const gameStore = createStore<GameState>()(() => ({
   hotbarIndex: 0,
   heldSlot: null,
   toast: null,
+  areaBanner: null,
   interactPrompt: null,
   elevator: null,
   fading: false,
@@ -294,6 +303,12 @@ export const actions = {
   },
   toast(text: string): void {
     set({ toast: { id: ++toastId, text } });
+  },
+  showArea(title: string, subtitle = ''): void {
+    set({ areaBanner: { id: ++toastId, title, subtitle } });
+  },
+  clearArea(id: number): void {
+    if (get().areaBanner?.id === id) set({ areaBanner: null });
   },
   clearToast(id: number): void {
     if (get().toast?.id === id) set({ toast: null });

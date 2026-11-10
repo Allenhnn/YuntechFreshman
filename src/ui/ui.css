@@ -275,3 +275,25 @@ kbd {
 .shop-item .name { flex: 1; text-align: left; font-weight: 700; }
 .shop-item .price { font-variant-numeric: tabular-nums; color: var(--green-dark); font-weight: 700; }
 .confirm-new { margin: 0; font-size: 14px; line-height: 1.5; color: var(--ink); text-align: center; }
+.race-leave {
+  margin-left: 4px; border: 0; border-radius: 999px; padding: 4px 10px; background: rgba(200, 48, 42, 0.12); color: #a3241f;
+  font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; align-self: center;
+}
+.race-leave:hover { background: rgba(200, 48, 42, 0.2); }
+.race-leave kbd { font-size: 10px; padding: 0 4px; margin-left: 2px; }
+
+/* ---------- Area banner (entering a building / facility) ---------- */
+.area-banner {
+  position: absolute; top: 36%; left: 50%; transform: translate(-50%, -50%); text-align: center; pointer-events: none;
+  color: #fff; text-shadow: 0 4px 18px rgba(10, 40, 25, 0.6), 0 1px 3px rgba(0, 0, 0, 0.35); white-space: nowrap;
+  animation: area-in-out 2.8s ease forwards;
+}
+.area-title { font-size: 46px; font-weight: 800; letter-spacing: 0.14em; }
+.area-rule { width: 70%; height: 2px; margin: 8px auto 6px; background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.9), transparent); }
+.area-sub { font-size: 16px; font-weight: 600; letter-spacing: 0.3em; opacity: 0.92; }
+@keyframes area-in-out {
+  0% { opacity: 0; transform: translate(-50%, -38%); letter-spacing: 0.02em; }
+  16% { opacity: 1; transform: translate(-50%, -50%); }
+  72% { opacity: 1; transform: translate(-50%, -50%); }
+  100% { opacity: 0; transform: translate(-50%, -58%); }
+}

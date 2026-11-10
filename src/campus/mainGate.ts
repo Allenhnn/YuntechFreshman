@@ -34,6 +34,26 @@ const ORIGIN: readonly [number, number] = [0, -429];
 const ROAD_DIR: readonly [number, number] = [29, -6]; // 大學路三段 at the gate, heading east
 const GUARD = { a: 1.6, n: 46.3 };
 
+/** Gate frame coordinates (a along the road, n into campus) of a world point. */
+function toGate(x: number, z: number): [number, number] {
+  const len = Math.hypot(ROAD_DIR[0], ROAD_DIR[1]);
+  const ax = ROAD_DIR[0] / len, az = ROAD_DIR[1] / len;
+  const dx = x - ORIGIN[0], dz = z - ORIGIN[1];
+  return [dx * ax + dz * az, dx * -az + dz * ax];
+}
+
+/** The gate forecourt, where its own walls and barrier replace the boundary fence. */
+export function inGateZone(x: number, z: number): boolean {
+  const [a, n] = toGate(x, z);
+  return a > -40 && a < 48 && n > -6 && n < 40;
+}
+
+/** The forecourt and guardhouse island, for the area banner. */
+export function inGateArea(x: number, z: number): boolean {
+  const [a, n] = toGate(x, z);
+  return a > -38 && a < 46 && n > 4 && n < 56;
+}
+
 function canvasTexture(w: number, h: number, paint: (g: CanvasRenderingContext2D) => void, tracker: ResourceTracker): CanvasTexture {
   const c = document.createElement('canvas');
   c.width = w;
@@ -236,6 +256,19 @@ export function createMainGate(scene: Scene, physics: RAPIER.World, campus: Camp
     box(0.9, 0.4, L - 2, G.a + s * (W / 2 + 0.95), 0, G.n, planterMat, true);
     box(0.7, 0.16, L - 2.2, G.a + s * (W / 2 + 0.95), 0.38, G.n, flowerMat).castShadow = false;
   }
+
+  // --- Boom barrier across the lane gap on the boundary line (the fence stops at the gate walls).
+  const stripeTex = canvasTexture(256, 32, (g) => {
+    for (let k = 0; k < 8; k++) {
+      g.fillStyle = k % 2 ? '#f4f2ea' : '#c8302a';
+      g.fillRect(k * 32, 0, 32, 32);
+    }
+  }, tracker);
+  stripeTex.wrapS = RepeatWrapping;
+  stripeTex.repeat.set(4, 1);
+  box(0.5, 1.1, 0.5, -11.4, 0, WALL_N, std(0xd9b420, 0.6), true);
+  box(0.5, 1.1, 0.5, 16.4, 0, WALL_N, std(0xd9b420, 0.6), true);
+  add(new BoxGeometry(27.4, 0.12, 0.12), std(0xffffff, 0.6, { map: stripeTex }), 2.5, 0.95, WALL_N);
 
   // --- Traffic signals at both corners, heads over the road.
   const poleMat = std(0x6f7377, 0.5, { metalness: 0.5 });

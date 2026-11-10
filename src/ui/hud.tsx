@@ -75,15 +75,43 @@ function Toast(): ReactNode {
 }
 
 function RaceHud(): ReactNode {
+  const api = useApi();
   const race = useGame((s) => s.race);
   const best = useGame((s) => s.raceBest);
   if (!race) return null;
-  if (race.phase === 'countdown') return <div className="race-countdown" key={race.countdown}>{race.countdown}</div>;
+  const leave = <button className="race-leave interactive" onClick={api.leaveRace}>✕ 離開計時賽 <kbd>Q</kbd></button>;
+  if (race.phase === 'countdown') {
+    return (
+      <>
+        <div className="race-hud">準備起跑{leave}</div>
+        <div className="race-countdown" key={race.countdown}>{race.countdown}</div>
+      </>
+    );
+  }
   return (
     <div className="race-hud">
       <b>{race.time.toFixed(1)}</b> 秒
       <span>檢查點 {race.gate}/{race.gates}</span>
       <span>{race.testing ? '不計成績' : `最佳 ${best === null ? '—' : best.toFixed(2)}`}</span>
+      {leave}
+    </div>
+  );
+}
+
+/** Area title in the middle of the screen: fades in, holds, fades out (CSS), then clears. */
+function AreaBannerView(): ReactNode {
+  const banner = useGame((s) => s.areaBanner);
+  useEffect(() => {
+    if (!banner) return;
+    const t = window.setTimeout(() => actions.clearArea(banner.id), 3000);
+    return () => window.clearTimeout(t);
+  }, [banner]);
+  if (!banner) return null;
+  return (
+    <div className="area-banner" key={banner.id}>
+      <div className="area-title">{banner.title}</div>
+      <div className="area-rule" />
+      {banner.subtitle && <div className="area-sub">{banner.subtitle}</div>}
     </div>
   );
 }
@@ -111,6 +139,7 @@ export function Hud(): ReactNode {
       <Coins />
       <TesterBadge />
       <RaceHud />
+      <AreaBannerView />
       {mapMode === 'mini' && <Minimap />}
       {mapMode === 'mini' && <div className="osm-credit">© OpenStreetMap contributors</div>}
       <Hotbar />

@@ -5,7 +5,7 @@ import type { PointerLock } from '../input/pointerLock';
 
 /**
  * UI hotkeys (not gameplay actions, which go through input.ts at the fixed step):
- *   Tab  背包     P  手機     M  小地圖 ⇄ 全螢幕     1–5  快捷欄     E  互動（電梯）
+ *   Tab  背包     P  手機     M  小地圖 ⇄ 全螢幕     1–5  快捷欄     E  互動（電梯）     Q  離開計時賽
  *   Esc  關閉視窗；未鎖定滑鼠時暫停（鎖定時由 pointerlockchange 處理）
  * 測試員模式（僅開發版）：`  開關     F  飛行     N  穿牆     + / -  速度倍率
  */
@@ -56,6 +56,9 @@ export function installHotkeys(api: GameApi, lock: PointerLock): () => void {
         return;
       case 'KeyM':
         api.toggleMap();
+        return;
+      case 'KeyQ':
+        if (s.race) api.leaveRace();
         return;
       case 'KeyE':
         api.interact();
