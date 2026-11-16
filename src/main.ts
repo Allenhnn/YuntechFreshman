@@ -68,7 +68,7 @@ const PLAYER_MODEL_URL = `${import.meta.env.BASE_URL}models/mascot.glb`;
 const CAMPUS_DATA_URL = `${import.meta.env.BASE_URL}data/campus.json`;
 const LIBRARY_URL = `${import.meta.env.BASE_URL}data/buildings/library.json`;
 /** Other hand-traced buildings (scripts/floorplan/handbuilt/*.py), each replacing its OSM extrusion. */
-const HAND_BUILT_URLS = [`${import.meta.env.BASE_URL}data/buildings/ma.json`];
+const HAND_BUILT_URLS = [`${import.meta.env.BASE_URL}data/buildings/ma.json`, `${import.meta.env.BASE_URL}data/buildings/mb.json`];
 const FACADES_URL = `${import.meta.env.BASE_URL}data/facades.json`;
 const TRACED_URL = `${import.meta.env.BASE_URL}data/buildings/traced.json`;
 
