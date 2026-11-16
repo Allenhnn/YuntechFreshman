@@ -67,6 +67,8 @@ const MENU_ORBIT_HEIGHT = 46;
 const PLAYER_MODEL_URL = `${import.meta.env.BASE_URL}models/mascot.glb`;
 const CAMPUS_DATA_URL = `${import.meta.env.BASE_URL}data/campus.json`;
 const LIBRARY_URL = `${import.meta.env.BASE_URL}data/buildings/library.json`;
+/** Other hand-traced buildings (scripts/floorplan/handbuilt/*.py), each replacing its OSM extrusion. */
+const HAND_BUILT_URLS = [`${import.meta.env.BASE_URL}data/buildings/ma.json`];
 const FACADES_URL = `${import.meta.env.BASE_URL}data/facades.json`;
 const TRACED_URL = `${import.meta.env.BASE_URL}data/buildings/traced.json`;
 
@@ -140,6 +142,10 @@ async function boot(): Promise<void> {
   campus.parking = SCOOTER_LOTS.map((l) => ({ name: l.name, ring: l.ring }));
   actions.setMapData(campus);
   const librarySrc = await loadBuildingSource(LIBRARY_URL);
+  const handBuiltSrcs = await Promise.all(HAND_BUILT_URLS.map((url) => loadBuildingSource(url)));
+  for (const src of handBuiltSrcs) {
+    for (const b of campus.buildings) if (b.name && src.osmReplaces.includes(b.name)) b.replacedBy = src.id;
+  }
   // Facade styles / photo atlases are optional: without them every building uses the default style.
   const facades = await fetch(FACADES_URL)
     .then((r) => (r.ok ? (r.json() as Promise<FacadeData>) : undefined))
@@ -153,7 +159,7 @@ async function boot(): Promise<void> {
   const bikeStations = placeBikeStations(campus);
   actions.setBikeStations(bikeStations);
   const env = createCampusWorld(scene, physics, renderer, campus, sceneResources, {
-    treeExclusions: [...buildingFootprintRings(librarySrc), ...stationClearings(bikeStations), ...gateTreeExclusions(), ...SCOOTER_LOTS.map((l) => l.ring)],
+    treeExclusions: [...buildingFootprintRings(librarySrc), ...handBuiltSrcs.flatMap(buildingFootprintRings), ...stationClearings(bikeStations), ...gateTreeExclusions(), ...SCOOTER_LOTS.map((l) => l.ring)],
     groundHoles: buildingGroundHoles(librarySrc),
     facades,
     entrances: traced?.entrances,
@@ -168,7 +174,10 @@ async function boot(): Promise<void> {
   };
   // Every other campus building: generated interiors streamed in near the player.
   const interiors = createInteriorManager(scene, physics, renderer, env.materials, campus, facades, sceneResources, traced);
-  const buildings = (): readonly HandBuiltBuilding[] => [library, ...interiors.active];
+  const handBuilt = handBuiltSrcs.map((src) => createHandBuiltBuilding(src, scene, physics, renderer, env.materials, sceneResources, {
+    facadeStyle: facadeStyleOf(facades, campus, src.osmReplaces[0] ?? src.name),
+  }));
+  const buildings = (): readonly HandBuiltBuilding[] => [library, ...handBuilt, ...interiors.active];
   const buildingById = (id: string): HandBuiltBuilding | undefined => buildings().find((b) => b.source.id === id);
   // A new game always starts at the dorm C courtyard; a custom point only applies to respawning.
   const spawn = { x: campus.spawn.x, y: 0, z: campus.spawn.z, facing: campus.spawn.facing };
@@ -734,6 +743,7 @@ async function boot(): Promise<void> {
     const near = streamAt ?? f;
     env.update(near.x, near.z);
     library.update(f.x, f.y, f.z);
+    for (const b of handBuilt) b.update(f.x, f.y, f.z);
     interiors.update(near.x, near.y, near.z);
     const earned = playing ? (playground?.update(dt, time, f.x, f.z) ?? 0) : 0;
     if (earned > 0) {
@@ -786,6 +796,7 @@ async function boot(): Promise<void> {
     input.dispose();
     coins.dispose(world);
     library.dispose();
+    for (const b of handBuilt) b.dispose();
     interiors.dispose();
     bikes.dispose();
     playground?.dispose();
