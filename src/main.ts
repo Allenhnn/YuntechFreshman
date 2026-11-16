@@ -39,6 +39,7 @@ import { CAPSULE_CENTER_OFFSET, createCharacterControllerSystem, type MoveModifi
 import { createBikeSystem } from './bikes/bikeSystem';
 import { createPlayground } from './playground/playground';
 import { addCafeteriaSign } from './buildings/cafeteriaSign';
+import { createSkyBridge } from './buildings/skyBridge';
 import { MAIN_GATE_GUARDHOUSE, createMainGate, gateTreeExclusions, inGateZone } from './campus/mainGate';
 import { addBoundaryZone } from './campus/boundaryZone';
 import { includeLongtanRoad, widenCampusRoads } from './campus/campusFixes';
@@ -177,6 +178,10 @@ async function boot(): Promise<void> {
   const handBuilt = handBuiltSrcs.map((src) => createHandBuiltBuilding(src, scene, physics, renderer, env.materials, sceneResources, {
     facadeStyle: facadeStyleOf(facades, campus, src.osmReplaces[0] ?? src.name),
   }));
+  // 2F sky bridge 管理二館 → 管理一館: from the door at the north end of MB's east wing to MA's west corridor end.
+  const byId = (id: string): HandBuiltBuilding | undefined => handBuilt.find((b) => b.source.id === id);
+  const ma = byId('ma'), mb = byId('mb');
+  const skyBridge = ma && mb ? createSkyBridge(scene, physics, sceneResources, { building: mb, at: [50.95, -2.3] }, { building: ma, at: [76.5, 12.75] }, 3.6) : null;
   const buildings = (): readonly HandBuiltBuilding[] => [library, ...handBuilt, ...interiors.active];
   const buildingById = (id: string): HandBuiltBuilding | undefined => buildings().find((b) => b.source.id === id);
   // A new game always starts at the dorm C courtyard; a custom point only applies to respawning.
@@ -797,6 +802,7 @@ async function boot(): Promise<void> {
     coins.dispose(world);
     library.dispose();
     for (const b of handBuilt) b.dispose();
+    skyBridge?.dispose();
     interiors.dispose();
     bikes.dispose();
     playground?.dispose();
