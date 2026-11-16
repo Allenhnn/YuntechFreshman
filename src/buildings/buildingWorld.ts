@@ -163,7 +163,7 @@ export function createHandBuiltBuilding(
   const { facadeStyle = DEFAULT_CAMPUS_STYLE, interiorOnly = false } = options;
   const xf = createPlanTransform(src);
   const meshes: BuildingMeshes = options.meshes ?? buildBuildingMeshes(src);
-  const imats: InteriorMaterials = options.shared?.imats ?? createInteriorMaterials(renderer, sceneTracker);
+  const imats: InteriorMaterials = options.shared?.imats ?? createInteriorMaterials(renderer, sceneTracker, src.style?.interior);
   const [ox, oz] = xf.toWorld(0, 0);
   const rot = new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), xf.rotY);
   const rapierRot = { x: rot.x, y: rot.y, z: rot.z, w: rot.w };

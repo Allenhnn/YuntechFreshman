@@ -309,6 +309,7 @@ source = {
     'osmReplaces': ['管理一館'],
     'transform': {'angleDeg': round(math.degrees(math.atan2(dz, dx)), 2), 'planCentroid': [0, 0], 'worldCentroid': world0},
     'floorHeight': FH,
+    'style': {'interior': 'mosaic', 'clerestory': True},
     'levels': [{'id': l, 'elevation': i * FH, 'built': True} for i, l in enumerate(LEVELS)],
     'shell': shell,
     'floors': floors,

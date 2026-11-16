@@ -184,6 +184,6 @@ function createFacadeMaterial(grain: Texture): MeshStandardMaterial {
       .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.12, fGlass);')
       .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\nmetalnessFactor = mix(metalnessFactor, 0.35, fGlass);');
   };
-  m.customProgramCacheKey = () => 'campus-facade-v1';
+  m.customProgramCacheKey = () => 'campus-facade-v2';
   return m;
 }

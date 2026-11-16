@@ -26,6 +26,8 @@ export interface FacadeStyle {
   pattern: WindowPattern;
   /** Ground floor is a glazed storefront / lobby band. */
   groundGlass: boolean;
+  /** Ribbon windows: spandrels in coursed brick (trim colour), with grey frames and slab bands. */
+  brick?: boolean;
 
   // --- 3D details (geometry added in front of the walls; set by eye from Street View) ---
   /** Balconies on the long walls, upper floors: one strip per floor or one per bay. */

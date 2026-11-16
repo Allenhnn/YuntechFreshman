@@ -99,7 +99,7 @@ export class FacadeBuilder extends GeoBuilder {
   }
 }
 
-/** A facade style in shader form: linear colours, (window width, window height, sill, pattern + 4·groundGlass). */
+/** A facade style in shader form: linear colours, (window width, window height, sill, pattern + 4·groundGlass + 8·brick). */
 interface ResolvedStyle {
   wall: [number, number, number];
   trim: [number, number, number];
@@ -450,7 +450,7 @@ function resolveStyle(s: FacadeStyle): ResolvedStyle {
     wall: hexString(s.wall),
     trim: hexString(s.trim),
     glass: hexString(s.glass),
-    params: [s.win[0], s.win[1], s.sill, PATTERN_ID[s.pattern] + (s.groundGlass ? 4 : 0)],
+    params: [s.win[0], s.win[1], s.sill, PATTERN_ID[s.pattern] + (s.groundGlass ? 4 : 0) + (s.brick ? 8 : 0)],
     bay: s.bay,
   };
 }

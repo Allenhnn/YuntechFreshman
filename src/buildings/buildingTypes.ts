@@ -105,6 +105,13 @@ export interface BuildingSource {
   osmIds?: number[];
   transform: { angleDeg: number; planCentroid: Vec2; worldCentroid: Vec2 };
   floorHeight: number;
+  /** Interior finish and details (hand-traced buildings matched to photos). */
+  style?: {
+    /** Material set: 'default' (terrazzo, plain paint) or 'mosaic' (dark grey tile floor, grey mosaic dado, dark door frames). */
+    interior?: 'default' | 'mosaic';
+    /** High glazed strip (2.3–2.9 m) in walls between rooms and corridors. */
+    clerestory?: boolean;
+  };
   /** Generated interiors: partitions that end at the plan edge reach this far further, to the shell wall (m). */
   wallReach?: number;
   levels: Level[];

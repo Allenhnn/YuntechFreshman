@@ -1,4 +1,4 @@
-import { CanvasTexture, Color, DoubleSide, MeshStandardMaterial, RepeatWrapping, SRGBColorSpace, type Texture, type WebGLRenderer } from 'three';
+import { CanvasTexture, ClampToEdgeWrapping, Color, DoubleSide, MeshStandardMaterial, RepeatWrapping, SRGBColorSpace, type Texture, type WebGLRenderer } from 'three';
 import type { ResourceTracker } from '../core/resources';
 import { mulberry32 } from '../core/math';
 
@@ -103,12 +103,58 @@ const steelDoor: Painter = (g, s, rand) => {
   g.fillRect(s / 2 - 2, 0, 4, s); // centre split
 };
 
-export function createInteriorMaterials(renderer: WebGLRenderer, tracker: ResourceTracker): InteriorMaterials {
+/** 60 cm dark grey porcelain tiles with a faint cloud (the 管理學院 corridors). */
+const darkTile: Painter = (g, s, rand) => {
+  g.fillStyle = '#6b6c6b';
+  g.fillRect(0, 0, s, s);
+  speckle(g, s, rand, 700, ['#585958', '#7d7e7c', '#8b8c89', '#4f504f'], 3);
+  g.strokeStyle = 'rgba(40,40,40,0.5)';
+  g.lineWidth = 2;
+  g.strokeRect(1, 1, s - 2, s - 2);
+};
+
+/**
+ * One 2 m storey-relative wall repeat: grey glass-mosaic dado to 1.2 m, a dark cap strip, cream
+ * paint above. The texture clamps vertically, so everything above 2 m stays cream.
+ */
+const mosaicDado: Painter = (g, s, rand) => {
+  g.fillStyle = '#ece6d8';
+  g.fillRect(0, 0, s, s);
+  speckle(g, s, rand, 300, ['#ddd6c6', '#f6f1e6'], 2.5);
+  const dadoTop = s * (1 - 1.2 / 2); // canvas y of 1.2 m (v = 0 is the canvas bottom)
+  const tile = s / 80; // 2.5 cm mosaic
+  for (let y = dadoTop; y < s; y += tile) {
+    for (let x = 0; x < s; x += tile) {
+      const k = rand();
+      g.fillStyle = k < 0.15 ? '#5f625f' : k < 0.45 ? '#868985' : k < 0.8 ? '#a3a6a1' : '#c2c4bf';
+      g.fillRect(x + 0.6, y + 0.6, tile - 1.2, tile - 1.2);
+    }
+  }
+  g.fillStyle = '#4b4d4c';
+  g.fillRect(0, dadoTop - s * 0.012, s, s * 0.018); // cap strip
+  g.fillStyle = '#3e403f';
+  g.fillRect(0, s * 0.975, s, s * 0.025); // skirting
+};
+
+/** Light wood-veneer door in a dark frame. */
+const framedDoor: Painter = (g, s, rand) => {
+  woodDoor(g, s, rand);
+  g.strokeStyle = '#2b2a28';
+  g.lineWidth = s * 0.07;
+  g.strokeRect(0, 0, s, s);
+  g.fillStyle = 'rgba(40,30,20,0.35)';
+  g.fillRect(s * 0.12, s * 0.42, s * 0.76, s * 0.012); // groove
+};
+
+export function createInteriorMaterials(renderer: WebGLRenderer, tracker: ResourceTracker, variant: 'default' | 'mosaic' = 'default'): InteriorMaterials {
   const tex = (size: number, seed: number, p: Painter): Texture => canvasTexture(size, seed, p, renderer, tracker);
   const m = (mat: MeshStandardMaterial): MeshStandardMaterial => tracker.material(mat);
+  const mosaic = variant === 'mosaic';
+  const wallTex = mosaic ? tex(512, 17, mosaicDado) : tex(256, 12, paint);
+  if (mosaic) wallTex.wrapT = ClampToEdgeWrapping;
   return {
-    floor: m(new MeshStandardMaterial({ map: tex(256, 11, terrazzo), roughness: 0.35, metalness: 0 })),
-    paint: m(new MeshStandardMaterial({ map: tex(256, 12, paint), roughness: 0.9 })),
+    floor: m(new MeshStandardMaterial({ map: mosaic ? tex(256, 18, darkTile) : tex(256, 11, terrazzo), roughness: mosaic ? 0.28 : 0.35, metalness: 0 })),
+    paint: m(new MeshStandardMaterial({ map: wallTex, roughness: 0.9 })),
     ceiling: m(
       new MeshStandardMaterial({
         map: tex(256, 13, ceilingPanels),
@@ -119,7 +165,7 @@ export function createInteriorMaterials(renderer: WebGLRenderer, tracker: Resour
       }),
     ),
     glass: m(new MeshStandardMaterial({ color: 0xbfd8e6, transparent: true, opacity: 0.35, roughness: 0.1, metalness: 0.1, side: DoubleSide, depthWrite: false })),
-    door: m(new MeshStandardMaterial({ map: tex(256, 15, woodDoor), roughness: 0.7 })),
+    door: m(new MeshStandardMaterial({ map: mosaic ? tex(256, 19, framedDoor) : tex(256, 15, woodDoor), roughness: 0.7 })),
     elevatorDoor: m(new MeshStandardMaterial({ map: tex(256, 16, steelDoor), roughness: 0.35, metalness: 0.6 })),
   };
 }

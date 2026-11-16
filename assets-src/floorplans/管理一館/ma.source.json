@@ -17,6 +17,10 @@
   ]
  },
  "floorHeight": 3.6,
+ "style": {
+  "interior": "mosaic",
+  "clerestory": true
+ },
  "levels": [
   {
    "id": "1F",

@@ -20,6 +20,8 @@ const SLAB_T = 0.3;
 const BAY = 3.6;
 const RISER = 0.17;
 const STAIR_SIDE = 0.12;
+/** Clerestory strip, above the floor (m). */
+const CLERESTORY: readonly [number, number] = [2.3, 2.9];
 
 export interface ColliderBox {
   /** Centre and half extents in plan-local axes. */
@@ -126,11 +128,12 @@ function horizontal(g: GeoBuilder, [x0, z0, x1, z1]: Rect, y: number, up: boolea
 }
 
 /** One face of a wall piece, offset from the boundary line toward `side` (−1 = a side, +1 = b side). */
-function wallFace(g: GeoBuilder, s: Segment, from: number, to: number, y0: number, y1: number, side: -1 | 1, facade: boolean, floorH: number): void {
+function wallFace(g: GeoBuilder, s: Segment, from: number, to: number, y0: number, y1: number, side: -1 | 1, facade: boolean, floorH: number, vBase = 0): void {
   const off = (side * WALL_T) / 2;
   const len = to - from;
   const u0 = facade ? 0 : from / 2, u1 = facade ? Math.max(1, Math.round(len / BAY)) : to / 2;
-  const v0 = facade ? y0 / floorH : y0 / 2, v1 = facade ? y1 / floorH : y1 / 2;
+  // Paint: 2 m per texture repeat, measured from this storey's floor so dados and skirtings line up on every level.
+  const v0 = facade ? y0 / floorH : (y0 - vBase) / 2, v1 = facade ? y1 / floorH : (y1 - vBase) / 2;
   const uv: [number, number][] = [[u0, v0], [u1, v0], [u1, v1], [u0, v1]];
   const tint = facade ? TINT : undefined;
   if (s.axis === 'h') {
@@ -186,6 +189,7 @@ function buildModelledFloor(
   plates: PlateSpot[],
   floorH: number,
   reach = 0,
+  clerestory = false,
 ): void {
   const { plan, grid, base } = lvl;
   const underground = base < 0;
@@ -265,8 +269,23 @@ function buildModelledFloor(
         if (cellAt(above.grid, ax, ay) !== OUTSIDE || cellAt(above.grid, bx, by) !== OUTSIDE) y1 = above.base - 0.02;
       }
       if (y1 - y0 <= 0.01) continue;
-      wallFace(!A && !underground ? part.facade : part.paint, p, a, b, y0, y1, -1, !A && !underground, floorH);
-      wallFace(!B && !underground ? part.facade : part.paint, p, a, b, y0, y1, 1, !B && !underground, floorH);
+      // Clerestory: a high glazed strip where a room meets a corridor (the wall stays solid for collision).
+      const corridorSide = (s?: Space): boolean => s?.kind === 'corridor' || s?.kind === 'lobby';
+      const roomSide = (s?: Space): boolean => s?.kind === 'room';
+      const strip = clerestory && !kind && A && B && ((roomSide(A) && corridorSide(B)) || (roomSide(B) && corridorSide(A)))
+        && y0 <= base + 0.01 && y1 >= base + CLERESTORY[1] + 0.1;
+      const bands: [number, number, boolean][] = strip
+        ? [[y0, base + CLERESTORY[0], false], [base + CLERESTORY[0], base + CLERESTORY[1], true], [base + CLERESTORY[1], y1, false]]
+        : [[y0, y1, false]];
+      for (const [b0, b1, glazed] of bands) {
+        if (glazed) {
+          for (const side of [-1, 1] as const) wallFace(part.glass, p, a, b, b0, b1, side, false, floorH, base);
+          for (const yy of [b0, b1]) capTop(part.paint, p, a, b, yy); // sill and head
+          continue;
+        }
+        wallFace(!A && !underground ? part.facade : part.paint, p, a, b, b0, b1, -1, !A && !underground, floorH, base);
+        wallFace(!B && !underground ? part.facade : part.paint, p, a, b, b0, b1, 1, !B && !underground, floorH, base);
+      }
       capTop(part.roof, p, a, b, y1);
       part.colliders.push(wallBox(p, a, b, y0, y1));
     }
@@ -392,7 +411,7 @@ export function buildBuildingMeshes(src: BuildingSource): BuildingMeshes {
     const below = modelled[i - 1];
     const above = modelled[i + 1];
     // Only floors that sit directly on top of each other interact (B1 under 1F, 1F under its mezzanine).
-    buildModelledFloor(lvl, below && lvl.base - below.base <= fh + 0.01 && lvl.base > 0 ? below : undefined, above && above.base - lvl.base < lvl.plan.bandTop ? above : undefined, ext, int, doors, plates, fh, src.wallReach ?? 0);
+    buildModelledFloor(lvl, below && lvl.base - below.base <= fh + 0.01 && lvl.base > 0 ? below : undefined, above && above.base - lvl.base < lvl.plan.bandTop ? above : undefined, ext, int, doors, plates, fh, src.wallReach ?? 0, src.style?.clerestory ?? false);
 
     // Furniture keeps clear of elevator landings, signs, doorways and stair ends on this level.
     const keepOut: KeepOut[] = [];
