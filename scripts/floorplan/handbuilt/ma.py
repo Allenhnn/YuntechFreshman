@@ -88,6 +88,14 @@ for k, (x0, near, sgn) in CORES.items():
         landings.append({'rect': [x0, m0, x0 + CORE_W, m1], 'elevation': low + FH / 2})
         stairs.append({'id': f'ma-{k}{i}b', 'name': '樓梯', 'rect': [x0 + CORE_W - FLIGHT_W, r0, x0 + CORE_W, r1], 'axis': 'y', 'up': back, 'low': low + FH / 2, 'high': low + FH})
 
+# The 101 / 201 block ends in a half circle (centre (55, 56), radius 8, mgmtFeatures.ts draws the
+# curved wall): the rooms fill it in 1 m steps that stay just inside the arc.
+CURVE_C, CURVE_R = (55, 56), 8.0
+CURVED = [[41, 48, 55, 64]]
+for _x in range(55, 63):
+    _h = math.floor(math.sqrt(max(0.0, CURVE_R ** 2 - (_x + 1 - CURVE_C[0]) ** 2)) * 10 - 1) / 10
+    if _h >= 1: CURVED.append([_x, round(CURVE_C[1] - _h, 1), _x + 1, round(CURVE_C[1] + _h, 1)])
+
 # ---------------------------------------------------------------- 1F
 f1_spaces = [
     # Classroom wing (page top; the south side on the ground).
@@ -133,7 +141,7 @@ f1_spaces = [
     room('119', '廁所(無障礙)', [[29, 62, 31, 64]], kind='toilet'),
     circ('gallery-s', '南側迴廊', [[11, 64, 34.5, 66.5]]),
     # 智慧商務中心 with its curved end, stepped.
-    room('101', '智慧商務中心', [[41, 48, 55, 64], [55, 49.5, 59, 63], [59, 51.5, 62, 61], [62, 53.5, 64, 59]], 'office', legendArea=347),
+    room('101', '智慧商務中心', CURVED, 'office', legendArea=347),
 ]
 
 f1_open = [
@@ -148,17 +156,13 @@ f1_open = [
     door_v(41, 52, 1.8), door_h(46, 48, 1.8),
     door_v(80, 6, 2.4, 'exit', '東側入口'),
     {'kind': 'exit', 'a': [35.5, 66.5], 'b': [40, 66.5], 'label': '南側入口'},
-    {'kind': 'open', 'a': [7, 11.8], 'b': [7, 13.7]}, {'kind': 'open', 'a': [80, 11.8], 'b': [80, 13.7]},
-    {'kind': 'open', 'a': [21.3, 0], 'b': [23.7, 0]}, {'kind': 'open', 'a': [51.3, 0], 'b': [53.7, 0]},
-    {'kind': 'open', 'a': [11.3, 66.5], 'b': [13.7, 66.5]},
+    # The corridors are enclosed (glazed, see style.windows); their ends and the breezeways are entrances.
+    {'kind': 'exit', 'a': [7, 11.8], 'b': [7, 13.7], 'label': '西側入口'}, {'kind': 'exit', 'a': [80, 11.8], 'b': [80, 13.7], 'label': '東側入口'},
+    {'kind': 'exit', 'a': [21.3, 0], 'b': [23.7, 0], 'label': '穿堂'}, {'kind': 'exit', 'a': [51.3, 0], 'b': [53.7, 0], 'label': '穿堂'},
+    {'kind': 'exit', 'a': [11.3, 66.5], 'b': [13.7, 66.5], 'label': '入口'},
     core_open('A'), core_open('B'), core_open('C'),
 ]
-f1_open += arcade_h(64.5, 80, 14)
-f1_open += arcade_h(19.5, 20.5, 19, bay=1.0, pier=0.2)
-f1_open += arcade_v(34.5, 25, 45.5)
-f1_open += arcade_v(41, 24.5, 48)
-f1_open += arcade_h(14, 34.5, 66.5)
-f1_open += arcade_v(11, 64, 66.5, bay=2.5)
+# (No open arcades: on site these corridors are glazed, not open to the courtyards.)
 
 # ---------------------------------------------------------------- 2F (page D1-3: 8.0 px/m across, 8.5 down)
 f2_spaces = [
@@ -197,7 +201,7 @@ f2_spaces = [
     room('205', '企業管理系研究室', [[21.5, 56, 27.5, 66.5]], 'office'),
     room('209-2', '研究室', [[27.5, 56, 31, 66.5]], 'carrel'),
     room('209-1', '研究室', [[31, 56, 34.5, 66.5]], 'carrel'),
-    room('201', '公館辦公室', [[41, 48, 55, 64], [55, 49.5, 59, 63], [59, 51.5, 62, 61], [62, 53.5, 64, 59]], 'office'),
+    room('201', '公館辦公室', CURVED, 'office'),
 ]
 f2_open = [
     door_h(9.5, 11.5), door_h(19, 11.5), door_h(23, 11.5), door_h(27, 11.5), door_h(32.5, 11.5), door_h(36.5, 11.5), door_h(42.5, 11.5),
@@ -313,7 +317,7 @@ source = {
     'osmReplaces': ['管理一館'],
     'transform': {'angleDeg': round(math.degrees(math.atan2(dz, dx)), 2), 'planCentroid': [0, 0], 'worldCentroid': world0},
     'floorHeight': FH,
-    'style': {'interior': 'mosaic', 'clerestory': True},
+    'style': {'interior': 'mosaic', 'clerestory': True, 'windows': True},
     'levels': [{'id': l, 'elevation': i * FH, 'built': True} for i, l in enumerate(LEVELS)],
     'shell': shell,
     'floors': floors,

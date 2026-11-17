@@ -213,7 +213,7 @@ source = {
     'osmReplaces': ['管理二館'],
     'transform': {'angleDeg': 81.0, 'planCentroid': list(ANCHOR), 'worldCentroid': [-231.1, -122.6]},
     'floorHeight': FH,
-    'style': {'interior': 'mosaic', 'clerestory': True},
+    'style': {'interior': 'mosaic', 'clerestory': True, 'windows': True},
     'levels': [*({'id': l, 'elevation': i * FH, 'built': True} for i, l in enumerate(LEVELS)), {'id': '4F', 'elevation': 3 * FH, 'built': False}],
     'shell': {'4F': [R('3F', 550, 245, 685, 660), R('3F', 40, 660, 685, 805)]},
     'floors': floors,

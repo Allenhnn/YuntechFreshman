@@ -111,6 +111,8 @@ export interface BuildingSource {
     interior?: 'default' | 'mosaic';
     /** High glazed strip (2.3–2.9 m) in walls between rooms and corridors. */
     clerestory?: boolean;
+    /** Real glass in the exterior walls of rooms and corridors, at the facade's window band. */
+    windows?: boolean;
   };
   /** Generated interiors: partitions that end at the plan edge reach this far further, to the shell wall (m). */
   wallReach?: number;

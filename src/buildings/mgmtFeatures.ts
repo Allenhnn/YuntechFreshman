@@ -98,7 +98,7 @@ export function createMgmtFeatures(scene: Scene, physics: RAPIER.World, tracker:
   if (ma) {
     const g = planGroup(scene, ma, 'MA curved end');
     groups.push(g);
-    const C = { x: 55, z: 56.25 }, R = 9.6, H = 2 * FH;
+    const C = { x: 55, z: 56 }, R = 8, H = 2 * FH; // matches CURVE_C / CURVE_R in scripts/floorplan/handbuilt/ma.py
     const tex = canvas(128, 256, ribbonStorey, tracker);
     const arc = Math.PI;
     tex.repeat.set(Math.round((arc * R) / 1.2), 2); // a mullion bay every ~1.2 m, one texture row per storey

@@ -19,7 +19,8 @@
  "floorHeight": 3.6,
  "style": {
   "interior": "mosaic",
-  "clerestory": true
+  "clerestory": true,
+  "windows": true
  },
  "levels": [
   {

@@ -23,6 +23,9 @@ const RISER = 0.17;
 const STAIR_SIDE = 0.12;
 /** Clerestory strip, above the floor (m). */
 const CLERESTORY: readonly [number, number] = [2.3, 2.9];
+/** Real glazing in exterior walls (style.windows): where the facade shader paints its window band. */
+const WINDOW: readonly [number, number] = [1.15, 2.66];
+const MULLION = 0.12;
 
 export interface ColliderBox {
   /** Centre and half extents in plan-local axes. */
@@ -191,6 +194,7 @@ function buildModelledFloor(
   floorH: number,
   reach = 0,
   clerestory = false,
+  windows = false,
 ): void {
   const { plan, grid, base } = lvl;
   const underground = base < 0;
@@ -275,13 +279,25 @@ function buildModelledFloor(
       const roomSide = (s?: Space): boolean => s?.kind === 'room';
       const strip = clerestory && !kind && A && B && ((roomSide(A) && corridorSide(B)) || (roomSide(B) && corridorSide(A)))
         && y0 <= base + 0.01 && y1 >= base + CLERESTORY[1] + 0.1;
-      const bands: [number, number, boolean][] = strip
-        ? [[y0, base + CLERESTORY[0], false], [base + CLERESTORY[0], base + CLERESTORY[1], true], [base + CLERESTORY[1], y1, false]]
+      // Windows: an exterior wall of a room or corridor is glazed where the facade paints its windows.
+      const inside = A ?? B;
+      const pane = windows && exterior && !kind && (roomSide(inside) || corridorSide(inside))
+        && y0 <= base + 0.01 && y1 >= base + WINDOW[1] + 0.1 && b - a > 0.5;
+      const cut = strip ? CLERESTORY : pane ? WINDOW : null;
+      const bands: [number, number, boolean][] = cut
+        ? [[y0, base + cut[0], false], [base + cut[0], base + cut[1], true], [base + cut[1], y1, false]]
         : [[y0, y1, false]];
       for (const [b0, b1, glazed] of bands) {
         if (glazed) {
-          for (const side of [-1, 1] as const) wallFace(part.glass, p, a, b, b0, b1, side, false, floorH, base);
+          // An exterior pane sits between two slim posts so the wall reads as framed bays.
+          const m = pane ? MULLION / 2 : 0;
+          for (const side of [-1, 1] as const) wallFace(part.glass, p, a + m, b - m, b0, b1, side, false, floorH, base);
           for (const yy of [b0, b1]) capTop(part.paint, p, a, b, yy); // sill and head
+          if (pane) {
+            for (const [m0, m1] of [[a, a + m], [b - m, b]] as const) {
+              for (const side of [-1, 1] as const) wallFace(part.paint, p, m0, m1, b0, b1, side, false, floorH, base);
+            }
+          }
           continue;
         }
         wallFace(!A && !underground ? part.facade : part.paint, p, a, b, b0, b1, -1, !A && !underground, floorH, base);
@@ -412,7 +428,7 @@ export function buildBuildingMeshes(src: BuildingSource): BuildingMeshes {
     const below = modelled[i - 1];
     const above = modelled[i + 1];
     // Only floors that sit directly on top of each other interact (B1 under 1F, 1F under its mezzanine).
-    buildModelledFloor(lvl, below && lvl.base - below.base <= fh + 0.01 && lvl.base > 0 ? below : undefined, above && above.base - lvl.base < lvl.plan.bandTop ? above : undefined, ext, int, doors, plates, fh, src.wallReach ?? 0, src.style?.clerestory ?? false);
+    buildModelledFloor(lvl, below && lvl.base - below.base <= fh + 0.01 && lvl.base > 0 ? below : undefined, above && above.base - lvl.base < lvl.plan.bandTop ? above : undefined, ext, int, doors, plates, fh, src.wallReach ?? 0, src.style?.clerestory ?? false, src.style?.windows ?? false);
 
     // Furniture keeps clear of elevator landings, signs, doorways and stair ends on this level.
     const keepOut: KeepOut[] = [];
