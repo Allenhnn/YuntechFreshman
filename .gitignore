@@ -18,3 +18,4 @@ scripts/floorplan/.ocr
 
 # Reference plans and photos supplied by the user (not redistributed)
 assets-src/reference/
+__pycache__/
