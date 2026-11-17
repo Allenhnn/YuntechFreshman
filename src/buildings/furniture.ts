@@ -409,9 +409,13 @@ export function layoutFurniture(plan: FloorPlan, grid: FloorGrid, base: number, 
  * Corridor fittings, placed from the plan so every building gets them:
  *  - a set of three sorting bins on the corridor wall beside each toilet door;
  *  - red fire-hose cabinets on corridor walls, spread out (≥ 18 m apart) in a seeded random order;
+ *  - a black projecting pictogram sign at every toilet door (women | men, or the accessible WC);
  *  - two-faced hanging direction signs along corridors, pointing ahead to the nearest exit,
  *    stairs, toilets and sky bridge.
  */
+/** Side of the square toilet signs (m). */
+const WC_SIGN = 0.46;
+
 function corridorProps(plan: FloorPlan, grid: FloorGrid, base: number, keepOut: readonly KeepOut[], items: FurnitureItem[], colliders: ColliderBox[]): void {
   const spaceAt = (x: number, y: number): Space | undefined => {
     const c = Math.floor((x - grid.x0) / CELL), r = Math.floor((y - grid.y0) / CELL);
@@ -453,6 +457,14 @@ function corridorProps(plan: FloorPlan, grid: FloorGrid, base: number, keepOut: 
     const side = (n: number): Space | undefined => (axis === 'h' ? spaceAt(mid, at + n * 0.3) : spaceAt(at + n * 0.3, mid));
     const n: 1 | -1 | 0 = side(1)?.kind === 'toilet' && isCirc(side(-1)) ? -1 : side(-1)?.kind === 'toilet' && isCirc(side(1)) ? 1 : 0;
     if (!n) continue;
+    // A black projecting sign over the door edge, read from both ways along the corridor.
+    const toilet = side(-n as 1 | -1);
+    const wc = toilet?.name.includes('無障礙') ? 'wc:acc' : toilet?.name.includes('男') ? 'wc:m' : toilet?.name.includes('女') ? 'wc:f' : 'wc:both';
+    const sp = onWall(axis, at, b + 0.3, n, WALL_T / 2 + 0.06 + WC_SIGN / 2);
+    for (const d of [1, -1]) {
+      const [fx, fy] = axis === 'h' ? [d, 0] : [0, d];
+      items.push({ kind: 'sign', x: sp.x + fx * 0.012, y: base + 2.42, z: sp.y + fy * 0.012, ry: yawToward(-fx, -fy), sx: WC_SIGN, sy: WC_SIGN, sz: 1, tint: 0, label: wc });
+    }
     for (const t of [b + 1.0, a - 1.0, b + 1.6, a - 1.6]) { // clear of the door frame (wallFree keeps a 0.25 m margin)
       const p = onWall(axis, at, t, n, WALL_T / 2 + 0.25);
       // Walking room in front of both ends of the set.

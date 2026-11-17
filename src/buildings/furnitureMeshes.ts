@@ -176,22 +176,163 @@ export function createFurnitureKit(tracker: ResourceTracker): FurnitureKit {
   const bins = tracker.geometry(mergeGeometries([-0.4, 0, 0.4].map((x) => mergeGeometries([unitBox(0.37, 0.72, 0.44, x, 0, 0), unitBox(0.39, 0.06, 0.46, x, 0.72, 0)]) ?? unitBox(0.37, 0.78, 0.44, x)), true) ?? unitBox(1.2, 0.78, 0.44));
   const signGeo = tracker.geometry(new PlaneGeometry(1, 1));
   const signCache = new Map<string, Material>();
+  // Signs after the campus's own: silver hanging bars with dark end caps and an arrow box, and
+  // black square pictogram signs for the toilets.
+  const EN: Record<string, string> = { 出口: 'Exit', 樓梯: 'Stairs', 廁所: 'Restroom', 空橋: 'Sky Bridge', 上樓: 'Upstairs', 下樓: 'Downstairs' };
+  const round = (g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void => {
+    g.beginPath();
+    g.moveTo(x + r, y);
+    g.arcTo(x + w, y, x + w, y + h, r);
+    g.arcTo(x + w, y + h, x, y + h, r);
+    g.arcTo(x, y + h, x, y, r);
+    g.arcTo(x, y, x + w, y, r);
+    g.closePath();
+  };
+  /** Standing figure centred on cx with its feet at `foot`; `skirt` draws the dress. */
+  const person = (g: CanvasRenderingContext2D, cx: number, foot: number, h: number, skirt: boolean, color: string): void => {
+    const u = h / 10;
+    g.fillStyle = color;
+    g.beginPath();
+    g.arc(cx, foot - h + u * 1.05, u * 1.05, 0, Math.PI * 2);
+    g.fill();
+    if (skirt) {
+      g.beginPath();
+      g.moveTo(cx - u * 1.1, foot - h + u * 2.5);
+      g.lineTo(cx + u * 1.1, foot - h + u * 2.5);
+      g.lineTo(cx + u * 2.3, foot - u * 3.2);
+      g.lineTo(cx - u * 2.3, foot - u * 3.2);
+      g.closePath();
+      g.fill();
+      g.fillRect(cx - u * 0.95, foot - u * 3.3, u * 0.8, u * 3.3);
+      g.fillRect(cx + u * 0.15, foot - u * 3.3, u * 0.8, u * 3.3);
+      for (const sd of [-1, 1]) { // arms
+        g.beginPath();
+        g.moveTo(cx + sd * u * 1.1, foot - h + u * 2.5);
+        g.lineTo(cx + sd * u * 2.4, foot - h + u * 5.6);
+        g.lineTo(cx + sd * u * 1.85, foot - h + u * 5.8);
+        g.lineTo(cx + sd * u * 0.7, foot - h + u * 3.2);
+        g.closePath();
+        g.fill();
+      }
+    } else {
+      round(g, cx - u * 1.9, foot - h + u * 2.4, u * 3.8, u * 3.6, u * 0.6);
+      g.fill();
+      g.fillRect(cx - u * 1.9, foot - h + u * 3, u * 0.75, u * 3.4); // arms
+      g.fillRect(cx + u * 1.15, foot - h + u * 3, u * 0.75, u * 3.4);
+      g.fillStyle = '#17171a';
+      g.fillRect(cx - u * 1.05, foot - h + u * 3.2, u * 0.16, u * 3); // arm gaps
+      g.fillRect(cx + u * 0.89, foot - h + u * 3.2, u * 0.16, u * 3);
+      g.fillStyle = color;
+      g.fillRect(cx - u * 1.0, foot - u * 4.2, u * 0.9, u * 4.2);
+      g.fillRect(cx + u * 0.1, foot - u * 4.2, u * 0.9, u * 4.2);
+    }
+  };
+  const wcSign = (kind: string): CanvasTexture => label(256, 256, (g) => {
+    g.clearRect(0, 0, 256, 256);
+    g.fillStyle = '#17171a';
+    round(g, 3, 3, 250, 250, 26);
+    g.fill();
+    const PINK = '#e89a94', TEAL = '#6fb5b8';
+    if (kind === 'wc:acc') {
+      g.fillStyle = '#ffffff';
+      g.font = "700 40px system-ui, sans-serif";
+      g.textAlign = 'right';
+      g.fillText('WC', 232, 58);
+      g.strokeStyle = '#ffffff';
+      g.lineCap = 'round';
+      g.lineJoin = 'round';
+      g.beginPath();
+      g.arc(96, 62, 15, 0, Math.PI * 2); // head
+      g.fill();
+      g.lineWidth = 17;
+      g.beginPath(); // back, seat, leg
+      g.moveTo(96, 88);
+      g.lineTo(96, 150);
+      g.lineTo(158, 150);
+      g.lineTo(186, 200);
+      g.lineTo(206, 192);
+      g.stroke();
+      g.beginPath();
+      g.moveTo(98, 114);
+      g.lineTo(146, 114); // arm
+      g.stroke();
+      g.lineWidth = 14;
+      g.beginPath();
+      g.arc(106, 170, 48, Math.PI * 0.08, Math.PI * 1.42); // wheel
+      g.stroke();
+      g.lineWidth = 5;
+      g.beginPath(); // arrow under the chair
+      g.moveTo(232, 232);
+      g.lineTo(34, 232);
+      g.lineTo(56, 218);
+      g.stroke();
+    } else if (kind === 'wc:m') person(g, 128, 214, 170, false, TEAL);
+    else if (kind === 'wc:f') person(g, 128, 214, 170, true, PINK);
+    else {
+      person(g, 76, 206, 150, true, PINK);
+      person(g, 180, 206, 150, false, TEAL);
+      g.fillStyle = '#ffffff';
+      g.fillRect(126, 50, 4, 160);
+    }
+  });
+  const hangingSign = (text: string): CanvasTexture => label(512, 116, (g) => {
+    const metal = g.createLinearGradient(0, 0, 0, 116);
+    metal.addColorStop(0, '#eeede9');
+    metal.addColorStop(0.5, '#dddcd7');
+    metal.addColorStop(1, '#c9c8c3');
+    g.fillStyle = metal;
+    g.fillRect(0, 0, 512, 116);
+    g.fillStyle = '#4b3b34'; // end caps
+    g.fillRect(0, 0, 14, 116);
+    g.fillRect(498, 0, 14, 116);
+    g.fillStyle = 'rgba(0,0,0,0.18)';
+    g.fillRect(0, 112, 512, 4);
+    const m = /^([↑▲▼])\s*(.*)$/.exec(text);
+    const arrow = m?.[1], words = (m?.[2] ?? text).split('　').filter(Boolean);
+    let right = 490;
+    if (arrow) { // dark arrow box at the end, as on the real bars
+      right = 404;
+      g.fillStyle = '#3a2e29';
+      round(g, 414, 20, 76, 76, 8);
+      g.fill();
+      g.fillStyle = '#ffffff';
+      g.translate(452, 58);
+      if (arrow === '▼') g.rotate(Math.PI);
+      g.beginPath();
+      g.moveTo(0, -26);
+      g.lineTo(24, 2);
+      g.lineTo(9, 2);
+      g.lineTo(9, 26);
+      g.lineTo(-9, 26);
+      g.lineTo(-9, 2);
+      g.lineTo(-24, 2);
+      g.closePath();
+      g.fill();
+      g.setTransform(1, 0, 0, 1, 0, 0);
+    }
+    const col = (right - 28) / Math.max(1, words.length);
+    words.forEach((w, i) => {
+      const cx = 28 + col * (i + 0.5);
+      const [zh = w, rest] = w.split(' ');
+      const en = EN[zh];
+      g.fillStyle = '#1d1b1a';
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+      g.font = "800 44px system-ui, 'PingFang TC', sans-serif";
+      g.fillText(rest ? `${zh} ${rest}` : zh, cx, en ? 46 : 60, col - 12);
+      if (en) {
+        g.font = "600 21px system-ui, sans-serif";
+        g.fillStyle = '#3c3936';
+        g.fillText(en, cx, 88, col - 12);
+      }
+    });
+  });
   const signMaterial = (text: string): Material => {
     let m = signCache.get(text);
     if (m) return m;
-    const tex = label(512, 116, (g) => {
-      g.fillStyle = '#1f6b45';
-      g.fillRect(0, 0, 512, 116);
-      g.strokeStyle = '#f4f1ea';
-      g.lineWidth = 4;
-      g.strokeRect(6, 6, 500, 104);
-      g.fillStyle = '#ffffff';
-      g.font = "800 50px system-ui, 'PingFang TC', sans-serif";
-      g.textAlign = 'center';
-      g.textBaseline = 'middle';
-      g.fillText(text, 256, 60, 480);
-    });
-    m = tracker.material(new MeshStandardMaterial({ map: tex, roughness: 0.6, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.35 }));
+    const wc = text.startsWith('wc:');
+    const tex = wc ? wcSign(text) : hangingSign(text);
+    m = tracker.material(new MeshStandardMaterial({ map: tex, roughness: wc ? 0.45 : 0.35, metalness: wc ? 0 : 0.25, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: wc ? 0.3 : 0.22, ...(wc ? { alphaTest: 0.5 } : {}) }));
     signCache.set(text, m);
     return m;
   };
