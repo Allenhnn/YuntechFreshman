@@ -24,15 +24,18 @@ import type { HandBuiltBuilding } from './buildingWorld';
  * scripts/floorplan/handbuilt/mb.py, whose wave this must match):
  *  - the 2F floor edge over the double-height breezeway: a smooth wave of mosaic parapet with a
  *    steel handrail, its face running down over the slab edge;
- *  - the parapet along the 2F landing and rails round the stairwell;
- *  - the stair from the breezeway up to that landing (solid steps, open side with a handrail).
+ *  - the parapet along the 2F floor east of the void;
+ *  - the stair in the corridor outside 107 up to the 2F corridor by 創思空間 (solid steps, open
+ *    east side with a handrail) and glass rails round its opening on 2F.
  * All in 管理二館's plan frame; the 2F floor is at FH.
  */
 const FH = 3.6;
 const X0 = 41.9, X1 = 52.1;
 const wave = (x: number): number => 45.5 + 0.8 * Math.sin((2 * Math.PI * (x - X0)) / (X1 - X0));
 const LANDING_Y = 49.9; // top of the stair = north edge of the stairwell
-const STAIR = { x0: 52.8, x1: 55.0, yBottom: 54.9, steps: 20 }; // a landing at the foot, against the south wall
+const SOUTH_Y = 55.7; // south wall
+const STAIR = { x0: 55.2, x1: 57.4, yBottom: 54.9, steps: 20 }; // against the lobby wall; a landing at the foot
+const WELL = { x0: 55.0, x1: 57.6 };
 const PARAPET = { t: 0.22, top: FH + 1.0, bottom: FH - 0.5 };
 
 export function createMbLobby(scene: Scene, physics: RAPIER.World, tracker: ResourceTracker, mb: HandBuiltBuilding): { dispose(): void } {
@@ -92,8 +95,8 @@ export function createMbLobby(scene: Scene, physics: RAPIER.World, tracker: Reso
   // --- Wave parapet: a ribbon along the curve plus a run along the landing edge -----------------
   const path: [number, number][] = [];
   for (let x = X0; x <= X1 + 1e-6; x += 0.1) path.push([x, wave(x)]);
-  for (let y = wave(X1) + 0.2; y <= LANDING_Y + 1e-6; y += 0.4) path.push([X1, y]);
-  path.push([STAIR.x0, LANDING_Y]); // short return beside the stair head
+  for (let y = wave(X1) + 0.2; y < SOUTH_Y - 0.15; y += 0.4) path.push([X1, y]);
+  path.push([X1, SOUTH_Y - 0.12]);
   const pos: number[] = [], uv: number[] = [];
   let run = 0;
   const T = PARAPET.t / 2;
@@ -132,12 +135,17 @@ export function createMbLobby(scene: Scene, physics: RAPIER.World, tracker: Reso
   parapet.castShadow = parapet.receiveShadow = true;
   g.add(parapet);
 
-  // --- Glass rail on the 2F corridor side of the stairwell -------------------------------------
-  const RX = 55.0, RY0 = LANDING_Y, RY1 = 55.6;
-  box(glass, 0.02, 1.0, RY1 - RY0, RX, FH + 0.55, (RY0 + RY1) / 2);
-  box(steel, 0.06, 0.05, RY1 - RY0, RX, FH + 1.08, (RY0 + RY1) / 2);
-  for (let y = RY0; y <= RY1 + 1e-6; y += (RY1 - RY0) / 4) box(steel, 0.04, 1.1, 0.04, RX, FH + 0.55, y);
-  solid(RX, (RY0 + RY1) / 2, FH, FH + 1.1, RY1 - RY0, 0.1, Math.PI / 2);
+  // --- Glass rails along both sides of the stair opening on 2F ---------------------------------
+  const RY0 = LANDING_Y, RY1 = SOUTH_Y - 0.1;
+  for (const RX of [WELL.x0, WELL.x1]) {
+    box(glass, 0.02, 1.0, RY1 - RY0, RX, FH + 0.55, (RY0 + RY1) / 2);
+    box(steel, 0.06, 0.05, RY1 - RY0, RX, FH + 1.08, (RY0 + RY1) / 2);
+    for (let y = RY0; y <= RY1 + 1e-6; y += (RY1 - RY0) / 4) box(steel, 0.04, 1.1, 0.04, RX, FH + 0.55, y);
+    solid(RX, (RY0 + RY1) / 2, FH, FH + 1.1, RY1 - RY0, 0.1, Math.PI / 2);
+  }
+  // The gap beside the stair head (east of it, inside the opening).
+  box(steel, WELL.x1 - STAIR.x1, 0.05, 0.06, (STAIR.x1 + WELL.x1) / 2, FH + 1.08, LANDING_Y);
+  solid((STAIR.x1 + WELL.x1) / 2, LANDING_Y, FH, FH + 1.1, WELL.x1 - STAIR.x1, 0.1);
 
   // --- Stair: solid granite steps rising north to the landing ------------------------------------
   const { x0, x1, yBottom, steps } = STAIR;
@@ -157,9 +165,9 @@ export function createMbLobby(scene: Scene, physics: RAPIER.World, tracker: Reso
     v[i + 2] = wz;
   }
   colliders.push(tracker.collider(physics.createCollider(RAPIER.ColliderDesc.trimesh(v, new Uint32Array(v.length / 3).map((_, i) => i)))));
-  // Open (west) side: posts, a sloped handrail and a glass balustrade; collision so nobody steps off.
+  // Open (east) side: posts, a sloped handrail and a glass balustrade; collision so nobody steps off.
   const len = Math.hypot(yBottom - LANDING_Y, FH), ang = Math.atan2(FH, yBottom - LANDING_Y);
-  const railX = x0 + 0.05;
+  const railX = x1 - 0.05;
   const sloped = (m: Material, h: number, thick: number, dy: number): void => {
     const geo = new BoxGeometry(thick, h, len).rotateX(ang).translate(railX, FH / 2 + dy, (yBottom + LANDING_Y) / 2);
     const list = boxes.get(m);
