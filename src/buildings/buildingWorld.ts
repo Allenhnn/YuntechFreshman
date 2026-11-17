@@ -308,7 +308,7 @@ export function createHandBuiltBuilding(
           const ux = d.axis === 'h' ? 1 : 0, uy = 1 - ux;
           const nx = d.axis === 'h' ? 0 : d.room ?? 1, ny = d.axis === 'h' ? d.room ?? 1 : 0;
           const hinge = (t: number): [number, number] => (d.axis === 'h' ? [t, d.at] : [d.at, t]);
-          const parts: [number, number, number][] = len >= 1.4 ? [[d.from, 1, len / 2], [d.to, -1, len / 2]] : [[d.from, 1, len]];
+          const parts: [number, number, number][] = [[d.from, 1, len]]; // classroom doors are single leaves
           const door: SwingDoor = { x: d.axis === 'h' ? (d.from + d.to) / 2 : d.at, y: d.axis === 'h' ? d.at : (d.from + d.to) / 2, base: d.base, leaves: [], open: 0, want: false };
           for (const [t, dir, w] of parts) {
             const dx = ux * dir, dy = uy * dir;
