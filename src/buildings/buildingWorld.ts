@@ -29,9 +29,8 @@ import { createInteriorMaterials, type InteriorMaterials } from './interiorMater
 import { buildPlates, paintDirectory, paintEntranceSign } from './signs';
 import { createFurnitureKit, instanceFurniture, type FurnitureKit } from './furnitureMeshes';
 
-/** Classroom doors: open within SWING_OPEN_R of the doorway, close past SWING_CLOSE_R. */
-const SWING_OPEN_R = 2.4;
-const SWING_CLOSE_R = 3.4;
+/** Classroom doors open and close with E within this distance of the doorway. */
+const DOOR_REACH = 1.7;
 const SWING_SPEED = 1.6; // fraction of the swing per second
 const SWING_ANGLE = 1.6; // rad (≈ 92°)
 /** Mirrors reflect (render the scene again) only within this distance. */
@@ -108,6 +107,8 @@ export interface HandBuiltBuilding {
   readonly interactables: Interactable[];
   /** Stair curtain doorways; interactable `<id>:stairs:<index>` uses the entry at that index. */
   readonly stairPortals: StairPortal[];
+  /** Opens or closes classroom door `<id>:door:<index>` (E). */
+  toggleDoor(index: number): void;
   planToWorld(x: number, y: number): [number, number];
   /** Furniture and stair-flight colliders block the player but not the camera's spring arm. */
   isCameraTransparent(handle: number): boolean;
@@ -252,6 +253,11 @@ export function createHandBuiltBuilding(
 
   // --- Interior: streamed, one group per level so floors away from the player can be hidden -------
   const kit = options.shared?.kit ?? createFurnitureKit(sceneTracker);
+  // Classroom doors, numbered across all levels; open / closed survives interior reloads.
+  const swingIndex = new Map<object, number>();
+  const swingDoors = meshes.levels.flatMap((lvl) => lvl.doors.filter((d) => d.kind === 'swing'));
+  swingDoors.forEach((d, i) => swingIndex.set(d, i));
+  const doorOpen: boolean[] = swingDoors.map(() => false);
   interface LoadedInterior {
     root: Group;
     levels: { id: string; base: number; group: Group }[];
@@ -263,12 +269,14 @@ export function createHandBuiltBuilding(
   }
   /** A hinged classroom door: one or two leaves turning about their hinge posts. */
   interface SwingDoor {
+    /** Index into doorOpen / the `:door:` interactables. */
+    index: number;
+    collider: RAPIER.Collider;
     x: number;
     y: number;
     base: number;
     leaves: { pivot: Group; closed: number; sign: number }[];
     open: number;
-    want: boolean;
   }
   let interior: LoadedInterior | null = null;
   /** Colliders the camera passes through: furniture, stair ramps, guards and landings (tight shafts). */
@@ -309,7 +317,15 @@ export function createHandBuiltBuilding(
           const nx = d.axis === 'h' ? 0 : d.room ?? 1, ny = d.axis === 'h' ? d.room ?? 1 : 0;
           const hinge = (t: number): [number, number] => (d.axis === 'h' ? [t, d.at] : [d.at, t]);
           const parts: [number, number, number][] = [[d.from, 1, len]]; // classroom doors are single leaves
-          const door: SwingDoor = { x: d.axis === 'h' ? (d.from + d.to) / 2 : d.at, y: d.axis === 'h' ? d.at : (d.from + d.to) / 2, base: d.base, leaves: [], open: 0, want: false };
+          const cx = d.axis === 'h' ? (d.from + d.to) / 2 : d.at, cy = d.axis === 'h' ? d.at : (d.from + d.to) / 2;
+          const [wx, wz] = xf.toWorld(cx, cy);
+          // Closed, the leaf blocks the doorway.
+          const collider = physics.createCollider(RAPIER.ColliderDesc.cuboid(d.axis === 'h' ? len / 2 : 0.06, 1.15, d.axis === 'h' ? 0.06 : len / 2)
+            .setTranslation(wx, d.base + 1.15, wz).setRotation(rapierRot));
+          colliders.push(collider);
+          cameraTransparent.add(collider.handle);
+          const index = swingIndex.get(d)!;
+          const door: SwingDoor = { index, collider, x: cx, y: cy, base: d.base, leaves: [], open: 0 };
           for (const [t, dir, w] of parts) {
             const dx = ux * dir, dy = uy * dir;
             const pivot = new Group();
@@ -433,11 +449,9 @@ export function createHandBuiltBuilding(
     if (!interior) return;
     const [x, y] = xf.toPlan(px, pz);
     for (const d of interior.swings) {
-      const sameFloor = Math.abs(py - d.base) < 2;
-      const dist = Math.hypot(x - d.x, y - d.y);
-      if (!d.want && sameFloor && dist < SWING_OPEN_R) d.want = true;
-      else if (d.want && (!sameFloor || dist > SWING_CLOSE_R)) d.want = false;
-      const target = d.want ? 1 : 0;
+      const want = doorOpen[d.index] ?? false;
+      const target = want ? 1 : 0;
+      d.collider.setEnabled(!want && d.open < 0.05); // passable as soon as it starts to open
       if (d.open === target) continue;
       d.open = Math.max(0, Math.min(1, d.open + (target > d.open ? 1 : -1) * SWING_SPEED * dt));
       const e = d.open * d.open * (3 - 2 * d.open); // ease in and out
@@ -454,6 +468,13 @@ export function createHandBuiltBuilding(
     const y = src.levels.find((l) => l.id === levelId)?.elevation ?? 0;
     interactables.push({ id: `${src.id}:elevator:${levelId}`, prompt: '按 E 搭乘電梯', x, y, z, radius: ELEVATOR_REACH });
   }
+
+  const doorInteractables = swingDoors.map((d, i) => {
+    const [x, z] = d.axis === 'h' ? xf.toWorld((d.from + d.to) / 2, d.at) : xf.toWorld(d.at, (d.from + d.to) / 2);
+    const it: Interactable = { id: `${src.id}:door:${i}`, prompt: '按 E 開門', x, y: d.base, z, radius: DOOR_REACH };
+    interactables.push(it);
+    return it;
+  });
 
   meshes.portals.forEach((pt, i) => {
     const [x, z] = xf.toWorld(pt.at[0], pt.at[2]);
@@ -481,6 +502,11 @@ export function createHandBuiltBuilding(
     footprintRings,
     interactables,
     stairPortals: meshes.portals,
+    toggleDoor(i) {
+      if (i < 0 || i >= doorOpen.length) return;
+      doorOpen[i] = !doorOpen[i];
+      doorInteractables[i]!.prompt = doorOpen[i] ? '按 E 關門' : '按 E 開門';
+    },
     planToWorld: xf.toWorld,
     groundHoles: buildingGroundHoles(src),
     isCameraTransparent: (handle) => cameraTransparent.has(handle),

@@ -511,6 +511,12 @@ async function boot(): Promise<void> {
           }
           return;
         }
+        if (target?.id.includes(':door:')) {
+          const [buildingId, index] = target.id.split(':door:');
+          buildingById(buildingId ?? '')?.toggleDoor(Number(index));
+          audio.play('click');
+          return;
+        }
         if (target?.id.includes(':stairs:')) {
           // Stair curtain: fade out, arrive in front of the curtain on the other floor, fade back in.
           const [buildingId, index] = target.id.split(':stairs:');

@@ -212,8 +212,8 @@ floors['1F']['fixtures'] = [
     {'kind': 'vending', 'at': [59.4, 46.57], 'facing': [-1, 0], 'width': 0.92},
     {'kind': 'mirror', 'at': [41.5, 49.0], 'facing': [1, 0], 'width': 6.6},
 ]
-# The blank wall beside the mirror (breezeway → the arcade along 108–110) is a sensor glass door.
-floors['1F']['openings'].append({'kind': 'exit', 'a': [41.5, 53.1], 'b': [41.5, 55.3]})
+# The breezeway's east wall (opposite the mirror, out to the lawn by 107) is a sensor glass door.
+floors['1F']['openings'].append({'kind': 'exit', 'a': [51.8, 51.7], 'b': [51.8, 53.9]})
 
 # Placement: the plan's south-east corner on the OSM corner (-231.1, -122.6); +X runs along the bar.
 source = {
