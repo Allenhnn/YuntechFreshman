@@ -45,6 +45,7 @@ import { DOOR_HEIGHT, DOOR_WIDTH, buildingEntrance, hasInterior } from './campus
 import { SHELL_WALL } from './interiors/generateInterior';
 import { createMgmtFeatures } from './buildings/mgmtFeatures';
 import { courtPit, createMgmtCourtyard } from './buildings/mgmtCourtyard';
+import { createMbLobby } from './buildings/mbLobby';
 import { MAIN_GATE_GUARDHOUSE, createMainGate, gateTreeExclusions, inGateZone } from './campus/mainGate';
 import { addBoundaryZone } from './campus/boundaryZone';
 import { includeLongtanRoad, widenCampusRoads } from './campus/campusFixes';
@@ -192,6 +193,7 @@ async function boot(): Promise<void> {
   const skyBridge = ma && mb ? createSkyBridge(scene, physics, sceneResources, { building: mb, at: [50.95, -2.3] }, { building: ma, at: [76.5, 12.75] }, 3.6) : null;
   const mgmtFeatures = createMgmtFeatures(scene, physics, sceneResources, ma);
   const mgmtCourtyard = mb ? createMgmtCourtyard(scene, physics, sceneResources, mb) : null;
+  const mbLobby = mb ? createMbLobby(scene, physics, sceneResources, mb) : null;
 
   // Sensor sliding doors: plan exits of the hand-built buildings, and the shell entrance of every
   // building with a generated interior (the same entrance the campus chunks leave open).
@@ -203,7 +205,7 @@ async function boot(): Promise<void> {
       const [ax, az] = b.planToWorld(o.a[0], o.a[1]), [bx, bz] = b.planToWorld(o.b[0], o.b[1]);
       const len = Math.hypot(bx - ax, bz - az);
       if (len < 0.8) continue;
-      doorSpecs.push({ x: (ax + bx) / 2, z: (az + bz) / 2, ux: (bx - ax) / len, uz: (bz - az) / len, width: len, height: 2.35 });
+      doorSpecs.push({ x: (ax + bx) / 2, z: (az + bz) / 2, ux: (bx - ax) / len, uz: (bz - az) / len, width: len, height: 2.35, ...(o.frame === 'dark' ? { dark: true } : {}) });
     }
   }
   for (const b of campus.buildings) {
@@ -513,8 +515,11 @@ async function boot(): Promise<void> {
         }
         if (target?.id.includes(':door:')) {
           const [buildingId, index] = target.id.split(':door:');
-          buildingById(buildingId ?? '')?.toggleDoor(Number(index));
-          audio.play('click');
+          const refused = buildingById(buildingId ?? '')?.toggleDoor(Number(index));
+          if (refused) {
+            actions.toast(refused);
+            audio.play('close');
+          } else audio.play('click');
           return;
         }
         if (target?.id.includes(':stairs:')) {
@@ -871,6 +876,7 @@ async function boot(): Promise<void> {
     autoDoors.dispose();
     mgmtFeatures.dispose();
     mgmtCourtyard?.dispose();
+    mbLobby?.dispose();
     interiors.dispose();
     bikes.dispose();
     playground?.dispose();

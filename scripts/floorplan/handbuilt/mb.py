@@ -212,10 +212,42 @@ floors['1F']['fixtures'] = [
     {'kind': 'vending', 'at': [59.4, 46.57], 'facing': [-1, 0], 'width': 0.92},
     {'kind': 'mirror', 'at': [41.5, 49.0], 'facing': [1, 0], 'width': 6.6},
 ]
-# The breezeway's east wall (opposite the mirror, out to the lawn by 107) is a sensor glass door.
-floors['1F']['openings'].append({'kind': 'exit', 'a': [51.8, 51.7], 'b': [51.8, 53.9]})
-# …and the rest of that wall is solid (no window band), as on site.
-floors['1F']['blankWalls'] = [{'a': [51.8, 49.9], 'b': [51.8, 55.7]}]
+# ---------------------------------------------------------------- breezeway lobby (site photos)
+# - its south side is a black-framed glass screen with a sliding sensor door in the middle;
+# - it rises to the 2F ceiling; the 2F floor ends over it in a wave (hand-built mosaic parapet,
+#   mbLobby.ts) — under the wave the 1F ceiling stays low;
+# - a stair beside it (once outside, east of the breezeway) climbs to a 2F landing above the
+#   corridor where the vending machines stand.
+import math
+f1, f2 = floors['1F'], floors['2F']
+LOBBY_X0, LOBBY_X1, LOBBY_Y1 = 41.9, 52.1, 55.7      # 2F void x range; south wall
+STAIR = [51.8, 49.9, 55.2, 55.7]                      # 1F stair hall
+def wave(x):  # 2F floor edge over the breezeway (plan y), 44.7 … 46.3
+    return 45.5 + 0.8 * math.sin(2 * math.pi * (x - LOBBY_X0) / (LOBBY_X1 - LOBBY_X0))
+STRIP = 0.3
+strips = []
+x = LOBBY_X0
+while x < LOBBY_X1 - 1e-6:
+    x1 = min(LOBBY_X1, round(x + STRIP, 2))
+    strips.append((round(x, 2), x1, round(wave((x + x1) / 2), 1)))
+    x = x1
+HIGH = FH + CEIL
+f1['openings'] = [o for o in f1['openings'] if not (o['kind'] == 'open' and abs(o['a'][1] - 55.7) < 0.01)]
+f1['openings'].append({'kind': 'exit', 'a': [45.45, 55.7], 'b': [47.85, 55.7], 'frame': 'dark'})
+f1['glassWalls'] = [{'a': [41.5, 55.7], 'b': [51.8, 55.7]}]
+# The lobby opens onto the corridors along its north and east sides (benches, vending machines under the 2F floor).
+f1['openings'] += [{'kind': 'open', 'a': [41.5, 44.5], 'b': [51.8, 44.5]}, {'kind': 'open', 'a': [51.8, 44.5], 'b': [51.8, 49.9]}]
+bz = next(sp for sp in f1['spaces'] if sp['id'] == 'breezeway')
+bz['group'] = 'lobby'
+bz['rects'] = [[41.5, 44.5, LOBBY_X0, 55.7]] + [[a, 44.5, b, y] for a, b, y in strips if y > 44.55]
+f1['spaces'].append({'id': 'lobby-high', 'name': '穿堂', 'kind': 'corridor', 'ceiling': HIGH, 'group': 'lobby',
+                     'rects': [[a, y, min(b, 51.8), 55.7] for a, b, y in strips if a < 51.8]})
+f1['spaces'].append({'id': 'lobby-stair', 'name': '樓梯', 'kind': 'corridor', 'ceiling': HIGH, 'group': 'lobby', 'rects': [STAIR]})
+void = next(sp for sp in f2['spaces'] if sp['id'] == 'void-2F')
+void['customEdge'] = True
+void['rects'] = [[a, y, b, LOBBY_Y1] for a, b, y in strips] + [[LOBBY_X1, 49.9, 55.0, LOBBY_Y1]]
+c2 = next(sp for sp in f2['spaces'] if sp['id'] == 'corridor')
+c2['rects'] += [[a, 44.7, b, y] for a, b, y in strips if y > 44.75] + [[LOBBY_X1, 44.7, 55.0, 49.9]]
 
 # Placement: the plan's south-east corner on the OSM corner (-231.1, -122.6); +X runs along the bar.
 source = {

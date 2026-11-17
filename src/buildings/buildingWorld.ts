@@ -107,8 +107,8 @@ export interface HandBuiltBuilding {
   readonly interactables: Interactable[];
   /** Stair curtain doorways; interactable `<id>:stairs:<index>` uses the entry at that index. */
   readonly stairPortals: StairPortal[];
-  /** Opens or closes classroom door `<id>:door:<index>` (E). */
-  toggleDoor(index: number): void;
+  /** Opens or closes room door `<id>:door:<index>` (E); returns a message when it won't open. */
+  toggleDoor(index: number): string | null;
   planToWorld(x: number, y: number): [number, number];
   /** Furniture and stair-flight colliders block the player but not the camera's spring arm. */
   isCameraTransparent(handle: number): boolean;
@@ -471,7 +471,7 @@ export function createHandBuiltBuilding(
 
   const doorInteractables = swingDoors.map((d, i) => {
     const [x, z] = d.axis === 'h' ? xf.toWorld((d.from + d.to) / 2, d.at) : xf.toWorld(d.at, (d.from + d.to) / 2);
-    const it: Interactable = { id: `${src.id}:door:${i}`, prompt: '按 E 開門', x, y: d.base, z, radius: DOOR_REACH };
+    const it: Interactable = { id: `${src.id}:door:${i}`, prompt: d.locked ? '按 E 開門（實驗室）' : '按 E 開門', x, y: d.base, z, radius: DOOR_REACH };
     interactables.push(it);
     return it;
   });
@@ -503,9 +503,11 @@ export function createHandBuiltBuilding(
     interactables,
     stairPortals: meshes.portals,
     toggleDoor(i) {
-      if (i < 0 || i >= doorOpen.length) return;
+      if (i < 0 || i >= doorOpen.length) return null;
+      if (swingDoors[i]!.locked) return '實驗室上鎖了，非相關人員不可進入';
       doorOpen[i] = !doorOpen[i];
       doorInteractables[i]!.prompt = doorOpen[i] ? '按 E 關門' : '按 E 開門';
+      return null;
     },
     planToWorld: xf.toWorld,
     groundHoles: buildingGroundHoles(src),

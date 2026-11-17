@@ -26,6 +26,8 @@ export interface DoorSpec {
   uz: number;
   width: number;
   height: number;
+  /** Black-anodised frames (default aluminium). */
+  dark?: boolean;
 }
 
 const OPEN_R = 3;
@@ -48,7 +50,7 @@ export function createAutoDoors(scene: Scene, physics: RAPIER.World, tracker: Re
     new BoxGeometry(0.04, 0.12, 1.6).translate(0.36, 0.48, 0), // pull handle
   ])!);
   const glassGeo = tracker.geometry(new BoxGeometry(0.9, 0.9, 0.4).translate(0, 0.5, 0));
-  const frameMat = tracker.material(new MeshStandardMaterial({ color: 0xb9bdc2, roughness: 0.35, metalness: 0.7 }));
+  const frameMat = tracker.material(new MeshStandardMaterial({ color: 0xffffff, roughness: 0.35, metalness: 0.7 }));
   const glassMat = tracker.material(new MeshStandardMaterial({ color: new Color(0xb9d4e2), roughness: 0.06, metalness: 0.2, transparent: true, opacity: 0.32, depthWrite: false }));
   const n = specs.length * 2;
   const frames = new InstancedMesh(frameGeo, frameMat, Math.max(1, n));
@@ -85,6 +87,11 @@ export function createAutoDoors(scene: Scene, physics: RAPIER.World, tracker: Re
     }
   };
   for (const door of doors) place(door);
+  const silver = new Color(0xb9bdc2), black = new Color(0x1c1d1f);
+  doors.forEach((door) => {
+    for (const k of [door.i * 2, door.i * 2 + 1]) frames.setColorAt(k, door.d.dark ? black : silver);
+  });
+  if (frames.instanceColor) frames.instanceColor.needsUpdate = true;
   frames.instanceMatrix.needsUpdate = glass.instanceMatrix.needsUpdate = true;
 
   return {

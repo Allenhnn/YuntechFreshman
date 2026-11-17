@@ -44,6 +44,8 @@ export interface DoorPanel {
   label?: string;
   /** swing: the side (−1 / +1, as in sidePoint) the door opens into. */
   room?: -1 | 1;
+  /** swing: a lab door that stays shut. */
+  locked?: boolean;
 }
 
 export interface PlateSpot {
@@ -220,14 +222,16 @@ function buildModelledFloor(
   const ends = new Set<string>();
   for (const p of pieces) ends.add(`${p.axis}:${p.at.toFixed(2)}:${p.from.toFixed(2)}`), ends.add(`${p.axis}:${p.at.toFixed(2)}:${p.to.toFixed(2)}e`);
   const space = (id: number): Space | undefined => (id === OUTSIDE ? undefined : plan.spaces[id]);
-  /** True when [a, b] along piece p lies on one of the plan's blank (window-free) wall stretches. */
-  const blank = (p: Segment, a: number, b: number): boolean => (plan.blankWalls ?? []).some((w) => {
+  /** True when [a, b] along piece p lies on one of the stretches in `list`. */
+  const onStretch = (list: { a: [number, number]; b: [number, number] }[] | undefined, p: Segment, a: number, b: number): boolean => (list ?? []).some((w) => {
     const h = Math.abs(w.a[1] - w.b[1]) < 1e-3;
     if ((p.axis === 'h') !== h) return false;
     const at = h ? w.a[1] : w.a[0];
     const lo = h ? Math.min(w.a[0], w.b[0]) : Math.min(w.a[1], w.b[1]), hi = h ? Math.max(w.a[0], w.b[0]) : Math.max(w.a[1], w.b[1]);
     return Math.abs(at - p.at) < 0.06 && (a + b) / 2 > lo && (a + b) / 2 < hi;
   });
+  const blank = (p: Segment, a: number, b: number): boolean => onStretch(plan.blankWalls, p, a, b);
+  const glassWall = (p: Segment, a: number, b: number): boolean => onStretch(plan.glassWalls, p, a, b);
 
   for (const p of pieces) {
     const A = space(p.a), B = space(p.b);
@@ -252,8 +256,12 @@ function buildModelledFloor(
     const part = exterior ? ext : int;
     const top = !A || !B ? plan.bandTop : Math.max(A?.ceiling ?? 0, B?.ceiling ?? 0);
 
+    // A void with a hand-built parapet: nothing toward circulation, a plain wall toward rooms.
+    const custom = (A?.kind === 'void' && A.customEdge) || (B?.kind === 'void' && B.customEdge);
+    const other = A?.kind === 'void' ? B : A;
+    if (custom && !kind && other && other.kind !== 'room' && other.kind !== 'toilet') continue;
     // Railing between a walkable space and a void.
-    const voidEdge = (A?.kind === 'void' && isWalkable(B)) || (B?.kind === 'void' && isWalkable(A));
+    const voidEdge = !custom && ((A?.kind === 'void' && isWalkable(B)) || (B?.kind === 'void' && isWalkable(A)));
     if (voidEdge && !kind) {
       for (const side of [-1, 1] as const) wallFace(part.glass, p, p.from, p.to, base, base + RAIL_H, side, false, floorH);
       capTop(part.paint, p, p.from, p.to, base + RAIL_H);
@@ -288,10 +296,11 @@ function buildModelledFloor(
       y0 = base + DOOR_H;
       part.colliders.push(wallBox(p, from, to, base, base + DOOR_H, 0.12)); // the door leaf itself blocks
     }
-    // Classroom doors get a hinged leaf that swings into the room as the player comes near.
-    const classroom = (s?: Space): boolean => s?.kind === 'room' && s.name.includes('教室');
-    if (kind === 'door' && (classroom(A) || classroom(B))) {
-      doors.push({ kind: 'swing', axis: p.axis, at: p.at, from: p.from, to: p.to, base, room: classroom(A) ? -1 : 1 });
+    // Every room door gets a hinged leaf (E opens it, swinging into the room); labs stay locked.
+    const isRoom = (s?: Space): boolean => s?.kind === 'room';
+    if (kind === 'door' && (isRoom(A) || isRoom(B))) {
+      const room = isRoom(A) ? A! : B!;
+      doors.push({ kind: 'swing', axis: p.axis, at: p.at, from: p.from, to: p.to, base, room: isRoom(A) ? -1 : 1, ...(room.name.includes('實驗室') ? { locked: true } : {}) });
     }
 
     // Walls stop under a mezzanine floor that passes over them (checked per ~1 m so partial overlaps split).
@@ -299,6 +308,8 @@ function buildModelledFloor(
     for (let k = 0; k < steps; k++) {
       const a = from + ((to - from) * k) / steps, b = from + ((to - from) * (k + 1)) / steps;
       let y1 = base + top;
+      // Beside a double-height space a wall only rises to the storey above (which has its own edge).
+      if (((A?.ceiling ?? 0) > plan.bandTop + 0.05) !== ((B?.ceiling ?? 0) > plan.bandTop + 0.05)) y1 = Math.min(y1, base + plan.bandTop - 0.02);
       if (above && above.base < y1) {
         const mid = (a + b) / 2;
         const [ax, ay] = sidePoint(p, mid, -1), [bx, by] = sidePoint(p, mid, 1);
@@ -314,6 +325,19 @@ function buildModelledFloor(
       const inside = A ?? B;
       const pane = windows && exterior && !kind && !blank(p, a, b) && (roomSide(inside) || corridorSide(inside))
         && y0 <= base + 0.01 && y1 >= base + WINDOW[1] + 0.1 && b - a > 0.5;
+      // Floor-to-ceiling glazing in black frames: posts every ~1 m and a transom at door height.
+      if (exterior && !kind && glassWall(p, a, b) && y0 <= base + 0.01) {
+        for (const side of [-1, 1] as const) wallFace(part.glass, p, a + 0.05, b - 0.05, y0, y1, side, false, floorH, base);
+        for (const [m0, m1] of [[a, a + 0.05], [b - 0.05, b]] as const) {
+          for (const side of [-1, 1] as const) wallFace(part.curtain, p, m0, m1, y0, y1, side, false, floorH, base);
+        }
+        for (const [t0, t1] of [[y0, y0 + 0.08], [base + 2.38, base + 2.48], [y1 - 0.08, y1]] as const) {
+          for (const side of [-1, 1] as const) wallFace(part.curtain, p, a, b, t0, t1, side, false, floorH, base);
+        }
+        capTop(part.curtain, p, a, b, y1);
+        part.colliders.push(wallBox(p, a, b, y0, y1));
+        continue;
+      }
       const cut = strip ? CLERESTORY : pane ? WINDOW : null;
       const bands: [number, number, boolean][] = cut
         ? [[y0, base + cut[0], false], [base + cut[0], base + cut[1], true], [base + cut[1], y1, false]]
@@ -361,7 +385,7 @@ function buildModelledFloor(
       const walkable = s.kind !== 'stair' && s.kind !== 'elevator' && s.kind !== 'void';
       if (walkable) horizontal(int.floor, r, base + FLOOR_Y, true, 0.6);
       if (walkable && base !== 0) int.colliders.push(slabBox(r, base)); // grade-level floors stand on the ground
-      if (base > 0 && s.kind !== 'stair') horizontal(int.ceiling, r, base - 0.02, false, 1.2); // underside seen from the hall below
+      if (base > 0 && s.kind !== 'stair' && s.kind !== 'void') horizontal(int.ceiling, r, base - 0.02, false, 1.2); // underside seen from the hall below
       if (!s.noCeiling) {
         horizontal(int.ceiling, r, base + s.ceiling, false, 1.2);
         // Camera-only ceiling, kept just *below* the ceiling plane: a collider above it would poke
@@ -372,7 +396,9 @@ function buildModelledFloor(
       if (underground && !s.noCeiling) int.colliders.push(slabBox(r, base + plan.bandTop));
     }
   });
-  if (!underground) for (const r of regionRects(grid, (v) => v !== OUTSIDE)) horizontal(ext.roof, r, base + plan.bandTop, true, 4);
+  // Roof over this storey, except over double-height spaces (they rise into the storey above).
+  const tall = (v: number): boolean => v !== OUTSIDE && plan.spaces[v]!.ceiling > plan.bandTop + 0.05;
+  if (!underground) for (const r of regionRects(grid, (v) => v !== OUTSIDE && !tall(v))) horizontal(ext.roof, r, base + plan.bandTop, true, 4);
 }
 
 function buildShellLevel(rects: Rect[], below: Rect[], base: number, height: number, ext: PartBuilder, floorH: number): void {

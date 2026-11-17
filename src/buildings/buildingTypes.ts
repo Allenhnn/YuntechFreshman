@@ -35,6 +35,8 @@ export interface Space {
   noCeiling?: boolean;
   /** Spaces sharing a group are one room split only to vary the ceiling (no wall between them). */
   group?: string;
+  /** Void only: its edges get no generated railing (a hand-built parapet stands there); rooms beside it get walls. */
+  customEdge?: boolean;
   /** Lay furniture out in the largest rect only (generated rooms whose edges follow a raster). */
   furnishMain?: boolean;
   /** Furniture layout to generate inside this space. */
@@ -47,6 +49,8 @@ export interface Opening {
   a: Vec2;
   b: Vec2;
   label?: string;
+  /** Exit only: black-framed sliding leaves instead of aluminium. */
+  frame?: 'dark';
 }
 
 export interface Sign {
@@ -87,6 +91,8 @@ export interface FloorPlan {
   fixtures?: Fixture[];
   /** Wall stretches [a, b] that stay solid (no window band) even where the style glazes exterior walls. */
   blankWalls?: { a: Vec2; b: Vec2 }[];
+  /** Wall stretches [a, b] glazed floor to ceiling in black frames (shopfront / entrance screens). */
+  glassWalls?: { a: Vec2; b: Vec2 }[];
 }
 
 export interface Level {
