@@ -1,20 +1,15 @@
 import {
-  BoxGeometry,
   CanvasTexture,
   CircleGeometry,
   CylinderGeometry,
   DoubleSide,
   Group,
-  InstancedMesh,
-  Matrix4,
   Mesh,
   MeshStandardMaterial,
   Quaternion,
   RepeatWrapping,
   SRGBColorSpace,
-  SphereGeometry,
   Vector3,
-  type Material,
   type Scene,
 } from 'three';
 import { RAPIER } from '../physics/physics';
@@ -25,13 +20,10 @@ import type { HandBuiltBuilding } from './buildingWorld';
  * 管理學院 features from the photos that the floor-plan pipeline can't express:
  *  - the curved east end of 管理一館's 智慧商務中心 block (1F–2F): a washed-stone half cylinder
  *    with dark ribbon windows, wrapped round the stepped rooms of the traced plan;
- *  - the skylight in the crook of 管理二館's L: a grid of white acrylic domes on a steel frame at
- *    the 1F roof line, a concrete upstand round it, on columns.
+(The courtyard in the crook of 管理二館's L is mgmtCourtyard.ts.)
  * Everything is laid out in each building's plan frame.
  */
 const FH = 3.6;
-/** Skylight extent in 管理二館's plan frame [x0, z0, x1, z1] (also a no-tree zone). */
-export const MB_SKYLIGHT: readonly [number, number, number, number] = [11.5, 3.8, 38.2, 41.5];
 
 function planGroup(scene: Scene, b: HandBuiltBuilding, name: string): Group {
   const [ox, oz] = b.planToWorld(0, 0), [px, pz] = b.planToWorld(1, 0);
@@ -81,7 +73,7 @@ function ribbonStorey(g: CanvasRenderingContext2D): void {
   g.fillRect(0, H - 6, W, 6); // slab line
 }
 
-export function createMgmtFeatures(scene: Scene, physics: RAPIER.World, tracker: ResourceTracker, ma: HandBuiltBuilding | undefined, mb: HandBuiltBuilding | undefined): { dispose(): void } {
+export function createMgmtFeatures(scene: Scene, physics: RAPIER.World, tracker: ResourceTracker, ma: HandBuiltBuilding | undefined): { dispose(): void } {
   const colliders: RAPIER.Collider[] = [];
   const groups: Group[] = [];
   const solidAt = (b: HandBuiltBuilding, x: number, y: number, z: number, hw: number, hh: number, hd: number, yaw = 0): void => {
@@ -127,53 +119,6 @@ export function createMgmtFeatures(scene: Scene, physics: RAPIER.World, tracker:
       const x = C.x + R * Math.sin(th), z = C.z + R * Math.cos(th);
       solidAt(ma, x, H / 2, z, ((arc * R) / SEG) / 2 + 0.05, H / 2, 0.15, th);
     }
-  }
-
-  // --- 管理二館: skylight in the crook of the L. -----------------------------------------------------
-  if (mb) {
-    const g = planGroup(scene, mb, 'MB skylight');
-    groups.push(g);
-    const [X0, Z0, X1, Z1] = MB_SKYLIGHT;
-    const TOP = 4.0, CELL = 3;
-    const nx = Math.round((X1 - X0) / CELL), nz = Math.round((Z1 - Z0) / CELL);
-    const cx = (X1 - X0) / nx, cz = (Z1 - Z0) / nz;
-    const steel = tracker.material(new MeshStandardMaterial({ color: 0x55595d, roughness: 0.45, metalness: 0.6 }));
-    const box = (w: number, h: number, d: number, x: number, y: number, z: number, m: Material): void => {
-      const mesh = new Mesh(tracker.geometry(new BoxGeometry(w, h, d)), m);
-      mesh.position.set(x, y, z);
-      mesh.castShadow = mesh.receiveShadow = true;
-      g.add(mesh);
-    };
-    // Frame: beams on every grid line.
-    for (let i = 0; i <= nx; i++) box(0.14, 0.18, Z1 - Z0, X0 + i * cx, TOP, (Z0 + Z1) / 2, steel);
-    for (let j = 0; j <= nz; j++) box(X1 - X0, 0.18, 0.14, (X0 + X1) / 2, TOP, Z0 + j * cz, steel);
-    // Concrete upstand with a cap round the edge.
-    for (const [w, d, x, z] of [[X1 - X0 + 0.6, 0.3, (X0 + X1) / 2, Z0 - 0.15], [X1 - X0 + 0.6, 0.3, (X0 + X1) / 2, Z1 + 0.15], [0.3, Z1 - Z0, X0 - 0.15, (Z0 + Z1) / 2], [0.3, Z1 - Z0, X1 + 0.15, (Z0 + Z1) / 2]] as const) {
-      box(w, 0.7, d, x, TOP - 0.1, z, concrete);
-    }
-    // Columns under every third grid node.
-    for (let i = 0; i <= nx; i += 3) {
-      for (let j = 0; j <= nz; j += 3) {
-        box(0.3, TOP - 0.1, 0.3, X0 + i * cx, (TOP - 0.1) / 2, Z0 + j * cz, concrete);
-        solidAt(mb, X0 + i * cx, (TOP - 0.1) / 2, Z0 + j * cz, 0.15, (TOP - 0.1) / 2, 0.15);
-      }
-    }
-    // Domes: one shallow white acrylic dome per cell (instanced).
-    const dome = tracker.geometry(new SphereGeometry(0.5, 20, 8, 0, Math.PI * 2, 0, Math.PI / 2));
-    const acrylic = tracker.material(new MeshStandardMaterial({ color: 0xf4f6f7, roughness: 0.25, metalness: 0, transparent: true, opacity: 0.88, emissive: 0xffffff, emissiveIntensity: 0.08 }));
-    const domes = new InstancedMesh(dome, acrylic, nx * nz);
-    const m = new Matrix4(), q = new Quaternion(), p = new Vector3(), s = new Vector3();
-    let k = 0;
-    for (let i = 0; i < nx; i++) {
-      for (let j = 0; j < nz; j++) {
-        m.compose(p.set(X0 + (i + 0.5) * cx, TOP + 0.08, Z0 + (j + 0.5) * cz), q, s.set(cx - 0.22, 0.75, cz - 0.22));
-        domes.setMatrixAt(k++, m);
-      }
-    }
-    domes.castShadow = true;
-    domes.receiveShadow = true;
-    domes.computeBoundingSphere();
-    g.add(domes);
   }
 
   return {

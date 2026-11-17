@@ -43,8 +43,8 @@ import { createSkyBridge } from './buildings/skyBridge';
 import { createAutoDoors, type DoorSpec } from './buildings/autoDoors';
 import { DOOR_HEIGHT, DOOR_WIDTH, buildingEntrance, hasInterior } from './campus/entrances';
 import { SHELL_WALL } from './interiors/generateInterior';
-import { MB_SKYLIGHT, createMgmtFeatures } from './buildings/mgmtFeatures';
-import { createPlanTransform } from './buildings/planTransform';
+import { createMgmtFeatures } from './buildings/mgmtFeatures';
+import { courtPit, createMgmtCourtyard } from './buildings/mgmtCourtyard';
 import { MAIN_GATE_GUARDHOUSE, createMainGate, gateTreeExclusions, inGateZone } from './campus/mainGate';
 import { addBoundaryZone } from './campus/boundaryZone';
 import { includeLongtanRoad, widenCampusRoads } from './campus/campusFixes';
@@ -149,10 +149,9 @@ async function boot(): Promise<void> {
   actions.setMapData(campus);
   const librarySrc = await loadBuildingSource(LIBRARY_URL);
   const handBuiltSrcs = await Promise.all(HAND_BUILT_URLS.map((url) => loadBuildingSource(url)));
-  const skylightRings = handBuiltSrcs.filter((s) => s.id === 'mb').map((s) => {
-    const xf = createPlanTransform(s), [x0, z0, x1, z1] = MB_SKYLIGHT;
-    return [...xf.toWorld(x0, z0), ...xf.toWorld(x1, z0), ...xf.toWorld(x1, z1), ...xf.toWorld(x0, z1)];
-  });
+  // 管理學院中庭: the sunken garden cuts the ground open; no trees anywhere in the courtyard.
+  const mbSrc = handBuiltSrcs.find((s) => s.id === 'mb');
+  const court = mbSrc ? courtPit(mbSrc) : null;
   for (const src of handBuiltSrcs) {
     for (const b of campus.buildings) if (b.name && src.osmReplaces.includes(b.name)) b.replacedBy = src.id;
   }
@@ -169,8 +168,8 @@ async function boot(): Promise<void> {
   const bikeStations = placeBikeStations(campus);
   actions.setBikeStations(bikeStations);
   const env = createCampusWorld(scene, physics, renderer, campus, sceneResources, {
-    treeExclusions: [...buildingFootprintRings(librarySrc), ...handBuiltSrcs.flatMap(buildingFootprintRings), ...stationClearings(bikeStations), ...gateTreeExclusions(), ...SCOOTER_LOTS.map((l) => l.ring), ...skylightRings],
-    groundHoles: buildingGroundHoles(librarySrc),
+    treeExclusions: [...buildingFootprintRings(librarySrc), ...handBuiltSrcs.flatMap(buildingFootprintRings), ...stationClearings(bikeStations), ...gateTreeExclusions(), ...SCOOTER_LOTS.map((l) => l.ring), ...(court ? [court.treeFree] : [])],
+    groundHoles: [...buildingGroundHoles(librarySrc), ...(court?.rings ?? [])],
     facades,
     entrances: traced?.entrances,
   });
@@ -191,7 +190,8 @@ async function boot(): Promise<void> {
   const byId = (id: string): HandBuiltBuilding | undefined => handBuilt.find((b) => b.source.id === id);
   const ma = byId('ma'), mb = byId('mb');
   const skyBridge = ma && mb ? createSkyBridge(scene, physics, sceneResources, { building: mb, at: [50.95, -2.3] }, { building: ma, at: [76.5, 12.75] }, 3.6) : null;
-  const mgmtFeatures = createMgmtFeatures(scene, physics, sceneResources, ma, mb);
+  const mgmtFeatures = createMgmtFeatures(scene, physics, sceneResources, ma);
+  const mgmtCourtyard = mb ? createMgmtCourtyard(scene, physics, sceneResources, mb) : null;
 
   // Sensor sliding doors: plan exits of the hand-built buildings, and the shell entrance of every
   // building with a generated interior (the same entrance the campus chunks leave open).
@@ -287,7 +287,7 @@ async function boot(): Promise<void> {
   const groundHeightAt = (x: number, z: number): number => {
     const ray = new RAPIER.Ray({ x, y: 2.5, z }, { x: 0, y: -1, z: 0 });
     const hit = physics.castRay(ray, 20, true, RAPIER.QueryFilterFlags.EXCLUDE_SENSORS, undefined, colliders[eid], undefined,
-      (c) => c.handle !== env.groundCollider.handle || !library.isOverBasement(x, z));
+      (c) => c.handle !== env.groundCollider.handle || !(library.isOverBasement(x, z) || !!court?.contains(x, z)));
     return hit ? 2.5 - hit.timeOfImpact : 0;
   };
 
@@ -601,7 +601,7 @@ async function boot(): Promise<void> {
   // Over a basement the campus ground collider is ignored; the basement's own top slab takes over.
   const groundHandle = env.groundCollider.handle;
   const groundFilter = (c: { handle: number }): boolean =>
-    c.handle !== groundHandle || !library.isOverBasement(Transform.x[eid]!, Transform.z[eid]!);
+    c.handle !== groundHandle || !(library.isOverBasement(Transform.x[eid]!, Transform.z[eid]!) || !!court?.contains(Transform.x[eid]!, Transform.z[eid]!));
 
   const cameraFilter = (c: { handle: number }): boolean =>
     groundFilter(c) && !env.isBoundaryCollider(c.handle) && !buildings().some((b) => b.isCameraTransparent(c.handle));
@@ -864,6 +864,7 @@ async function boot(): Promise<void> {
     skyBridge?.dispose();
     autoDoors.dispose();
     mgmtFeatures.dispose();
+    mgmtCourtyard?.dispose();
     interiors.dispose();
     bikes.dispose();
     playground?.dispose();
