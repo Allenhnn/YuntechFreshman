@@ -168,6 +168,26 @@ export function generateInterior(b: CampusBuilding, entrance: Entrance | null, i
     }
   }
 
+  // --- Entrance in plan coordinates -------------------------------------------------------------
+  let doorCell: [number, number] | null = null;
+  if (entrance) {
+    const j = (entrance.edge + 1) % n;
+    const [pu, pv] = local[entrance.edge]!, [qu, qv] = local[j]!;
+    const len = Math.hypot(qu - pu, qv - pv) || 1;
+    const t = entrance.along / len;
+    // The first plan cell inside the wall at the door centre (0.6 m in, further where the shell
+    // clearance leaves that cell outside the plan), so the lobby forms behind the door.
+    const nu = (qv - pv) / len, nv = -(qu - pu) / len; // outward in the local frame (same handedness as world)
+    for (let d = 0.6; d <= 2.1 && (!doorCell || !at(doorCell[0], doorCell[1])); d += C) {
+      const u = pu + (qu - pu) * t - nu * d, v = pv + (qv - pv) * t - nv * d;
+      doorCell = [Math.floor((u - U0) / C), Math.floor((v - V0) / C)];
+    }
+  }
+
+  // A wing beyond the rooms (L / U footprints) is hall that only touches rooms, and rooms open
+  // only onto the corridor: cut a passage through the rooms so every hall reaches the corridor.
+  if (corridorRow >= 0) connectHalls(base, W, H, corridorRow);
+
   // --- Stair core and elevator (fixed position, all floors) ---------------------------------
   const run = Math.max(2.8, fh / 2 / Math.tan((33 * Math.PI) / 180));
   const coreLen = run + LANDING * 2;
@@ -189,6 +209,12 @@ export function generateInterior(b: CampusBuilding, entrance: Entrance | null, i
     for (const t of tries) {
       for (let col = 0; col + coreW <= W && !core; col++) {
         if (!free(col, t.row, coreW, coreH)) continue;
+        // The entrance may open onto the ground landing, never onto the flights behind it.
+        if (doorCell) {
+          const landN = Math.ceil(LANDING / C);
+          const fr0 = t.side === 0 ? t.row : t.row + landN, fr1 = t.side === 0 ? t.row + coreH - landN : t.row + coreH;
+          if (doorCell[0] >= col - 1 && doorCell[0] < col + coreW + 1 && doorCell[1] >= fr0 - 1 && doorCell[1] < fr1 + 1) continue;
+        }
         // Without a corridor, the landing end needs open floor in front of it.
         if (corridorRow < 0 && !free(col, t.row + coreH, coreW, 3)) continue;
         // Elevator beside the core, on its landing end.
@@ -208,19 +234,6 @@ export function generateInterior(b: CampusBuilding, entrance: Entrance | null, i
         if (free(col, row, liftN, liftN) && free(col, row + liftN, liftN, 3)) liftOnly = { col, row };
       }
     }
-  }
-
-  // --- Entrance in plan coordinates -------------------------------------------------------------
-  let doorCell: [number, number] | null = null;
-  if (entrance) {
-    const j = (entrance.edge + 1) % n;
-    const [pu, pv] = local[entrance.edge]!, [qu, qv] = local[j]!;
-    const len = Math.hypot(qu - pu, qv - pv) || 1;
-    const t = entrance.along / len;
-    // A point 0.6 m inside the wall at the door centre.
-    const nu = (qv - pv) / len, nv = -(qu - pu) / len; // outward in the local frame (same handedness as world)
-    const u = pu + (qu - pu) * t - nu * 0.6, v = pv + (qv - pv) * t - nv * 0.6;
-    doorCell = [Math.floor((u - U0) / C), Math.floor((v - V0) / C)];
   }
 
   // --- Floors -------------------------------------------------------------------------------------
@@ -450,6 +463,80 @@ function placeStalls(cells: Int32Array, W: number, H: number, door: [number, num
  *  2. rooms that are too small, too narrow or cut off from the circulation are merged into the
  *     neighbouring room they share the most wall with (or into the hall when they have none).
  */
+/**
+ * Joins every hall component that touches no corridor cell to the corridor with a straight
+ * corridor-wide passage through the rooms between them: the shortest cut that meets the hall,
+ * preferably along the edge of a run of room columns so no room is cut through.
+ */
+function connectHalls(base: Int32Array, W: number, H: number, corridorRow: number): void {
+  const comp = new Int32Array(W * H).fill(-1);
+  const comps: { cells: number[]; touches: boolean }[] = [];
+  for (let i = 0; i < base.length; i++) {
+    if (base[i] !== HALL || comp[i]! >= 0) continue;
+    const id = comps.length, cells: number[] = [];
+    let touches = false;
+    const stack = [i];
+    comp[i] = id;
+    while (stack.length) {
+      const c = stack.pop()!;
+      cells.push(c);
+      const col = c % W, row = (c - col) / W;
+      for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+        const nc = col + dc, nr = row + dr;
+        if (nc < 0 || nr < 0 || nc >= W || nr >= H) continue;
+        const j = nr * W + nc, v = base[j]!;
+        if (v === CORRIDOR) touches = true;
+        else if (v === HALL && comp[j]! < 0) { comp[j] = id; stack.push(j); }
+      }
+    }
+    comps.push({ cells, touches });
+  }
+  const PW = CORRIDOR_CELLS;
+  const inComp = (col: number, row: number, id: number): boolean => col >= 0 && row >= 0 && col < W && row < H && comp[row * W + col] === id;
+  // Room columns per side: a passage on the edge of a run of them leaves every room whole.
+  const has = [new Uint8Array(W), new Uint8Array(W)];
+  for (let i = 0; i < base.length; i++) if (base[i]! >= 0) has[Math.floor(base[i]! / 10000)]![i % W] = 1;
+  comps.forEach((cp, id) => {
+    if (cp.touches || cp.cells.length < 80) return; // pockets under 20 m² are not worth a passage
+    const cols = cp.cells.map((c) => c % W), rows = cp.cells.map((c) => Math.floor(c / W));
+    if (Math.max(...cols) - Math.min(...cols) < 4 || Math.max(...rows) - Math.min(...rows) < 4) return; // slivers
+    let best: { col0: number; side: 0 | 1; len: number; score: number } | null = null;
+    for (const side of [0, 1] as const) {
+      const h = has[side]!;
+      for (let col0 = 0; col0 + PW <= W; col0++) {
+        const edge = (h[col0] && !h[col0 - 1]) || (h[col0 + PW - 1] && !h[col0 + PW]);
+        let ok = true;
+        for (let col = col0; col < col0 + PW && ok; col++) ok = base[corridorRow * W + col] === CORRIDOR;
+        if (!ok) continue;
+        // Walk away from the corridor through room cells until the passage meets the hall over a
+        // door's width: at its end, or along its side.
+        const dir = side === 0 ? -1 : 1;
+        let row = side === 0 ? corridorRow - 1 : corridorRow + CORRIDOR_CELLS, n = 0, contact = 0, len = -1;
+        while (row >= 0 && row < H) {
+          let rooms = 0, hall = 0;
+          for (let col = col0; col < col0 + PW; col++) { const v = base[row * W + col]!; if (v >= 0) rooms++; else if (inComp(col, row, id)) hall++; }
+          if (hall === PW) { len = n; break; }
+          if (rooms !== PW) break;
+          n++;
+          if (inComp(col0 - 1, row, id) || inComp(col0 + PW, row, id)) contact++;
+          if (contact >= PW) { len = n; break; }
+          row += dir;
+        }
+        if (len < 0 && contact >= 2) len = n; // a shorter side contact still beats a stranded hall
+        // Prefer the edge of a run of room columns; elsewhere the rooms beside the cut stay joined
+        // below it (or tidyRooms renumbers the two halves when the cut runs their full depth).
+        const score = len + (edge ? 0 : 6);
+        if (len >= 0 && (!best || score < best.score)) best = { col0, side, len, score };
+      }
+    }
+    if (!best) return;
+    for (let col = best.col0; col < best.col0 + PW; col++) {
+      let row = best.side === 0 ? corridorRow - 1 : corridorRow + CORRIDOR_CELLS;
+      for (let k = 0; k < best.len; k++, row += best.side === 0 ? -1 : 1) base[row * W + col] = CORRIDOR;
+    }
+  });
+}
+
 function tidyRooms(cells: Int32Array, W: number, H: number, roomCols: number): void {
   for (const side of [0, 1]) {
     const has = new Uint8Array(W);
