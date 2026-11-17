@@ -25,6 +25,8 @@ export interface GameApi {
   /** Phone camera mode (first person, phone held up). */
   openCamera(): void;
   takePhoto(): void;
+  /** Quits the ball game in progress (Q). */
+  leaveSport(): void;
   flipCamera(): void;
   cameraLook(dx: number, dy: number): void;
   /** Opens the phone on its album. */
@@ -167,6 +169,9 @@ export function createSession(lock: PointerLock, audio: AudioBus): GameApi {
         expectUnlock = true;
         lock.release();
       }
+    },
+    leaveSport() {
+      dispatch({ type: 'leaveSport' });
     },
     takePhoto() {
       if (get().modal === 'camera') dispatch({ type: 'photo' });

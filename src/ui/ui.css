@@ -405,3 +405,17 @@ kbd {
 .album-caption { font-size: 12px; color: var(--ink-soft); text-align: center; }
 .album-actions { display: flex; gap: 8px; justify-content: center; }
 .btn.danger { background: #ffe1dc; color: #b3261e; }
+
+/* ---------- Ball games ---------- */
+.sport-hud {
+  position: absolute; top: 214px; right: 14px; width: 280px; padding: 10px 16px 8px;
+  border-radius: 16px; background: var(--glass); box-shadow: var(--shadow); text-align: center;
+}
+.sport-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; font-size: 16px; }
+.sport-score { font-size: 30px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--green-dark); }
+.sport-info { font-size: 13px; color: var(--ink-soft); }
+.sport-meter { position: relative; height: 14px; margin: 8px 0 4px; border-radius: 7px; background: #dfe6e1; overflow: hidden; }
+.sport-meter .sweet { position: absolute; top: 0; bottom: 0; background: rgba(47, 179, 90, 0.45); }
+.sport-meter .fill { position: absolute; top: 0; bottom: 0; left: 0; background: linear-gradient(90deg, #f2c21b, #f08a24 60%, #d22b26); }
+.sport-msg { font-size: 22px; font-weight: 800; color: var(--orange); animation: pop-in 0.2s ease; }
+.sport-hint { font-size: 11px; color: var(--ink-soft); margin-top: 2px; }

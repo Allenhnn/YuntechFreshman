@@ -71,6 +71,7 @@ export function installHotkeys(api: GameApi, lock: PointerLock): () => void {
         return;
       case 'KeyQ':
         if (s.race) api.leaveRace();
+        else if (s.sport) api.leaveSport();
         return;
       case 'KeyE':
         api.interact();

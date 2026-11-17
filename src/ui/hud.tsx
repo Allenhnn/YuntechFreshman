@@ -149,6 +149,25 @@ function TesterBadge(): ReactNode {
   );
 }
 
+function SportPanel(): ReactNode {
+  const s = useGame((st) => st.sport);
+  if (!s) return null;
+  return (
+    <div className="sport-hud">
+      <div className="sport-head"><b>{s.title}</b><span className="sport-score">{s.score}</span></div>
+      <div className="sport-info">{s.info}　最佳 {s.best}</div>
+      {s.charge !== null && (
+        <div className="sport-meter">
+          {s.sweet && <div className="sweet" style={{ left: `${s.sweet[0] * 100}%`, width: `${(s.sweet[1] - s.sweet[0]) * 100}%` }} />}
+          <div className="fill" style={{ width: `${s.charge * 100}%` }} />
+        </div>
+      )}
+      {s.message && <div className="sport-msg" key={s.message}>{s.message}</div>}
+      <div className="sport-hint">{s.hint}</div>
+    </div>
+  );
+}
+
 export function Hud(): ReactNode {
   const api = useApi();
   const mapMode = useGame((s) => s.mapMode);
@@ -159,6 +178,7 @@ export function Hud(): ReactNode {
       <Clock />
       <Coins />
       <TesterBadge />
+      <SportPanel />
       <RaceHud />
       <AreaBannerView />
       <NavBar />

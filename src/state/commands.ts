@@ -23,6 +23,8 @@ export type GameCommand =
   | { type: 'teleport'; x: number; z: number; label: string }
   /** Phone camera: take a photo / turn the view (mouse pixels). */
   | { type: 'photo' }
+  /** Quit the ball game in progress. */
+  | { type: 'leaveSport' }
   | { type: 'cameraLook'; dx: number; dy: number };
 
 const queue: GameCommand[] = [];

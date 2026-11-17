@@ -49,6 +49,8 @@ export interface Playground {
   /** Abandons any run (respawn, teleport). */
   cancel(): void;
   readonly racing: boolean;
+  /** Pitch frame (goal at a = +halfLength) for the penalty game. */
+  readonly pitch: { toWorld(a: number, b: number): [number, number]; toLocal(x: number, z: number): [number, number]; halfLength: number };
   /** The countdown holds the runner on the line. */
   readonly frozen: boolean;
   /** Returns the coins awarded this frame. */
@@ -356,6 +358,7 @@ export function createPlayground(scene: Scene, physics: RAPIER.World, campus: Ca
 
   return {
     get racing() { return run !== null; },
+    pitch: { toWorld, toLocal, halfLength: HL },
     get frozen() { return run?.phase === 'countdown'; },
     startSpot: { x: startPoint[0], z: startPoint[1] },
     canStart(x, z) {

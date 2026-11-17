@@ -25,6 +25,8 @@ export interface MoveModifiers {
   bike?: boolean;
   /** Footprints the bike may not enter (door gaps would otherwise let it indoors). */
   blocked?: ((x: number, z: number) => boolean) | null;
+  /** Space is taken by a mini-game: no jumping. */
+  noJump?: boolean;
 }
 
 const NORMAL: MoveModifiers = { fly: false, noclip: false, speed: 1 };
@@ -117,7 +119,7 @@ export function createCharacterControllerSystem(physics: RAPIER.World, input: In
 
         // Vertical: coyote time, jump buffer, asymmetric gravity, variable jump height.
         let coyote = grounded ? C.coyoteTime : Math.max(0, CharacterMotor.coyote[eid]! - dt);
-        let jumpBuffer = (pressed & Action.Jump) && !mods.bike ? C.jumpBufferTime : Math.max(0, CharacterMotor.jumpBuffer[eid]! - dt);
+        let jumpBuffer = (pressed & Action.Jump) && !mods.bike && !mods.noJump ? C.jumpBufferTime : Math.max(0, CharacterMotor.jumpBuffer[eid]! - dt);
         let vy = Velocity.y[eid]!;
         if (mods.fly) {
           vy = (((held & Action.Jump) ? 1 : 0) - ((held & Action.Down) ? 1 : 0)) * FLY_SPEED * mods.speed * (sprinting ? 2 : 1);

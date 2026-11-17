@@ -40,6 +40,8 @@ import { bodies, colliders, objects } from './ecs/registry';
 import { CAPSULE_CENTER_OFFSET, createCharacterControllerSystem, type MoveModifiers } from './ecs/systems/characterController';
 import { createBikeSystem } from './bikes/bikeSystem';
 import { createPlayground } from './playground/playground';
+import { createCourts } from './minigames/sportsCourts';
+import { createSportsGames } from './minigames/sportsGames';
 import { addCafeteriaSign } from './buildings/cafeteriaSign';
 import { createSkyBridge } from './buildings/skyBridge';
 import { createAutoDoors, type DoorSpec } from './buildings/autoDoors';
@@ -254,6 +256,8 @@ async function boot(): Promise<void> {
   const feet = new Vector3();
   const playground = createPlayground(scene, physics, campus, sceneResources);
   actions.setRaceStart(playground?.startSpot ?? null);
+  const courts = createCourts(scene, physics, campus, sceneResources);
+  const sports = createSportsGames(scene, sceneResources, courts, playground?.pitch ?? null);
   addCafeteriaSign(scene, campus, sceneResources);
   const mainGate = createMainGate(scene, physics, campus, sceneResources);
   addBoundaryZone(scene, campus, sceneResources, inGateZone);
@@ -425,6 +429,7 @@ async function boot(): Promise<void> {
         clockSeconds = save.gameMinutes - START_MINUTES;
         bikes.dismount();
         playground?.cancel();
+        sports.cancel();
         streamAt = save;
         actions.setFading(true);
         void env.loadAround(save.x, save.z).then(() => awaitFloor(save.x, save.y, save.z)).then((floor) => {
@@ -468,6 +473,7 @@ async function boot(): Promise<void> {
         clockSeconds = 0;
         bikes.dismount();
         playground?.cancel();
+        sports.cancel();
         teleport(spawn.x, spawn.y, spawn.z, spawn.facing);
         renderSyncSystem(world, 1);
         rig.snap(readFocus(), spawn.facing + Math.PI);
@@ -476,12 +482,19 @@ async function boot(): Promise<void> {
       case 'respawn': {
         bikes.dismount();
         playground?.cancel();
+        sports.cancel();
         const p = cmd.type === 'toStart' ? spawn : spawnPoint();
         teleport(p.x, p.y, p.z, p.facing);
         renderSyncSystem(world, 1);
         rig.snap(readFocus(), p.facing + Math.PI);
         return;
       }
+      case 'leaveSport':
+        if (sports.active) {
+          sports.cancel();
+          actions.toast('已結束小遊戲');
+        }
+        return;
       case 'cameraLook':
         phoneCam.look(cmd.dx, cmd.dy);
         return;
@@ -507,6 +520,7 @@ async function boot(): Promise<void> {
         const target = safeTeleportTarget(campus, inside.x, inside.z);
         bikes.dismount();
         playground?.cancel();
+        sports.cancel();
         actions.setFading(true);
         streamAt = { x: target.x, y: 0, z: target.z };
         void Promise.all([env.loadAround(target.x, target.z), new Promise((r) => window.setTimeout(r, 300))]).then(() => {
@@ -565,6 +579,16 @@ async function boot(): Promise<void> {
           }, 350);
           return;
         }
+        if (!target && !sports.active && sports.prompt(Transform.x[eid]!, Transform.y[eid]!, Transform.z[eid]!)) {
+          const p = sports.start(Transform.x[eid]!, Transform.y[eid]!, Transform.z[eid]!);
+          if (p) {
+            teleport(p.x, 0, p.z, p.facing);
+            renderSyncSystem(world, 1);
+            rig.snap(readFocus(), p.facing + Math.PI);
+          }
+          return;
+        }
+        if (sports.active) return;
         if (!target && playground?.canStart(Transform.x[eid]!, Transform.z[eid]!)) {
           const p = playground.start(gameStore.getState().tester.enabled);
           teleport(p.x, 0, p.z, p.facing);
@@ -781,7 +805,8 @@ async function boot(): Promise<void> {
       const riding = bikes.ridden >= 0;
       moveMods.fly = ui.tester.fly && !riding;
       moveMods.noclip = ui.tester.noclip && !riding;
-      moveMods.speed = playground?.frozen ? 0 : ui.tester.speed;
+      moveMods.speed = playground?.frozen || sports.frozen ? 0 : ui.tester.speed;
+      moveMods.noJump = sports.active;
       moveMods.bike = riding;
       moveMods.blocked = riding ? insideBuilding : null;
       controller.update(world, FIXED_DT, input.consumePressed(), rig.yaw, groundFilter, moveMods);
@@ -859,7 +884,7 @@ async function boot(): Promise<void> {
     library.update(f.x, f.y, f.z);
     for (const b of handBuilt) b.update(f.x, f.y, f.z);
     interiors.update(near.x, near.y, near.z);
-    const earned = playing ? (playground?.update(dt, time, f.x, f.z) ?? 0) : 0;
+    const earned = playing ? (playground?.update(dt, time, f.x, f.z) ?? 0) + sports.update(dt, time, f.x, f.y, f.z, rig.yaw) : 0;
     if (earned > 0) {
       actions.addCoins(earned);
       audio.play('coin');
@@ -868,7 +893,7 @@ async function boot(): Promise<void> {
       !playing || playground?.racing ? null
         : bikes.ridden >= 0 ? '按 E 下車'
           : nearestInteractable()?.prompt
-            ?? (playground?.canStart(f.x, f.z) ? '按 E 開始跑道計時賽' : bikes.nearest(f.x, f.y, f.z) >= 0 ? '按 E 騎腳踏車' : null),
+            ?? (sports.prompt(f.x, f.y, f.z)) ?? (playground?.canStart(f.x, f.z) ? '按 E 開始跑道計時賽' : bikes.nearest(f.x, f.y, f.z) >= 0 ? '按 E 騎腳踏車' : null),
     );
 
     telemetry.x = f.x;
@@ -919,6 +944,8 @@ async function boot(): Promise<void> {
     interiors.dispose();
     bikes.dispose();
     playground?.dispose();
+    sports.dispose();
+    courts.dispose();
     mainGate?.dispose();
     navLine.dispose();
     scooterLots.dispose();

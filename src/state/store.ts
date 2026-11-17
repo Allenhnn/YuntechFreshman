@@ -112,6 +112,20 @@ export interface ChatLine {
   at: number;
 }
 
+/** Ball-game overlay (basketball / volleyball / penalties). */
+export interface SportHud {
+  title: string;
+  score: number;
+  info: string;
+  best: number;
+  /** Power meter 0–1 while Space is held, else null. */
+  charge: number | null;
+  /** The ideal part of the meter. */
+  sweet: [number, number] | null;
+  message: string;
+  hint: string;
+}
+
 export interface GameState {
   phase: GamePhase;
   loadProgress: number;
@@ -160,6 +174,7 @@ export interface GameState {
   albumVersion: number;
   /** Page the phone opens on. */
   phonePage: PhonePage;
+  sport: SportHud | null;
   tester: TesterState;
   /** Chat box history (newest last, capped). */
   chat: ChatLine[];
@@ -200,6 +215,7 @@ export const gameStore = createStore<GameState>()(() => ({
   cameraSelfie: false,
   albumVersion: 0,
   phonePage: 'home',
+  sport: null,
   tester: { enabled: false, fly: false, noclip: false, speed: 1 },
   chat: [],
   customSpawn: loadJson<SpawnPoint | null>(SPAWN_KEY, null),
@@ -229,6 +245,9 @@ export const actions = {
   },
   bumpAlbum(): void {
     set({ albumVersion: get().albumVersion + 1 });
+  },
+  setSport(sport: SportHud | null): void {
+    set({ sport });
   },
   setPhonePage(phonePage: PhonePage): void {
     set({ phonePage });
