@@ -53,7 +53,7 @@ import { courtPit, createMgmtCourtyard } from './buildings/mgmtCourtyard';
 import { createMbLobby } from './buildings/mbLobby';
 import { MAIN_GATE_GUARDHOUSE, createMainGate, gateTreeExclusions, inGateZone } from './campus/mainGate';
 import { addBoundaryZone } from './campus/boundaryZone';
-import { divideLongtan, includeLongtanRoad, widenCampusRoads } from './campus/campusFixes';
+import { applyBuildingFixes, divideLongtan, includeLongtanRoad, widenCampusRoads } from './campus/campusFixes';
 import { createLongtanSidewalks } from './campus/longtanRoad';
 import { SCOOTER_LOTS, createScooterLots } from './campus/scooterLots';
 import { createSensorGates } from './campus/sensorGates';
@@ -154,6 +154,7 @@ async function boot(): Promise<void> {
   if (guardhouse) guardhouse.replacedBy = 'mainGate';
   includeLongtanRoad(campus);
   divideLongtan(campus);
+  applyBuildingFixes(campus);
   widenCampusRoads(campus);
   campus.parking = SCOOTER_LOTS.map((l) => ({ name: l.name, ring: l.ring }));
   actions.setMapData(campus);

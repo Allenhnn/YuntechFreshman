@@ -159,3 +159,19 @@ export function divideLongtan(campus: CampusData): void {
   }
   campus.roads = kept;
 }
+
+/**
+ * Per-building corrections read off Street View during the campus remodel (docs/campus-remodel.md):
+ * storeys and height (m) where OSM is wrong. Keyed by OSM building id.
+ */
+export const BUILDING_FIXES: Record<number, { levels?: number; height?: number }> = {};
+
+export function applyBuildingFixes(campus: CampusData): void {
+  for (const b of campus.buildings) {
+    const f = BUILDING_FIXES[b.id];
+    if (!f) continue;
+    if (f.levels !== undefined) b.levels = f.levels;
+    if (f.height !== undefined) b.height = f.height;
+    else if (f.levels !== undefined) b.height = Math.round(f.levels * 3.6 * 10) / 10;
+  }
+}
