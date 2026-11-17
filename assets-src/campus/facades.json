@@ -57,7 +57,13 @@
     "工程五館": { "preset": "engineering", "style": { "wall": "#b1b2ae", "trim": "#9c4f3a", "glass": "#3a5a62", "pattern": "ribbon", "brick": true, "columns": true, "fins": "horizontal", "finDepth": 0.7 } },
     "工程四館": { "preset": "engineering", "style": { "wall": "#a9aaa6", "trim": "#9c4f3a", "glass": "#33404a", "pattern": "ribbon", "brick": true, "columns": true, "fins": "horizontal", "finDepth": 0.6 } },
     "工程六館": { "preset": "engineering", "style": { "wall": "#b1b2ae", "trim": "#9c4f3a", "glass": "#33404a", "pattern": "ribbon", "brick": true, "columns": true } },
-    "工程一館": { "preset": "engineering", "style": { "wall": "#b5b3ac", "trim": "#9c4f3a", "glass": "#33404a", "pattern": "ribbon", "brick": true, "columns": true } }
+    "工程一館": { "preset": "engineering", "style": { "wall": "#b5b3ac", "trim": "#9c4f3a", "glass": "#33404a", "pattern": "ribbon", "brick": true, "columns": true } },
+    "司令台": { "preset": "utility", "style": { "wall": "#e2c24e", "trim": "#d9d6cf", "glass": "#4a5a63", "pattern": "blank", "columns": true } },
+    "產學研大樓(北棟)": { "preset": "civic", "style": { "wall": "#ebebe7", "trim": "#c9cac6", "glass": "#5d7685", "pattern": "curtain", "groundGlass": true, "fins": "vertical", "finDepth": 0.4 } },
+    "產學研大樓(南棟)": { "preset": "civic", "style": { "wall": "#ebebe7", "trim": "#c9cac6", "glass": "#5d7685", "pattern": "curtain", "groundGlass": true, "fins": "vertical", "finDepth": 0.4 } },
+    "雲旭樓": { "preset": "humanities", "style": { "wall": "#f0efe9", "trim": "#dcd9d0", "glass": "#3f4d55", "pattern": "punched", "win": [0.7, 0.55], "sill": 0.2, "columns": true, "fins": "none", "canopy": false, "rooftop": false } },
+    "營建材料檢測中心": { "preset": "utility", "style": { "wall": "#9d9e99", "trim": "#b5b5af", "glass": "#2f3a40", "pattern": "punched", "win": [0.55, 0.45], "sill": 0.35, "columns": false } },
+    "應用科技大樓": { "preset": "engineering", "style": { "wall": "#c9cbcb", "trim": "#a9abab", "glass": "#4c6470", "pattern": "curtain", "win": [0.92, 0.7], "columns": false, "fins": "none", "groundGlass": true } }
   },
   "photos": {}
 }
