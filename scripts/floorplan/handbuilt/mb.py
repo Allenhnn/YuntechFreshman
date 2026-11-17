@@ -214,6 +214,8 @@ floors['1F']['fixtures'] = [
 ]
 # The breezeway's east wall (opposite the mirror, out to the lawn by 107) is a sensor glass door.
 floors['1F']['openings'].append({'kind': 'exit', 'a': [51.8, 51.7], 'b': [51.8, 53.9]})
+# …and the rest of that wall is solid (no window band), as on site.
+floors['1F']['blankWalls'] = [{'a': [51.8, 49.9], 'b': [51.8, 55.7]}]
 
 # Placement: the plan's south-east corner on the OSM corner (-231.1, -122.6); +X runs along the bar.
 source = {

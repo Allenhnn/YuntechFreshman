@@ -85,6 +85,8 @@ export interface FloorPlan {
   elevator?: { landing: Vec2; facing: Vec2 };
   stalls?: Stall[];
   fixtures?: Fixture[];
+  /** Wall stretches [a, b] that stay solid (no window band) even where the style glazes exterior walls. */
+  blankWalls?: { a: Vec2; b: Vec2 }[];
 }
 
 export interface Level {

@@ -220,6 +220,14 @@ function buildModelledFloor(
   const ends = new Set<string>();
   for (const p of pieces) ends.add(`${p.axis}:${p.at.toFixed(2)}:${p.from.toFixed(2)}`), ends.add(`${p.axis}:${p.at.toFixed(2)}:${p.to.toFixed(2)}e`);
   const space = (id: number): Space | undefined => (id === OUTSIDE ? undefined : plan.spaces[id]);
+  /** True when [a, b] along piece p lies on one of the plan's blank (window-free) wall stretches. */
+  const blank = (p: Segment, a: number, b: number): boolean => (plan.blankWalls ?? []).some((w) => {
+    const h = Math.abs(w.a[1] - w.b[1]) < 1e-3;
+    if ((p.axis === 'h') !== h) return false;
+    const at = h ? w.a[1] : w.a[0];
+    const lo = h ? Math.min(w.a[0], w.b[0]) : Math.min(w.a[1], w.b[1]), hi = h ? Math.max(w.a[0], w.b[0]) : Math.max(w.a[1], w.b[1]);
+    return Math.abs(at - p.at) < 0.06 && (a + b) / 2 > lo && (a + b) / 2 < hi;
+  });
 
   for (const p of pieces) {
     const A = space(p.a), B = space(p.b);
@@ -304,7 +312,7 @@ function buildModelledFloor(
         && y0 <= base + 0.01 && y1 >= base + CLERESTORY[1] + 0.1;
       // Windows: an exterior wall of a room or corridor is glazed where the facade paints its windows.
       const inside = A ?? B;
-      const pane = windows && exterior && !kind && (roomSide(inside) || corridorSide(inside))
+      const pane = windows && exterior && !kind && !blank(p, a, b) && (roomSide(inside) || corridorSide(inside))
         && y0 <= base + 0.01 && y1 >= base + WINDOW[1] + 0.1 && b - a > 0.5;
       const cut = strip ? CLERESTORY : pane ? WINDOW : null;
       const bands: [number, number, boolean][] = cut
