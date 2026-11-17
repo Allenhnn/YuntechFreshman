@@ -40,7 +40,13 @@
     "學生宿舍G": { "preset": "dorm", "style": { "wall": "#d6d2c9", "trim": "#bcb8b0", "glass": "#3f4b52", "balcony": "none", "fins": "none", "win": [0.5, 0.48] } },
     "資訊中心": { "preset": "civic", "style": { "wall": "#a9aaa6", "trim": "#6c7075", "glass": "#2f3a40", "pattern": "punched", "win": [0.8, 0.55], "sill": 0.3, "groundGlass": false, "columns": true, "fins": "horizontal", "finDepth": 0.7, "bay": 4.2 } },
     "設計一館": { "preset": "design", "style": { "wall": "#a6a7a2", "trim": "#8e8f8a", "glass": "#2d363b", "pattern": "punched", "win": [0.6, 0.5], "groundGlass": false, "columns": false, "fins": "none" } },
-    "設計學院": { "preset": "design", "style": { "wall": "#e0dfda", "trim": "#c9c8c2", "glass": "#3a4850", "pattern": "punched", "win": [0.4, 0.6], "groundGlass": true, "columns": true } }
+    "設計學院": { "preset": "design", "style": { "wall": "#e0dfda", "trim": "#c9c8c2", "glass": "#3a4850", "pattern": "punched", "win": [0.4, 0.6], "groundGlass": true, "columns": true } },
+    "設計二館": { "preset": "design", "style": { "wall": "#9fa09c", "trim": "#8a8b87", "glass": "#2f3a40", "pattern": "punched", "win": [0.6, 0.5], "groundGlass": false, "columns": false, "rooftop": true } },
+    "學生宿舍B2": { "preset": "dorm", "style": { "wall": "#e6e4de", "trim": "#bdbbb4", "balcony": "continuous" } },
+    "學生活動中心": { "preset": "civic", "style": { "wall": "#a9a9a3", "trim": "#8f8f89", "glass": "#33404a", "pattern": "ribbon", "win": [0.75, 0.45], "groundGlass": false, "balcony": "continuous", "balconyDepth": 1.6, "fins": "none", "columns": true, "rooftop": true } },
+    "學生宿舍E": { "preset": "dorm", "style": { "wall": "#e8e6df", "trim": "#c8c5bd", "balcony": "none", "fins": "horizontal", "finDepth": 0.4 } },
+    "行政大樓": { "preset": "civic", "style": { "wall": "#a7a8a4", "trim": "#8c8d89", "glass": "#2f3b44", "pattern": "punched", "win": [0.65, 0.5], "sill": 0.25, "groundGlass": false, "columns": true, "fins": "none", "canopy": true } },
+    "雲泰表演廳": { "preset": "civic", "style": { "wall": "#77797b", "trim": "#a5a7a6", "glass": "#2c3a42", "pattern": "blank", "groundGlass": true, "columns": true, "fins": "none", "canopy": true, "parapet": 0.4 } }
   },
   "photos": {}
 }
