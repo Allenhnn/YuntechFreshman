@@ -79,6 +79,12 @@ export function divideLongtan(campus: CampusData): void {
   const east = { ...road, points: p.slice(0, cut + 2), width: LONGTAN_DIVIDED.width, median: LONGTAN_DIVIDED.median };
   const west = { ...road, points: p.slice(cut) };
   campus.roads.splice(idx, 1, east, ...(west.points.length >= 4 ? [west] : []));
+  // The two-way stretch west of here (this piece and the polyline on from the N–S branch).
+  for (const r of campus.roads) if (r.name === '龍潭路' && !r.median && (r === west || (Math.abs(r.points[0]! + 129) < 2 && Math.abs(r.points[1]! + 54) < 2 && r.points.length > 8))) r.longtanWest = true;
+  // Street View: an alley on the town side at x ≈ −345 has a box junction too.
+  for (const r of campus.roads) if (r.longtanWest && r.points.some((v, i) => i % 2 === 0 && v < -300)) r.boxAt = [-345.5, -0.1];
+  // …and white rumble bars on the approach to the 管理學院 corner.
+  for (const r of campus.roads) if (r.longtanWest && r.points.some((v, i) => i % 2 === 0 && v > -99) && r.points.some((v, i) => i % 2 === 0 && v < -99)) r.slowAt = [-99, -63.5];
 
   // Nearest point of the divided stretch: distance and its direction.
   const e = east.points;

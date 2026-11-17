@@ -17,6 +17,9 @@ const Y = 0.064; // above road (0.04) and walkway (0.06) ribbons
 const JUNCTION_CLEAR = 6;
 const ZEBRA_LEN = 3;
 const DASH: readonly [number, number] = [4, 6];
+/** Box junction size along the road and diagonal spacing (m). */
+const BOX_LEN = 9;
+const BOX_STEP = 2;
 /** Roads that are one carriageway of a divided road (both lanes run the same way). */
 const ONE_WAY = new Set(['大學路三段']);
 
@@ -32,6 +35,9 @@ interface Meta {
   /** Arc-length intervals left unmarked (junctions, crossings). */
   skips: [number, number][];
   zebras: number[];
+  /** Arc lengths of 網狀線 (yellow box junction) centres. */
+  boxes: number[];
+  slows: number[];
   lines: Line[];
 }
 
@@ -49,6 +55,9 @@ function linesFor(road: CampusRoad, campus: boolean): Line[] {
   const out: Line[] = [{ off: -edge, wid: 0.12, color: WHITE }, { off: edge, wid: 0.12, color: WHITE }];
   // Divided road: edge lines along the median kerb too; no centre line (the median is the divider).
   if (road.median) return [...out, { off: -(road.median / 2 + 0.3), wid: 0.12, color: WHITE }, { off: road.median / 2 + 0.3, wid: 0.12, color: WHITE }];
+  // 龍潭路 west (Street View): white edge on the town side, solid yellow along the campus kerb, no centre line.
+  // North is +off for these westward polylines.
+  if (road.longtanWest) return [{ off: -edge, wid: 0.12, color: WHITE }, { off: w / 2 - 0.25, wid: 0.12, color: YELLOW }];
   if (road.name && ONE_WAY.has(road.name)) out.push({ off: 0, wid: 0.12, color: WHITE, dash: DASH });
   else if (w >= 7) {
     out.push({ off: -0.13, wid: 0.1, color: YELLOW }, { off: 0.13, wid: 0.1, color: YELLOW });
@@ -81,6 +90,7 @@ export class RoadMarker {
       const cum = [0];
       for (let i = 0; i + 1 < n; i++) cum.push(cum[i]! + Math.hypot(p[i * 2 + 2]! - p[i * 2]!, p[i * 2 + 3]! - p[i * 2 + 1]!));
       const skips: [number, number][] = [];
+      const boxes: number[] = [];
       for (let i = 0; i < n; i++) {
         const others = at.get(key(p[i * 2]!, p[i * 2 + 1]!))!;
         if (others.size < 2) continue;
@@ -88,6 +98,21 @@ export class RoadMarker {
         for (const o of others) if (o !== r) widest = Math.max(widest, o.width);
         const clear = JUNCTION_CLEAR + widest / 2;
         skips.push([cum[i]! - clear, cum[i]! + clear]);
+        if (r.longtanWest && i > 0 && i < n - 1) boxes.push(cum[i]!);
+      }
+      // Boxes OSM has no junction for, and rumble bars: nearest arc length on this road.
+      const slows: number[] = [];
+      const extra = [...(r.boxAt ?? []).map((v, i) => [v, i] as const), ...(r.slowAt ?? []).map((v, i) => [v, i + 1e6] as const)];
+      for (let b = 0; b + 1 < extra.length; b += 2) {
+        const ex = extra[b]![0], ez = extra[b + 1]![0], slow = extra[b]![1] >= 1e6;
+        let best = Infinity, at = 0;
+        for (let i = 0; i + 1 < n; i++) {
+          const ax = p[i * 2]!, az = p[i * 2 + 1]!, dx = p[i * 2 + 2]! - ax, dz = p[i * 2 + 3]! - az, l2 = dx * dx + dz * dz || 1;
+          const t = Math.max(0, Math.min(1, ((ex - ax) * dx + (ez - az) * dz) / l2));
+          const d = Math.hypot(ex - ax - dx * t, ez - az - dz * t);
+          if (d < best) { best = d; at = cum[i]! + t * Math.sqrt(l2); }
+        }
+        if (best < 8) (slow ? slows : boxes).push(at);
       }
       const zebras: number[] = [];
       for (let i = 0; i + 1 < n; i++) {
@@ -110,7 +135,7 @@ export class RoadMarker {
       for (const z of zebras) skips.push([z - ZEBRA_LEN / 2 - 0.6, z + ZEBRA_LEN / 2 + 0.6]);
       let campus = false;
       for (let i = 0; i < p.length && !campus; i += 2) campus = pointInRing(p[i]!, p[i + 1]!, data.boundary);
-      this.meta.set(r, { cum, skips, zebras, lines: linesFor(r, campus && r.kind === 'service') });
+      this.meta.set(r, { cum, skips, zebras, boxes, slows, lines: linesFor(r, campus && r.kind === 'service') });
     }
   }
 
@@ -145,6 +170,37 @@ export class RoadMarker {
             const d0 = Math.max(a, k * period), d1 = Math.min(b, k * period + l.dash[0]);
             if (d1 - d0 > 0.3) quad(d0, d1, l.off, l.wid, l.color);
           }
+        }
+      }
+      // 網狀線: yellow outline and a diagonal grid, centred on the junction.
+      const line = (sa: number, oa: number, sb: number, ob: number, wid: number): void => {
+        const ls = sb - sa, lo = ob - oa, l = Math.hypot(ls, lo) || 1;
+        const ps = (-lo / l) * wid / 2, po = (ls / l) * wid / 2;
+        const pt = (s: number, o: number): number => g.vertex(ax + ux * (s - s0) + nx * o, Y + 0.002, az + uz * (s - s0) + nz * o, 0, 1, 0, 0, 0, YELLOW);
+        const v0 = pt(sa - ps, oa - po), v1 = pt(sb - ps, ob - po), v2 = pt(sb + ps, ob + po), v3 = pt(sa + ps, oa + po);
+        g.triUp(v0, v1, v2);
+        g.triUp(v0, v2, v3);
+      };
+      for (const c of m.boxes) {
+        if (c < s0 || c >= s1) continue;
+        const L = BOX_LEN / 2, W = road.width / 2 - 0.5;
+        line(c - L, -W, c + L, -W, 0.15);
+        line(c - L, W, c + L, W, 0.15);
+        line(c - L, -W, c - L, W, 0.15);
+        line(c + L, -W, c + L, W, 0.15);
+        for (let d = -L - W + BOX_STEP / 2; d < L + W; d += BOX_STEP) {
+          const a1 = Math.max(-W, -L - d), b1 = Math.min(W, L - d);
+          if (b1 - a1 > 0.2) line(c + d + a1, a1, c + d + b1, b1, 0.12);
+          const a2 = Math.max(-W, d - L), b2 = Math.min(W, d + L);
+          if (b2 - a2 > 0.2) line(c + d - a2, a2, c + d - b2, b2, 0.12);
+        }
+      }
+      // 減速標線: three groups of four bars across the road.
+      for (const c of m.slows) {
+        if (c < s0 || c >= s1) continue;
+        for (let k = 0; k < 3; k++) for (let j = 0; j < 4; j++) {
+          const s = c + (k - 1) * 4 + j * 0.6;
+          quad(s, s + 0.3, 0, road.width - 0.8, WHITE);
         }
       }
       for (const z of m.zebras) {

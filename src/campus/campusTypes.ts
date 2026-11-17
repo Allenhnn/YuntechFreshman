@@ -27,6 +27,12 @@ export interface CampusRoad {
   name?: string;
   /** Divided road: width (m) of the planted median down the middle; each carriageway runs one way. */
   median?: number;
+  /** 龍潭路 west of the 技職大樓 junction: no centre line, yellow no-parking kerb on the north (campus) side, box junctions. */
+  longtanWest?: boolean;
+  /** Extra 網狀線 centres [x0, z0, …] where an alley OSM leaves out meets the road. */
+  boxAt?: number[];
+  /** 減速標線 (white transverse bar sets) centres [x0, z0, …]. */
+  slowAt?: number[];
 }
 
 export type FieldKind = 'soccer' | 'court' | 'track' | 'park';
