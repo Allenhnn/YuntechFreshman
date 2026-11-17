@@ -63,7 +63,13 @@
     "產學研大樓(南棟)": { "preset": "civic", "style": { "wall": "#ebebe7", "trim": "#c9cac6", "glass": "#5d7685", "pattern": "curtain", "groundGlass": true, "fins": "vertical", "finDepth": 0.4 } },
     "雲旭樓": { "preset": "humanities", "style": { "wall": "#f0efe9", "trim": "#dcd9d0", "glass": "#3f4d55", "pattern": "punched", "win": [0.7, 0.55], "sill": 0.2, "columns": true, "fins": "none", "canopy": false, "rooftop": false } },
     "營建材料檢測中心": { "preset": "utility", "style": { "wall": "#9d9e99", "trim": "#b5b5af", "glass": "#2f3a40", "pattern": "punched", "win": [0.55, 0.45], "sill": 0.35, "columns": false } },
-    "應用科技大樓": { "preset": "engineering", "style": { "wall": "#c9cbcb", "trim": "#a9abab", "glass": "#4c6470", "pattern": "curtain", "win": [0.92, 0.7], "columns": false, "fins": "none", "groundGlass": true } }
+    "應用科技大樓": { "preset": "engineering", "style": { "wall": "#c9cbcb", "trim": "#a9abab", "glass": "#4c6470", "pattern": "curtain", "win": [0.92, 0.7], "columns": false, "fins": "none", "groundGlass": true } },
+    "設計三館": { "preset": "design", "style": { "wall": "#ecebe6", "trim": "#d6d5cf", "glass": "#5f7a80", "pattern": "ribbon", "win": [0.85, 0.6], "groundGlass": false, "balcony": "continuous", "balconyDepth": 0.9, "columns": true, "rooftop": true } },
+    "學生宿舍F": { "preset": "dorm", "style": { "wall": "#e9e7e0", "trim": "#c8c5bd", "balcony": "none", "fins": "horizontal", "finDepth": 0.4 } },
+    "學生宿舍A2": { "preset": "dorm", "style": { "wall": "#9c9d99", "trim": "#c9c9c4", "glass": "#3a454c", "balcony": "none", "fins": "horizontal", "finDepth": 0.4, "win": [0.6, 0.45] } },
+    "學生宿舍A3": { "preset": "dorm", "style": { "wall": "#9c9d99", "trim": "#c9c9c4", "glass": "#3a454c", "balcony": "none", "fins": "horizontal", "finDepth": 0.4, "win": [0.6, 0.45] } },
+    "學生宿舍B1": { "preset": "dorm", "style": { "wall": "#e6e4de", "trim": "#bdbbb4", "balcony": "continuous" } },
+    "學生宿舍B3": { "preset": "dorm", "style": { "wall": "#e6e4de", "trim": "#bdbbb4", "balcony": "continuous" } }
   },
   "photos": {}
 }
