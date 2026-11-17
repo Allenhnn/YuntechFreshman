@@ -697,17 +697,23 @@ export class ChunkBuilder {
         for (let k = 0; k < n; k++) {
           const t = ((k + 0.5) / n) * len;
           for (const side of [-1, 1]) {
-            const x = ax + ux * t - uz * side * off, z = az + uz * t + ux * side * off;
-            if (!inChunk(x, z)) continue;
-            if (buildings.some(({ item, bounds: [a, b, c, d] }) => x > a - 3 && x < c + 3 && z > b - 3 && z < d + 3 && (pointInRing(x, z, item.outer) || distToRingEdge(x, z, item.outer) < 3))) continue;
-            let crossing = false;
-            for (const { road: other, from: f, to: t2 } of roads) {
-              if (isLongtanMain(other) || other.kind === 'walkway') continue;
-              const q = other.points;
-              for (let j = f; j < t2 && !crossing; j++) if (distToSegment(x, z, q[j * 2]!, q[j * 2 + 1]!, q[j * 2 + 2]!, q[j * 2 + 3]!) < other.width / 2 + 2.5) crossing = true;
-              if (crossing) break;
+            // On the sidewalk; where a service road runs right alongside, step out past it instead.
+            let x = 0, z = 0, ok = false;
+            for (let extra = 0; extra <= 12 && !ok; extra += 1) {
+              x = ax + ux * t - uz * side * (off + extra);
+              z = az + uz * t + ux * side * (off + extra);
+              let crossing = false;
+              for (const { road: other, from: f, to: t2 } of roads) {
+                if (isLongtanMain(other) || other.kind === 'walkway') continue;
+                const q = other.points;
+                for (let j = f; j < t2 && !crossing; j++) if (distToSegment(x, z, q[j * 2]!, q[j * 2 + 1]!, q[j * 2 + 2]!, q[j * 2 + 3]!) < other.width / 2 + 2.5) crossing = true;
+                if (crossing) break;
+              }
+              ok = !crossing;
             }
-            if (crossing) continue;
+            if (!ok || !inChunk(x, z)) continue;
+            if (this.exclusions.some(({ item, bounds: [a, b, c, d] }) => x > a - 1 && x < c + 1 && z > b - 1 && z < d + 1 && pointInRing(x, z, item))) continue;
+            if (buildings.some(({ item, bounds: [a, b, c, d] }) => x > a - 3 && x < c + 3 && z > b - 3 && z < d + 3 && (pointInRing(x, z, item.outer) || distToRingEdge(x, z, item.outer) < 3))) continue;
             const h = ((x * 12.9898 + z * 78.233) % 1 + 1) % 1;
             out.push(x, z, 1.0 + h * 0.35, h * Math.PI * 2, h);
           }

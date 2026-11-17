@@ -89,6 +89,13 @@ export function createScooterLots(scene: Scene, physics: RAPIER.World, campus: C
   const asphalt = tracker.material(new MeshStandardMaterial({ color: 0x6f716f, roughness: 0.95, side: DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }));
   const lineMat = tracker.material(new MeshStandardMaterial({ color: 0xf2f0e8, roughness: 0.8, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
   const lineGeos: BufferGeometry[] = [];
+  // Scooter-park furniture (after the site photo): canopy roofs, steel posts / rails, back fence, red kerb paint.
+  const roofGeos: BufferGeometry[] = [], steelGeos: BufferGeometry[] = [], fenceGeos: BufferGeometry[] = [], redGeos: BufferGeometry[] = [];
+  /** A box from (a0, d0) to (a1, d1) in a lot's frame, y0..y1. */
+  const lotBox = (at: (a: number, d: number) => [number, number], yaw: number, a0: number, a1: number, d0: number, d1: number, y0: number, y1: number): BufferGeometry => {
+    const [cx, cz] = at((a0 + a1) / 2, (d0 + d1) / 2);
+    return new BoxGeometry(Math.abs(a1 - a0), y1 - y0, Math.abs(d1 - d0)).rotateY(yaw).translate(cx, (y0 + y1) / 2, cz);
+  };
   const scooters: { x: number; z: number; yaw: number; tint: number }[] = [];
   const cars: { x: number; z: number; yaw: number; tint: number }[] = [];
 
@@ -152,6 +159,55 @@ export function createScooterLots(scene: Scene, physics: RAPIER.World, campus: C
       }
     }
 
+    if (kind === 'scooter') {
+      const yaw = Math.atan2(-uz, ux);
+      const steelPost = (a: number, d: number, h: number, r = 0.05): void => {
+        const [x, z] = at(a, d);
+        if (blocked(x, z)) return;
+        steelGeos.push(new BoxGeometry(r * 2, h, r * 2).translate(x, h / 2, z));
+        colliders.push(tracker.collider(physics.createCollider(RAPIER.ColliderDesc.cylinder(h / 2, r + 0.02).setTranslation(x, h / 2, z))));
+      };
+      // Canopy over each back-to-back pair of rows: a shallow pitched sheet roof on two lines of posts.
+      for (let d0 = 1.2; d0 + SCOOTER_L * 2 <= D - 0.8; d0 += SCOOTER_L * 2 + AISLE) {
+        const r0 = d0 - 0.3, r1 = d0 + SCOOTER_L * 2 + 0.3;
+        for (let a0 = 1; a0 < L - 1.5; a0 += 12) {
+          const a1 = Math.min(L - 1, a0 + 12);
+          const [mx, mz] = at((a0 + a1) / 2, (r0 + r1) / 2);
+          if (blocked(mx, mz)) continue;
+          roofGeos.push(lotBox(at, yaw, a0, a1, r0, r1, 2.45, 2.52));
+          steelGeos.push(lotBox(at, yaw, a0, a1, r0 - 0.04, r0 + 0.04, 2.3, 2.45), lotBox(at, yaw, a0, a1, r1 - 0.04, r1 + 0.04, 2.3, 2.45)); // eaves beams
+          for (let a = a0 + 0.3; a <= a1 - 0.2; a += 4) for (const d of [r0 + 0.1, r1 - 0.1]) steelPost(a, d, 2.45, 0.05);
+        }
+      }
+      // Front: red kerb paint and a low steel rail with a gap every 10 m to walk in.
+      redGeos.push(lotBox(at, yaw, 0.5, L - 0.5, 0.15, 0.3, 0.03, 0.045));
+      for (let a0 = 0.8; a0 < L - 1; a0 += 10) {
+        const a1 = Math.min(L - 0.8, a0 + 7.5);
+        const [mx, mz] = at((a0 + a1) / 2, 0.6);
+        if (blocked(mx, mz)) continue;
+        steelGeos.push(lotBox(at, yaw, a0, a1, 0.57, 0.63, 0.82, 0.88));
+        for (let a = a0; a <= a1 + 1e-6; a += 2.5) steelPost(a, 0.6, 0.85, 0.03);
+        const [cx, cz] = at((a0 + a1) / 2, 0.6);
+        const qq0 = new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), yaw);
+        colliders.push(tracker.collider(physics.createCollider(
+          RAPIER.ColliderDesc.cuboid((a1 - a0) / 2, 0.45, 0.05).setTranslation(cx, 0.45, cz).setRotation({ x: qq0.x, y: qq0.y, z: qq0.z, w: qq0.w }),
+        )));
+      }
+      // Back: dark railing fence.
+      for (let a0 = 0.5; a0 < L - 0.5; a0 += 6) {
+        const a1 = Math.min(L - 0.5, a0 + 6);
+        const [mx, mz] = at((a0 + a1) / 2, D - 0.2);
+        if (blocked(mx, mz)) continue;
+        for (const y of [0.15, 1.55]) fenceGeos.push(lotBox(at, yaw, a0, a1, D - 0.23, D - 0.17, y, y + 0.05));
+        for (let a = a0; a < a1; a += 0.14) fenceGeos.push(lotBox(at, yaw, a, a + 0.025, D - 0.215, D - 0.185, 0.15, 1.6));
+        const [cx, cz] = at((a0 + a1) / 2, D - 0.2);
+        const qq0 = new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), yaw);
+        colliders.push(tracker.collider(physics.createCollider(
+          RAPIER.ColliderDesc.cuboid((a1 - a0) / 2, 0.8, 0.05).setTranslation(cx, 0.8, cz).setRotation({ x: qq0.x, y: qq0.y, z: qq0.z, w: qq0.w }),
+        )));
+      }
+    }
+
     // Sign at the lot's first corner.
     const [sx, sz] = at(0.8, 0.8);
     const c = document.createElement('canvas');
@@ -186,6 +242,20 @@ export function createScooterLots(scene: Scene, physics: RAPIER.World, campus: C
     meshes.push(board, post);
     colliders.push(tracker.collider(physics.createCollider(RAPIER.ColliderDesc.cylinder(0.8, 0.08).setTranslation(sx, 0.8, sz))));
   }
+
+  const furnish = (list: BufferGeometry[], mat: MeshStandardMaterial, shadow = true): void => {
+    if (!list.length) return;
+    const mesh = new Mesh(tracker.geometry(mergeGeometries(list)!), tracker.material(mat));
+    mesh.castShadow = shadow;
+    mesh.receiveShadow = true;
+    scene.add(mesh);
+    meshes.push(mesh);
+    for (const l of list) l.dispose();
+  };
+  furnish(roofGeos, new MeshStandardMaterial({ color: 0xc9ccce, roughness: 0.5, metalness: 0.5, side: DoubleSide }));
+  furnish(steelGeos, new MeshStandardMaterial({ color: 0xb7bbbf, roughness: 0.35, metalness: 0.7 }));
+  furnish(fenceGeos, new MeshStandardMaterial({ color: 0x2a2d30, roughness: 0.5, metalness: 0.4 }));
+  furnish(redGeos, new MeshStandardMaterial({ color: 0xd04a3c, roughness: 0.8, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }), false);
 
   if (lineGeos.length) {
     const lines = new Mesh(tracker.geometry(mergeGeometries(lineGeos)!), lineMat);
