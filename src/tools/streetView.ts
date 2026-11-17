@@ -11,13 +11,13 @@
 /** The small part of google.maps this panel uses (avoids a @types dependency). */
 interface LatLngLiteral { lat: number; lng: number }
 interface LatLng { lat(): number; lng(): number }
-interface PanoData { location?: { latLng?: LatLng; pano?: string }; imageDate?: string }
-interface Panorama {
+export interface PanoData { location?: { latLng?: LatLng; pano?: string }; imageDate?: string }
+export interface Panorama {
   setPano(id: string): void;
   setPov(pov: { heading: number; pitch: number }): void;
   setVisible(v: boolean): void;
 }
-interface MapsApi {
+export interface MapsApi {
   StreetViewPanorama: new (el: HTMLElement, opts: Record<string, unknown>) => Panorama;
   StreetViewService: new () => {
     getPanorama(req: { location: LatLngLiteral; radius: number; preference: string; sources: string[] }): Promise<{ data: PanoData }>;
@@ -32,7 +32,7 @@ declare global {
 
 let loading: Promise<MapsApi> | null = null;
 
-function loadMaps(key: string): Promise<MapsApi> {
+export function loadMaps(key: string): Promise<MapsApi> {
   loading ??= new Promise((resolve, reject) => {
     window.__facadeMapsReady = () => (window.google ? resolve(window.google.maps) : reject(new Error('Maps API did not load')));
     const s = document.createElement('script');

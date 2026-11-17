@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { TESTER_SPEEDS, actions, gameStore, useGame } from '../state/store';
 import { useApi } from './api';
+import { setStreetView, streetViewOn } from '../tools/streetViewSync';
 
 /**
  * Chat box: Enter opens a line at the bottom left; Enter sends, Esc closes. A line starting with
@@ -15,6 +16,7 @@ const HELP = [
   '/fly [on|off]　飛行（Space 上升、C 下降）',
   '/noclip [on|off]　穿牆（同時飛行）',
   `/speed <${TESTER_SPEEDS.join('|')}>　移動速度倍率`,
+  '/streetview [on|off]　Google 街景比對（開發模式）',
   '/clear　清除對話紀錄',
 ];
 
@@ -72,6 +74,15 @@ export function runCommand(line: string): void {
       }
       actions.setTester({ speed: n });
       actions.chat(`速度 ×${n}`);
+      return;
+    }
+    case 'streetview':
+    case 'sv':
+    case '街景': {
+      const v = onOff(args[0]?.toLowerCase(), streetViewOn());
+      if (v === undefined) break;
+      const r = setStreetView(v);
+      actions.chat(r.message, r.ok ? undefined : 'error');
       return;
     }
     case 'clear':

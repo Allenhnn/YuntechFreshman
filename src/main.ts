@@ -7,7 +7,8 @@ import { createAudioBus } from './audio/audio';
 import { createPointerLock } from './input/pointerLock';
 import { createSession, type GameApi } from './game/session';
 import { installHotkeys } from './game/hotkeys';
-import { drainCommands, type GameCommand } from './state/commands';
+import { dispatch, drainCommands, type GameCommand } from './state/commands';
+import { bindStreetView, updateStreetView } from './tools/streetViewSync';
 import { START_MINUTES, actions, gameStore, type GameState } from './state/store';
 import { STALL_MENUS, type ItemId } from './state/items';
 import type { Settings } from './state/settings';
@@ -146,6 +147,8 @@ async function boot(): Promise<void> {
   const campusRes = await fetch(CAMPUS_DATA_URL);
   if (!campusRes.ok) throw new Error(`${CAMPUS_DATA_URL}: HTTP ${campusRes.status} (run npm run campus:fetch)`);
   const campus = (await campusRes.json()) as CampusData;
+  const svDir = new Vector3();
+  bindStreetView({ origin: campus.origin, teleport: (x, z, label) => dispatch({ type: 'teleport', x, z, label }) });
   // The main gate's guardhouse is hand-built (campus/mainGate.ts), not extruded.
   const guardhouse = campus.buildings.find((b) => b.id === MAIN_GATE_GUARDHOUSE);
   if (guardhouse) guardhouse.replacedBy = 'mainGate';
@@ -900,6 +903,8 @@ async function boot(): Promise<void> {
     telemetry.z = f.z;
     telemetry.facing = Transform.rotY[eid]!;
     telemetry.cameraYaw = rig.yaw;
+    camera.getWorldDirection(svDir);
+    updateStreetView(f.x, f.z, (Math.atan2(svDir.x, -svDir.z) * 180) / Math.PI, (Math.asin(Math.max(-1, Math.min(1, svDir.y))) * 180) / Math.PI);
     if (CharacterMotor.jumpSeq[eid] !== lastJumpSeq) {
       lastJumpSeq = CharacterMotor.jumpSeq[eid]!;
       audio.play('jump', 0.7);
