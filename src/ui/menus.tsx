@@ -125,6 +125,7 @@ const CONTROLS: readonly [string, string][] = [
   ['M', '小地圖 / 全螢幕地圖'],
   ['1 – 5', '選擇快捷欄'],
   ['E', '互動（搭電梯、騎 / 下腳踏車）'],
+  ['Enter', '對話框（輸入 /help 查看指令，/tester 切換測試員模式）'],
   ['Esc', '暫停 / 關閉視窗'],
   ...(TESTER_AVAILABLE ? [['`', '測試員模式（開發版）：F 飛行、N 穿牆、+/- 速度'] as [string, string]] : []),
 ];

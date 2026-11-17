@@ -1,3 +1,10 @@
+/* 俐方體11號 Cubic 11 (SIL OFL 1.1, see public/fonts/Cubic_11-OFL.txt): a pixel font, one weight. */
+@font-face {
+  font-family: 'Cubic 11';
+  src: url('/fonts/Cubic_11.woff2') format('woff2');
+  font-display: swap;
+}
+
 :root {
   --green: #1f8f4a;
   --green-dark: #146b37;
@@ -10,12 +17,13 @@
   --glass: rgba(255, 253, 246, 0.86);
   --shadow: 0 10px 30px rgba(10, 40, 25, 0.22);
   --radius: 16px;
-  font-family: system-ui, -apple-system, 'PingFang TC', 'Noto Sans TC', 'Microsoft JhengHei', sans-serif;
+  font-family: 'Cubic 11', system-ui, -apple-system, 'PingFang TC', 'Noto Sans TC', 'Microsoft JhengHei', sans-serif;
+  font-synthesis: none; /* no smeared fake bold on the pixel glyphs */
   color: var(--ink);
 }
 
 #ui-root { position: fixed; inset: 0; pointer-events: none; user-select: none; }
-#ui-root button { font-family: inherit; color: inherit; }
+#ui-root button, #ui-root input { font-family: inherit; color: inherit; }
 .interactive { pointer-events: auto; }
 
 /* ---------- Screens (loading / menu / pause) ---------- */
@@ -251,7 +259,7 @@ kbd {
 
 /* ---------- Tester mode (dev builds) ---------- */
 .tester-badge {
-  position: absolute; bottom: 96px; left: 50%; transform: translateX(-50%); padding: 6px 14px; white-space: nowrap; border-radius: 12px; font-size: 12px; line-height: 1.6;
+  position: absolute; top: 74px; left: 50%; transform: translateX(-50%); padding: 6px 14px; white-space: nowrap; border-radius: 12px; font-size: 12px; line-height: 1.6;
   background: rgba(120, 40, 140, 0.88); color: #fff; box-shadow: var(--shadow);
 }
 .tester-badge b { font-size: 13px; }
@@ -336,3 +344,23 @@ kbd {
 .map-menu button.primary { background: #2f6fd0; color: #fff; }
 .map-menu button.primary:hover { background: #285fb3; }
 .map-keys kbd + kbd { margin-left: 2px; }
+
+/* ---------- Chat box ---------- */
+.chat-log {
+  position: absolute; left: 16px; bottom: 112px; width: min(420px, calc(100vw - 32px)); display: flex; flex-direction: column; gap: 3px;
+  pointer-events: none;
+}
+.chat-log.open { max-height: 50vh; overflow: hidden; justify-content: flex-end; }
+.chat-line {
+  align-self: flex-start; max-width: 100%; padding: 4px 10px; border-radius: 8px; font-size: 13px; line-height: 1.45;
+  background: rgba(15, 25, 20, 0.62); color: #f4f4f0; animation: fade-in 0.15s ease; overflow-wrap: anywhere;
+}
+.chat-line b { color: #9fe0b8; font-weight: 700; }
+.chat-line.system { color: #ffe9a8; }
+.chat-line.error { color: #ffb0a8; }
+.chat-box { position: absolute; left: 16px; bottom: 66px; width: min(420px, calc(100vw - 32px)); }
+.chat-box input {
+  width: 100%; box-sizing: border-box; padding: 9px 14px; border-radius: 12px; border: 2px solid rgba(255, 255, 255, 0.35);
+  background: rgba(15, 25, 20, 0.78); color: #fff; font: inherit; font-size: 14px; outline: none;
+}
+.chat-box input:focus { border-color: #9fe0b8; }

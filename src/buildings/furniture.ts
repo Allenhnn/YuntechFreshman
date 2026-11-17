@@ -9,7 +9,7 @@ import type { ColliderBox } from './buildingMesh';
  * walls, doors, voids, cores and neighbouring rooms without hand placement. Keep-out circles protect
  * elevator landings, signs and stair ends.
  */
-export type FurnitureKind = 'shelf' | 'table' | 'chair' | 'plinth' | 'screen' | 'bed' | 'whiteboard' | 'bunk' | 'toilet' | 'sink' | 'mirror' | 'partition' | 'hydrant' | 'bins' | 'sign';
+export type FurnitureKind = 'shelf' | 'table' | 'chair' | 'plinth' | 'screen' | 'bed' | 'whiteboard' | 'bunk' | 'toilet' | 'sink' | 'mirror' | 'partition' | 'hydrant' | 'bins' | 'sign' | 'bracket';
 
 export interface FurnitureItem {
   kind: FurnitureKind;
@@ -445,6 +445,20 @@ function corridorProps(plan: FloorPlan, grid: FloorGrid, base: number, keepOut: 
     const [fx, fy] = axis === 'h' ? [0, n] : [n, 0];
     return { x, y, ry: yawToward(fx, fy) };
   };
+  /** A black mounting part, axis-aligned: spans [o0, o1] out from the wall line and `w` along it, from y0 up h. */
+  const mount = (axis: 'h' | 'v', at: number, t: number, n: 1 | -1, o0: number, o1: number, w: number, y0: number, h: number): void => {
+    const o = at + n * (o0 + o1) / 2, d = Math.abs(o1 - o0);
+    items.push(axis === 'h'
+      ? { kind: 'bracket', x: t, y: y0, z: o, ry: 0, sx: w, sy: h, sz: d, tint: 0 }
+      : { kind: 'bracket', x: o, y: y0, z: t, ry: 0, sx: d, sy: h, sz: w, tint: 0 });
+  };
+  /** Wall plate, stand-off and top arm holding a projecting sign of size WC_SIGN centred at height yc. */
+  const signBracket = (axis: 'h' | 'v', at: number, t: number, n: 1 | -1, yc: number): void => {
+    const face = WALL_T / 2, top = yc + WC_SIGN / 2;
+    mount(axis, at, t, n, face, face + 0.018, 0.1, yc - WC_SIGN / 2 - 0.06, WC_SIGN + 0.16); // plate on the wall
+    mount(axis, at, t, n, face, face + 0.06, 0.04, yc - WC_SIGN / 2, WC_SIGN); // stand-off to the sign's edge
+    mount(axis, at, t, n, face, face + 0.06 + WC_SIGN + 0.025, 0.04, top, 0.04); // arm over the top
+  };
 
   // --- Prayer rooms: the same black projecting sign, with the kneeling figures.
   for (const o of plan.openings) {
@@ -462,6 +476,7 @@ function corridorProps(plan: FloorPlan, grid: FloorGrid, base: number, keepOut: 
       const [fx, fy] = axis === 'h' ? [d, 0] : [0, d];
       items.push({ kind: 'sign', x: sp.x + fx * 0.012, y: base + 2.42, z: sp.y + fy * 0.012, ry: yawToward(-fx, -fy), sx: WC_SIGN, sy: WC_SIGN, sz: 1, tint: 0, label: 'wc:pray' });
     }
+    signBracket(axis, at, b + 0.3, n, base + 2.42);
   }
 
   // --- Bins beside toilet doors.
@@ -483,6 +498,7 @@ function corridorProps(plan: FloorPlan, grid: FloorGrid, base: number, keepOut: 
       const [fx, fy] = axis === 'h' ? [d, 0] : [0, d];
       items.push({ kind: 'sign', x: sp.x + fx * 0.012, y: base + 2.42, z: sp.y + fy * 0.012, ry: yawToward(-fx, -fy), sx: WC_SIGN, sy: WC_SIGN, sz: 1, tint: 0, label: wc });
     }
+    signBracket(axis, at, b + 0.3, n, base + 2.42);
     for (const t of [b + 1.0, a - 1.0, b + 1.6, a - 1.6]) { // clear of the door frame (wallFree keeps a 0.25 m margin)
       const p = onWall(axis, at, t, n, WALL_T / 2 + 0.25);
       // Walking room in front of both ends of the set.
@@ -558,6 +574,13 @@ function corridorProps(plan: FloorPlan, grid: FloorGrid, base: number, keepOut: 
           const [fx, fy] = alongX ? [-dir, 0] : [0, -dir];
           items.push({ kind: 'sign', x: px + fx * 0.02, y: base + hang, z: py + fy * 0.02, ry: yawToward(-fx, -fy), sx: 1.5, sy: 0.34, sz: 1, tint: 0, label: `↑ ${ahead.slice(0, 3).join('　')}` });
         }
+        // Black hangers: a rail along the top and two rods up to the ceiling.
+        const top = base + hang + 0.17, rod = s.ceiling + base - top;
+        const bar = (cx: number, cy: number, w: number, h: number, y0: number): void => {
+          items.push({ kind: 'bracket', x: cx, y: y0, z: cy, ry: 0, sx: alongX ? 0.06 : w, sy: h, sz: alongX ? w : 0.06, tint: 0 });
+        };
+        bar(px, py, 1.5, 0.035, top);
+        for (const k of [-0.6, 0.6]) bar(alongX ? px : px + k, alongX ? py + k : py, 0.025, rod, top);
         taken.push([px, py, 0.4]);
       }
     }

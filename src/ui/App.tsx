@@ -8,6 +8,7 @@ import { InventoryModal } from './inventory';
 import { LoadingScreen, MenuScreen } from './menus';
 import { PhoneDrawer } from './phone';
 import { ElevatorModal, Fade, InteractPrompt, ShopModal } from './elevator';
+import { ChatBox } from './chat';
 import './ui.css';
 
 function App(): ReactNode {
@@ -20,6 +21,7 @@ function App(): ReactNode {
       {phase === 'playing' && modal === 'phone' && <PhoneDrawer />}
       {phase === 'playing' && modal === 'elevator' && <ElevatorModal />}
       {phase === 'playing' && modal === 'shop' && <ShopModal />}
+      {phase === 'playing' && modal === 'chat' && <ChatBox />}
       {phase === 'playing' && <InteractPrompt />}
       <Fade />
       {phase === 'loading' && <LoadingScreen />}

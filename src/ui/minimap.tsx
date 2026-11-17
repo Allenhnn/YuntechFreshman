@@ -230,7 +230,7 @@ export function Minimap(): ReactNode {
     g.arc(nx, ny, size * 0.06, 0, Math.PI * 2);
     g.fill();
     g.fillStyle = '#fff';
-    g.font = `bold ${Math.round(size * 0.07)}px system-ui`;
+    g.font = `bold ${Math.round(size * 0.07)}px 'Cubic 11', system-ui`;
     g.textAlign = 'center';
     g.textBaseline = 'middle';
     g.fillText('N', nx, ny + 1);
@@ -341,7 +341,7 @@ function drawPin(g: CanvasRenderingContext2D, x: number, y: number, s: number, c
   g.fill();
   g.stroke();
   g.fillStyle = '#fff';
-  g.font = `bold ${Math.round(s * 0.9)}px system-ui`;
+  g.font = `bold ${Math.round(s * 0.9)}px 'Cubic 11', system-ui`;
   g.textAlign = 'center';
   g.textBaseline = 'middle';
   g.fillText(glyph, x, y - s * 1.2);
@@ -432,7 +432,7 @@ export function FullMap(): ReactNode {
 
     const dpr = w / (g.canvas.clientWidth || w);
     // Building labels (campus only); more appear as you zoom in.
-    g.font = `600 ${Math.round(12 * dpr)}px system-ui, 'PingFang TC', sans-serif`;
+    g.font = `600 ${Math.round(12 * dpr)}px 'Cubic 11', system-ui, 'PingFang TC', sans-serif`;
     g.textAlign = 'center';
     g.textBaseline = 'middle';
     const seen = new Set<string>();
@@ -492,7 +492,7 @@ export function FullMap(): ReactNode {
       }
       g.fill();
       g.stroke();
-      g.font = `700 ${Math.round(13 * dpr)}px system-ui, 'PingFang TC', sans-serif`;
+      g.font = `700 ${Math.round(13 * dpr)}px 'Cubic 11', system-ui, 'PingFang TC', sans-serif`;
       g.textAlign = 'left';
       g.textBaseline = 'middle';
       const label = hv.place.name;

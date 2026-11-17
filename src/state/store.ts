@@ -16,7 +16,7 @@ import { clearProgress, loadProgress, type SaveData } from './saveGame';
  */
 export type GamePhase = 'loading' | 'menu' | 'playing' | 'paused';
 export type MenuPanel = 'root' | 'controls' | 'settings';
-export type Modal = 'none' | 'inventory' | 'phone' | 'elevator' | 'shop';
+export type Modal = 'none' | 'inventory' | 'phone' | 'elevator' | 'shop' | 'chat';
 export type MapMode = 'mini' | 'full';
 export type LookMode = 'pointerLock' | 'drag';
 
@@ -103,6 +103,14 @@ export interface Toast {
   text: string;
 }
 
+/** One line in the chat box: what the player typed, or the game's reply to a command. */
+export interface ChatLine {
+  id: number;
+  text: string;
+  from: 'me' | 'system' | 'error';
+  at: number;
+}
+
 export interface GameState {
   phase: GamePhase;
   loadProgress: number;
@@ -146,6 +154,8 @@ export interface GameState {
   /** This browser holds progress that "繼續遊戲" can resume. */
   hasSave: boolean;
   tester: TesterState;
+  /** Chat box history (newest last, capped). */
+  chat: ChatLine[];
   /** Respawn point chosen on the map; null = the campus default (dorm C entrance). */
   customSpawn: SpawnPoint | null;
 }
@@ -181,6 +191,7 @@ export const gameStore = createStore<GameState>()(() => ({
   raceStart: null,
   hasSave: loadProgress() !== null,
   tester: { enabled: false, fly: false, noclip: false, speed: 1 },
+  chat: [],
   customSpawn: loadJson<SpawnPoint | null>(SPAWN_KEY, null),
 }));
 
@@ -315,6 +326,12 @@ export const actions = {
   toast(text: string): void {
     set({ toast: { id: ++toastId, text } });
   },
+  chat(text: string, from: ChatLine['from'] = 'system'): void {
+    set({ chat: [...get().chat, { id: ++toastId, text, from, at: Date.now() }].slice(-40) });
+  },
+  clearChat(): void {
+    set({ chat: [] });
+  },
   setNav(nav: NavState | null): void {
     set({ nav });
   },
@@ -332,7 +349,6 @@ export const actions = {
     if (get().toast?.id === id) set({ toast: null });
   },
   setTester(patch: Partial<TesterState>): void {
-    if (!TESTER_AVAILABLE) return;
     const next = { ...get().tester, ...patch };
     if (!next.enabled) Object.assign(next, { fly: false, noclip: false, speed: 1 });
     if (next.noclip) next.fly = true;

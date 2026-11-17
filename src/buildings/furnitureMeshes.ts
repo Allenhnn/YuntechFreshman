@@ -175,6 +175,7 @@ export function createFurnitureKit(tracker: ResourceTracker): FurnitureKit {
   const binColor = (c: number): MeshStandardMaterial => tracker.material(new MeshStandardMaterial({ color: c, roughness: 0.6 }));
   const bins = tracker.geometry(mergeGeometries([-0.4, 0, 0.4].map((x) => mergeGeometries([unitBox(0.37, 0.72, 0.44, x, 0, 0), unitBox(0.39, 0.06, 0.46, x, 0.72, 0)]) ?? unitBox(0.37, 0.78, 0.44, x)), true) ?? unitBox(1.2, 0.78, 0.44));
   const signGeo = tracker.geometry(new PlaneGeometry(1, 1));
+  const mountBlack = tracker.material(new MeshStandardMaterial({ color: 0x141416, roughness: 0.5, metalness: 0.4 }));
   const signCache = new Map<string, Material>();
   // Signs after the campus's own: silver hanging bars with dark end caps and an arrow box, and
   // black square pictogram signs for the toilets.
@@ -384,11 +385,11 @@ export function createFurnitureKit(tracker: ResourceTracker): FurnitureKit {
 
   return {
     signMaterial,
-    geometry: { shelf, table, chair, plinth: unit, screen: tracker.geometry(unitBox(1, 1, 1)), bed, whiteboard, bunk, toilet, sink, mirror: tracker.geometry(unitBox(1, 1, 1)), partition: tracker.geometry(unitBox(1, 1, 1)), hydrant, bins, sign: signGeo },
+    geometry: { shelf, table, chair, plinth: unit, screen: tracker.geometry(unitBox(1, 1, 1)), bed, whiteboard, bunk, toilet, sink, mirror: tracker.geometry(unitBox(1, 1, 1)), partition: tracker.geometry(unitBox(1, 1, 1)), hydrant, bins, sign: signGeo, bracket: unit },
     material: {
       shelf: [wood, wood, wood, wood, books, books], table: laminate, chair: fabric, plinth, screen, bed: [wood, linen, linen],
       whiteboard: [alu, boardFace], bunk: [wood, linen], toilet: ceramic, sink: [counter, ceramic, chrome], mirror, partition: panel,
-      hydrant: [red, red, red, red, red, cabinetFront], bins: [binColor(0x6e7275), binColor(0x2c6fd6), binColor(0x2f8f4a)], sign: panel,
+      hydrant: [red, red, red, red, red, cabinetFront], bins: [binColor(0x6e7275), binColor(0x2c6fd6), binColor(0x2f8f4a)], sign: panel, bracket: mountBlack,
     },
   };
 }
