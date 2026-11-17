@@ -21,7 +21,7 @@ export interface InteriorBuild {
 }
 
 function partBuffers(p: BuildingPart): MeshBuffers[] {
-  return [p.facade, p.paint, p.roof, p.floor, p.ceiling, p.glass].filter((m): m is MeshBuffers => m !== null);
+  return [p.facade, p.paint, p.roof, p.floor, p.ceiling, p.glass, p.curtain].filter((m): m is MeshBuffers => m !== null);
 }
 
 function transferables(m: BuildingMeshes): ArrayBuffer[] {
@@ -56,7 +56,7 @@ const api = {
     if (!source) return null;
     const meshes = buildBuildingMeshes(source);
     // The campus extrusion is the shell: drop the generated exterior before transfer.
-    meshes.exterior = { facade: null, paint: null, roof: null, floor: null, ceiling: null, glass: null, colliders: [] };
+    meshes.exterior = { facade: null, paint: null, roof: null, floor: null, ceiling: null, glass: null, curtain: null, colliders: [] };
     const result: InteriorBuild = { source, meshes };
     return Comlink.transfer(result, transferables(meshes));
   },

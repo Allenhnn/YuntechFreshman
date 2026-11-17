@@ -511,6 +511,24 @@ async function boot(): Promise<void> {
           }
           return;
         }
+        if (target?.id.includes(':stairs:')) {
+          // Stair curtain: fade out, arrive in front of the curtain on the other floor, fade back in.
+          const [buildingId, index] = target.id.split(':stairs:');
+          const building = buildingById(buildingId ?? '');
+          const portal = building?.stairPortals[Number(index)];
+          if (!building || !portal || gameStore.getState().fading) return;
+          actions.setFading(true);
+          window.setTimeout(() => {
+            const [x, z] = building.planToWorld(portal.to[0], portal.to[2]);
+            const facing = building.planFacing(portal.facing);
+            teleport(x, portal.to[1], z, facing);
+            renderSyncSystem(world, 1);
+            rig.snap(readFocus(), facing + Math.PI);
+            actions.setFading(false);
+            actions.toast(`${portal.level} 到了`);
+          }, 350);
+          return;
+        }
         if (!target && playground?.canStart(Transform.x[eid]!, Transform.z[eid]!)) {
           const p = playground.start(gameStore.getState().tester.enabled);
           teleport(p.x, 0, p.z, p.facing);

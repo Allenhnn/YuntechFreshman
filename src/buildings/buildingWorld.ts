@@ -21,7 +21,7 @@ import { stampFacadeStyle } from '../campus/chunkBuilder';
 import { toGeometry } from '../campus/campusWorld';
 import { DEFAULT_CAMPUS_STYLE, type FacadeStyle } from '../campus/facadeTypes';
 import type { BuildingSource, Stall, Vec2 } from './buildingTypes';
-import { buildBuildingMeshes, type BuildingMeshes, type BuildingPart, type ColliderBox } from './buildingMesh';
+import { buildBuildingMeshes, type BuildingMeshes, type BuildingPart, type ColliderBox, type StairPortal } from './buildingMesh';
 import { OUTSIDE, rasterize, regionRects } from './floorGrid';
 import { createInteriorMaterials, type InteriorMaterials } from './interiorMaterials';
 import { buildPlates, paintDirectory, paintEntranceSign } from './signs';
@@ -96,6 +96,8 @@ export interface HandBuiltBuilding {
   /** World-space footprint rings of the ground floor (no-tree zones). */
   readonly footprintRings: Ring[];
   readonly interactables: Interactable[];
+  /** Stair curtain doorways; interactable `<id>:stairs:<index>` uses the entry at that index. */
+  readonly stairPortals: StairPortal[];
   planToWorld(x: number, y: number): [number, number];
   /** Furniture and stair-flight colliders block the player but not the camera's spring arm. */
   isCameraTransparent(handle: number): boolean;
@@ -205,6 +207,7 @@ export function createHandBuiltBuilding(
       [part.floor, imats.floor],
       [part.ceiling, imats.ceiling],
       [part.glass, imats.glass],
+      [part.curtain, imats.curtain],
     ];
     if (part.facade) stampFacadeStyle(part.facade, facadeStyle);
     for (const [buf, mat] of entries) {
@@ -368,6 +371,11 @@ export function createHandBuiltBuilding(
     interactables.push({ id: `${src.id}:elevator:${levelId}`, prompt: '按 E 搭乘電梯', x, y, z, radius: ELEVATOR_REACH });
   }
 
+  meshes.portals.forEach((pt, i) => {
+    const [x, z] = xf.toWorld(pt.at[0], pt.at[2]);
+    interactables.push({ id: `${src.id}:stairs:${i}`, prompt: `按 E ${pt.up ? '上樓' : '下樓'}到 ${pt.level}`, x, y: pt.at[1], z, radius: 1.5 });
+  });
+
   for (const [levelId, floor] of Object.entries(src.floors)) {
     const y = src.levels.find((l) => l.id === levelId)?.elevation ?? 0;
     (floor.stalls ?? []).forEach((st, i) => {
@@ -388,6 +396,7 @@ export function createHandBuiltBuilding(
     source: src,
     footprintRings,
     interactables,
+    stairPortals: meshes.portals,
     planToWorld: xf.toWorld,
     groundHoles: buildingGroundHoles(src),
     isCameraTransparent: (handle) => cameraTransparent.has(handle),

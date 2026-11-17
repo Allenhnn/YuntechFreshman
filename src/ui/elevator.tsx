@@ -64,11 +64,12 @@ export function ShopModal(): ReactNode {
 export function InteractPrompt(): ReactNode {
   const prompt = useGame((s) => s.interactPrompt);
   const modal = useGame((s) => s.modal);
+  const api = useApi();
   if (!prompt || modal !== 'none') return null;
   return (
-    <div className="interact-prompt">
+    <button type="button" className="interact-prompt" onClick={api.interact}>
       <kbd>E</kbd> {prompt.replace(/^按 E /, '')}
-    </div>
+    </button>
   );
 }
 

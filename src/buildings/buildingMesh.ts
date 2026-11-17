@@ -19,8 +19,6 @@ const RAIL_H = 1.1;
 const FLOOR_Y = 0.08; // above campus walkway ribbons (0.06)
 const SLAB_T = 0.3;
 const BAY = 3.6;
-const RISER = 0.17;
-const STAIR_SIDE = 0.12;
 /** Clerestory strip, above the floor (m). */
 const CLERESTORY: readonly [number, number] = [2.3, 2.9];
 /** Real glazing in exterior walls (style.windows): where the facade shader paints its window band. */
@@ -53,6 +51,18 @@ export interface PlateSpot {
   text: string;
 }
 
+/** A doorway in a stair curtain: standing at `at`, the player can be moved to `to` on another floor. */
+export interface StairPortal {
+  /** Plan x, elevation, plan y. */
+  at: [number, number, number];
+  to: [number, number, number];
+  /** Plan direction the player faces on arrival (away from the curtain). */
+  facing: [number, number];
+  up: boolean;
+  /** Level arrived at. */
+  level: string;
+}
+
 export interface BuildingPart {
   facade: MeshBuffers | null;
   paint: MeshBuffers | null;
@@ -60,6 +70,8 @@ export interface BuildingPart {
   floor: MeshBuffers | null;
   ceiling: MeshBuffers | null;
   glass: MeshBuffers | null;
+  /** Black stair curtains. */
+  curtain: MeshBuffers | null;
   colliders: ColliderBox[];
 }
 
@@ -78,8 +90,9 @@ export interface BuildingMeshes {
   exterior: BuildingPart;
   /** Interior per modelled level, so floors can be shown / hidden independently. */
   levels: LevelMeshes[];
-  /** Stair flights (visible with the interior regardless of level). */
+  /** Stair curtains and floor landings (visible with the interior regardless of level). */
   stairs: BuildingPart;
+  portals: StairPortal[];
   /** Plan-local footprint rects of the ground floor (tree exclusion, minimap). */
   footprint: Rect[];
 }
@@ -91,6 +104,7 @@ class PartBuilder {
   readonly floor = new GeoBuilder();
   readonly ceiling = new GeoBuilder();
   readonly glass = new GeoBuilder();
+  readonly curtain = new GeoBuilder();
   readonly colliders: ColliderBox[] = [];
 
   build(): BuildingPart {
@@ -101,6 +115,7 @@ class PartBuilder {
       floor: this.floor.build(),
       ceiling: this.ceiling.build(),
       glass: this.glass.build(),
+      curtain: this.curtain.build(),
       colliders: this.colliders,
     };
   }
@@ -364,53 +379,90 @@ function buildShellLevel(rects: Rect[], below: Rect[], base: number, height: num
   for (const r of regionRects(overhang, (v) => v !== OUTSIDE)) horizontal(ext.roof, r, base - 0.02, false, 4);
 }
 
-/** Straight flight: steps, stringers, glass balustrades, a walkable ramp collider and side guards. */
-function buildStair(st: Stair, int: PartBuilder): void {
-  const [x0, y0, x1, y1] = st.rect;
-  const alongX = st.axis === 'x';
-  const runFrom = alongX ? x0 : y0, runTo = alongX ? x1 : y1;
-  const latFrom = alongX ? y0 : x0, latTo = alongX ? y1 : x1;
-  const run = runTo - runFrom, rise = st.high - st.low;
-  const n = Math.max(2, Math.round(rise / RISER));
-  // Position along the run where the flight is at height h (0 at the low end).
-  const lowAt = st.up === '+' ? runFrom : runTo;
-  const dir = st.up === '+' ? 1 : -1;
-  const P = (along: number, lat: number, y: number): V3 => (alongX ? [along, y, lat] : [lat, y, along]);
-  const N = (alongN: number, latN: number, yN: number): V3 => (alongX ? [alongN, yN, latN] : [latN, yN, alongN]);
-  const tread = run / n;
+/**
+ * Stairs are not walked: every flight end that meets a floor is a doorway in a black curtain wall.
+ * Using it moves the player to the matching end on the next floor up or down (see StairPortal).
+ * The wall spans the whole edge of the floor landing, so nobody steps into the empty shaft behind.
+ */
+function buildStairCurtains(src: BuildingSource, levels: LevelMeshes[], part: PartBuilder): StairPortal[] {
+  const stairs = src.stairs ?? [];
+  const same = (p: number, q: number): boolean => Math.abs(p - q) < 0.01;
+  const floorAt = (e: number): LevelMeshes | undefined => levels.find((l) => same(l.base, e));
+  const elevations = src.levels.map((l) => l.elevation).sort((p, q) => p - q);
+  interface End { st: Stair; e: number; c: number; into: 1 | -1; lat0: number; lat1: number }
+  const endOf = (st: Stair, high: boolean): End => {
+    const alongX = st.axis === 'x';
+    const [x0, y0, x1, y1] = st.rect;
+    const from = alongX ? x0 : y0, to = alongX ? x1 : y1;
+    const lowAt = st.up === '+' ? from : to, highAt = st.up === '+' ? to : from;
+    const dir: 1 | -1 = st.up === '+' ? 1 : -1;
+    return { st, e: high ? st.high : st.low, c: high ? highAt : lowAt, into: high ? (-dir as 1 | -1) : dir, lat0: alongX ? y0 : x0, lat1: alongX ? y1 : x1 };
+  };
+  const centre = (st: Stair): [number, number] => [(st.rect[0] + st.rect[2]) / 2, (st.rect[1] + st.rect[3]) / 2];
+  // Follow the flights of one stairwell up (or down) until they reach a modelled floor.
+  const arrive = (st: Stair, up: boolean): End | null => {
+    let f = st;
+    for (let i = 0; i < 8; i++) {
+      if (floorAt(up ? f.high : f.low)) return endOf(f, up);
+      const [fx, fy] = centre(f);
+      let next: Stair | undefined, best = 8;
+      for (const g of stairs) {
+        if (g === f || !same(up ? g.low : g.high, up ? f.high : f.low)) continue;
+        const [gx, gy] = centre(g);
+        const d = Math.hypot(gx - fx, gy - fy);
+        if (d < best) best = d, next = g;
+      }
+      if (!next) return null;
+      f = next;
+    }
+    return null;
+  };
+  // Plan point `back` metres in front of an end (on the landing), at the flight's centre line.
+  const spot = (end: End, back: number): [number, number] => {
+    const along = end.c - end.into * back, lat = (end.lat0 + end.lat1) / 2;
+    return end.st.axis === 'x' ? [along, lat] : [lat, along];
+  };
 
-  for (let i = 0; i < n; i++) {
-    const a = lowAt + dir * i * tread, b = lowAt + dir * (i + 1) * tread;
-    const top = st.low + (i + 1) * (rise / n), bottom = st.low + i * (rise / n);
-    // Tread (top) and riser (front face, toward the low end).
-    quad(int.floor, [P(a, latFrom, top), P(b, latFrom, top), P(b, latTo, top), P(a, latTo, top)], N(0, 0, 1), [[0, 0], [1, 0], [1, 1], [0, 1]]);
-    quad(int.paint, [P(a, latFrom, bottom), P(a, latTo, bottom), P(a, latTo, top), P(a, latFrom, top)], N(-dir, 0, 0), [[0, 0], [1, 0], [1, 0.1], [0, 0.1]]);
+  const portals: StairPortal[] = [];
+  const walls = new Set<string>();
+  for (const st of stairs) {
+    for (const high of [false, true]) {
+      const end = endOf(st, high);
+      const level = floorAt(end.e);
+      if (!level) continue;
+      const alongX = st.axis === 'x';
+      // The curtain wall covers the landing edge this flight leaves from (or just the flight).
+      let lat0 = end.lat0 - 0.06, lat1 = end.lat1 + 0.06;
+      for (const l of src.landings ?? []) {
+        if (!same(l.elevation, end.e)) continue;
+        const [a0, b0, a1, b1] = l.rect;
+        const edge = alongX ? (end.into > 0 ? a1 : a0) : (end.into > 0 ? b1 : b0);
+        const l0 = alongX ? b0 : a0, l1 = alongX ? b1 : a1;
+        if (Math.abs(edge - end.c) < 0.06 && l0 < end.lat1 && l1 > end.lat0) lat0 = Math.min(lat0, l0), lat1 = Math.max(lat1, l1);
+      }
+      const key = `${st.axis}:${end.c.toFixed(2)}:${end.e.toFixed(2)}:${lat0.toFixed(2)}`;
+      if (!walls.has(key)) {
+        walls.add(key);
+        const top = elevations.find((e) => e > end.e + 0.5) ?? end.e + src.floorHeight;
+        const at = end.c + end.into * 0.04;
+        const P = (lat: number, y: number): V3 => (alongX ? [at, y, lat] : [lat, y, at]);
+        quad(part.curtain, [P(lat0, end.e), P(lat1, end.e), P(lat1, top), P(lat0, top)], alongX ? [-end.into, 0, 0] : [0, 0, -end.into], [[0, 0], [1, 0], [1, 1], [0, 1]]);
+        const mid = (lat0 + lat1) / 2, half = (lat1 - lat0) / 2, cy = (end.e + top) / 2, hy = (top - end.e) / 2, cc = end.c + end.into * 0.12;
+        level.part.colliders.push({ c: alongX ? [cc, cy, mid] : [mid, cy, cc], h: alongX ? [0.1, hy, half] : [half, hy, 0.1] });
+      }
+      const dest = arrive(st, !high);
+      const destLevel = dest ? floorAt(dest.e) : undefined;
+      if (!dest || !destLevel || same(dest.e, end.e)) continue;
+      const [ax, ay] = spot(end, 0.7), [tx, ty] = spot(dest, 0.9);
+      const out: [number, number] = dest.st.axis === 'x' ? [-dest.into, 0] : [0, -dest.into];
+      portals.push({ at: [ax, end.e, ay], to: [tx, dest.e, ty], facing: out, up: !high, level: destLevel.id });
+      // A sign on the curtain over each doorway.
+      const [sx, sy] = spot(end, 0.02);
+      const n: [number, number] = alongX ? [-end.into, 0] : [0, -end.into];
+      level.furniture.push({ kind: 'sign', x: sx, y: end.e + 2.25, z: sy, ry: Math.atan2(n[0], n[1]), sx: Math.min(1.5, end.lat1 - end.lat0 - 0.3), sy: 0.34, sz: 1, tint: 0, label: `${high ? '▼ 下樓' : '▲ 上樓'} ${destLevel.id}` });
+    }
   }
-  for (const [lat, side] of [[latFrom, -1], [latTo, 1]] as const) {
-    const lowEnd = lowAt, highEnd = lowAt + dir * run;
-    // Stringer face down to the low floor, then a glass balustrade 1 m above the pitch line.
-    quad(int.paint, [P(lowEnd, lat, st.low), P(highEnd, lat, st.low), P(highEnd, lat, st.high), P(lowEnd, lat, st.low + 0.05)], N(0, side, 0), [[0, 0], [1, 0], [1, 1], [0, 0]]);
-    quad(int.glass, [P(lowEnd, lat, st.low), P(highEnd, lat, st.high), P(highEnd, lat, st.high + 1.0), P(lowEnd, lat, st.low + 1.0)], N(0, side, 0), [[0, 0], [1, 0], [1, 1], [0, 1]]);
-    // Side guard: blocks falling off the flight and walking underneath it.
-    const mid = (lowEnd + highEnd) / 2;
-    const h0 = st.low, h1 = st.high + RAIL_H;
-    int.colliders.push({
-      c: alongX ? [mid, (h0 + h1) / 2, lat] : [lat, (h0 + h1) / 2, mid],
-      h: alongX ? [run / 2, (h1 - h0) / 2, STAIR_SIDE / 2] : [STAIR_SIDE / 2, (h1 - h0) / 2, run / 2],
-    });
-  }
-  // Ramp collider along the pitch line (the character controller climbs it like a slope).
-  const len = Math.hypot(run, rise);
-  const angle = Math.atan2(rise, run);
-  const t = 0.2;
-  const midAlong = (runFrom + runTo) / 2, midLat = (latFrom + latTo) / 2;
-  const midY = (st.low + st.high) / 2 - (t / 2) * Math.cos(angle);
-  const tiltAngle = alongX ? dir * angle : -dir * angle; // rotation sign depends on the run axis
-  int.colliders.push({
-    c: alongX ? [midAlong, midY, midLat] : [midLat, midY, midAlong],
-    h: alongX ? [len / 2, t / 2, (latTo - latFrom) / 2] : [(latTo - latFrom) / 2, t / 2, len / 2],
-    tilt: { axis: alongX ? 'z' : 'x', angle: tiltAngle },
-  });
+  return portals;
 }
 
 export function buildBuildingMeshes(src: BuildingSource): BuildingMeshes {
@@ -455,11 +507,12 @@ export function buildBuildingMeshes(src: BuildingSource): BuildingMeshes {
     buildShellLevel(shell, belowAll, level.elevation, fh, ext, fh);
     belowAll = belowAll.concat(shell);
   }
-  for (const st of src.stairs ?? []) buildStair(st, stairsPart);
+  const portals = buildStairCurtains(src, levels, stairsPart);
   for (const l of src.landings ?? []) {
+    if (!src.levels.some((lv) => Math.abs(lv.elevation - l.elevation) < 0.01)) continue; // half landings are behind the curtain
     horizontal(stairsPart.floor, l.rect, l.elevation + 0.02, true, 0.6);
     horizontal(stairsPart.ceiling, l.rect, l.elevation - 0.25, false, 1.2);
     stairsPart.colliders.push(slabBox(l.rect, l.elevation, 0.25));
   }
-  return { exterior: ext.build(), levels, stairs: stairsPart.build(), footprint };
+  return { exterior: ext.build(), levels, stairs: stairsPart.build(), portals, footprint };
 }

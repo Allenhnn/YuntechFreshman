@@ -1,4 +1,4 @@
-import { CanvasTexture, ClampToEdgeWrapping, Color, DoubleSide, MeshStandardMaterial, RepeatWrapping, SRGBColorSpace, type Texture, type WebGLRenderer } from 'three';
+import { CanvasTexture, ClampToEdgeWrapping, Color, DoubleSide, MeshBasicMaterial, MeshStandardMaterial, RepeatWrapping, SRGBColorSpace, type Texture, type WebGLRenderer } from 'three';
 import type { ResourceTracker } from '../core/resources';
 import { mulberry32 } from '../core/math';
 
@@ -7,6 +7,8 @@ export interface InteriorMaterials {
   paint: MeshStandardMaterial;
   ceiling: MeshStandardMaterial;
   glass: MeshStandardMaterial;
+  /** Black stair curtain (unlit). */
+  curtain: MeshBasicMaterial;
   door: MeshStandardMaterial;
   elevatorDoor: MeshStandardMaterial;
 }
@@ -164,6 +166,7 @@ export function createInteriorMaterials(renderer: WebGLRenderer, tracker: Resour
         roughness: 0.95,
       }),
     ),
+    curtain: tracker.material(new MeshBasicMaterial({ color: 0x040405, side: DoubleSide })),
     glass: m(new MeshStandardMaterial({ color: 0xbfd8e6, transparent: true, opacity: 0.35, roughness: 0.1, metalness: 0.1, side: DoubleSide, depthWrite: false })),
     door: m(new MeshStandardMaterial({ map: mosaic ? tex(256, 19, framedDoor) : tex(256, 15, woodDoor), roughness: 0.7 })),
     elevatorDoor: m(new MeshStandardMaterial({ map: tex(256, 16, steelDoor), roughness: 0.35, metalness: 0.6 })),

@@ -200,7 +200,9 @@ kbd {
 .interact-prompt {
   position: absolute; bottom: 96px; left: 50%; transform: translateX(-50%); padding: 8px 16px; border-radius: 999px;
   background: rgba(20, 40, 30, 0.8); color: #fff; font-size: 15px; animation: fade-in 0.15s ease;
+  border: 0; font-family: inherit; cursor: pointer; pointer-events: auto;
 }
+#ui-root button.interact-prompt { color: #fff; }
 .interact-prompt kbd { color: var(--ink); margin-right: 6px; }
 .card.elevator { width: min(420px, calc(100vw - 32px)); }
 .floor-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
