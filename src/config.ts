@@ -43,10 +43,13 @@ export const CHARACTER = {
 
 export const CAMERA = {
   distance: 4.5,
-  minDistance: 0.8,
+  /** Closest the spring arm may pull in (narrow corridors and offices); the character hides below HIDE_BELOW. */
+  minDistance: 0.3,
+  hideCharacterBelow: 1.1,
   /** Orbit pivot height above the character's feet. */
   pivotHeight: 1.1,
-  probeRadius: 0.2,
+  /** Must cover the near plane's corners (~0.11 m at near 0.1) or walls are seen through at an angle. */
+  probeRadius: 0.32,
   sensitivity: 0.0022,
   defaultPitch: 0.3,
   pitchMin: -0.35,
@@ -66,8 +69,8 @@ export const CAMERA = {
   landingDipMax: 0.2,
   landingDipRecovery: 9,
 
-  /** 0.2 m near plane keeps depth precision usable out to the 1.6 km far plane. */
-  near: 0.2,
+  /** 0.1 m near plane: close enough for 0.3 m camera clearance indoors, still usable depth precision to 1.6 km. */
+  near: 0.1,
   far: 1600,
 } as const;
 

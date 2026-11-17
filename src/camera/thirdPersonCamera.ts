@@ -16,6 +16,8 @@ export interface CameraFocus {
 export interface ThirdPersonCamera {
   /** Smoothed yaw; the character controller moves relative to this. */
   readonly yaw: number;
+  /** Current spring-arm length (m); short when a wall is close behind the character. */
+  readonly distance: number;
   rotate(dxPixels: number, dyPixels: number): void;
   update(dt: number, focus: CameraFocus, ignore: RAPIER.Collider | undefined, filter?: (collider: RAPIER.Collider) => boolean): void;
   /** Jump straight to the target state (spawn / teleport), optionally with a new yaw. */
@@ -53,6 +55,9 @@ export function createThirdPersonCamera(camera: PerspectiveCamera, physics: RAPI
   return {
     get yaw() {
       return yaw;
+    },
+    get distance() {
+      return distance;
     },
     rotate(dx, dy) {
       targetYaw -= dx * CAMERA.sensitivity;

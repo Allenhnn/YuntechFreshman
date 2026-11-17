@@ -12,7 +12,8 @@ import { layoutFurniture, type FurnitureItem, type KeepOut } from './furniture';
  * above-grade exterior walls) is always present; `interior` (partitions, floors, ceilings, slabs,
  * railings, stairs, basement) only near the player.
  */
-export const WALL_T = 0.2;
+export { WALL_T } from './wallConst';
+import { WALL_T } from './wallConst';
 const DOOR_H = 2.4;
 const RAIL_H = 1.1;
 const FLOOR_Y = 0.08; // above campus walkway ribbons (0.06)

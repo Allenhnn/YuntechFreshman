@@ -1,5 +1,6 @@
 import type { FloorPlan, Opening, Rect, Space } from './buildingTypes';
 import { CELL, OUTSIDE, type FloorGrid } from './floorGrid';
+import { WALL_T } from './wallConst';
 import type { ColliderBox } from './buildingMesh';
 
 /**
@@ -8,7 +9,7 @@ import type { ColliderBox } from './buildingMesh';
  * walls, doors, voids, cores and neighbouring rooms without hand placement. Keep-out circles protect
  * elevator landings, signs and stair ends.
  */
-export type FurnitureKind = 'shelf' | 'table' | 'chair' | 'plinth' | 'screen' | 'bed' | 'whiteboard' | 'bunk' | 'toilet' | 'sink' | 'mirror' | 'partition';
+export type FurnitureKind = 'shelf' | 'table' | 'chair' | 'plinth' | 'screen' | 'bed' | 'whiteboard' | 'bunk' | 'toilet' | 'sink' | 'mirror' | 'partition' | 'hydrant' | 'bins' | 'sign';
 
 export interface FurnitureItem {
   kind: FurnitureKind;
@@ -22,6 +23,8 @@ export interface FurnitureItem {
   sz: number;
   /** Book colour variation seed / fabric tint index. */
   tint: number;
+  /** Hanging signs: the text on this face. */
+  label?: string;
 }
 
 export interface KeepOut {
@@ -398,5 +401,135 @@ export function layoutFurniture(plan: FloorPlan, grid: FloorGrid, base: number, 
       }
     }
   });
+  corridorProps(plan, grid, base, keepOut, items, colliders);
   return { items, colliders };
+}
+
+/**
+ * Corridor fittings, placed from the plan so every building gets them:
+ *  - a set of three sorting bins on the corridor wall beside each toilet door;
+ *  - red fire-hose cabinets on corridor walls, spread out (≥ 18 m apart) in a seeded random order;
+ *  - two-faced hanging direction signs along corridors, pointing ahead to the nearest exit,
+ *    stairs, toilets and sky bridge.
+ */
+function corridorProps(plan: FloorPlan, grid: FloorGrid, base: number, keepOut: readonly KeepOut[], items: FurnitureItem[], colliders: ColliderBox[]): void {
+  const spaceAt = (x: number, y: number): Space | undefined => {
+    const c = Math.floor((x - grid.x0) / CELL), r = Math.floor((y - grid.y0) / CELL);
+    if (c < 0 || r < 0 || c >= grid.w || r >= grid.h) return undefined;
+    const id = grid.ids[r * grid.w + c]!;
+    return id === OUTSIDE ? undefined : plan.spaces[id];
+  };
+  const isCirc = (s?: Space): boolean => s?.kind === 'corridor' || s?.kind === 'lobby';
+  const taken: [number, number, number][] = []; // x, y, radius
+  const free = (x: number, y: number, r: number): boolean => taken.every(([tx, ty, tr]) => Math.hypot(tx - x, ty - y) > tr + r);
+  const clear = (x: number, y: number, r: number): boolean => free(x, y, r) && keepOut.every((k) => Math.hypot(k.x - x, k.y - y) > k.r + r);
+  /** No opening on the wall line `at` (axis h: y = at) overlapping [from, to]. */
+  const wallFree = (axis: 'h' | 'v', at: number, from: number, to: number): boolean => plan.openings.every((o) => {
+    const oh = Math.abs(o.a[1] - o.b[1]) < 1e-3;
+    if ((axis === 'h') !== oh) return true;
+    const line = oh ? o.a[1] : o.a[0];
+    if (Math.abs(line - at) > 0.06) return true;
+    const a = oh ? Math.min(o.a[0], o.b[0]) : Math.min(o.a[1], o.b[1]), b = oh ? Math.max(o.a[0], o.b[0]) : Math.max(o.a[1], o.b[1]);
+    return b < from - 0.25 || a > to + 0.25;
+  });
+  const solidBox = (x: number, y: number, hx: number, hy: number, hz: number, yUp: number): void => {
+    colliders.push({ c: [x, base + yUp, y], h: [hx, hy, hz] });
+  };
+  /** Place a wall-hung / wall-standing item: wall line (axis, at), along position t, normal into the corridor. */
+  const onWall = (axis: 'h' | 'v', at: number, t: number, n: 1 | -1, off: number): { x: number; y: number; ry: number } => {
+    const x = axis === 'h' ? t : at + n * off, y = axis === 'h' ? at + n * off : t;
+    const [fx, fy] = axis === 'h' ? [0, n] : [n, 0];
+    return { x, y, ry: yawToward(fx, fy) };
+  };
+
+  // --- Bins beside toilet doors.
+  for (const o of plan.openings) {
+    if (o.kind !== 'door') continue;
+    const axis: 'h' | 'v' = Math.abs(o.a[1] - o.b[1]) < 1e-3 ? 'h' : 'v';
+    const at = axis === 'h' ? o.a[1] : o.a[0];
+    const a = axis === 'h' ? Math.min(o.a[0], o.b[0]) : Math.min(o.a[1], o.b[1]);
+    const b = axis === 'h' ? Math.max(o.a[0], o.b[0]) : Math.max(o.a[1], o.b[1]);
+    const mid = (a + b) / 2;
+    const side = (n: number): Space | undefined => (axis === 'h' ? spaceAt(mid, at + n * 0.3) : spaceAt(at + n * 0.3, mid));
+    const n: 1 | -1 | 0 = side(1)?.kind === 'toilet' && isCirc(side(-1)) ? -1 : side(-1)?.kind === 'toilet' && isCirc(side(1)) ? 1 : 0;
+    if (!n) continue;
+    for (const t of [b + 1.0, a - 1.0, b + 1.6, a - 1.6]) { // clear of the door frame (wallFree keeps a 0.25 m margin)
+      const p = onWall(axis, at, t, n, WALL_T / 2 + 0.25);
+      // Walking room in front of both ends of the set.
+      const front = (u: number): Space | undefined => (axis === 'h' ? spaceAt(u, at + n * 0.85) : spaceAt(at + n * 0.85, u));
+      const across = isCirc(front(t - 0.55)) && isCirc(front(t + 0.55)) ? front(t) : undefined;
+      // Beside its own door on purpose, so only other fittings (not the doorway keep-outs) count.
+      if (!wallFree(axis, at, t - 0.65, t + 0.65) || !isCirc(across) || !free(p.x, p.y, 0.7)) continue;
+      const ends = axis === 'h' ? [spaceAt(t - 0.6, at - n * 0.15), spaceAt(t + 0.6, at - n * 0.15)] : [spaceAt(at - n * 0.15, t - 0.6), spaceAt(at - n * 0.15, t + 0.6)];
+      if (ends.some((s) => !s || isCirc(s))) continue; // a wall must stand behind the whole set
+      items.push({ kind: 'bins', x: p.x, y: base, z: p.y, ry: p.ry, sx: 1, sy: 1, sz: 1, tint: 0 });
+      solidBox(p.x, p.y, axis === 'h' ? 0.6 : 0.24, 0.4, axis === 'h' ? 0.24 : 0.6, 0.4);
+      taken.push([p.x, p.y, 0.7]);
+      break;
+    }
+  }
+
+  // --- Fire-hose cabinets on corridor walls.
+  const cands: { axis: 'h' | 'v'; at: number; t: number; n: 1 | -1; h: number }[] = [];
+  for (const s of plan.spaces) {
+    if (!isCirc(s)) continue;
+    for (const [x0, y0, x1, y1] of s.rects) {
+      const alongX = x1 - x0 >= y1 - y0;
+      const len = alongX ? x1 - x0 : y1 - y0;
+      if (len < 6 || (alongX ? y1 - y0 : x1 - x0) < 1.8) continue;
+      for (const [at, n] of (alongX ? [[y0, 1], [y1, -1]] : [[x0, 1], [x1, -1]]) as [number, 1 | -1][]) {
+        for (let t = (alongX ? x0 : y0) + 1; t <= (alongX ? x1 : y1) - 1; t += 0.5) {
+          const behind = alongX ? spaceAt(t, at - n * 0.2) : spaceAt(at - n * 0.2, t);
+          if (isCirc(behind) || behind?.kind === 'void') continue; // no wall here (open to a hall / void)
+          if (!wallFree(alongX ? 'h' : 'v', at, t - 0.5, t + 0.5)) continue;
+          cands.push({ axis: alongX ? 'h' : 'v', at, t, n, h: hash(at * 3.1 + t, t * 1.7 - at) });
+        }
+      }
+    }
+  }
+  cands.sort((p, q) => p.h - q.h);
+  const hydrants: [number, number][] = [];
+  for (const c of cands) {
+    const p = onWall(c.axis, c.at, c.t, c.n, WALL_T / 2 + 0.13);
+    if (hydrants.some(([hx, hy]) => Math.hypot(hx - p.x, hy - p.y) < 18) || !clear(p.x, p.y, 0.6)) continue;
+    hydrants.push([p.x, p.y]);
+    taken.push([p.x, p.y, 0.6]);
+    items.push({ kind: 'hydrant', x: p.x, y: base + 0.25, z: p.y, ry: p.ry, sx: 1, sy: 1, sz: 1, tint: 0 });
+    solidBox(p.x, p.y, c.axis === 'h' ? 0.38 : 0.13, 0.8, c.axis === 'h' ? 0.13 : 0.38, 1.05);
+  }
+
+  // --- Hanging direction signs.
+  const targets: { label: string; x: number; y: number }[] = [];
+  for (const o of plan.openings) {
+    const mx = (o.a[0] + o.b[0]) / 2, my = (o.a[1] + o.b[1]) / 2;
+    const h = Math.abs(o.a[1] - o.b[1]) < 1e-3;
+    const sides = h ? [spaceAt(mx, my - 0.3), spaceAt(mx, my + 0.3)] : [spaceAt(mx - 0.3, my), spaceAt(mx + 0.3, my)];
+    if (o.label?.includes('空橋')) targets.push({ label: '空橋', x: mx, y: my });
+    else if (o.kind === 'exit') targets.push({ label: '出口', x: mx, y: my });
+    else if (sides.some((s) => s?.kind === 'stair')) targets.push({ label: '樓梯', x: mx, y: my });
+    else if (o.kind === 'door' && sides.some((s) => s?.kind === 'toilet')) targets.push({ label: '廁所', x: mx, y: my });
+  }
+  const ORDER = ['出口', '樓梯', '廁所', '空橋'];
+  for (const s of plan.spaces) {
+    if (!isCirc(s)) continue;
+    const hang = Math.min(s.ceiling - 0.55, 2.55);
+    for (const [x0, y0, x1, y1] of s.rects) {
+      const alongX = x1 - x0 >= y1 - y0;
+      const lo = alongX ? x0 : y0, hi = alongX ? x1 : y1, len = hi - lo;
+      if (len < 10 || (alongX ? y1 - y0 : x1 - x0) < 1.8) continue;
+      const mid = alongX ? (y0 + y1) / 2 : (x0 + x1) / 2;
+      for (let t = lo + 4; t <= hi - 4; t += 14) {
+        const px = alongX ? t : mid, py = alongX ? mid : t;
+        if (!clear(px, py, 0.4)) continue;
+        for (const dir of [1, -1]) {
+          const ahead = ORDER.filter((label) => targets.some((g) => g.label === label && ((alongX ? g.x - px : g.y - py) * dir) > 2.5 && Math.hypot(g.x - px, g.y - py) < 70));
+          if (!ahead.length) continue;
+          // The face read by someone walking toward `dir` faces back the other way.
+          const [fx, fy] = alongX ? [-dir, 0] : [0, -dir];
+          items.push({ kind: 'sign', x: px + fx * 0.02, y: base + hang, z: py + fy * 0.02, ry: yawToward(-fx, -fy), sx: 1.5, sy: 0.34, sz: 1, tint: 0, label: `↑ ${ahead.slice(0, 3).join('　')}` });
+        }
+        taken.push([px, py, 0.4]);
+      }
+    }
+  }
 }

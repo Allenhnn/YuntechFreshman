@@ -4,6 +4,7 @@ import {
   Color,
   InstancedMesh,
   Matrix4,
+  PlaneGeometry,
   MeshStandardMaterial,
   Quaternion,
   SRGBColorSpace,
@@ -20,6 +21,8 @@ import type { FurnitureItem, FurnitureKind } from './furniture';
 export interface FurnitureKit {
   geometry: Record<FurnitureKind, BufferGeometry>;
   material: Record<FurnitureKind, Material | Material[]>;
+  /** Hanging-sign face for a text (cached per text). */
+  signMaterial(label: string): Material;
 }
 
 function bookSpines(): CanvasTexture {
@@ -136,11 +139,70 @@ export function createFurnitureKit(tracker: ResourceTracker): FurnitureKit {
   const panel = tracker.material(new MeshStandardMaterial({ color: 0xc9d6dc, roughness: 0.55 }));
   const unit = tracker.geometry(unitBox(1, 1, 1));
 
+  // Fire-hose cabinet: 0.75 × 1.6 × 0.25 m, front (−Z) with the label; BoxGeometry face order +x −x +y −y +z −z.
+  const label = (w: number, h: number, paint: (g: CanvasRenderingContext2D) => void): CanvasTexture => {
+    const c = document.createElement('canvas');
+    c.width = w;
+    c.height = h;
+    const g = c.getContext('2d');
+    if (g) paint(g);
+    const t = tracker.texture(new CanvasTexture(c));
+    t.colorSpace = SRGBColorSpace;
+    return t;
+  };
+  const red = tracker.material(new MeshStandardMaterial({ color: 0xc8251f, roughness: 0.45, metalness: 0.2 }));
+  const cabinetFront = tracker.material(new MeshStandardMaterial({
+    roughness: 0.4,
+    map: label(128, 256, (g) => {
+      g.fillStyle = '#c8251f';
+      g.fillRect(0, 0, 128, 256);
+      g.strokeStyle = '#8f1813';
+      g.lineWidth = 6;
+      g.strokeRect(6, 6, 116, 244);
+      g.fillStyle = '#fff4e0';
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+      g.font = "900 34px system-ui, 'PingFang TC', sans-serif";
+      ['消', '防', '栓'].forEach((ch, i) => g.fillText(ch, 64, 58 + i * 42));
+      g.font = '700 14px system-ui, sans-serif';
+      g.fillText('FIRE HOSE', 64, 196);
+      g.fillStyle = '#e8e2d6';
+      g.fillRect(96, 116, 10, 30); // handle
+    }),
+  }));
+  const hydrant = tracker.geometry(new BoxGeometry(0.75, 1.6, 0.25).translate(0, 0.8, 0));
+  // Sorting bins: grey (general), blue (recycling), green (paper), front on −Z.
+  const binColor = (c: number): MeshStandardMaterial => tracker.material(new MeshStandardMaterial({ color: c, roughness: 0.6 }));
+  const bins = tracker.geometry(mergeGeometries([-0.4, 0, 0.4].map((x) => mergeGeometries([unitBox(0.37, 0.72, 0.44, x, 0, 0), unitBox(0.39, 0.06, 0.46, x, 0.72, 0)]) ?? unitBox(0.37, 0.78, 0.44, x)), true) ?? unitBox(1.2, 0.78, 0.44));
+  const signGeo = tracker.geometry(new PlaneGeometry(1, 1));
+  const signCache = new Map<string, Material>();
+  const signMaterial = (text: string): Material => {
+    let m = signCache.get(text);
+    if (m) return m;
+    const tex = label(512, 116, (g) => {
+      g.fillStyle = '#1f6b45';
+      g.fillRect(0, 0, 512, 116);
+      g.strokeStyle = '#f4f1ea';
+      g.lineWidth = 4;
+      g.strokeRect(6, 6, 500, 104);
+      g.fillStyle = '#ffffff';
+      g.font = "800 50px system-ui, 'PingFang TC', sans-serif";
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+      g.fillText(text, 256, 60, 480);
+    });
+    m = tracker.material(new MeshStandardMaterial({ map: tex, roughness: 0.6, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.35 }));
+    signCache.set(text, m);
+    return m;
+  };
+
   return {
-    geometry: { shelf, table, chair, plinth: unit, screen: tracker.geometry(unitBox(1, 1, 1)), bed, whiteboard, bunk, toilet, sink, mirror: tracker.geometry(unitBox(1, 1, 1)), partition: tracker.geometry(unitBox(1, 1, 1)) },
+    signMaterial,
+    geometry: { shelf, table, chair, plinth: unit, screen: tracker.geometry(unitBox(1, 1, 1)), bed, whiteboard, bunk, toilet, sink, mirror: tracker.geometry(unitBox(1, 1, 1)), partition: tracker.geometry(unitBox(1, 1, 1)), hydrant, bins, sign: signGeo },
     material: {
       shelf: [wood, wood, wood, wood, books, books], table: laminate, chair: fabric, plinth, screen, bed: [wood, linen, linen],
       whiteboard: [alu, boardFace], bunk: [wood, linen], toilet: ceramic, sink: [counter, ceramic, chrome], mirror, partition: panel,
+      hydrant: [red, red, red, red, red, cabinetFront], bins: [binColor(0x6e7275), binColor(0x2c6fd6), binColor(0x2f8f4a)], sign: panel,
     },
   };
 }
@@ -149,16 +211,19 @@ const CHAIR_TINTS = [new Color(0x2f5d50), new Color(0x8c3b2f), new Color(0x35507
 
 /** One InstancedMesh per furniture kind present in `items`. */
 export function instanceFurniture(items: readonly FurnitureItem[], kit: FurnitureKit): InstancedMesh[] {
-  const byKind = new Map<FurnitureKind, FurnitureItem[]>();
+  // Signs group by their text (one material each); everything else by kind.
+  const byKind = new Map<string, FurnitureItem[]>();
   for (const it of items) {
-    const list = byKind.get(it.kind);
+    const key = it.kind === 'sign' ? `sign:${it.label ?? ''}` : it.kind;
+    const list = byKind.get(key);
     if (list) list.push(it);
-    else byKind.set(it.kind, [it]);
+    else byKind.set(key, [it]);
   }
   const out: InstancedMesh[] = [];
   const m = new Matrix4(), q = new Quaternion(), p = new Vector3(), s = new Vector3(), up = new Vector3(0, 1, 0);
-  for (const [kind, list] of byKind) {
-    const mesh = new InstancedMesh(kit.geometry[kind], kit.material[kind], list.length);
+  for (const [key, list] of byKind) {
+    const kind = list[0]!.kind;
+    const mesh = new InstancedMesh(kit.geometry[kind], kind === 'sign' ? kit.signMaterial(key.slice(5)) : kit.material[kind], list.length);
     list.forEach((it, i) => {
       q.setFromAxisAngle(up, it.ry);
       m.compose(p.set(it.x, it.y, it.z), q, s.set(it.sx, it.sy, it.sz));

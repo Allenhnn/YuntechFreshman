@@ -11,6 +11,9 @@ Plan frame: +X along the classroom bar (west end of the 1F block = 0), +Y across
 drawn with north to the left, so +X runs south and +Y west on the ground.
 """
 import json
+import sys, os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from widen import widen
 
 ROOT = '/Users/allenhnn/Codes/YuntechFreshMan/'
 FH = 3.6
@@ -139,7 +142,8 @@ west_rows = [345, 379, 415, 451, 487.5, 520, 552.5, 587.5, 622.5, 660]
 east_rows = [345, 379, 415, 451, 487.5, 520, 552.5, 587.5, 622.5, 660]
 f3 = [
     circ('corridor', '走廊', [R(F, 550, 295, 625, 345), R(F, 602, 345, 625, 660), R(F, 75, 660, 607, 690), R(F, 575, 690, 607, 795), R(F, 75, 582, 107, 745), R(F, 102, 655, 145, 712)]),
-    room('300-1', '廁所(男)', [R(F, 585, 245, 625, 295)]), room('300-2', '廁所(女)', [R(F, 625, 242.5, 667.5, 315)]),
+    # Clear of the north stair core (X ≤ 55.7), which takes part of the drawn 300-1.
+    room('300-1', '廁所(男)', [[55.7, 0.3, 59.6, 5.2]]), room('300-2', '廁所(女)', [[59.6, 0.0, 63.9, 7.0]]),
     *[room(str(302 + 2 * i), '教師研究室', [R(F, 550, west_rows[i], 602, west_rows[i + 1])], 19.5) for i in range(9)],
     *[room(str(301 + 2 * i), '教師研究室', [R(F, 625, east_rows[i], 685, east_rows[i + 1])], 20.5) for i in range(9)],
     room('319', '基本資料庫小組辦公室', [R(F, 607, 690, 667, 795)], 55.5),
@@ -198,6 +202,7 @@ def find_run(spaces, s, kinds):
 
 floors = {}
 for fl, spaces, extra in (('1F', f1, f1_extra), ('2F', f2, f2_extra), ('3F', f3, f3_extra)):
+    print(fl, 'widened', widen(spaces, extra), 'corridor rects')  # before doors, so doors land on the final walls
     floors[fl] = {'bandTop': FH, 'spaces': spaces, 'openings': auto_doors(spaces) + extra, 'signs': []}
 
 # Placement: the plan's south-east corner on the OSM corner (-231.1, -122.6); +X runs along the bar.

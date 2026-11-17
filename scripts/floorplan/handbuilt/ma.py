@@ -8,6 +8,9 @@ wing, +Y across the courtyards. The page's printed dimensions run ~11 % short of
 outline, so lengths are scaled to the OSM footprint (1F page: 5.63 px/m from pixel (161.7, 405)).
 """
 import json, math
+import sys, os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from widen import widen
 
 ROOT = '/Users/allenhnn/Codes/YuntechFreshMan/'
 FH = 3.6
@@ -284,6 +287,8 @@ floors = {
     '2F': {'bandTop': FH, 'spaces': f2_spaces, 'openings': f2_open, 'signs': []},
     '3F': {'bandTop': FH, 'spaces': f3_spaces, 'openings': f3_open, 'signs': []},
 }
+for fl in floors.values():
+    print('widened', widen(fl['spaces'], fl['openings']), 'corridor rects')
 
 # ---------------------------------------------------------------- placement
 campus = json.load(open(ROOT + 'public/data/campus.json'))

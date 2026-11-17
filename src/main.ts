@@ -40,6 +40,9 @@ import { createBikeSystem } from './bikes/bikeSystem';
 import { createPlayground } from './playground/playground';
 import { addCafeteriaSign } from './buildings/cafeteriaSign';
 import { createSkyBridge } from './buildings/skyBridge';
+import { createAutoDoors, type DoorSpec } from './buildings/autoDoors';
+import { DOOR_HEIGHT, DOOR_WIDTH, buildingEntrance, hasInterior } from './campus/entrances';
+import { SHELL_WALL } from './interiors/generateInterior';
 import { MB_SKYLIGHT, createMgmtFeatures } from './buildings/mgmtFeatures';
 import { createPlanTransform } from './buildings/planTransform';
 import { MAIN_GATE_GUARDHOUSE, createMainGate, gateTreeExclusions, inGateZone } from './campus/mainGate';
@@ -189,6 +192,34 @@ async function boot(): Promise<void> {
   const ma = byId('ma'), mb = byId('mb');
   const skyBridge = ma && mb ? createSkyBridge(scene, physics, sceneResources, { building: mb, at: [50.95, -2.3] }, { building: ma, at: [76.5, 12.75] }, 3.6) : null;
   const mgmtFeatures = createMgmtFeatures(scene, physics, sceneResources, ma, mb);
+
+  // Sensor sliding doors: plan exits of the hand-built buildings, and the shell entrance of every
+  // building with a generated interior (the same entrance the campus chunks leave open).
+  const doorSpecs: DoorSpec[] = [];
+  for (const b of [library, ...handBuilt]) {
+    const ground = b.source.levels.find((l) => l.elevation === 0);
+    for (const o of (ground && b.source.floors[ground.id]?.openings) ?? []) {
+      if (o.kind !== 'exit') continue;
+      const [ax, az] = b.planToWorld(o.a[0], o.a[1]), [bx, bz] = b.planToWorld(o.b[0], o.b[1]);
+      const len = Math.hypot(bx - ax, bz - az);
+      if (len < 0.8) continue;
+      doorSpecs.push({ x: (ax + bx) / 2, z: (az + bz) / 2, ux: (bx - ax) / len, uz: (bz - az) / len, width: len, height: 2.35 });
+    }
+  }
+  for (const b of campus.buildings) {
+    if (!hasInterior(b)) continue;
+    const photoEdges = new Set((facades?.photos[String(b.id)]?.edges ?? []).map((e) => e.edge));
+    const e = traced?.entrances[String(b.id)]?.[0] ?? buildingEntrance(b, campus.roads, photoEdges);
+    if (!e) continue;
+    const r = b.outer, n = r.length / 2, j = (e.edge + 1) % n;
+    const dx = r[j * 2]! - r[e.edge * 2]!, dz = r[j * 2 + 1]! - r[e.edge * 2 + 1]!, len = Math.hypot(dx, dz);
+    const ux = dx / len, uz = dz / len, inx = -uz, inz = ux; // rings are CCW: (−dz, dx) points into the building
+    doorSpecs.push({
+      x: r[e.edge * 2]! + ux * e.along - inx * -SHELL_WALL / 2, z: r[e.edge * 2 + 1]! + uz * e.along - inz * -SHELL_WALL / 2,
+      ux, uz, width: DOOR_WIDTH, height: DOOR_HEIGHT - 0.05,
+    });
+  }
+  const autoDoors = createAutoDoors(scene, physics, sceneResources, doorSpecs);
   const buildings = (): readonly HandBuiltBuilding[] => [library, ...handBuilt, ...interiors.active];
   const buildingById = (id: string): HandBuiltBuilding | undefined => buildings().find((b) => b.source.id === id);
   // A new game always starts at the dorm C courtyard; a custom point only applies to respawning.
@@ -724,6 +755,7 @@ async function boot(): Promise<void> {
     if (playing && !streamAt && !ui.fading) updateArea(time, Transform.x[eid]!, Transform.y[eid]!, Transform.z[eid]!);
     if (playing && !streamAt && !ui.fading) updateNav(time, Transform.x[eid]!, Transform.z[eid]!);
     navLine.update(dt, time);
+    if (autoDoors.update(dt, Transform.x[eid]!, Transform.y[eid]!, Transform.z[eid]!) && playing) audio.play('click', 0.4);
     const gateEvent = sensorGates.update(dt, time, Transform.x[eid]!, Transform.z[eid]!, ui.inventory.some((s) => s?.id === 'studentCard'));
     if (playing && gateEvent === 'opened') { actions.toast('嗶！學生證感應成功'); audio.play('click'); }
     else if (playing && gateEvent === 'noCard') actions.toast('🚫 需要學生證感應才能通過');
@@ -745,6 +777,8 @@ async function boot(): Promise<void> {
     coins.render(world, time);
     const f = readFocus();
     rig.update(dt, f, colliders[eid], cameraFilter);
+    // In a tight spot the camera sits right behind the character: hide it rather than fill the view.
+    model.root.visible = rig.distance > CAMERA.hideCharacterBelow;
     if (ui.phase === 'menu') {
       // Title screen: a slow aerial orbit around the dorms behind the menu panel.
       menuOrbit += dt * MENU_ORBIT_RATE;
@@ -810,6 +844,7 @@ async function boot(): Promise<void> {
     library.dispose();
     for (const b of handBuilt) b.dispose();
     skyBridge?.dispose();
+    autoDoors.dispose();
     mgmtFeatures.dispose();
     interiors.dispose();
     bikes.dispose();
