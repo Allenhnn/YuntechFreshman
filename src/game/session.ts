@@ -29,6 +29,8 @@ export interface GameApi {
   teleportTo(x: number, z: number, label: string): void;
   selectHotbar(index: number): void;
   clickSlot(index: number): void;
+  /** Drag and drop in the inventory. */
+  moveSlot(from: number, to: number): void;
   useItem(slot: number): void;
   /** Starts navigation to a map place; closes the full map. */
   navigateTo(x: number, z: number, name: string): void;
@@ -178,6 +180,10 @@ export function createSession(lock: PointerLock, audio: AudioBus): GameApi {
     },
     clickSlot(index) {
       actions.clickSlot(index);
+      audio.play('click', 0.6);
+    },
+    moveSlot(from, to) {
+      actions.moveSlot(from, to);
       audio.play('click', 0.6);
     },
     buy(id, price) {

@@ -69,7 +69,7 @@
 }
 .title-panel .title { font-size: 42px; }
 .tagline { margin: 12px 0 0; font-size: 15px; color: var(--ink-soft); }
-.title-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 26px; }
+.title-actions { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 26px; }
 .title-actions .primary { grid-column: 1 / -1; padding: 15px 16px; font-size: 18px; }
 .start-point { display: inline-block; margin: 2px 0 0; padding: 5px 12px; border-radius: 999px; background: var(--green-soft); font-size: 13px; font-weight: 600; color: var(--green-dark); }
 .title-credit { position: absolute; left: 0; right: 0; bottom: 12px; margin: 0; text-align: center; font-size: 12px; color: #fff; text-shadow: 0 1px 4px rgba(10, 30, 20, 0.8); }
@@ -196,6 +196,13 @@ kbd {
 .inventory .grid .row-label { grid-column: 1 / -1; font-size: 12px; color: var(--ink-soft); margin: 2px 0 -2px; }
 .inventory .slot { background: #f1f6f2; box-shadow: none; border-color: var(--line); }
 .inventory .slot.selected { transform: none; border-color: var(--orange); }
+.inventory .slot { transition: background-color 0.12s, border-color 0.12s, transform 0.12s; touch-action: none; }
+.inventory .slot:hover { background: #e3f0e6; transform: translateY(-2px); }
+.inventory .slot.dragging { opacity: 0.35; }
+.slot-ghost {
+  position: fixed; left: 0; top: 0; margin: -22px 0 0 -22px; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center;
+  font-size: 32px; pointer-events: none; z-index: 50; filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.35)); will-change: transform;
+}
 .detail { padding: 14px; border-radius: 14px; background: #f6f9f6; display: flex; flex-direction: column; gap: 8px; }
 .detail .icon { font-size: 44px; }
 .detail .name { font-size: 17px; font-weight: 800; }

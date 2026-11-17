@@ -293,17 +293,26 @@ export const actions = {
       set({ heldSlot: null });
       return;
     }
+    actions.moveSlot(heldSlot, i);
+  },
+  /** Moves the stack in `from` onto `to`: merges equal items up to the stack limit, else swaps. */
+  moveSlot(from: number, to: number): void {
+    const inventory = get().inventory;
+    if (from === to || !inventory[from]) {
+      set({ heldSlot: null });
+      return;
+    }
     const next = inventory.slice();
-    const from = next[heldSlot] ?? null;
-    const to = next[i] ?? null;
-    if (from && to && from.id === to.id) {
-      const max = ITEMS[from.id].maxStack;
-      const moved = Math.min(from.count, max - to.count);
-      next[i] = { id: to.id, count: to.count + moved };
-      next[heldSlot] = from.count - moved > 0 ? { id: from.id, count: from.count - moved } : null;
+    const a = next[from] ?? null;
+    const b = next[to] ?? null;
+    if (a && b && a.id === b.id) {
+      const max = ITEMS[a.id].maxStack;
+      const moved = Math.min(a.count, max - b.count);
+      next[to] = { id: b.id, count: b.count + moved };
+      next[from] = a.count - moved > 0 ? { id: a.id, count: a.count - moved } : null;
     } else {
-      next[i] = from;
-      next[heldSlot] = to;
+      next[to] = a;
+      next[from] = b;
     }
     set({ inventory: next, heldSlot: null });
   },
