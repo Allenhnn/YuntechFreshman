@@ -409,7 +409,7 @@ export function layoutFurniture(plan: FloorPlan, grid: FloorGrid, base: number, 
  * Corridor fittings, placed from the plan so every building gets them:
  *  - a set of three sorting bins on the corridor wall beside each toilet door;
  *  - red fire-hose cabinets on corridor walls, spread out (≥ 18 m apart) in a seeded random order;
- *  - a black projecting pictogram sign at every toilet door (women | men, or the accessible WC);
+ *  - a black projecting pictogram sign at every toilet door (women | men, or the accessible WC) and prayer room;
  *  - two-faced hanging direction signs along corridors, pointing ahead to the nearest exit,
  *    stairs, toilets and sky bridge.
  */
@@ -445,6 +445,24 @@ function corridorProps(plan: FloorPlan, grid: FloorGrid, base: number, keepOut: 
     const [fx, fy] = axis === 'h' ? [0, n] : [n, 0];
     return { x, y, ry: yawToward(fx, fy) };
   };
+
+  // --- Prayer rooms: the same black projecting sign, with the kneeling figures.
+  for (const o of plan.openings) {
+    if (o.kind !== 'door') continue;
+    const axis: 'h' | 'v' = Math.abs(o.a[1] - o.b[1]) < 1e-3 ? 'h' : 'v';
+    const at = axis === 'h' ? o.a[1] : o.a[0];
+    const b = axis === 'h' ? Math.max(o.a[0], o.b[0]) : Math.max(o.a[1], o.b[1]);
+    const mid = (b + (axis === 'h' ? Math.min(o.a[0], o.b[0]) : Math.min(o.a[1], o.b[1]))) / 2;
+    const side = (n: number): Space | undefined => (axis === 'h' ? spaceAt(mid, at + n * 0.3) : spaceAt(at + n * 0.3, mid));
+    const pray = (s?: Space): boolean => !!s?.name.includes('祈禱室');
+    const n: 1 | -1 | 0 = pray(side(1)) && isCirc(side(-1)) ? -1 : pray(side(-1)) && isCirc(side(1)) ? 1 : 0;
+    if (!n) continue;
+    const sp = onWall(axis, at, b + 0.3, n, WALL_T / 2 + 0.06 + WC_SIGN / 2);
+    for (const d of [1, -1]) {
+      const [fx, fy] = axis === 'h' ? [d, 0] : [0, d];
+      items.push({ kind: 'sign', x: sp.x + fx * 0.012, y: base + 2.42, z: sp.y + fy * 0.012, ry: yawToward(-fx, -fy), sx: WC_SIGN, sy: WC_SIGN, sz: 1, tint: 0, label: 'wc:pray' });
+    }
+  }
 
   // --- Bins beside toilet doors.
   for (const o of plan.openings) {

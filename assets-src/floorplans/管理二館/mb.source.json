@@ -1105,7 +1105,7 @@
     {
      "id": "MB212",
      "code": "MB212",
-     "name": "穆斯林祈禱室(男)",
+     "name": "祈禱室(男)",
      "kind": "room",
      "ceiling": 3.3,
      "rects": [
@@ -1153,7 +1153,7 @@
     {
      "id": "MB214-1",
      "code": "MB214-1",
-     "name": "穆斯林祈禱室(女)",
+     "name": "祈禱室(女)",
      "kind": "room",
      "ceiling": 3.3,
      "rects": [

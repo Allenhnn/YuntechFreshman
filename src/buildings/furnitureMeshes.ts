@@ -233,7 +233,52 @@ export function createFurnitureKit(tracker: ResourceTracker): FurnitureKit {
     round(g, 3, 3, 250, 250, 26);
     g.fill();
     const PINK = '#e89a94', TEAL = '#6fb5b8';
-    if (kind === 'wc:acc') {
+    if (kind === 'wc:pray') {
+      // Two kneeling figures facing right, praying: a veiled woman | a man, a white line between.
+      g.fillStyle = '#ffffff';
+      g.fillRect(126, 52, 5, 156);
+      const kneel = (cx: number, veil: boolean): void => {
+        g.fillStyle = '#ffffff';
+        if (veil) { // head and shoulders under one rounded veil
+          g.beginPath();
+          g.moveTo(cx - 14, 72);
+          g.quadraticCurveTo(cx - 4, 52, cx + 10, 62);
+          g.quadraticCurveTo(cx + 18, 92, cx + 6, 120);
+          g.lineTo(cx - 34, 150);
+          g.quadraticCurveTo(cx - 40, 120, cx - 14, 72);
+          g.closePath();
+          g.fill();
+        } else {
+          g.beginPath();
+          g.arc(cx - 2, 70, 15, 0, Math.PI * 2);
+          g.fill();
+          g.beginPath(); // torso
+          g.moveTo(cx - 16, 92);
+          g.quadraticCurveTo(cx + 10, 88, cx + 8, 110);
+          g.lineTo(cx + 2, 150);
+          g.lineTo(cx - 30, 150);
+          g.quadraticCurveTo(cx - 32, 110, cx - 16, 92);
+          g.closePath();
+          g.fill();
+        }
+        g.beginPath(); // forearm raised in front, hands together
+        g.moveTo(cx + 2, 108);
+        g.lineTo(cx + 30, 116);
+        g.lineTo(cx + 44, 94);
+        g.lineTo(cx + 52, 100);
+        g.lineTo(cx + 34, 130);
+        g.lineTo(cx - 2, 124);
+        g.closePath();
+        g.fill();
+        // Kneeling: thighs forward to the knee, shins back along the floor, a rounded seat on the heels.
+        round(g, cx - 34, 146, 56, 28, 12);
+        g.fill();
+        round(g, cx - 40, 168, 70, 22, 8);
+        g.fill();
+      };
+      kneel(70, true);
+      kneel(182, false);
+    } else if (kind === 'wc:acc') {
       g.fillStyle = '#ffffff';
       g.font = "700 40px system-ui, sans-serif";
       g.textAlign = 'right';
