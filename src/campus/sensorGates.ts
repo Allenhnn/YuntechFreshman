@@ -35,8 +35,9 @@ interface GateSpot {
 
 const SPOTS: readonly GateSpot[] = [
   { x: 168.6, z: -141.5, dx: 0.14, dz: 1, width: 8, toward: 1 }, // 龍潭路 × the road north past 雲泰表演廳
-  { x: 174.1, z: -112.1, dx: 0.18, dz: 0.98, width: 8, toward: -1 }, // 4.5 m past the zebra at (173.3, −116.5) // 龍潭路 × the same road heading south
-  { x: -44.2, z: -55.3, dx: 0.173, dz: 0.985, width: 8, toward: -1 }, // 4.5 m past the zebra at (−45, −59.7) // 龍潭路 × the road south past 技職大樓
+  { x: 174.1, z: -112.1, dx: 0.18, dz: 0.98, width: 8, toward: -1 }, // 龍潭路 × the same road heading south, 4.5 m past the zebra at (173.3, −116.5)
+  { x: -44.2, z: -55.3, dx: 0.173, dz: 0.985, width: 8, toward: -1 }, // 龍潭路 × the road south past 技職大樓, 4.5 m past the zebra at (−45, −59.7)
+  { x: -49.9, z: -89.1, dx: -0.162, dz: -0.987, width: 8, toward: -1 }, // 龍潭路 × the same road heading north (past the service-road branch)
 ];
 
 const OPEN_R = 5;
