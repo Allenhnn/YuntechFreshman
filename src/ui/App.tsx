@@ -9,6 +9,7 @@ import { LoadingScreen, MenuScreen } from './menus';
 import { PhoneDrawer } from './phone';
 import { ElevatorModal, Fade, InteractPrompt, ShopModal } from './elevator';
 import { ChatBox } from './chat';
+import { CameraOverlay } from './camera';
 import './ui.css';
 
 function App(): ReactNode {
@@ -16,7 +17,8 @@ function App(): ReactNode {
   const modal = useGame((s) => s.modal);
   return (
     <>
-      {phase === 'playing' && <Hud />}
+      {phase === 'playing' && modal !== 'camera' && <Hud />}
+      {phase === 'playing' && modal === 'camera' && <CameraOverlay />}
       {phase === 'playing' && modal === 'inventory' && <InventoryModal />}
       {phase === 'playing' && modal === 'phone' && <PhoneDrawer />}
       {phase === 'playing' && modal === 'elevator' && <ElevatorModal />}

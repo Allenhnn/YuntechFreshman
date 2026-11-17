@@ -16,7 +16,8 @@ import { clearProgress, loadProgress, type SaveData } from './saveGame';
  */
 export type GamePhase = 'loading' | 'menu' | 'playing' | 'paused';
 export type MenuPanel = 'root' | 'controls' | 'settings';
-export type Modal = 'none' | 'inventory' | 'phone' | 'elevator' | 'shop' | 'chat';
+export type Modal = 'none' | 'inventory' | 'phone' | 'elevator' | 'shop' | 'chat' | 'camera';
+export type PhonePage = 'home' | 'settings' | 'album';
 export type MapMode = 'mini' | 'full';
 export type LookMode = 'pointerLock' | 'drag';
 
@@ -153,6 +154,12 @@ export interface GameState {
   raceStart: { x: number; z: number } | null;
   /** This browser holds progress that "繼續遊戲" can resume. */
   hasSave: boolean;
+  /** Phone camera: front (selfie) lens. */
+  cameraSelfie: boolean;
+  /** Bumped whenever the album changes (the phone re-reads it). */
+  albumVersion: number;
+  /** Page the phone opens on. */
+  phonePage: PhonePage;
   tester: TesterState;
   /** Chat box history (newest last, capped). */
   chat: ChatLine[];
@@ -190,6 +197,9 @@ export const gameStore = createStore<GameState>()(() => ({
   shop: null,
   raceStart: null,
   hasSave: loadProgress() !== null,
+  cameraSelfie: false,
+  albumVersion: 0,
+  phonePage: 'home',
   tester: { enabled: false, fly: false, noclip: false, speed: 1 },
   chat: [],
   customSpawn: loadJson<SpawnPoint | null>(SPAWN_KEY, null),
@@ -213,6 +223,15 @@ export const actions = {
   },
   setRaceStart(raceStart: { x: number; z: number } | null): void {
     set({ raceStart });
+  },
+  setCameraSelfie(cameraSelfie: boolean): void {
+    set({ cameraSelfie });
+  },
+  bumpAlbum(): void {
+    set({ albumVersion: get().albumVersion + 1 });
+  },
+  setPhonePage(phonePage: PhonePage): void {
+    set({ phonePage });
   },
   setHasSave(hasSave: boolean): void {
     if (get().hasSave !== hasSave) set({ hasSave });

@@ -1,4 +1,6 @@
-import { ACESFilmicToneMapping, PCFShadowMap, PerspectiveCamera, Scene, SRGBColorSpace, WebGLRenderer } from 'three';
+import { ACESFilmicToneMapping, PCFShadowMap, PerspectiveCamera, Scene, SRGBColorSpace, Vector3, WebGLRenderer } from 'three';
+import { createPhoneCamera } from './game/phoneCamera';
+import { addPhoto } from './state/album';
 import { createWorld } from 'bitecs';
 import { CAMERA, FIXED_DT, FLOORPLAN_INTERIORS, MAX_SUBSTEPS, RENDER } from './config';
 import { createAudioBus } from './audio/audio';
@@ -246,6 +248,9 @@ async function boot(): Promise<void> {
   const player = spawnPlayer(world, scene, physics, model, playerResources, spawn, spawn.facing);
   const eid = player.eid;
   const rig = createThirdPersonCamera(camera, physics);
+  const phoneCam = createPhoneCamera(scene, renderer, camera, sceneResources);
+  let inCameraMode = false;
+  const feet = new Vector3();
   const playground = createPlayground(scene, physics, campus, sceneResources);
   actions.setRaceStart(playground?.startSpot ?? null);
   addCafeteriaSign(scene, campus, sceneResources);
@@ -473,6 +478,24 @@ async function boot(): Promise<void> {
         teleport(p.x, p.y, p.z, p.facing);
         renderSyncSystem(world, 1);
         rig.snap(readFocus(), p.facing + Math.PI);
+        return;
+      }
+      case 'cameraLook':
+        phoneCam.look(cmd.dx, cmd.dy);
+        return;
+      case 'photo': {
+        const obj = objects[eid];
+        if (!obj) return;
+        const st = gameStore.getState();
+        const m = st.gameMinutes;
+        const label = `第 ${Math.floor(m / 1440) + 1} 天 ${String(Math.floor((m % 1440) / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+        audio.play('click');
+        void phoneCam.capture(obj.position, model.root, st.cameraSelfie).then(async (blob) => {
+          if (!blob) return;
+          await addPhoto(blob, label);
+          actions.bumpAlbum();
+          actions.toast('已存到相簿');
+        });
         return;
       }
       case 'teleport': {
@@ -808,6 +831,20 @@ async function boot(): Promise<void> {
     rig.update(dt, f, colliders[eid], cameraFilter);
     // In a tight spot the camera sits right behind the character: hide it rather than fill the view.
     model.root.visible = rig.distance > CAMERA.hideCharacterBelow;
+    // Phone camera: first person, the character turns with the view; hidden from the main camera.
+    if (ui.phase === 'playing' && ui.modal === 'camera' && objects[eid]) {
+      if (!inCameraMode) {
+        inCameraMode = true;
+        phoneCam.enter(Transform.rotY[eid]!);
+      }
+      Transform.rotY[eid] = Transform.prevRotY[eid] = phoneCam.facing;
+      objects[eid]!.rotation.y = phoneCam.facing;
+      phoneCam.frame(feet.copy(objects[eid]!.position), model.root, ui.cameraSelfie);
+    } else if (inCameraMode) {
+      inCameraMode = false;
+      phoneCam.exit();
+      rig.snap(readFocus(), Transform.rotY[eid]! + Math.PI);
+    }
     if (ui.phase === 'menu') {
       // Title screen: a slow aerial orbit around the dorms behind the menu panel.
       menuOrbit += dt * MENU_ORBIT_RATE;

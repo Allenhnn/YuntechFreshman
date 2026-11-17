@@ -217,11 +217,12 @@ floors['1F']['fixtures'] = [
 # - it rises to the 2F ceiling; the 2F floor ends over it in a wave (hand-built mosaic parapet,
 #   mbLobby.ts) — under the wave the 1F ceiling stays low;
 # - east of it, under the 2F floor, the space by the stair hall is part of the lobby; the stair
-#   itself rises in the corridor outside 107 to the 2F corridor by 創思空間.
+#   itself (a black-curtain flight like every other stair) sits in the corridor outside 107:
+#   its foot faces south onto a landing there, its head faces north onto the 2F corridor by 創思空間.
 import math
 f1, f2 = floors['1F'], floors['2F']
 LOBBY_X0, LOBBY_X1, LOBBY_Y1 = 41.9, 52.1, 55.7      # 2F void x range; south wall
-STAIR_WELL = [55.0, 49.9, 57.6, 55.7]                 # 2F opening over the stair (corridor outside 107)
+STAIR_E = [55.2, 49.9, 57.6, 53.5]                    # stair hall (1F and 2F); flight rises north
 def wave(x):  # 2F floor edge over the breezeway (plan y), 44.7 … 46.3
     return 45.5 + 0.8 * math.sin(2 * math.pi * (x - LOBBY_X0) / (LOBBY_X1 - LOBBY_X0))
 STRIP = 0.3
@@ -243,12 +244,14 @@ bz['rects'] = [[41.5, 44.5, LOBBY_X0, 55.7]] + [[a, 44.5, b, y] for a, b, y in s
 f1['spaces'].append({'id': 'lobby-high', 'name': '穿堂', 'kind': 'corridor', 'ceiling': HIGH, 'group': 'lobby',
                      'rects': [[a, y, min(b, 51.8), 55.7] for a, b, y in strips if a < 51.8]})
 f1['spaces'].append({'id': 'lobby-gap', 'name': '穿堂', 'kind': 'corridor', 'ceiling': HIGH, 'group': 'lobby', 'rects': [[51.8, 49.9, LOBBY_X1, 55.7]]})
-# Stair hall in the corridor outside 107: open to the corridor (east, north), walled toward the lobby.
-f1['spaces'].append({'id': 'stair-E', 'name': '樓梯', 'kind': 'corridor', 'ceiling': HIGH, 'group': 'stair-E', 'rects': [[55.2, 49.9, 57.6, 55.7]]})
-f1['openings'] += [{'kind': 'open', 'a': [57.6, 49.9], 'b': [57.6, 55.7]}, {'kind': 'open', 'a': [55.2, 49.9], 'b': [57.6, 49.9]}]
+# Stair hall: on 1F open to the landing south of it, on 2F open to the corridor north of it.
+for f, y in ((f1, STAIR_E[3]), (f2, STAIR_E[1])):
+    f['spaces'].append({'id': 'stair-E', 'name': '樓梯', 'kind': 'stair', 'ceiling': CEIL, 'rects': [STAIR_E]})
+    f['openings'].append({'kind': 'open', 'a': [STAIR_E[0] + 0.05, y], 'b': [STAIR_E[2] - 0.05, y]})
+stairs.append({'id': 'mb-E0', 'name': '樓梯', 'rect': [STAIR_E[0], STAIR_E[1], STAIR_E[2] - 0.2, STAIR_E[3]], 'axis': 'y', 'up': '-', 'low': 0, 'high': FH})
 void = next(sp for sp in f2['spaces'] if sp['id'] == 'void-2F')
 void['customEdge'] = True
-void['rects'] = [[a, y, b, LOBBY_Y1] for a, b, y in strips] + [STAIR_WELL]
+void['rects'] = [[a, y, b, LOBBY_Y1] for a, b, y in strips]
 c2 = next(sp for sp in f2['spaces'] if sp['id'] == 'corridor')
 c2['rects'] += [[a, 44.7, b, y] for a, b, y in strips if y > 44.75] + [[LOBBY_X1, 44.7, 55.0, LOBBY_Y1]]
 

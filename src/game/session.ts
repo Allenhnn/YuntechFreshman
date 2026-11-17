@@ -22,6 +22,13 @@ export interface GameApi {
   interact(): void;
   /** Opens a modal from game code (e.g. the elevator menu after an interaction). */
   openModal(modal: Exclude<Modal, 'none'>): void;
+  /** Phone camera mode (first person, phone held up). */
+  openCamera(): void;
+  takePhoto(): void;
+  flipCamera(): void;
+  cameraLook(dx: number, dy: number): void;
+  /** Opens the phone on its album. */
+  openAlbum(): void;
   elevatorTo(level: string): void;
   closeModal(): void;
   toggleMap(): void;
@@ -140,6 +147,7 @@ export function createSession(lock: PointerLock, audio: AudioBus): GameApi {
         closeModal();
         return;
       }
+      if (modal === 'phone') actions.setPhonePage('home'); // the phone opens on its home screen
       actions.setModal(modal);
       audio.play('open');
       if (lock.isLocked()) {
@@ -150,6 +158,30 @@ export function createSession(lock: PointerLock, audio: AudioBus): GameApi {
     closeModal,
     interact() {
       if (get().phase === 'playing' && get().modal === 'none' && get().interactPrompt) dispatch({ type: 'interact' });
+    },
+    openCamera() {
+      if (get().phase !== 'playing') return;
+      actions.setModal('camera');
+      audio.play('open');
+      if (lock.isLocked()) {
+        expectUnlock = true;
+        lock.release();
+      }
+    },
+    takePhoto() {
+      if (get().modal === 'camera') dispatch({ type: 'photo' });
+    },
+    flipCamera() {
+      actions.setCameraSelfie(!get().cameraSelfie);
+      audio.play('click', 0.6);
+    },
+    cameraLook(dx, dy) {
+      if (get().modal === 'camera') dispatch({ type: 'cameraLook', dx, dy });
+    },
+    openAlbum() {
+      actions.setPhonePage('album');
+      actions.setModal('phone');
+      audio.play('open');
     },
     openModal(modal) {
       if (get().phase !== 'playing' || get().modal === modal) return;

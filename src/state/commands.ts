@@ -20,7 +20,10 @@ export type GameCommand =
   | { type: 'interact' }
   | { type: 'elevatorTo'; building: string; level: string }
   /** Map teleport: x/z in campus metres; the game finds a safe standing spot near it. */
-  | { type: 'teleport'; x: number; z: number; label: string };
+  | { type: 'teleport'; x: number; z: number; label: string }
+  /** Phone camera: take a photo / turn the view (mouse pixels). */
+  | { type: 'photo' }
+  | { type: 'cameraLook'; dx: number; dy: number };
 
 const queue: GameCommand[] = [];
 
