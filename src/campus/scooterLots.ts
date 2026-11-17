@@ -21,26 +21,33 @@ import type { ResourceTracker } from '../core/resources';
 import type { CampusData, Ring } from './campusTypes';
 
 /**
- * Open-air scooter parks: asphalt, white bays in back-to-back rows, parked scooters (about 60 %
- * full) and a sign at the entrance. Bays skip anything running through a lot (roads, walkways,
+ * Open-air scooter and car parks: asphalt, white bays in back-to-back rows, parked vehicles (about
+ * 60 % full) and a sign at the entrance. Bays skip anything running through a lot (roads, walkways,
  * buildings) and anything outside campus.
  */
 export interface ScooterLot {
   name: string;
   /** Corners in order: p0 → p1 is the long side the rows run along, p0 → p3 the depth. */
   ring: Ring;
+  /** Default scooter. */
+  kind?: 'scooter' | 'car';
 }
 
 export const SCOOTER_LOTS: readonly ScooterLot[] = [
   { name: '機車停車場（大門西側）', ring: [-252, -332, -27, -377, -20, -339, -246, -294] },
   { name: '機車停車場（大門東側）', ring: [64, -391, 293, -433, 300, -397, 71, -350] },
-  { name: '機車停車場（管理學院）', ring: [-243, -90, -76, -124, -70, -94, -238, -62] },
+  { name: '汽車停車場（管理學院）', ring: [-243, -90, -76, -124, -70, -94, -238, -62], kind: 'car' },
+  // Along the north side of 龍潭路 (behind its sidewalk), and beside the service road west of 警衛室 / 技職大樓.
+  { name: '機車停車格（龍潭路）', ring: [-151.69, -55.99, -281.69, -23.59, -283.14, -29.41, -153.14, -61.81] },
+  { name: '機車停車格（警衛室旁）', ring: [-113.3, -46, -111.67, 20, -105.47, 19.85, -107.1, -46.15] },
   { name: '機車停車場（司令台）', ring: [266, -133, 346, -148, 351, -119, 271, -103] },
 ];
 
-const BAY_W = 1.0;
-const SCOOTER_L = 1.8;
-const AISLE = 3.2;
+/** Bay width, vehicle length (bay depth), aisle, collider height per kind. */
+const SIZES = {
+  scooter: { bay: 1.0, len: 1.8, aisle: 3.2, h: 0.55 },
+  car: { bay: 2.5, len: 4.8, aisle: 6.0, h: 0.75 },
+} as const;
 const FILL = 0.6;
 
 function pointInRing(x: number, z: number, r: Ring): boolean {
@@ -83,8 +90,12 @@ export function createScooterLots(scene: Scene, physics: RAPIER.World, campus: C
   const lineMat = tracker.material(new MeshStandardMaterial({ color: 0xf2f0e8, roughness: 0.8, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
   const lineGeos: BufferGeometry[] = [];
   const scooters: { x: number; z: number; yaw: number; tint: number }[] = [];
+  const cars: { x: number; z: number; yaw: number; tint: number }[] = [];
 
   for (const lot of SCOOTER_LOTS) {
+    const kind = lot.kind ?? 'scooter';
+    const { bay: BAY_W, len: SCOOTER_L, aisle: AISLE, h: COLL_H } = SIZES[kind];
+    const parked = kind === 'car' ? cars : scooters;
     const r = lot.ring;
     const ox = r[0]!, oz = r[1]!;
     const lx = r[2]! - ox, lz = r[3]! - oz, L = Math.hypot(lx, lz);
@@ -120,7 +131,7 @@ export function createScooterLots(scene: Scene, physics: RAPIER.World, campus: C
           const [a0, a1] = run;
           const [cx, cz] = at((a0 + a1) / 2, rowD);
           colliders.push(tracker.collider(physics.createCollider(
-            RAPIER.ColliderDesc.cuboid((a1 - a0) / 2, 0.55, SCOOTER_L / 2 - 0.15).setTranslation(cx, 0.55, cz).setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }),
+            RAPIER.ColliderDesc.cuboid((a1 - a0) / 2 - (kind === 'car' ? 0.3 : 0), COLL_H, SCOOTER_L / 2 - 0.15).setTranslation(cx, COLL_H, cz).setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }),
           )));
           run = null;
         };
@@ -132,7 +143,7 @@ export function createScooterLots(scene: Scene, physics: RAPIER.World, campus: C
           const [l0x, l0z] = at(a - BAY_W / 2, rowD);
           lineGeos.push(new PlaneGeometry(0.08, SCOOTER_L).rotateX(-Math.PI / 2).rotateY(Math.atan2(vx, vz)).translate(l0x, 0.035, l0z));
           if (hash(x, z) < FILL) {
-            scooters.push({ x, z, yaw: nose > 0 ? yawAlong : yawAlong + Math.PI, tint: hash(z, x) });
+            parked.push({ x, z, yaw: nose > 0 ? yawAlong : yawAlong + Math.PI, tint: hash(z, x) });
             if (!run) run = [a - BAY_W / 2, a + BAY_W / 2];
             else run[1] = a + BAY_W / 2;
           } else flush();
@@ -156,7 +167,7 @@ export function createScooterLots(scene: Scene, physics: RAPIER.World, campus: C
       g.font = "900 72px system-ui, sans-serif";
       g.fillText('P', 56, 80);
       g.font = "800 34px system-ui, 'PingFang TC', sans-serif";
-      g.fillText('機車', 170, 56);
+      g.fillText(kind === 'car' ? '汽車' : '機車', 170, 56);
       g.fillText('停車場', 170, 104);
     }
     const tex = tracker.texture(new CanvasTexture(c));
@@ -204,6 +215,31 @@ export function createScooterLots(scene: Scene, physics: RAPIER.World, campus: C
     body.setColorAt(i, col.setHex(palette[Math.floor(sc.tint * palette.length) % palette.length]!));
   });
   for (const mesh of [body, dark]) {
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    mesh.computeBoundingSphere();
+    scene.add(mesh);
+    meshes.push(mesh);
+  }
+
+  // Car: tinted body and roof, dark glass and wheels, nose toward local +z.
+  const carBody = tracker.geometry(mergeGeometries([box(1.78, 0.62, 4.3, 0, 0.3, 0), box(1.5, 0.08, 2.0, 0, 1.42, -0.25)])!);
+  const carDark = tracker.geometry(mergeGeometries([
+    box(1.56, 0.52, 2.3, 0, 0.92, -0.2), // glasshouse
+    ...[[-0.82, 1.35], [0.82, 1.35], [-0.82, -1.35], [0.82, -1.35]].map(([x, z]) => box(0.24, 0.62, 0.62, x!, 0, z!)), // wheels
+  ])!);
+  const carPaint = new InstancedMesh(carBody, tracker.material(new MeshStandardMaterial({ roughness: 0.35, metalness: 0.45 })), Math.max(1, cars.length));
+  const carGlass = new InstancedMesh(carDark, tracker.material(new MeshStandardMaterial({ color: 0x1e2830, roughness: 0.15, metalness: 0.5 })), Math.max(1, cars.length));
+  carPaint.count = carGlass.count = cars.length;
+  const carColours = [0xf4f4f2, 0x1b1c1f, 0x9ea4a9, 0x5a5f66, 0xb3262a, 0x274f8c, 0xd9d4c7, 0x3d5a46];
+  cars.forEach((c, i) => {
+    qq.setFromAxisAngle(up, c.yaw + (c.tint - 0.5) * 0.05);
+    m.compose(p.set(c.x, 0, c.z), qq, s);
+    carPaint.setMatrixAt(i, m);
+    carGlass.setMatrixAt(i, m);
+    carPaint.setColorAt(i, col.setHex(carColours[Math.floor(c.tint * carColours.length) % carColours.length]!));
+  });
+  for (const mesh of [carPaint, carGlass]) {
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     mesh.computeBoundingSphere();

@@ -16,6 +16,7 @@ import { DOOR_HEIGHT, DOOR_WIDTH, buildingEntrance, hasInterior, type Entrance }
 import { SHELL_WALL, buildingKind, generateInterior } from '../interiors/generateInterior';
 import type { BuildingSource } from '../buildings/buildingTypes';
 import { RoadMarker } from './roadMarkings';
+import { SIDEWALK_W, isLongtanMain } from './longtanConst';
 import { createPlanTransform } from '../buildings/planTransform';
 import { DEFAULT_CAMPUS_STYLE, DEFAULT_TOWN_STYLE, DETAIL_DEFAULTS, PATTERN_ID, type FacadeData, type FacadeStyle, type PhotoEdge } from './facadeTypes';
 
@@ -30,6 +31,8 @@ const Y_WALK = 0.06;
 const WALL_BASE = -0.3;
 
 /** Growable geometry accumulator (worker-side, so plain arrays are fine). */
+const STREET_TREE_STEP = 8;
+
 export class GeoBuilder {
   readonly pos: number[] = [];
   readonly nrm: number[] = [];
@@ -668,12 +671,47 @@ export class ChunkBuilder {
         for (const { road, from, to } of roads) {
           const p = road.points;
           for (let i = from; i < to && !onRoad; i++) {
-            if (distToSegment(x, z, p[i * 2]!, p[i * 2 + 1]!, p[i * 2 + 2]!, p[i * 2 + 3]!) < road.width / 2 + 2) onRoad = true;
+            if (distToSegment(x, z, p[i * 2]!, p[i * 2 + 1]!, p[i * 2 + 2]!, p[i * 2 + 3]!) < road.width / 2 + (isLongtanMain(road) ? SIDEWALK_W + 2 : 2)) onRoad = true;
           }
           if (onRoad) break;
         }
         if (onRoad) continue;
         out.push(x, z, 0.8 + rand() * 0.6, rand() * Math.PI * 2, rand());
+      }
+    }
+    // 龍潭路 street trees: a row down the middle of each sidewalk, every ~8 m, on both sides.
+    const inChunk = (x: number, z: number): boolean => x >= x0 && x < x0 + CHUNK_SIZE && z >= z0 && z < z0 + CHUNK_SIZE;
+    const seen = new Set<string>();
+    for (const { road, from, to } of roads) {
+      if (!isLongtanMain(road)) continue;
+      const p = road.points, off = road.width / 2 + SIDEWALK_W / 2;
+      for (let i = from; i < to; i++) {
+        const key = `${p[i * 2]},${p[i * 2 + 1]}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const ax = p[i * 2]!, az = p[i * 2 + 1]!, bx = p[i * 2 + 2]!, bz = p[i * 2 + 3]!;
+        const len = Math.hypot(bx - ax, bz - az);
+        if (len < 4) continue;
+        const ux = (bx - ax) / len, uz = (bz - az) / len;
+        const n = Math.max(1, Math.round(len / STREET_TREE_STEP));
+        for (let k = 0; k < n; k++) {
+          const t = ((k + 0.5) / n) * len;
+          for (const side of [-1, 1]) {
+            const x = ax + ux * t - uz * side * off, z = az + uz * t + ux * side * off;
+            if (!inChunk(x, z)) continue;
+            if (buildings.some(({ item, bounds: [a, b, c, d] }) => x > a - 3 && x < c + 3 && z > b - 3 && z < d + 3 && (pointInRing(x, z, item.outer) || distToRingEdge(x, z, item.outer) < 3))) continue;
+            let crossing = false;
+            for (const { road: other, from: f, to: t2 } of roads) {
+              if (isLongtanMain(other) || other.kind === 'walkway') continue;
+              const q = other.points;
+              for (let j = f; j < t2 && !crossing; j++) if (distToSegment(x, z, q[j * 2]!, q[j * 2 + 1]!, q[j * 2 + 2]!, q[j * 2 + 3]!) < other.width / 2 + 2.5) crossing = true;
+              if (crossing) break;
+            }
+            if (crossing) continue;
+            const h = ((x * 12.9898 + z * 78.233) % 1 + 1) % 1;
+            out.push(x, z, 1.0 + h * 0.35, h * Math.PI * 2, h);
+          }
+        }
       }
     }
     return new Float32Array(out);

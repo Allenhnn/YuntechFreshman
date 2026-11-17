@@ -51,6 +51,7 @@ import { createMbLobby } from './buildings/mbLobby';
 import { MAIN_GATE_GUARDHOUSE, createMainGate, gateTreeExclusions, inGateZone } from './campus/mainGate';
 import { addBoundaryZone } from './campus/boundaryZone';
 import { includeLongtanRoad, widenCampusRoads } from './campus/campusFixes';
+import { createLongtanSidewalks } from './campus/longtanRoad';
 import { SCOOTER_LOTS, createScooterLots } from './campus/scooterLots';
 import { createSensorGates } from './campus/sensorGates';
 import { inGateArea } from './campus/mainGate';
@@ -257,6 +258,7 @@ async function boot(): Promise<void> {
   const mainGate = createMainGate(scene, physics, campus, sceneResources);
   addBoundaryZone(scene, campus, sceneResources, inGateZone);
   const scooterLots = createScooterLots(scene, physics, campus, sceneResources);
+  const longtanSidewalks = createLongtanSidewalks(scene, physics, campus, sceneResources);
   const sensorGates = createSensorGates(scene, physics, sceneResources);
   const navGraph = buildNavGraph(campus);
   const navLine = createNavLine(scene, sceneResources);
@@ -920,6 +922,7 @@ async function boot(): Promise<void> {
     mainGate?.dispose();
     navLine.dispose();
     scooterLots.dispose();
+    longtanSidewalks.dispose();
     sensorGates.dispose();
     env.dispose();
     player.despawn();
