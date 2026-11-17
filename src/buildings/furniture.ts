@@ -9,7 +9,7 @@ import type { ColliderBox } from './buildingMesh';
  * walls, doors, voids, cores and neighbouring rooms without hand placement. Keep-out circles protect
  * elevator landings, signs and stair ends.
  */
-export type FurnitureKind = 'shelf' | 'table' | 'chair' | 'plinth' | 'screen' | 'bed' | 'whiteboard' | 'bunk' | 'toilet' | 'sink' | 'mirror' | 'partition' | 'hydrant' | 'bins' | 'sign' | 'bracket';
+export type FurnitureKind = 'shelf' | 'table' | 'chair' | 'plinth' | 'screen' | 'bed' | 'whiteboard' | 'bunk' | 'toilet' | 'sink' | 'mirror' | 'partition' | 'hydrant' | 'bins' | 'sign' | 'bracket' | 'vending';
 
 export interface FurnitureItem {
   kind: FurnitureKind;
@@ -459,6 +459,23 @@ function corridorProps(plan: FloorPlan, grid: FloorGrid, base: number, keepOut: 
     mount(axis, at, t, n, face, face + 0.06, 0.04, yc - WC_SIGN / 2, WC_SIGN); // stand-off to the sign's edge
     mount(axis, at, t, n, face, face + 0.06 + WC_SIGN + 0.025, 0.04, top, 0.04); // arm over the top
   };
+
+  // --- Hand-placed fixtures from the plan: vending machines and full-length wall mirrors.
+  for (const f of plan.fixtures ?? []) {
+    const [fx, fy] = f.facing;
+    if (f.kind === 'vending') {
+      const D = 0.8, H = 1.83;
+      const x = f.at[0] + fx * (WALL_T / 2 + 0.03 + D / 2), y = f.at[1] + fy * (WALL_T / 2 + 0.03 + D / 2);
+      items.push({ kind: 'vending', x, y: base, z: y, ry: yawToward(fx, fy), sx: f.width - 0.04, sy: H, sz: D, tint: 0 });
+      solidBox(x, y, Math.abs(fx) > 0.5 ? D / 2 : f.width / 2, H / 2, Math.abs(fx) > 0.5 ? f.width / 2 : D / 2, H / 2);
+      taken.push([x, y, f.width / 2 + 0.6]);
+    } else {
+      const x = f.at[0] + fx * (WALL_T / 2 + 0.012), y = f.at[1] + fy * (WALL_T / 2 + 0.012);
+      const along = Math.abs(fx) > 0.5;
+      items.push({ kind: 'mirror', x, y: base + 0.12, z: y, ry: 0, sx: along ? 0.02 : f.width, sy: 2.05, sz: along ? f.width : 0.02, tint: 0 });
+      taken.push([x, y, f.width / 2]);
+    }
+  }
 
   // --- Prayer rooms: the same black projecting sign, with the kneeling figures.
   for (const o of plan.openings) {

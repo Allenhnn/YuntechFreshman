@@ -67,6 +67,15 @@ export interface Stall {
   menu?: 'buffet' | 'noodles' | 'bento' | 'drinks';
 }
 
+/** A hand-placed wall fitting: `at` is on the wall line, `facing` points into the room / corridor. */
+export interface Fixture {
+  kind: 'vending' | 'mirror';
+  at: Vec2;
+  facing: Vec2;
+  /** Along the wall (m). */
+  width: number;
+}
+
 export interface FloorPlan {
   /** Height of this floor's exterior band (covers double-height halls and mezzanines). */
   bandTop: number;
@@ -75,6 +84,7 @@ export interface FloorPlan {
   signs: Sign[];
   elevator?: { landing: Vec2; facing: Vec2 };
   stalls?: Stall[];
+  fixtures?: Fixture[];
 }
 
 export interface Level {

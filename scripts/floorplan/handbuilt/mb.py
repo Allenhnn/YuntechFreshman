@@ -205,6 +205,14 @@ for fl, spaces, extra in (('1F', f1, f1_extra), ('2F', f2, f2_extra), ('3F', f3,
     print(fl, 'widened', widen(spaces, extra), 'corridor rects')  # before doors, so doors land on the final walls
     floors[fl] = {'bandTop': FH, 'spaces': spaces, 'openings': auto_doors(spaces) + extra, 'signs': []}
 
+# Hand-placed fittings (the user's markup on the 1F handbook plan): two vending machines on the
+# corridor wall beside 107-1, a full-length mirror on the breezeway side of 108.
+floors['1F']['fixtures'] = [
+    {'kind': 'vending', 'at': [59.4, 45.65], 'facing': [-1, 0], 'width': 0.92},
+    {'kind': 'vending', 'at': [59.4, 46.57], 'facing': [-1, 0], 'width': 0.92},
+    {'kind': 'mirror', 'at': [41.5, 49.0], 'facing': [1, 0], 'width': 6.6},
+]
+
 # Placement: the plan's south-east corner on the OSM corner (-231.1, -122.6); +X runs along the bar.
 source = {
     'id': 'mb',

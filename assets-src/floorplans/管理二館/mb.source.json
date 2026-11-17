@@ -691,7 +691,45 @@
      ]
     }
    ],
-   "signs": []
+   "signs": [],
+   "fixtures": [
+    {
+     "kind": "vending",
+     "at": [
+      59.4,
+      45.65
+     ],
+     "facing": [
+      -1,
+      0
+     ],
+     "width": 0.92
+    },
+    {
+     "kind": "vending",
+     "at": [
+      59.4,
+      46.57
+     ],
+     "facing": [
+      -1,
+      0
+     ],
+     "width": 0.92
+    },
+    {
+     "kind": "mirror",
+     "at": [
+      41.5,
+      49.0
+     ],
+     "facing": [
+      1,
+      0
+     ],
+     "width": 6.6
+    }
+   ]
   },
   "2F": {
    "bandTop": 3.6,

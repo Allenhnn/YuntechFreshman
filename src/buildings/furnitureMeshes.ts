@@ -321,6 +321,77 @@ export function createFurnitureKit(tracker: ResourceTracker): FurnitureKit {
       g.fillRect(126, 50, 4, 160);
     }
   });
+  // Drinks vending machine front: lit display of cans and bottles, price buttons, coin panel, pickup slot.
+  const vendingFront = label(256, 512, (g) => {
+    g.fillStyle = '#c8272d';
+    g.fillRect(0, 0, 256, 512);
+    g.fillStyle = '#ffffff';
+    g.font = "900 26px system-ui, 'PingFang TC', sans-serif";
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText('COLD DRINKS', 128, 26);
+    // Display window (left 74 %), lit from inside.
+    const W = 184, X = 12, Y = 48, H = 300;
+    const glow = g.createLinearGradient(0, Y, 0, Y + H);
+    glow.addColorStop(0, '#fbfdff');
+    glow.addColorStop(1, '#dfe9f2');
+    g.fillStyle = glow;
+    g.fillRect(X, Y, W, H);
+    const colors = ['#e8332a', '#1e64c8', '#f2b705', '#2b9a48', '#f07c1b', '#7b3fb5', '#111', '#e8e8e8', '#11a4c7'];
+    let k = 0;
+    for (let row = 0; row < 4; row++) {
+      const ry = Y + 10 + row * 73;
+      g.fillStyle = '#b9c3cc';
+      g.fillRect(X, ry + 52, W, 4); // shelf
+      for (let i = 0; i < 6; i++) {
+        const cx = X + 16 + i * 30, c = colors[(k++ * 5 + row) % colors.length]!;
+        const bottle = (row + i) % 3 === 0;
+        g.fillStyle = c;
+        if (bottle) {
+          g.fillRect(cx - 7, ry + 14, 14, 38);
+          g.fillRect(cx - 3, ry + 4, 6, 12);
+        } else {
+          g.fillRect(cx - 9, ry + 22, 18, 30);
+        }
+        g.fillStyle = 'rgba(255,255,255,0.45)';
+        g.fillRect(cx - 5, ry + (bottle ? 18 : 26), 3, 22);
+        // Price button under each item.
+        g.fillStyle = '#ffffff';
+        g.fillRect(cx - 9, ry + 58, 18, 8);
+        g.fillStyle = '#0a7a2f';
+        g.fillRect(cx - 7, ry + 60, 14, 4);
+      }
+    }
+    g.strokeStyle = '#7d1418';
+    g.lineWidth = 4;
+    g.strokeRect(X, Y, W, H);
+    // Coin / card panel on the right.
+    g.fillStyle = '#2b2b2e';
+    g.fillRect(204, 60, 42, 200);
+    g.fillStyle = '#7ef08a';
+    g.fillRect(210, 72, 30, 18); // price display
+    g.fillStyle = '#c9c9c9';
+    g.fillRect(219, 104, 12, 26); // coin slot
+    g.fillRect(210, 146, 30, 6); // note slot
+    g.fillStyle = '#3d7cff';
+    g.fillRect(210, 170, 30, 30); // card reader
+    g.fillStyle = '#9a9a9a';
+    g.fillRect(214, 228, 22, 18); // change cup
+    // Pickup slot.
+    g.fillStyle = '#1a1a1c';
+    g.fillRect(28, 392, 150, 64);
+    g.fillStyle = '#3a3a3e';
+    g.fillRect(34, 398, 138, 18);
+    g.fillStyle = '#ffffff';
+    g.font = "700 16px system-ui, 'PingFang TC', sans-serif";
+    g.fillText('取物口 PUSH', 103, 436);
+    g.fillStyle = '#9f1d22';
+    g.fillRect(0, 488, 256, 24);
+  });
+  const vendingBody = tracker.material(new MeshStandardMaterial({ color: 0xb8232a, roughness: 0.45, metalness: 0.15 }));
+  const vendingTop = tracker.material(new MeshStandardMaterial({ color: 0x8f8f92, roughness: 0.6 }));
+  const vendingFace = tracker.material(new MeshStandardMaterial({ map: vendingFront, emissive: 0xffffff, emissiveMap: vendingFront, emissiveIntensity: 0.35, roughness: 0.3 }));
+
   const hangingSign = (text: string): CanvasTexture => label(512, 116, (g) => {
     const metal = g.createLinearGradient(0, 0, 0, 116);
     metal.addColorStop(0, '#eeede9');
@@ -385,11 +456,12 @@ export function createFurnitureKit(tracker: ResourceTracker): FurnitureKit {
 
   return {
     signMaterial,
-    geometry: { shelf, table, chair, plinth: unit, screen: tracker.geometry(unitBox(1, 1, 1)), bed, whiteboard, bunk, toilet, sink, mirror: tracker.geometry(unitBox(1, 1, 1)), partition: tracker.geometry(unitBox(1, 1, 1)), hydrant, bins, sign: signGeo, bracket: unit },
+    geometry: { shelf, table, chair, plinth: unit, screen: tracker.geometry(unitBox(1, 1, 1)), bed, whiteboard, bunk, toilet, sink, mirror: tracker.geometry(unitBox(1, 1, 1)), partition: tracker.geometry(unitBox(1, 1, 1)), hydrant, bins, sign: signGeo, bracket: unit, vending: unit },
     material: {
       shelf: [wood, wood, wood, wood, books, books], table: laminate, chair: fabric, plinth, screen, bed: [wood, linen, linen],
       whiteboard: [alu, boardFace], bunk: [wood, linen], toilet: ceramic, sink: [counter, ceramic, chrome], mirror, partition: panel,
       hydrant: [red, red, red, red, red, cabinetFront], bins: [binColor(0x6e7275), binColor(0x2c6fd6), binColor(0x2f8f4a)], sign: panel, bracket: mountBlack,
+      vending: [vendingBody, vendingBody, vendingTop, vendingTop, vendingBody, vendingFace], // front on −Z
     },
   };
 }
