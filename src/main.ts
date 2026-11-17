@@ -40,6 +40,8 @@ import { createBikeSystem } from './bikes/bikeSystem';
 import { createPlayground } from './playground/playground';
 import { addCafeteriaSign } from './buildings/cafeteriaSign';
 import { createSkyBridge } from './buildings/skyBridge';
+import { MB_SKYLIGHT, createMgmtFeatures } from './buildings/mgmtFeatures';
+import { createPlanTransform } from './buildings/planTransform';
 import { MAIN_GATE_GUARDHOUSE, createMainGate, gateTreeExclusions, inGateZone } from './campus/mainGate';
 import { addBoundaryZone } from './campus/boundaryZone';
 import { includeLongtanRoad, widenCampusRoads } from './campus/campusFixes';
@@ -144,6 +146,10 @@ async function boot(): Promise<void> {
   actions.setMapData(campus);
   const librarySrc = await loadBuildingSource(LIBRARY_URL);
   const handBuiltSrcs = await Promise.all(HAND_BUILT_URLS.map((url) => loadBuildingSource(url)));
+  const skylightRings = handBuiltSrcs.filter((s) => s.id === 'mb').map((s) => {
+    const xf = createPlanTransform(s), [x0, z0, x1, z1] = MB_SKYLIGHT;
+    return [...xf.toWorld(x0, z0), ...xf.toWorld(x1, z0), ...xf.toWorld(x1, z1), ...xf.toWorld(x0, z1)];
+  });
   for (const src of handBuiltSrcs) {
     for (const b of campus.buildings) if (b.name && src.osmReplaces.includes(b.name)) b.replacedBy = src.id;
   }
@@ -160,7 +166,7 @@ async function boot(): Promise<void> {
   const bikeStations = placeBikeStations(campus);
   actions.setBikeStations(bikeStations);
   const env = createCampusWorld(scene, physics, renderer, campus, sceneResources, {
-    treeExclusions: [...buildingFootprintRings(librarySrc), ...handBuiltSrcs.flatMap(buildingFootprintRings), ...stationClearings(bikeStations), ...gateTreeExclusions(), ...SCOOTER_LOTS.map((l) => l.ring)],
+    treeExclusions: [...buildingFootprintRings(librarySrc), ...handBuiltSrcs.flatMap(buildingFootprintRings), ...stationClearings(bikeStations), ...gateTreeExclusions(), ...SCOOTER_LOTS.map((l) => l.ring), ...skylightRings],
     groundHoles: buildingGroundHoles(librarySrc),
     facades,
     entrances: traced?.entrances,
@@ -182,6 +188,7 @@ async function boot(): Promise<void> {
   const byId = (id: string): HandBuiltBuilding | undefined => handBuilt.find((b) => b.source.id === id);
   const ma = byId('ma'), mb = byId('mb');
   const skyBridge = ma && mb ? createSkyBridge(scene, physics, sceneResources, { building: mb, at: [50.95, -2.3] }, { building: ma, at: [76.5, 12.75] }, 3.6) : null;
+  const mgmtFeatures = createMgmtFeatures(scene, physics, sceneResources, ma, mb);
   const buildings = (): readonly HandBuiltBuilding[] => [library, ...handBuilt, ...interiors.active];
   const buildingById = (id: string): HandBuiltBuilding | undefined => buildings().find((b) => b.source.id === id);
   // A new game always starts at the dorm C courtyard; a custom point only applies to respawning.
@@ -803,6 +810,7 @@ async function boot(): Promise<void> {
     library.dispose();
     for (const b of handBuilt) b.dispose();
     skyBridge?.dispose();
+    mgmtFeatures.dispose();
     interiors.dispose();
     bikes.dispose();
     playground?.dispose();
