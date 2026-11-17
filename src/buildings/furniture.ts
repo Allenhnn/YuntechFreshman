@@ -472,7 +472,8 @@ function corridorProps(plan: FloorPlan, grid: FloorGrid, base: number, keepOut: 
     } else {
       const x = f.at[0] + fx * (WALL_T / 2 + 0.012), y = f.at[1] + fy * (WALL_T / 2 + 0.012);
       const along = Math.abs(fx) > 0.5;
-      items.push({ kind: 'mirror', x, y: base + 0.12, z: y, ry: 0, sx: along ? 0.02 : f.width, sy: 2.05, sz: along ? f.width : 0.02, tint: 0 });
+      // A dark frame; the reflecting glass is a live Reflector added by buildingWorld.
+      items.push({ kind: 'bracket', x, y: base + 0.08, z: y, ry: 0, sx: along ? 0.02 : f.width + 0.08, sy: 2.13, sz: along ? f.width + 0.08 : 0.02, tint: 0 });
       taken.push([x, y, f.width / 2]);
     }
   }

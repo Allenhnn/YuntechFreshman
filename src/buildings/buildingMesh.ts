@@ -34,13 +34,16 @@ export interface ColliderBox {
 }
 
 export interface DoorPanel {
-  kind: 'closed' | 'elevator';
+  /** closed / elevator: a fixed leaf; swing: an animated hinged door (classrooms). */
+  kind: 'closed' | 'elevator' | 'swing';
   axis: 'h' | 'v';
   at: number;
   from: number;
   to: number;
   base: number;
   label?: string;
+  /** swing: the side (−1 / +1, as in sidePoint) the door opens into. */
+  room?: -1 | 1;
 }
 
 export interface PlateSpot {
@@ -276,6 +279,11 @@ function buildModelledFloor(
       doors.push({ kind, axis: p.axis, at: p.at, from: p.from, to: p.to, base, ...(p.label ? { label: p.label } : {}) });
       y0 = base + DOOR_H;
       part.colliders.push(wallBox(p, from, to, base, base + DOOR_H, 0.12)); // the door leaf itself blocks
+    }
+    // Classroom doors get a hinged leaf that swings into the room as the player comes near.
+    const classroom = (s?: Space): boolean => s?.kind === 'room' && s.name.includes('教室');
+    if (kind === 'door' && (classroom(A) || classroom(B))) {
+      doors.push({ kind: 'swing', axis: p.axis, at: p.at, from: p.from, to: p.to, base, room: classroom(A) ? -1 : 1 });
     }
 
     // Walls stop under a mezzanine floor that passes over them (checked per ~1 m so partial overlaps split).

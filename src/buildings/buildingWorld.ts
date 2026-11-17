@@ -13,6 +13,7 @@ import {
   type Scene,
   type WebGLRenderer,
 } from 'three';
+import { Reflector } from 'three/addons/objects/Reflector.js';
 import { RAPIER } from '../physics/physics';
 import { ResourceTracker } from '../core/resources';
 import type { CampusMaterials } from '../campus/campusMaterials';
@@ -23,9 +24,18 @@ import { DEFAULT_CAMPUS_STYLE, type FacadeStyle } from '../campus/facadeTypes';
 import type { BuildingSource, Stall, Vec2 } from './buildingTypes';
 import { buildBuildingMeshes, type BuildingMeshes, type BuildingPart, type ColliderBox, type StairPortal } from './buildingMesh';
 import { OUTSIDE, rasterize, regionRects } from './floorGrid';
+import { WALL_T } from './wallConst';
 import { createInteriorMaterials, type InteriorMaterials } from './interiorMaterials';
 import { buildPlates, paintDirectory, paintEntranceSign } from './signs';
 import { createFurnitureKit, instanceFurniture, type FurnitureKit } from './furnitureMeshes';
+
+/** Classroom doors: open within SWING_OPEN_R of the doorway, close past SWING_CLOSE_R. */
+const SWING_OPEN_R = 2.4;
+const SWING_CLOSE_R = 3.4;
+const SWING_SPEED = 1.6; // fraction of the swing per second
+const SWING_ANGLE = 1.6; // rad (≈ 92°)
+/** Mirrors reflect (render the scene again) only within this distance. */
+const MIRROR_RANGE = 22;
 
 const STALL_COLORS: Readonly<Record<string, string>> = { 自助餐: '#1f8f4a', 麵食: '#c0562b', 便當: '#2c6fd6', 飲料: '#d99a1f', 回收區: '#6c7a72' };
 
@@ -248,6 +258,17 @@ export function createHandBuiltBuilding(
     tracker: ResourceTracker;
     colliders: RAPIER.Collider[];
     instanced: InstancedMesh[];
+    swings: SwingDoor[];
+    mirrors: { mesh: Reflector; x: number; y: number; base: number }[];
+  }
+  /** A hinged classroom door: one or two leaves turning about their hinge posts. */
+  interface SwingDoor {
+    x: number;
+    y: number;
+    base: number;
+    leaves: { pivot: Group; closed: number; sign: number }[];
+    open: number;
+    want: boolean;
   }
   let interior: LoadedInterior | null = null;
   /** Colliders the camera passes through: furniture, stair ramps, guards and landings (tight shafts). */
@@ -258,6 +279,8 @@ export function createHandBuiltBuilding(
     const root = placeGroup(`${src.id}:interior`);
     const colliders: RAPIER.Collider[] = [];
     const instanced: InstancedMesh[] = [];
+    const swings: SwingDoor[] = [];
+    const mirrors: LoadedInterior['mirrors'] = [];
     const frameMat = tracker.material(new MeshStandardMaterial({ color: 0x2b2f2c, roughness: 0.5, metalness: 0.3 }));
 
     const stairsGroup = new Group();
@@ -280,6 +303,30 @@ export function createHandBuiltBuilding(
       // Door leaves: closed doors (stairs not yet open) and elevator doors.
       for (const d of lvl.doors) {
         const len = d.to - d.from;
+        if (d.kind === 'swing') {
+          // Leaves along the wall from each hinge; they turn toward the room side.
+          const ux = d.axis === 'h' ? 1 : 0, uy = 1 - ux;
+          const nx = d.axis === 'h' ? 0 : d.room ?? 1, ny = d.axis === 'h' ? d.room ?? 1 : 0;
+          const hinge = (t: number): [number, number] => (d.axis === 'h' ? [t, d.at] : [d.at, t]);
+          const parts: [number, number, number][] = len >= 1.4 ? [[d.from, 1, len / 2], [d.to, -1, len / 2]] : [[d.from, 1, len]];
+          const door: SwingDoor = { x: d.axis === 'h' ? (d.from + d.to) / 2 : d.at, y: d.axis === 'h' ? d.at : (d.from + d.to) / 2, base: d.base, leaves: [], open: 0, want: false };
+          for (const [t, dir, w] of parts) {
+            const dx = ux * dir, dy = uy * dir;
+            const pivot = new Group();
+            const [hx, hy] = hinge(t);
+            pivot.position.set(hx, d.base, hy);
+            const closed = Math.atan2(-dy, dx); // local +x along the closed leaf
+            pivot.rotation.y = closed;
+            const leaf = new Mesh(tracker.geometry(new BoxGeometry(w - 0.03, 2.3, 0.05).translate(w / 2, 1.15, 0)), imats.door);
+            leaf.castShadow = true;
+            const handle = new Mesh(tracker.geometry(new BoxGeometry(0.03, 0.18, 0.16).translate(w - 0.12, 1.0, 0)), frameMat);
+            pivot.add(leaf, handle);
+            group.add(pivot);
+            door.leaves.push({ pivot, closed, sign: Math.sign(dy * nx - dx * ny) || 1 });
+          }
+          swings.push(door);
+          continue;
+        }
         const leaf = new Mesh(tracker.geometry(new BoxGeometry(d.axis === 'h' ? len : 0.08, 2.3, d.axis === 'h' ? 0.08 : len)), d.kind === 'elevator' ? imats.elevatorDoor : imats.door);
         const mid = (d.from + d.to) / 2;
         leaf.position.set(d.axis === 'h' ? mid : d.at, d.base + 1.15, d.axis === 'h' ? d.at : mid);
@@ -290,6 +337,21 @@ export function createHandBuiltBuilding(
       for (const im of instanceFurniture(lvl.furniture, kit)) {
         group.add(im);
         instanced.push(im);
+      }
+
+      // Full-length wall mirrors: a live reflection (rendered only while the player is close).
+      for (const f of src.floors[lvl.id]?.fixtures ?? []) {
+        if (f.kind !== 'mirror') continue;
+        const ratio = f.width / 2.05;
+        const mirror = new Reflector(new PlaneGeometry(f.width, 2.05), {
+          textureWidth: Math.round(Math.min(2048, 512 * ratio)), textureHeight: 512, color: 0xc4ccd0, clipBias: 0.003,
+        });
+        const off = WALL_T / 2 + 0.03;
+        mirror.position.set(f.at[0] + f.facing[0] * off, lvl.base + 0.12 + 1.025, f.at[1] + f.facing[1] * off);
+        mirror.rotation.y = Math.atan2(f.facing[0], f.facing[1]);
+        mirror.visible = false;
+        group.add(mirror);
+        mirrors.push({ mesh: mirror, x: f.at[0], y: f.at[1], base: lvl.base });
       }
 
       // Cafeteria stalls: back panel, counter, name board.
@@ -327,7 +389,7 @@ export function createHandBuiltBuilding(
       root.add(group);
       return { id: lvl.id, base: lvl.base, group };
     });
-    interior = { root, levels, tracker, colliders, instanced };
+    interior = { root, levels, tracker, colliders, instanced, swings, mirrors };
   };
 
   const unloadInterior = (): void => {
@@ -335,6 +397,7 @@ export function createHandBuiltBuilding(
     for (const c of interior.colliders) physics.removeCollider(c, false);
     cameraTransparent.clear();
     for (const im of interior.instanced) im.dispose();
+    for (const m of interior.mirrors) m.mesh.dispose();
     interior.root.removeFromParent();
     interior.tracker.dispose();
     interior = null;
@@ -360,6 +423,27 @@ export function createHandBuiltBuilding(
     interior.levels.forEach((l, i) => {
       l.group.visible = current < 0 ? l.base <= 0 : Math.abs(i - current) <= 1;
     });
+  };
+
+  // --- Classroom doors swing open as the player comes near; mirrors render only close by ------------
+  let lastDoorTime = performance.now();
+  const animateDoors = (px: number, py: number, pz: number): void => {
+    const now = performance.now(), dt = Math.min(0.1, (now - lastDoorTime) / 1000);
+    lastDoorTime = now;
+    if (!interior) return;
+    const [x, y] = xf.toPlan(px, pz);
+    for (const d of interior.swings) {
+      const sameFloor = Math.abs(py - d.base) < 2;
+      const dist = Math.hypot(x - d.x, y - d.y);
+      if (!d.want && sameFloor && dist < SWING_OPEN_R) d.want = true;
+      else if (d.want && (!sameFloor || dist > SWING_CLOSE_R)) d.want = false;
+      const target = d.want ? 1 : 0;
+      if (d.open === target) continue;
+      d.open = Math.max(0, Math.min(1, d.open + (target > d.open ? 1 : -1) * SWING_SPEED * dt));
+      const e = d.open * d.open * (3 - 2 * d.open); // ease in and out
+      for (const leaf of d.leaves) leaf.pivot.rotation.y = leaf.closed + leaf.sign * SWING_ANGLE * e;
+    }
+    for (const m of interior.mirrors) m.mesh.visible = Math.abs(py - m.base) < 2.5 && Math.hypot(x - m.x, y - m.y) < MIRROR_RANGE;
   };
 
   // --- Interactables -------------------------------------------------------------------------------
@@ -417,6 +501,7 @@ export function createHandBuiltBuilding(
       if (!interior && d < INTERIOR_LOAD) loadInterior();
       else if (interior && d > INTERIOR_UNLOAD) unloadInterior();
       updateVisibility(px, py, pz);
+      animateDoors(px, py, pz);
     },
     interiorLoaded: () => interior !== null,
     dispose() {
