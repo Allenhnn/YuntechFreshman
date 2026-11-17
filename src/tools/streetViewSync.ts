@@ -106,7 +106,15 @@ async function query(x: number, z: number): Promise<void> {
     const location = toLatLng(hooks.origin, x, z);
     const find = (sources: string[]): Promise<{ data: PanoData } | null> =>
       service.getPanorama({ location, radius: 50, preference: maps!.StreetViewPreference.NEAREST, sources }).catch(() => null);
-    const found = (await find([maps.StreetViewSource.GOOGLE])) ?? (await find([maps.StreetViewSource.OUTDOOR]));
+    // Google's own car imagery and people's 360° photos (most of the campus interior): the nearer wins.
+    const both = await Promise.all([find([maps.StreetViewSource.GOOGLE]), find([maps.StreetViewSource.OUTDOOR])]);
+    const dist = (f: { data: PanoData } | null): number => {
+      const ll = f?.data.location?.latLng;
+      if (!ll || !hooks) return Infinity;
+      const p = toLocal(hooks.origin, ll.lat(), ll.lng());
+      return Math.hypot(p.x - x, p.z - z);
+    };
+    const found = dist(both[0]) <= dist(both[1]) ? both[0] : both[1];
     const id = found?.data.location?.pano, at = found?.data.location?.latLng;
     if (!on) return;
     if (!id || !at) {
@@ -150,6 +158,20 @@ export function updateStreetView(x: number, z: number, heading: number, pitch: n
 
 export function bindStreetView(h: Hooks): void {
   hooks = h;
+}
+
+/** Dev survey: stop following and tilt the panorama (degrees up), keeping its heading. */
+export function tiltStreetView(pitch: number, turn = 0): void {
+  if (!pano) return;
+  if (follow) follow.checked = false;
+  const h = Number.isNaN(lastPov.heading) ? 0 : lastPov.heading;
+  pano.setPov({ heading: (h + turn + 360) % 360, pitch });
+}
+
+/** Dev survey: follow the game camera again. */
+export function followStreetView(): void {
+  if (follow) follow.checked = true;
+  lastPov = { heading: NaN, pitch: NaN };
 }
 
 export const streetViewOn = (): boolean => on;

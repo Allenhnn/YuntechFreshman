@@ -9,6 +9,7 @@ import { createSession, type GameApi } from './game/session';
 import { installHotkeys } from './game/hotkeys';
 import { dispatch, drainCommands, type GameCommand } from './state/commands';
 import { bindStreetView, updateStreetView } from './tools/streetViewSync';
+import { installSurvey } from './tools/svSurvey';
 import { START_MINUTES, actions, gameStore, type GameState } from './state/store';
 import { STALL_MENUS, type ItemId } from './state/items';
 import type { Settings } from './state/settings';
@@ -740,6 +741,7 @@ async function boot(): Promise<void> {
   actions.setPhase('menu');
 
   if (import.meta.env.DEV) {
+    installSurvey(campus, { teleport: (x, y, z) => teleport(x, y, z), look: (yaw) => rig.snap(readFocus(), yaw) });
     // Console handle for tuning and automated checks: __game.teleport(20, 0, 10), __game.state()
     Object.assign(window, {
       __game: {
