@@ -32,7 +32,15 @@
   "buildings": {
     "學人宿舍": { "preset": "dorm", "style": { "wall": "#eceae4", "trim": "#9ea6aa", "glass": "#4a5c66", "balcony": "continuous" } },
     "技職大樓": { "preset": "engineering", "style": { "wall": "#c8cac6", "trim": "#a3a6a2", "glass": "#3c4a52", "pattern": "punched", "win": [0.62, 0.5], "sill": 0.28, "bay": 3.4, "columns": true, "fins": "none" } },
-    "未來學院": { "preset": "design", "style": { "wall": "#a8a9a5", "trim": "#8f908c", "glass": "#3f5a66", "pattern": "curtain", "win": [0.92, 0.72], "groundGlass": true, "canopy": true, "columns": false, "fins": "horizontal", "finDepth": 1.2, "parapet": 0.4 } }
+    "未來學院": { "preset": "design", "style": { "wall": "#a8a9a5", "trim": "#8f908c", "glass": "#3f5a66", "pattern": "curtain", "win": [0.92, 0.72], "groundGlass": true, "canopy": true, "columns": false, "fins": "horizontal", "finDepth": 1.2, "parapet": 0.4 } },
+    "設計工坊": { "preset": "utility", "style": { "wall": "#c9cbcb", "trim": "#5e6266", "glass": "#3a464d", "pattern": "ribbon", "win": [0.55, 0.42], "sill": 0.4, "floor": 3.8, "columns": true, "canopy": false, "parapet": 0.5, "rooftop": true } },
+    "國際會議廳": { "preset": "civic", "style": { "wall": "#e9e8e3", "trim": "#d9d7d0", "glass": "#3d4c55", "pattern": "punched", "win": [0.38, 0.68], "sill": 0.15, "groundGlass": false, "columns": true, "fins": "horizontal", "finDepth": 0.8, "parapet": 0.9 } },
+    "學生宿舍C": { "preset": "dorm", "style": { "wall": "#b9b8b2", "trim": "#d6d4ce", "glass": "#3e4a52", "balcony": "none", "fins": "horizontal", "finDepth": 0.6, "win": [0.7, 0.45], "canopy": true } },
+    "學生宿舍D": { "preset": "dorm", "style": { "wall": "#a9c4b4", "trim": "#e6e6e0", "glass": "#3e4a52", "balcony": "none", "fins": "horizontal", "finDepth": 0.7, "win": [0.62, 0.45] } },
+    "學生宿舍G": { "preset": "dorm", "style": { "wall": "#d6d2c9", "trim": "#bcb8b0", "glass": "#3f4b52", "balcony": "none", "fins": "none", "win": [0.5, 0.48] } },
+    "資訊中心": { "preset": "civic", "style": { "wall": "#a9aaa6", "trim": "#6c7075", "glass": "#2f3a40", "pattern": "punched", "win": [0.8, 0.55], "sill": 0.3, "groundGlass": false, "columns": true, "fins": "horizontal", "finDepth": 0.7, "bay": 4.2 } },
+    "設計一館": { "preset": "design", "style": { "wall": "#a6a7a2", "trim": "#8e8f8a", "glass": "#2d363b", "pattern": "punched", "win": [0.6, 0.5], "groundGlass": false, "columns": false, "fins": "none" } },
+    "設計學院": { "preset": "design", "style": { "wall": "#e0dfda", "trim": "#c9c8c2", "glass": "#3a4850", "pattern": "punched", "win": [0.4, 0.6], "groundGlass": true, "columns": true } }
   },
   "photos": {}
 }
