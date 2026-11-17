@@ -47,6 +47,8 @@ function pointInRing(x: number, z: number, r: Ring): boolean {
 function linesFor(road: CampusRoad, campus: boolean): Line[] {
   const w = road.width, edge = w / 2 - 0.4;
   const out: Line[] = [{ off: -edge, wid: 0.12, color: WHITE }, { off: edge, wid: 0.12, color: WHITE }];
+  // Divided road: edge lines along the median kerb too; no centre line (the median is the divider).
+  if (road.median) return [...out, { off: -(road.median / 2 + 0.3), wid: 0.12, color: WHITE }, { off: road.median / 2 + 0.3, wid: 0.12, color: WHITE }];
   if (road.name && ONE_WAY.has(road.name)) out.push({ off: 0, wid: 0.12, color: WHITE, dash: DASH });
   else if (w >= 7) {
     out.push({ off: -0.13, wid: 0.1, color: YELLOW }, { off: 0.13, wid: 0.1, color: YELLOW });

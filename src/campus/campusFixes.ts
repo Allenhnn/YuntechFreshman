@@ -55,3 +55,101 @@ export function widenCampusRoads(campus: CampusData): void {
     if (within * 2 >= road.points.length / 2) road.width = CAMPUS_LANE;
   }
 }
+
+/**
+ * 龍潭路 east of the 技職大樓 junction (x > −40) is a divided road, as on Street View: a raised,
+ * planted median (shrubs, a row of trees) between two one-way carriageways. OSM draws one 8 m
+ * centreline plus service lanes along both sides that are really those carriageways or parking
+ * aisles; they are dropped (or trimmed back to where they leave the road) so the stretch reads as
+ * one boulevard instead of three parallel roads. West of the junction it stays a two-way street.
+ * Street View puts the median north of the OSM line (that line is the south carriageway, the
+ * north service lane the other one), so the divided road is centred `north` metres north of it;
+ * side roads that end on the line move with it.
+ */
+export const LONGTAN_DIVIDED = { width: 13.6, median: 2.4, westX: -40, north: 4 } as const;
+
+export function divideLongtan(campus: CampusData): void {
+  const idx = campus.roads.findIndex((r) => r.name === '龍潭路' && r.points[0]! > 400);
+  if (idx < 0) return;
+  const road = campus.roads[idx]!;
+  const p = road.points;
+  let cut = -1;
+  for (let i = 0; i < p.length; i += 2) if (p[i]! >= LONGTAN_DIVIDED.westX - 0.5) cut = i;
+  if (cut < 2) return;
+  const east = { ...road, points: p.slice(0, cut + 2), width: LONGTAN_DIVIDED.width, median: LONGTAN_DIVIDED.median };
+  const west = { ...road, points: p.slice(cut) };
+  campus.roads.splice(idx, 1, east, ...(west.points.length >= 4 ? [west] : []));
+
+  // Nearest point of the divided stretch: distance and its direction.
+  const e = east.points;
+  const near = (x: number, z: number): { d: number; ux: number; uz: number } => {
+    const e = east.points; // the current line (shifted north once that is done)
+    let best = { d: Infinity, ux: 1, uz: 0 };
+    for (let i = 0; i + 3 < e.length; i += 2) {
+      const ax = e[i]!, az = e[i + 1]!, dx = e[i + 2]! - ax, dz = e[i + 3]! - az, l2 = dx * dx + dz * dz || 1;
+      const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l2));
+      const d = Math.hypot(x - ax - dx * t, z - az - dz * t);
+      if (d < best.d) best = { d, ux: dx / Math.sqrt(l2), uz: dz / Math.sqrt(l2) };
+    }
+    return best;
+  };
+  const alongside = (q: number[], i: number): boolean => {
+    const ax = q[i]!, az = q[i + 1]!, bx = q[i + 2]!, bz = q[i + 3]!, len = Math.hypot(bx - ax, bz - az) || 1;
+    const na = near(ax, az), nb = near(bx, bz);
+    return na.d < 10.5 && nb.d < 10.5 && Math.abs(((bx - ax) * na.ux + (bz - az) * na.uz) / len) > 0.9;
+  };
+  campus.roads = campus.roads.filter((r) => {
+    if (r.kind !== 'service') return true;
+    const q = r.points;
+    let a = 0, b = q.length - 2;
+    while (a < b && alongside(q, a)) a += 2;
+    while (b > a && alongside(q, b - 2)) b -= 2;
+    if (b - a < 2) return false;
+    r.points = q.slice(a, b + 2);
+    return true;
+  });
+
+  // Shift north (−z), all but the junction vertex at the west end, and carry joining roads along.
+  const moved = new Map<string, [number, number]>();
+  const key = (x: number, z: number): string => `${Math.round(x * 10)},${Math.round(z * 10)}`;
+  const n = e.length / 2;
+  const shifted = e.slice();
+  for (let i = 0; i < n - 1; i++) {
+    const j = Math.min(i + 1, n - 1), k = Math.max(i - 1, 0);
+    const dx = e[j * 2]! - e[k * 2]!, dz = e[j * 2 + 1]! - e[k * 2 + 1]!, len = Math.hypot(dx, dz) || 1;
+    let nx = -dz / len, nz = dx / len;
+    if (nz > 0) { nx = -nx; nz = -nz; }
+    shifted[i * 2] = e[i * 2]! + nx * LONGTAN_DIVIDED.north;
+    shifted[i * 2 + 1] = e[i * 2 + 1]! + nz * LONGTAN_DIVIDED.north;
+    moved.set(key(e[i * 2]!, e[i * 2 + 1]!), [shifted[i * 2]!, shifted[i * 2 + 1]!]);
+  }
+  east.points = shifted;
+  for (const r of campus.roads) {
+    if (r === east) continue;
+    for (let i = 0; i < r.points.length; i += 2) {
+      const m = moved.get(key(r.points[i]!, r.points[i + 1]!));
+      if (m) [r.points[i], r.points[i + 1]] = m;
+    }
+  }
+
+  // Footpaths OSM draws along the carriageway itself (now inside the wider road): cut those stretches out.
+  const inside = LONGTAN_DIVIDED.width / 2 + 0.5;
+  const along = (q: number[], i: number): boolean => {
+    const ax = q[i]!, az = q[i + 1]!, bx = q[i + 2]!, bz = q[i + 3]!, len = Math.hypot(bx - ax, bz - az) || 1;
+    const na = near(ax, az), nb = near(bx, bz);
+    return na.d < inside && nb.d < inside && Math.abs(((bx - ax) * na.ux + (bz - az) * na.uz) / len) > 0.85;
+  };
+  const kept: CampusData['roads'] = [];
+  for (const r of campus.roads) {
+    if (r.kind !== 'walkway') { kept.push(r); continue; }
+    const q = r.points;
+    let start = 0;
+    for (let i = 0; i + 3 < q.length; i += 2) {
+      if (!along(q, i)) continue;
+      if (i > start) kept.push({ ...r, points: q.slice(start, i + 2) });
+      start = i + 2;
+    }
+    if (q.length - start >= 4) kept.push(start === 0 ? r : { ...r, points: q.slice(start) });
+  }
+  campus.roads = kept;
+}

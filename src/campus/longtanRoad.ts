@@ -2,7 +2,9 @@ import {
   BufferGeometry,
   CanvasTexture,
   DoubleSide,
+  CylinderGeometry,
   Float32BufferAttribute,
+  IcosahedronGeometry,
   Mesh,
   MeshStandardMaterial,
   Quaternion,
@@ -11,6 +13,7 @@ import {
   Vector3,
   type Scene,
 } from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RAPIER } from '../physics/physics';
 import type { ResourceTracker } from '../core/resources';
 import type { CampusData, CampusRoad, Ring } from './campusTypes';
@@ -19,8 +22,13 @@ import { KERB_H, SIDEWALK_W, isLongtanMain } from './longtanConst';
 /**
  * 龍潭路's raised sidewalks: a paved strip on both sides, a kerb step up from the carriageway.
  * The strip breaks wherever another vehicle road joins or crosses, or a building stands.
- * (The street trees that line it are scattered with the other trees, in chunkBuilder.)
+ * East of the 技職大樓 junction the road is divided (road.median): a raised planted median runs down
+ * the middle, kerbed in concrete, grassed and filled with low clumps of shrubs, breaking for
+ * junctions and crossings. (The street trees, including the median row, are scattered with the
+ * other trees, in chunkBuilder.)
  */
+const MEDIAN_H = 0.2;
+const CLUMP_STEP = 1.1;
 const PIECE = 2;
 
 function pointInRing(x: number, z: number, r: Ring): boolean {
@@ -103,6 +111,123 @@ export function createLongtanSidewalks(scene: Scene, physics: RAPIER.World, camp
     }
   }
 
+  // Planted median: kerb sides + grass top (one mesh), shrub clumps (another).
+  const walks = campus.roads.filter((r) => r.kind === 'walkway');
+  const mPos: number[] = [], mNrm: number[] = [], mCol: number[] = [];
+  const GRASS = [0.36, 0.5, 0.26], KERB = [0.72, 0.7, 0.66];
+  const mQuad = (a: number[], b: number[], c: number[], d: number[], n: number[], col: number[]): void => {
+    for (const v of [a, b, c, a, c, d]) {
+      mPos.push(v[0]!, v[1]!, v[2]!);
+      mNrm.push(n[0]!, n[1]!, n[2]!);
+      mCol.push(col[0]!, col[1]!, col[2]!);
+    }
+  };
+  const clumps: BufferGeometry[] = [];
+  const clumpBase = new IcosahedronGeometry(0.3, 0);
+  const posts: BufferGeometry[] = [];
+  const postBase = new CylinderGeometry(0.055, 0.07, 0.75, 8).translate(0, 0.375, 0);
+  for (const road of mine) {
+    if (!road.median) continue;
+    const p = road.points, hm = road.median / 2;
+    for (let i = 0; i + 3 < p.length; i += 2) {
+      const ax = p[i]!, az = p[i + 1]!, bx = p[i + 2]!, bz = p[i + 3]!;
+      const len = Math.hypot(bx - ax, bz - az);
+      if (len < 0.5) continue;
+      const ux = (bx - ax) / len, uz = (bz - az) / len, nx = -uz, nz = ux;
+      const n = Math.max(1, Math.round(len / PIECE));
+      let run: [number, number] | null = null;
+      const flush = (): void => {
+        if (!run) return;
+        const [t0, t1] = run;
+        run = null;
+        if (t1 - t0 < 1.5) return;
+        const P = (t: number, off: number, y: number): number[] => [ax + ux * t + nx * off, y, az + uz * t + nz * off];
+        mQuad(P(t0, -hm, MEDIAN_H), P(t1, -hm, MEDIAN_H), P(t1, hm, MEDIAN_H), P(t0, hm, MEDIAN_H), [0, 1, 0], GRASS);
+        mQuad(P(t0, -hm, 0), P(t1, -hm, 0), P(t1, -hm, MEDIAN_H), P(t0, -hm, MEDIAN_H), [-nx, 0, -nz], KERB);
+        mQuad(P(t0, hm, 0), P(t1, hm, 0), P(t1, hm, MEDIAN_H), P(t0, hm, MEDIAN_H), [nx, 0, nz], KERB);
+        mQuad(P(t0, -hm, 0), P(t0, hm, 0), P(t0, hm, MEDIAN_H), P(t0, -hm, MEDIAN_H), [-ux, 0, -uz], KERB);
+        mQuad(P(t1, -hm, 0), P(t1, hm, 0), P(t1, hm, MEDIAN_H), P(t1, -hm, MEDIAN_H), [ux, 0, uz], KERB);
+        // Kerb top rim, slightly lighter, so the edge reads from the road.
+        for (const side of [-1, 1]) mQuad(P(t0, side * hm, MEDIAN_H + 0.005), P(t1, side * hm, MEDIAN_H + 0.005), P(t1, side * (hm - 0.15), MEDIAN_H + 0.005), P(t0, side * (hm - 0.15), MEDIAN_H + 0.005), [0, 1, 0], KERB);
+        const tm = (t0 + t1) / 2, cx = ax + ux * tm, cz = az + uz * tm;
+        q.setFromAxisAngle(up, Math.atan2(-uz, ux));
+        colliders.push(tracker.collider(physics.createCollider(
+          RAPIER.ColliderDesc.cuboid((t1 - t0) / 2, MEDIAN_H / 2, hm).setTranslation(cx, MEDIAN_H / 2, cz).setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }),
+        )));
+        // Flexible yellow bollards guarding each nose of the median.
+        for (const [t, dir] of [[t0, -1], [t1, 1]] as const) {
+          for (const o of [-hm * 0.5, 0, hm * 0.5]) {
+            const g = postBase.clone();
+            g.translate(ax + ux * (t + dir * 0.5) + nx * o, 0, az + uz * (t + dir * 0.5) + nz * o);
+            posts.push(g);
+          }
+        }
+        // Shrubs: two staggered rows of low clumps.
+        for (let t = t0 + 0.6; t < t1 - 0.5; t += CLUMP_STEP) {
+          for (const side of [-1, 1]) {
+            const h = Math.abs(Math.sin(ax * 3.1 + az * 1.7 + t * 12.9898 + side * 4.2)) % 1;
+            const off = side * (hm * 0.42) + (h - 0.5) * 0.2;
+            const g = clumpBase.clone();
+            const sc = 0.85 + h * 0.4;
+            g.scale(sc * 1.1, sc * (0.6 + h * 0.3), sc * 1.1);
+            g.rotateY(h * 6.28);
+            g.translate(ax + ux * (t + side * 0.3) + nx * off, MEDIAN_H + 0.1, az + uz * (t + side * 0.3) + nz * off);
+            clumps.push(g);
+          }
+        }
+      };
+      for (let k = 0; k < n; k++) {
+        const t0 = (k / n) * len, t1 = ((k + 1) / n) * len, tm = (t0 + t1) / 2;
+        const x = ax + ux * tm, z = az + uz * tm;
+        const blocked = nearRoad(x, z, others, 1.5) || walks.some((w) => {
+          const q2 = w.points;
+          for (let j = 0; j + 3 < q2.length; j += 2) {
+            // Only paths that cross the road, not ones running along it.
+            const dx = q2[j + 2]! - q2[j]!, dz = q2[j + 3]! - q2[j + 1]!, l = Math.hypot(dx, dz) || 1;
+            if (Math.abs((dx * ux + dz * uz) / l) > 0.8) continue;
+            if (segDist(x, z, q2[j]!, q2[j + 1]!, q2[j + 2]!, q2[j + 3]!) < w.width / 2 + 1) return true;
+          }
+          return false;
+        });
+        if (blocked) { flush(); continue; }
+        if (run) run[1] = t1;
+        else run = [t0, t1];
+      }
+      flush();
+    }
+  }
+  clumpBase.dispose();
+  postBase.dispose();
+  const postMeshes: Mesh[] = [];
+  if (posts.length) {
+    const pg = mergeGeometries(posts);
+    for (const g of posts) g.dispose();
+    if (pg) postMeshes.push(new Mesh(tracker.geometry(pg), tracker.material(new MeshStandardMaterial({ color: 0xf2b51b, roughness: 0.6 }))));
+  }
+  const medianMeshes: Mesh[] = [];
+  if (mPos.length) {
+    const mg = new BufferGeometry();
+    mg.setAttribute('position', new Float32BufferAttribute(mPos, 3));
+    mg.setAttribute('normal', new Float32BufferAttribute(mNrm, 3));
+    mg.setAttribute('color', new Float32BufferAttribute(mCol, 3));
+    const m = new Mesh(tracker.geometry(mg), tracker.material(new MeshStandardMaterial({ vertexColors: true, roughness: 0.95, side: DoubleSide })));
+    m.receiveShadow = true;
+    medianMeshes.push(m);
+  }
+  if (clumps.length) {
+    const cg = mergeGeometries(clumps.map((g) => g.toNonIndexed()));
+    for (const g of clumps) g.dispose();
+    if (cg) {
+      cg.computeVertexNormals();
+      const m = new Mesh(tracker.geometry(cg), tracker.material(new MeshStandardMaterial({ color: 0x4b7d34, roughness: 0.9, flatShading: true })));
+      m.castShadow = true;
+      m.receiveShadow = true;
+      medianMeshes.push(m);
+    }
+  }
+  medianMeshes.push(...postMeshes);
+  for (const m of medianMeshes) scene.add(m);
+
   const c = document.createElement('canvas');
   c.width = c.height = 128;
   const g = c.getContext('2d');
@@ -130,6 +255,7 @@ export function createLongtanSidewalks(scene: Scene, physics: RAPIER.World, camp
     dispose() {
       for (const col of colliders) physics.removeCollider(col, false);
       mesh.removeFromParent();
+      for (const m of medianMeshes) m.removeFromParent();
     },
   };
 }

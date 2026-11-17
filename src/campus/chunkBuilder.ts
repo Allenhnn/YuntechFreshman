@@ -717,6 +717,21 @@ export class ChunkBuilder {
             const h = ((x * 12.9898 + z * 78.233) % 1 + 1) % 1;
             out.push(x, z, 1.0 + h * 0.35, h * Math.PI * 2, h);
           }
+          // Divided stretch: a row down the planted median, clear of junctions and crossings.
+          if (road.median) {
+            const x = ax + ux * t, z = az + uz * t;
+            if (!inChunk(x, z)) continue;
+            let crossing = false;
+            for (const { road: other, from: f, to: t2 } of roads) {
+              if (other === road) continue;
+              const q = other.points;
+              for (let j = f; j < t2 && !crossing; j++) if (distToSegment(x, z, q[j * 2]!, q[j * 2 + 1]!, q[j * 2 + 2]!, q[j * 2 + 3]!) < other.width / 2 + 3) crossing = true;
+              if (crossing) break;
+            }
+            if (crossing) continue;
+            const h = ((x * 7.123 + z * 31.77) % 1 + 1) % 1;
+            out.push(x, z, 0.95 + h * 0.3, h * Math.PI * 2, h);
+          }
         }
       }
     }

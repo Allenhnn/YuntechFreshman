@@ -25,6 +25,8 @@ export interface CampusRoad {
   width: number;
   points: number[]; // flat polyline [x0, z0, x1, z1, ...]
   name?: string;
+  /** Divided road: width (m) of the planted median down the middle; each carriageway runs one way. */
+  median?: number;
 }
 
 export type FieldKind = 'soccer' | 'court' | 'track' | 'park';

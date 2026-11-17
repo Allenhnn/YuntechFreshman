@@ -137,7 +137,7 @@ export function updateStreetView(x: number, z: number, heading: number, pitch: n
   player = { x, z };
   const now = performance.now();
   if (!busy && now - askedTime > REQUERY_MS && (!askedAt || Math.hypot(x - askedAt.x, z - askedAt.z) > REQUERY_M)) void query(x, z);
-  if (pano && follow?.checked && (Math.abs(heading - lastPov.heading) > 0.5 || Math.abs(pitch - lastPov.pitch) > 0.5)) {
+  if (pano && follow?.checked && !(Math.abs(heading - lastPov.heading) <= 0.5 && Math.abs(pitch - lastPov.pitch) <= 0.5)) {
     lastPov = { heading, pitch };
     pano.setPov({ heading: (heading + 360) % 360, pitch });
   }
