@@ -52,7 +52,12 @@
     "表演廳": { "preset": "civic", "style": { "wall": "#c8c9c4", "trim": "#a9aaa5", "glass": "#3a5866", "pattern": "ribbon", "win": [0.85, 0.5], "groundGlass": true, "fins": "horizontal", "finDepth": 0.8, "columns": false } },
     "學生餐廳": { "preset": "civic", "style": { "wall": "#b4b5b1", "trim": "#d8d8d3", "glass": "#2f3a42", "pattern": "punched", "win": [0.75, 0.55], "groundGlass": false, "fins": "horizontal", "finDepth": 1.0, "columns": true } },
     "學生宿舍A1": { "preset": "dorm", "style": { "wall": "#9c9d99", "trim": "#c9c9c4", "glass": "#3a454c", "balcony": "none", "fins": "horizontal", "finDepth": 0.4, "win": [0.6, 0.45] } },
-    "工程二館": { "preset": "engineering", "style": { "wall": "#b7b3aa", "trim": "#9a5b3e", "columns": true, "groundGlass": false, "fins": "horizontal", "finDepth": 0.6 } }
+    "工程二館": { "preset": "engineering", "style": { "wall": "#b7b3aa", "trim": "#9a5b3e", "columns": true, "groundGlass": false, "fins": "horizontal", "finDepth": 0.6 } },
+    "工程三館": { "preset": "engineering", "style": { "wall": "#dcd9d2", "trim": "#9b4a36", "glass": "#33404a", "pattern": "ribbon", "brick": true, "win": [0.8, 0.42], "columns": true, "fins": "horizontal", "finDepth": 0.8, "balcony": "continuous", "balconyDepth": 1.0 } },
+    "工程五館": { "preset": "engineering", "style": { "wall": "#b1b2ae", "trim": "#9c4f3a", "glass": "#3a5a62", "pattern": "ribbon", "brick": true, "columns": true, "fins": "horizontal", "finDepth": 0.7 } },
+    "工程四館": { "preset": "engineering", "style": { "wall": "#a9aaa6", "trim": "#9c4f3a", "glass": "#33404a", "pattern": "ribbon", "brick": true, "columns": true, "fins": "horizontal", "finDepth": 0.6 } },
+    "工程六館": { "preset": "engineering", "style": { "wall": "#b1b2ae", "trim": "#9c4f3a", "glass": "#33404a", "pattern": "ribbon", "brick": true, "columns": true } },
+    "工程一館": { "preset": "engineering", "style": { "wall": "#b5b3ac", "trim": "#9c4f3a", "glass": "#33404a", "pattern": "ribbon", "brick": true, "columns": true } }
   },
   "photos": {}
 }
