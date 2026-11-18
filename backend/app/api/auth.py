@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, status
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.api.deps import get_client_info, get_current_user, get_optional_user
 from app.db.database import get_db
 from app.db.redis import get_redis
@@ -81,3 +82,8 @@ async def logout(body: RefreshRequest, redis: Redis = Depends(get_redis)):
 @router.get("/me", response_model=UserOut, summary="目前登入的使用者")
 async def me(user: User = Depends(get_current_user)):
     return user
+
+
+@router.get("/config", summary="前端需要的公開設定（Google Client ID）")
+async def public_config():
+    return {"google_client_id": get_settings().google_client_id}

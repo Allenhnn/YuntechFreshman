@@ -34,7 +34,8 @@ backend/
     ├── schemas/auth.py    # 請求 / 回應格式與驗證規則
     ├── services/google.py # 驗證 Google ID token
     ├── services/auth.py   # 註冊 / 登入 / 訪客 / refresh 的商業邏輯與 DB、Redis 寫入
-    └── api/               # auth.py（路由）、deps.py（get_current_user 等）
+    ├── api/               # auth.py（路由）、deps.py（get_current_user 等）
+    └── static/auth_test.html  # 開發用測試頁 → http://localhost:8000/auth-test
 ```
 
 ## 常用指令
@@ -94,6 +95,8 @@ docker compose down             # 停止（加 -v 會連資料一起刪除）
 | POST | `/auth/refresh` | `{refresh_token}` → 新的 access + refresh |
 | POST | `/auth/logout` | `{refresh_token}` → 204 |
 | GET | `/auth/me` | 目前使用者 |
+| GET | `/auth/config` | 公開設定（`google_client_id`），給前端初始化 Google 按鈕 |
+| GET | `/auth-test` | 開發用測試頁，三種登入與 token 操作都能點 |
 
 所有登入類 API 都回傳 `{access_token, refresh_token, token_type, user}`。access token 是 JWT（30 分鐘），內含 `sub`（user id）與 `guest` 旗標。
 
@@ -109,6 +112,9 @@ docker compose down             # 停止（加 -v 會連資料一起刪除）
 - 密碼只放 `.env`，不要寫進程式碼或 commit。
 
 ## 變更紀錄
+### 2026-11-18（測試頁）
+- 新增 `/auth-test` 測試頁與 `/auth/config`；Google Console 的「已授權的 JavaScript 來源」需加上 `http://localhost` 與 `http://localhost:8000`
+
 ### 2026-11-18（帳號系統）
 - 新增資料表 users、oauth_accounts、login_logs，以及上方的 Redis keys
 - 新增 API：Google 註冊、帳密登入、Google 一鍵登入、訪客登入、refresh、logout、/me
