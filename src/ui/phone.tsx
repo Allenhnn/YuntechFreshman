@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { actions, useGame } from '../state/store';
 import { deletePhoto, listPhotos, type Photo } from '../state/album';
 import { useApi } from './api';
@@ -89,18 +89,18 @@ export function PhoneDrawer(): ReactNode {
 
   const apps: AppSpec[] = [
     {
-      id: 'map', label: '地圖', icon: '🗺️', color: '#cfe8ff',
+      id: 'map', label: '地圖', icon: '🗺️', color: '#8fb8ff',
       run: () => {
         api.closeModal();
         api.toggleMap();
       },
     },
-    { id: 'bag', label: '背包', icon: '🎒', color: '#ffe3c2', run: () => api.toggleModal('inventory') },
-    { id: 'cam', label: '相機', icon: '📷', color: '#ffd9e0', run: api.openCamera },
-    { id: 'album', label: '相簿', icon: '🖼️', color: '#fff1b8', run: () => setPage('album') },
-    { id: 'settings', label: '設定', icon: '⚙️', color: '#e5e5e5', run: () => setPage('settings') },
-    { id: 'home', label: '回出生點', icon: '🏠', color: '#d7f5dd', run: api.respawn },
-    { id: 'msg', label: '訊息', icon: '💬', color: '#e8e0ff' },
+    { id: 'bag', label: '背包', icon: '🎒', color: '#f4c04e', run: () => api.toggleModal('inventory') },
+    { id: 'cam', label: '相機', icon: '📷', color: '#e8466e', run: api.openCamera },
+    { id: 'album', label: '相簿', icon: '🖼️', color: '#ff9f5a', run: () => setPage('album') },
+    { id: 'settings', label: '設定', icon: '⚙️', color: '#a7a2bb', run: () => setPage('settings') },
+    { id: 'home', label: '回出生點', icon: '🏠', color: '#2fd6a8', run: api.respawn },
+    { id: 'msg', label: '訊息', icon: '💬', color: '#b38cff' },
   ];
 
   return (
@@ -111,11 +111,18 @@ export function PhoneDrawer(): ReactNode {
           <span>{hh}:{mm}</span>
           <span>NT$ {coins} · 📶 🔋</span>
         </div>
+        {page === 'home' && (
+          <div className="phone-brand">
+            <span className="tag" aria-hidden>▤</span>
+            <span>雲寶寶手機</span>
+            <span className="label">Online</span>
+          </div>
+        )}
         {page === 'home' ? (
           <div className="apps">
             {apps.map((a) => (
               <button key={a.id} className="app" disabled={!a.run} onClick={a.run} title={a.run ? a.label : '即將推出'}>
-                <span className="ico" style={{ background: a.color }}>{a.icon}</span>
+                <span className="ico" style={{ '--app': a.color } as CSSProperties}>{a.icon}</span>
                 {a.label}
               </button>
             ))}
@@ -123,7 +130,7 @@ export function PhoneDrawer(): ReactNode {
         ) : (
           <div className="page">
             <div className="modal-head">
-              <h2 style={{ fontSize: 17 }}>{page === 'album' ? '相簿' : '設定'}</h2>
+              <h2>{page === 'album' ? '相簿' : '設定'}</h2>
               <button className="btn small" onClick={() => setPage('home')}>返回</button>
             </div>
             {page === 'album' ? <Album /> : <SettingsPanel />}
