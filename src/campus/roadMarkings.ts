@@ -7,12 +7,13 @@ import type { GeoBuilder } from './chunkBuilder';
  *    narrower two-way roads get a single dashed yellow centre line;
  *  - 車道線: white dashes (4 m line, 6 m gap) between lanes going the same way;
  *  - 路面邊線: solid white edge lines;
- *  - 禁止停車線: solid yellow along the kerb of campus roads;
+ *  - 禁止臨時停車線: solid red along the kerb of campus roads (Street View: no white edge lines there);
  *  - 行人穿越道 (枕木紋): white bars where a walkway crosses the road.
  * Lines break at junctions and under crossings. Pure data → geometry, so it runs in the chunk worker.
  */
 const WHITE: readonly [number, number, number] = [0.95, 0.95, 0.92];
 const YELLOW: readonly [number, number, number] = [0.95, 0.77, 0.16];
+const RED: readonly [number, number, number] = [0.78, 0.16, 0.14];
 const Y = 0.064; // above road (0.04) and walkway (0.06) ribbons
 const JUNCTION_CLEAR = 6;
 const ZEBRA_LEN = 3;
@@ -63,7 +64,7 @@ function linesFor(road: CampusRoad, campus: boolean): Line[] {
     out.push({ off: -0.13, wid: 0.1, color: YELLOW }, { off: 0.13, wid: 0.1, color: YELLOW });
     if (w >= 12) out.push({ off: -w / 4, wid: 0.12, color: WHITE, dash: DASH }, { off: w / 4, wid: 0.12, color: WHITE, dash: DASH });
   } else out.push({ off: 0, wid: 0.1, color: YELLOW, dash: DASH });
-  if (campus) out.push({ off: -(w / 2 - 0.1), wid: 0.12, color: YELLOW }, { off: w / 2 - 0.1, wid: 0.12, color: YELLOW });
+  if (campus) return [...out.slice(2), { off: -(w / 2 - 0.1), wid: 0.12, color: RED }, { off: w / 2 - 0.1, wid: 0.12, color: RED }];
   return out;
 }
 

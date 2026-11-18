@@ -89,20 +89,19 @@ const asphaltPainter: Painter = (g, s, rand) => {
   speckle(g, s, rand, 3000, ['#3b3c3e', '#7a7b7e', '#6a6560'], 1.4);
 };
 
-/** Red brick paving (紅磚道), common on Taiwanese campuses. */
+/** Grey square concrete pavers, as on the campus sidewalks and paths (Street View). */
 const paverPainter: Painter = (g, s, rand) => {
-  g.fillStyle = '#8f8a82';
+  g.fillStyle = '#7d7b77';
   g.fillRect(0, 0, s, s);
-  const bw = s / 4, bh = s / 8;
-  for (let row = 0; row < 8; row++) {
-    for (let col = -1; col < 5; col++) {
-      const x = col * bw + (row % 2 ? bw / 2 : 0);
-      const shade = 0.85 + rand() * 0.2;
-      g.fillStyle = `rgb(${Math.round(170 * shade)}, ${Math.round(88 * shade)}, ${Math.round(68 * shade)})`;
-      g.fillRect(x + 2, row * bh + 2, bw - 4, bh - 4);
+  const n = 8, b = s / n;
+  for (let row = 0; row < n; row++) {
+    for (let col = 0; col < n; col++) {
+      const shade = 0.88 + rand() * 0.16;
+      g.fillStyle = `rgb(${Math.round(168 * shade)}, ${Math.round(166 * shade)}, ${Math.round(160 * shade)})`;
+      g.fillRect(col * b + 2, row * b + 2, b - 4, b - 4);
     }
   }
-  speckle(g, s, rand, 500, ['#5a3b30', '#d9a08a'], 1.2);
+  speckle(g, s, rand, 700, ['#5e5c58', '#c9c7c1'], 1.2);
 };
 
 const grassPainter: Painter = (g, s, rand) => {

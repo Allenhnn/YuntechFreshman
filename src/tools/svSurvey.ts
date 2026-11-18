@@ -83,9 +83,36 @@ export function installSurvey(campus: CampusData, game: { teleport(x: number, y:
   const style = document.createElement('style');
   style.textContent = '.sv-sync.big{left:0!important;top:0!important;right:0!important;bottom:0!important;width:auto!important;height:auto!important;border-radius:0!important}';
   document.head.append(style);
+  /** Nearest Google car and people's 360° panoramas around campus point (x, z): position, distance, date. */
+  const near = async (x: number, z: number, radius = 25): Promise<Record<string, { x: number; z: number; dist: number; date: string; heading: number } | null>> => {
+    const maps = await loadMaps(KEY);
+    const svc = new maps.StreetViewService();
+    const out: Record<string, { x: number; z: number; dist: number; date: string; heading: number } | null> = {};
+    for (const [name, src] of [['google', maps.StreetViewSource.GOOGLE], ['outdoor', maps.StreetViewSource.OUTDOOR]] as const) {
+      const d = await svc.getPanorama({ location: ll(x, z), radius, preference: maps.StreetViewPreference.NEAREST, sources: [src] })
+        .then((r) => r.data).catch(() => null);
+      const at = d?.location?.latLng;
+      if (!at) { out[name] = null; continue; }
+      const p = local(at.lat(), at.lng());
+      out[name] = { x: +p.x.toFixed(1), z: +p.z.toFixed(1), dist: Math.round(Math.hypot(p.x - x, p.z - z)), date: d?.imageDate ?? '', heading: 0 };
+    }
+    return out;
+  };
+  /** Stand on the panorama nearest (x, z) and face (tx, tz); the panel follows. */
+  const stand = async (x: number, z: number, tx: number, tz: number, src: 'google' | 'outdoor' = 'google'): Promise<unknown> => {
+    const h = (await near(x, z, 40))[src];
+    if (!h) return 'no panorama';
+    followStreetView();
+    game.teleport(h.x, 0.3, h.z);
+    game.look(Math.atan2(-(tx - h.x), -(tz - h.z)));
+    await new Promise((r) => setTimeout(r, 3000));
+    return h;
+  };
   (window as unknown as { __sv: unknown }).__sv = {
     spots,
     hits,
+    near,
+    stand,
     async view(id: number, k = 0) {
       const h = (await hits(id))[k];
       if (!h) return 'no panorama';

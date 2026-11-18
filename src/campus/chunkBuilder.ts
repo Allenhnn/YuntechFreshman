@@ -673,7 +673,7 @@ export class ChunkBuilder {
         for (const { road, from, to } of roads) {
           const p = road.points;
           for (let i = from; i < to && !onRoad; i++) {
-            if (distToSegment(x, z, p[i * 2]!, p[i * 2 + 1]!, p[i * 2 + 2]!, p[i * 2 + 3]!) < road.width / 2 + (isLongtanMain(road) ? SIDEWALK_W + 2 : 2)) onRoad = true;
+            if (distToSegment(x, z, p[i * 2]!, p[i * 2 + 1]!, p[i * 2 + 2]!, p[i * 2 + 3]!) < road.width / 2 + (isLongtanMain(road) ? SIDEWALK_W + 2 : road.kind === 'walkway' ? 2 : 4.5)) onRoad = true; // vehicle roads: the verge rows only
           }
           if (onRoad) break;
         }
@@ -737,9 +737,51 @@ export class ChunkBuilder {
         }
       }
     }
+    // Campus roads (Street View): a row of street trees in the grass verge along both sides.
+    const seenCampus = new Set<string>();
+    for (const { road, from, to } of roads) {
+      if (road.kind === 'walkway' || isLongtanMain(road) || road.median) continue;
+      const p = road.points;
+      const mid = Math.floor(p.length / 4) * 2;
+      if (!pointInRing(p[mid]!, p[mid + 1]!, boundary)) continue;
+      const off = road.width / 2 + 2.2;
+      for (let i = from; i < to; i++) {
+        const key = `${p[i * 2]},${p[i * 2 + 1]},${p[i * 2 + 2]}`;
+        if (seenCampus.has(key)) continue;
+        seenCampus.add(key);
+        const ax = p[i * 2]!, az = p[i * 2 + 1]!, bx = p[i * 2 + 2]!, bz = p[i * 2 + 3]!;
+        const len = Math.hypot(bx - ax, bz - az);
+        if (len < 6) continue;
+        const ux = (bx - ax) / len, uz = (bz - az) / len;
+        const n = Math.max(1, Math.round(len / CAMPUS_TREE_STEP));
+        for (let k = 0; k < n; k++) {
+          const t = ((k + 0.5) / n) * len;
+          for (const side of [-1, 1]) {
+            const x = ax + ux * t - uz * side * off, z = az + uz * t + ux * side * off;
+            if (!inChunk(x, z) || !pointInRing(x, z, boundary)) continue;
+            let blocked = false;
+            for (const { road: other, from: f, to: t2 } of roads) {
+              const q = other.points;
+              const pad = other === road ? off - 0.5 : other.width / 2 + (other.kind === 'walkway' ? 0.8 : 2.2);
+              for (let j = f; j < t2 && !blocked; j++) if (distToSegment(x, z, q[j * 2]!, q[j * 2 + 1]!, q[j * 2 + 2]!, q[j * 2 + 3]!) < pad) blocked = true;
+              if (blocked) break;
+            }
+            if (blocked) continue;
+            if (this.exclusions.some(({ item, bounds: [a, b, c, d] }) => x > a - 1 && x < c + 1 && z > b - 1 && z < d + 1 && pointInRing(x, z, item))) continue;
+            if (buildings.some(({ item, bounds: [a, b, c, d] }) => x > a - 3 && x < c + 3 && z > b - 3 && z < d + 3 && (pointInRing(x, z, item.outer) || distToRingEdge(x, z, item.outer) < 3))) continue;
+            if (fields.some(({ item, bounds: [a, b, c, d] }) => x > a - 2 && x < c + 2 && z > b - 2 && z < d + 2 && (pointInRing(x, z, item.outer) || distToRingEdge(x, z, item.outer) < 2))) continue;
+            const h = ((x * 12.9898 + z * 78.233) % 1 + 1) % 1;
+            out.push(x, z, 1.1 + h * 0.3, h * Math.PI * 2, h);
+          }
+        }
+      }
+    }
     return new Float32Array(out);
   }
 }
+
+/** Spacing of the street-tree rows along campus roads (m). */
+const CAMPUS_TREE_STEP = 8.5;
 
 /** All transferable buffers of a build, for zero-copy postMessage. */
 export function transferablesOf(b: ChunkBuild): ArrayBuffer[] {

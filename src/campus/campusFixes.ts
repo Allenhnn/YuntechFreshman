@@ -185,3 +185,33 @@ export function applyBuildingFixes(campus: CampusData): void {
     else if (f.levels !== undefined) b.height = Math.round(f.levels * 3.6 * 10) / 10;
   }
 }
+
+/**
+ * The central north–south pedestrian axis (OSM: a 2 m path from 63,−102 to 101,114) is on Street View a
+ * broad paved boulevard between rows of palms. Widened here; the palms and its lamps are in streetscape.ts.
+ */
+export const CENTRAL_AXIS = { points: [63.36, -101.5, 64.96, -93.46, 89.0, 40.0, 100.65, 113.72] as const, width: 10 };
+
+/** A walkway on the central axis (also the pieces left where 龍潭路 cuts it): every vertex on the axis line. */
+export function isCentralAxis(r: { kind: string; points: readonly number[] }): boolean {
+  if (r.kind !== 'walkway' || r.points.length < 4) return false;
+  const a = CENTRAL_AXIS.points;
+  const off = (x: number, z: number): number => {
+    let best = Infinity;
+    for (let i = 0; i + 3 < a.length; i += 2) {
+      const ax = a[i]!, az = a[i + 1]!, dx = a[i + 2]! - ax, dz = a[i + 3]! - az;
+      const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz)));
+      best = Math.min(best, Math.hypot(ax + dx * t - x, az + dz * t - z));
+    }
+    return best;
+  };
+  const p = r.points;
+  let len = 0;
+  for (let i = 0; i + 3 < p.length; i += 2) len += Math.hypot(p[i + 2]! - p[i]!, p[i + 3]! - p[i + 1]!);
+  for (let i = 0; i < p.length; i += 2) if (off(p[i]!, p[i + 1]!) > 4.5) return false; // its end is pulled ~4 m onto 龍潭路
+  return len > 15;
+}
+
+export function widenCentralAxis(campus: CampusData): void {
+  for (const r of campus.roads) if (isCentralAxis(r)) r.width = CENTRAL_AXIS.width;
+}
