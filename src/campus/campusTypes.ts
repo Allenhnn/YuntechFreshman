@@ -34,7 +34,9 @@ export interface CampusRoad {
   /** 減速標線 (white transverse bar sets) centres [x0, z0, …]. */
   slowAt?: number[];
   /** Kerb line colour on a campus road; red (no stopping) unless the dorm roads' yellow (Street View). */
-  kerb?: 'yellow';
+  kerb?: 'yellow' | 'none';
+  /** No markings at all (narrow residential lane). */
+  plain?: boolean;
   /** A lane surfaced with pavers instead of asphalt, no markings (dorm area, Street View). */
   paved?: boolean;
   /** A footpath generated along a road's kerb (not from OSM). */

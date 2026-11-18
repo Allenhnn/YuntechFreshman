@@ -66,6 +66,8 @@ function linesFor(road: CampusRoad, campus: boolean): Line[] {
     out.push({ off: -0.13, wid: 0.1, color: YELLOW }, { off: 0.13, wid: 0.1, color: YELLOW });
     if (w >= 12) out.push({ off: -w / 4, wid: 0.12, color: WHITE, dash: DASH }, { off: w / 4, wid: 0.12, color: WHITE, dash: DASH });
   } else out.push({ off: 0, wid: 0.1, color: YELLOW, dash: DASH });
+  if (road.plain) return [];
+  if (road.kerb === 'none') return out.slice(2);
   if (campus) {
     const kerb = road.kerb === 'yellow' ? YELLOW : RED;
     return [...out.slice(2), { off: -(w / 2 - 0.1), wid: 0.12, color: kerb }, { off: w / 2 - 0.1, wid: 0.12, color: kerb }];
