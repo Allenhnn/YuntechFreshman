@@ -234,16 +234,42 @@ kbd {
 
 /* ---------- Phone ---------- */
 .phone {
-  position: absolute; right: 24px; bottom: 90px; width: 300px; height: 560px; padding: 10px;
-  border-radius: 38px; background: #1b1f1d; box-shadow: var(--shadow); pointer-events: auto;
+  /* Titanium frame, black bezel, dynamic island, side buttons (after the reference iPhone mock-up). */
+  position: absolute; right: 24px; bottom: 90px; height: min(600px, calc(100vh - 110px)); aspect-ratio: 292 / 600; padding: 4px;
+  border-radius: 52px; pointer-events: auto;
+  background: linear-gradient(140deg, #ebe0cf 0%, #c6b59b 28%, #e2d5c2 52%, #ab9a80 78%, #d6c8b2 100%);
+  box-shadow: 0 0 0 1px #8d7e69, inset 0 0 0 1px rgba(255, 255, 255, 0.55), var(--shadow);
   animation: slide-up 0.25s cubic-bezier(0.2, 0.9, 0.3, 1.2);
 }
+/* Action + volume buttons (left), power (right). */
+.phone::before, .phone::after {
+  content: ''; position: absolute; width: 3px; border-radius: 2px;
+  background: linear-gradient(90deg, #a8977d, #ddd0bc);
+}
+.phone::before {
+  left: -3px; top: 112px; height: 150px; border-radius: 0;
+  background: linear-gradient(180deg,
+    #c3b298 0 22px, transparent 22px 44px,
+    #c3b298 44px 92px, transparent 92px 102px,
+    #c3b298 102px 150px);
+}
+.phone::after { right: -3px; top: 176px; height: 74px; background: linear-gradient(270deg, #a8977d, #ddd0bc); }
 .phone .screen-inner {
-  height: 100%; border-radius: 30px; overflow: hidden; display: flex; flex-direction: column;
+  position: relative; height: 100%; border: 7px solid #070708; border-radius: 48px; overflow: hidden;
+  display: flex; flex-direction: column;
   background: linear-gradient(160deg, #bfe9cf, #9fd3f2 60%, #fbe3b8);
 }
-.phone .statusbar { display: flex; justify-content: space-between; padding: 12px 20px 6px; font-size: 13px; font-weight: 700; }
-.phone .notch { width: 90px; height: 22px; border-radius: 12px; background: #1b1f1d; margin: -4px auto 0; }
+.phone .statusbar {
+  position: absolute; top: 13px; left: 0; right: 0; display: flex; justify-content: space-between;
+  padding: 0 26px; font-size: 13px; font-weight: 700; pointer-events: none;
+}
+.phone .notch {
+  position: relative; flex: none; width: 88px; height: 26px; border-radius: 14px; background: #000; margin: 9px auto 6px;
+}
+.phone .notch::after {
+  content: ''; position: absolute; right: 9px; top: 8px; width: 10px; height: 10px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #4a5a78 0, #1a2233 45%, #05070b 70%);
+}
 .phone .apps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px 8px; padding: 22px 16px; }
 .app { display: flex; flex-direction: column; align-items: center; gap: 6px; border: 0; background: transparent; cursor: pointer; font-size: 12px; }
 .app .ico { width: 56px; height: 56px; border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: 28px; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12); }

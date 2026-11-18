@@ -78,7 +78,6 @@ function Album(): ReactNode {
 export function PhoneDrawer(): ReactNode {
   const api = useApi();
   const minutes = useGame((s) => s.gameMinutes);
-  const coins = useGame((s) => s.coins);
   const page = useGame((s) => s.phonePage);
   const setPage = (p: typeof page): void => {
     api.click();
@@ -109,7 +108,7 @@ export function PhoneDrawer(): ReactNode {
         <div className="notch" />
         <div className="statusbar">
           <span>{hh}:{mm}</span>
-          <span>NT$ {coins} · 📶 🔋</span>
+          <span>📶 🔋</span>
         </div>
         {page === 'home' ? (
           <div className="apps">

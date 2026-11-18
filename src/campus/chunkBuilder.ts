@@ -803,21 +803,34 @@ export class ChunkBuilder {
       for (let k = 0; k < out.length; k += 5) if (Math.abs(out[k]! - x) < 4 && Math.abs(out[k + 1]! - z) < 4) return true;
       return false;
     };
+    // Trees go every CAMPUS_TREE_STEP m of arc length along the whole path, so finely sampled
+    // polylines (the generated kerb sidewalks, 1 m segments) get them too.
+    const arcs = new Map<CampusRoad, number[]>();
+    const arcOf = (r: CampusRoad): number[] => {
+      let c = arcs.get(r);
+      if (!c) {
+        c = [0];
+        for (let i = 0; i + 3 < r.points.length; i += 2) c.push(c[c.length - 1]! + Math.hypot(r.points[i + 2]! - r.points[i]!, r.points[i + 3]! - r.points[i + 1]!));
+        arcs.set(r, c);
+      }
+      return c;
+    };
     for (const { road, from, to } of roads) {
       if (road.kind !== 'walkway' || road.width > 4) continue;
       const p = road.points, off = road.width / 2 + 1.3;
+      const cum = arcOf(road);
       for (let i = from; i < to; i++) {
         const key = `${p[i * 2]},${p[i * 2 + 1]},${p[i * 2 + 2]}`;
         if (seenWalk.has(key)) continue;
         seenWalk.add(key);
         const ax = p[i * 2]!, az = p[i * 2 + 1]!, bx = p[i * 2 + 2]!, bz = p[i * 2 + 3]!;
         const len = Math.hypot(bx - ax, bz - az);
-        if (len < 10) continue;
+        if (len < 0.05) continue;
         const ux = (bx - ax) / len, uz = (bz - az) / len;
         if (!parallelRoad(ax, az, ux, uz, len)) continue;
-        const n = Math.max(1, Math.round(len / CAMPUS_TREE_STEP));
-        for (let k = 0; k < n; k++) {
-          const t = ((k + 0.5) / n) * len;
+        const s0 = cum[i]!;
+        for (let d = Math.ceil((s0 - CAMPUS_TREE_STEP / 2) / CAMPUS_TREE_STEP) * CAMPUS_TREE_STEP + CAMPUS_TREE_STEP / 2; d < s0 + len; d += CAMPUS_TREE_STEP) {
+          const t = d - s0;
           for (const side of [-1, 1]) {
             const x = ax + ux * t - uz * side * off, z = az + uz * t + ux * side * off;
             if (!inChunk(x, z) || taken(x, z)) continue;
