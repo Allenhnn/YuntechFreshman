@@ -383,7 +383,9 @@ function buildModelledFloor(
   plan.spaces.forEach((s, id) => {
     for (const r of regionRects(grid, (v) => v === id)) {
       const walkable = s.kind !== 'stair' && s.kind !== 'elevator' && s.kind !== 'void';
-      if (walkable) horizontal(int.floor, r, base + FLOOR_Y, true, 0.6);
+      // Stair and lift shafts on the lowest storey still get a floor finish (else the ground shows
+      // under the flights); with a basement below, the shaft carries on down.
+      if (walkable || (base === 0 && !below && s.kind !== 'void')) horizontal(int.floor, r, base + FLOOR_Y, true, 0.6);
       if (walkable && base !== 0) int.colliders.push(slabBox(r, base)); // grade-level floors stand on the ground
       if (base > 0 && s.kind !== 'stair' && s.kind !== 'void') horizontal(int.ceiling, r, base - 0.02, false, 1.2); // underside seen from the hall below
       if (!s.noCeiling) {

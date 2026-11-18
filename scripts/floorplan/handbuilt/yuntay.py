@@ -24,14 +24,13 @@ RINGS = ROOT + 'src/campus/buildingRings.json'
 OSM_ID = 234786942
 FH = 3.6
 CEIL = 3.3
-C = 0.5
+C = 0.25  # raster cell (m): fine enough that the curved walls read as curves
 GX0, GY0, GX1, GY1 = 54.0, 61.0, 136.0, 145.0
 NI, NJ = int((GX1 - GX0) / C), int((GY1 - GY0) / C)
 
 # ---------------------------------------------------------------- shapes
 INNER = (66.08, 131.11, 51.84)    # 1F: wall round the auditorium and its side rooms (fitted to the sheet)
 OUTER = (35.54, 161.56, 106.9)    # the curved facade
-GALLERY = (66.08, 131.11, 57.5)   # 2F: wall between the outer corridor and the rear gallery
 STAGE_C, STAGE_R = (76.25, 120.5), 12.0   # stage drum (turntable mark ◎ at its centre)
 SEAT_C = (77.5, 121.5)            # seat rows: quarter ellipses round this point
 ZONE_A, ZONE_B = 31.8, 33.9       # seating zone = back row + aisle
@@ -68,14 +67,58 @@ def stage_shape(x, y):
 
 hall = all_(lambda x, y: x > 70 and y < 126, circ(INNER), seat_zone)            # 1F auditorium
 band = all_(lambda x, y: x > 70 and y < 126 and y > 80.5, circ(INNER), lambda x, y: not seat_zone(x, y))
-ring111 = all_(lambda x, y: 76.5 < x < 133.5 and y < 120.5, circ(OUTER), circ(INNER, False))
-rear2 = all_(lambda x, y: 76.5 < x < 133.5 and y < 120.5, circ(OUTER), lambda x, y: not hall(x, y))
+# Rooms run to 5 cm inside the curved shell wall: the 0.25 m raster's notches then stay within the
+# wall's 0.4 m thickness (no floor gaps along it), and nothing pokes out more than ~0.1 m.
+SHELL_IN = (OUTER[0], OUTER[1], OUTER[2] - 0.05)
+AWAY = (OUTER[0], OUTER[1], OUTER[2] - 1.0)  # rooms with partitions keep off the curved wall
+ring111 = all_(lambda x, y: 76.5 < x < 133.5 and y < 120.5, circ(SHELL_IN), circ(INNER, False))
+rear2 = all_(lambda x, y: 76.5 < x < 133.5 and y < 120.5, circ(SHELL_IN), lambda x, y: not hall(x, y))
+
+# ---------------------------------------------------------------- outline → shell ring
+arc = []
+x0a, x1a = 76.5, 133.5
+for n in range(0, 49):
+    x = x0a + (x1a - x0a) * n / 48
+    arc.append((x, OUTER[1] - math.sqrt(OUTER[2] ** 2 - (x - OUTER[0]) ** 2)))
+outline = ([(56.5, 65.5), (66, 65.5), (66, 67), (68.5, 67), (68.5, 66.5), (76.5, 66.5)] + arc +
+           [(133.5, 120.5), (131, 120.5), (131, 140), (121.5, 140), (121.5, 143.5), (111.5, 143.5), (111.5, 140),
+            (81, 140), (81, 136.5), (60.5, 136.5), (60.5, 111.5), (57, 111.5), (57, 83.5), (56.5, 83.5), (56.5, 81.5),
+            (55.5, 81.5), (55.5, 75), (56.5, 75)])
+
+
+
+def edge_dist(x, y):
+    best = 1e9
+    for i in range(len(outline)):
+        (ax, ay), (bx, by) = outline[i - 1], outline[i]
+        dx, dy = bx - ax, by - ay
+        f = max(0.0, min(1.0, ((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy or 1)))
+        best = min(best, math.hypot(ax + dx * f - x, ay + dy * f - y))
+    return best
+
+
+def in_outline(x, y):
+    hit = False
+    n = len(outline)
+    for i in range(n):
+        (xi, yi), (xj, yj) = outline[i], outline[i - 1]
+        if (yi > y) != (yj > y) and x < (xj - xi) * (y - yi) / (yj - yi) + xi:
+            hit = not hit
+    return hit
+
 
 # ---------------------------------------------------------------- rasteriser
 
 
-def raster(defs):
-    """defs: [(space dict, predicate)] in priority order → spaces with merged rects."""
+def raster(defs, fill):
+    """defs: [(space dict, predicate)] in priority order → spaces with merged rects.
+
+    Cells inside the building outline that no space claims go to `fill`, a shut room: the shell
+    supplies no inner walls, so a gap left between rooms would otherwise open onto nothing.
+    """
+    # Not along the outline itself: the thick shell wall (0.4 m) already hides the sliver there, and a
+    # fill room in it would put a saw-tooth of wall stubs along the curved facade.
+    defs = defs + [(fill, lambda x, y: in_outline(x, y) and edge_dist(x, y) > 0.6)]
     owner = [[-1] * NI for _ in range(NJ)]
     for k, (_, pred) in enumerate(defs):
         for j in range(NJ):
@@ -83,8 +126,17 @@ def raster(defs):
             for i in range(NI):
                 if owner[j][i] < 0 and pred(GX0 + (i + 0.5) * C, y):
                     owner[j][i] = k
+    # A space may appear in several defs (door pockets): merge them by id.
+    order = []
+    for s, _ in defs:
+        if s['id'] not in order:
+            order.append(s['id'])
+    of = [order.index(s['id']) for s, _ in defs]
+    owner = [[of[v] if v >= 0 else -1 for v in row] for row in owner]
+    first = {s['id']: s for s, _ in reversed(defs)}
     out = []
-    for k, (s, _) in enumerate(defs):
+    for k, sid in enumerate(order):
+        s = first[sid]
         runs = {}  # (i0, i1) -> list of [j0, j1]
         rects = []
         for j in range(NJ):
@@ -108,6 +160,8 @@ def raster(defs):
             for j0, j1 in lst:
                 rects.append([GX0 + i0 * C, GY0 + j0 * C, GX0 + i1 * C, GY0 + j1 * C])
         if not rects:
+            if s is fill:
+                continue
             raise SystemExit(f'{s["id"]} got no cells')
         rects.sort(key=lambda r: (r[1], r[0]))
         out.append({**s, 'rects': rects})
@@ -115,7 +169,10 @@ def raster(defs):
 
 
 def sp(id, name, kind='room', **extra):
-    return {'id': id, 'name': name, 'kind': kind, 'ceiling': CEIL, **extra}
+    s = {'id': id, 'name': name, 'kind': kind, 'ceiling': CEIL, **extra}
+    if 'furnish' in s:
+        s['furnishMain'] = True  # curved rooms are many thin rects: furnish the main one only
+    return s
 
 
 def door_h(x, y, w=1.0, kind='door', label=None):
@@ -207,12 +264,17 @@ def core_open(k, x0=None, x1=None):
 
 
 # ---------------------------------------------------------------- 1F
+S111 = sp('1F-111', '內迴廊', 'corridor', code='YT111')
+SSIDE = sp('1F-side', '觀眾席側廊', 'corridor')
 f1_defs = [
+    # Door pockets: flat 2 m of wall where a door crosses the curved wall between 111 and the side corridor.
+    (S111, R(94.5, 87.5, 96.5, 88.5)), (SSIDE, R(94.5, 88.5, 96.5, 89.5)),
+    (SSIDE, R(105.75, 98, 106.75, 100)), (S111, R(106.75, 98, 107.75, 100)),
     (sp('1F-110', '檔案室', code='YT110'), R(56.5, 65.5, 66, 73)),
     (sp('1F-stair-N', '樓梯', 'stair', noCeiling=True), core_rect('N')),
     (sp('1F-B-vest', 'B門 風除室', 'lobby'), R(55.5, 75, 60, 81.5)),
     (sp('1F-B', 'B門廳', 'lobby'), any_(R(60, 73, 70, 83.5), R(66, 67, 68.5, 73), R(70, 73, 76.5, 80.5), R(56.5, 81.5, 60, 83.5))),
-    (sp('1F-109', 'EZ Plus', code='YT109', furnish='discussion'), R(57, 83.5, 66, 111.5)),
+    (sp('1F-109', 'EZ Plus', code='YT109', furnish='reading'), R(57, 83.5, 66, 111.5)),
     (sp('1F-stair-W', '樓梯', 'stair', noCeiling=True), R(68.5, 85.5, 70, 94)),
     (sp('1F-west', '西側走廊', 'corridor'), any_(R(66, 83.5, 70, 108.5), R(66, 108.5, 68.5, 111.5))),
     (sp('1F-B0', 'B0 入口', 'corridor'), R(70, 105, 73, 108.5)),
@@ -248,11 +310,11 @@ f1_defs = [
     (sp('1F-116', '空調機房', code='YT116'), all_(band, R(103.5, 100.5, 111, 109))),
     (sp('1F-117', '女廁', 'toilet', code='YT117', furnish='restroom'), all_(band, R(108, 110.5, 114, 116))),
     (sp('1F-118', '男廁', 'toilet', code='YT118', furnish='restroom'), all_(band, R(109, 117, 114.5, 121))),
-    (sp('1F-side', '觀眾席側廊', 'corridor'), band),
+    (SSIDE, band),
     (sp('1F-hall', '觀眾席', noCeiling=True, group='theatre', ceiling=FH), hall),  # walls up to the 2F slab: the back tiers reach it
-    (sp('1F-111', '內迴廊', 'corridor', code='YT111'), ring111),
+    (S111, ring111),
 ]
-f1_spaces, f1_owner = raster(f1_defs)
+f1_spaces, f1_owner = raster(f1_defs, sp('1F-solid', '管道間'))
 f1_ids = {s['id']: k for k, s in enumerate(f1_spaces)}
 db1 = lambda a, b, near, w=1.0, kind='door', label=None: door_between(f1_owner, f1_ids, a, b, near, w, kind, label)
 
@@ -262,25 +324,24 @@ f1_open = [
     door_v(55.5, 78, 2.4, 'exit', 'B門'), door_v(56.5, 82.5, 1.2, 'exit', 'D'),
     door_h(62.5, 83.5), door_v(66, 97), door_v(57, 86.5, 1.2, 'exit'), door_v(57, 109.5, 1.2, 'exit'),
     {'kind': 'open', 'a': [68.7, 85.5], 'b': [69.8, 85.5]},
-    # B1–B3 and A1–A3 open onto the raked aisles above floor level: fixed leaves (the side stairs aren't modelled).
-    door_v(70, 95.5, 1.6, 'closed', 'B2'), door_v(70, 100.5, 1.6, 'closed', 'B1'),
+    # B1–B3 and A1–A3 open onto the raked aisles above floor level (the side stairs to them aren't
+    # modelled): left as plain wall, since a door leaf there would sink into the tiers.
     door_v(70, 107, 1.2), door_v(73, 107, 1.6, label='B0'),
-    db1('1F-side', '1F-hall', (75.5, 88), 1.6, 'closed', 'B3'),
-    door_h(67.2, 111.5),
+    door_h(67.2, 111.5), door_v(68.5, 110, 1.2, 'closed'), door_h(86.75, 126, 1.2, 'closed'),
     door_v(66, 113.5), door_v(66, 117), door_v(66, 119.5), door_v(66, 123, 1.6, 'open'),
     door_v(63.5, 123), door_v(63.5, 127.5), door_h(64.5, 129.5),
     door_h(68, 130.5), door_h(72.75, 130.5, 3.0), door_h(72.75, 136.5, 3.0, 'exit', '後台卸貨口'),
     door_h(76.5, 130.5), door_h(76.5, 136.5, 1.2, 'exit'), door_h(79.25, 130.5), door_h(83, 130.5),
     door_v(85.5, 128.25, 1.2), door_v(88, 128.25, 1.2), door_h(88.75, 130.5),
     {'kind': 'elevator', 'a': [89.8, 131.0], 'b': [91.7, 131.0], 'label': '電梯'},
-    door_h(103, 131), core_open('A'),
-    door_h(89.75, 126, 1.6, label='A0'), door_h(96.5, 126, 1.6, 'closed', 'A1'), door_h(102, 126, 1.6, 'closed', 'A2'), door_h(107, 126, 1.6, 'closed', 'A3'),
+    door_h(103, 131), core_open('A'), door_v(109.5, 128.5, 4.0, 'open'),
+    door_h(89.75, 126, 1.6, label='A0'),
     db1('1F-side', '1F-A', (113.5, 126), 2.5, 'open'),
     door_v(127, 121.5), door_v(127, 124.75),
     door_h(116.5, 140, 4.0, 'open'), door_h(116.5, 143.5, 4.0, 'exit', 'A門'),
     db1('1F-111', '1F-B', (76.5, 77), 1.6),
     db1('1F-111', '1F-A', (122, 120.5), 3.0, 'open'),
-    db1('1F-111', '1F-side', (95.5, 88.5), 1.6), db1('1F-111', '1F-side', (108, 101), 1.6),
+    door_h(95.5, 88.5, 1.6), door_v(106.75, 99, 1.6),
     db1('1F-side', '1F-B', (73, 80.5), 3.0, 'open'),
 ]
 for room, near in [('1F-112', (78, 88)), ('1F-113', (82.5, 88.5)), ('1F-114', (90, 92)), ('1F-115', (100, 99)),
@@ -288,6 +349,8 @@ for room, near in [('1F-112', (78, 88)), ('1F-113', (82.5, 88.5)), ('1F-114', (9
     f1_open.append(db1(room, '1F-side', near))
 
 # ---------------------------------------------------------------- 2F
+# The outer corridor and the rear gallery are one space here: the curved wall between them (with
+# doors D1, D2, C1, C2) came out as a saw-tooth of 0.25 m wall stubs, so it is left out.
 f2_defs = [
     (sp('2F-stair-N', '樓梯', 'stair'), core_rect('N')),
     (sp('2F-hall', '二樓大廳', 'lobby'), R(59, 73, 70, 83.5)),
@@ -313,14 +376,13 @@ f2_defs = [
     (sp('2F-stage', '舞台上空', 'void', group='theatre'), stage_shape),
     (sp('2F-hallvoid', '觀眾席上空', 'void', group='theatre'), hall),
     (sp('2F-east', '二樓東廊', 'corridor'), R(117.5, 120.5, 124, 126.5)),
-    (sp('2F-208', '劇團辦公室', code='YT208', furnish='office'), all_(rear2, R(84.5, 71, 92, 81))),
+    (sp('2F-208', '劇團辦公室', code='YT208', furnish='office'), all_(rear2, circ(AWAY), R(84.5, 71, 92, 81))),
     (sp('2F-209', '控制室', code='YT209', furnish='office'), all_(rear2, R(98.5, 87, 106, 96))),
-    (sp('2F-210', '檔案室', code='YT210'), all_(rear2, circ(GALLERY, False), R(119.5, 103, 123.5, 107.5))),
-    (sp('2F-211', '檔案室', code='YT211'), all_(rear2, circ(GALLERY, False), R(123, 114.5, 127, 119))),
-    (sp('2F-rear', '二樓後排走道', 'corridor'), all_(rear2, circ(GALLERY))),
-    (sp('2F-outer', '二樓外廊', 'corridor'), rear2),
+    (sp('2F-210', '檔案室', code='YT210'), all_(rear2, circ(AWAY), R(119.5, 103, 123.5, 107.5))),
+    (sp('2F-211', '檔案室', code='YT211'), all_(rear2, circ(AWAY), R(123, 114.5, 127, 119))),
+    (sp('2F-rear', '二樓後排走道', 'corridor'), rear2),
 ]
-f2_spaces, f2_owner = raster(f2_defs)
+f2_spaces, f2_owner = raster(f2_defs, sp('2F-solid', '設備空間'))
 f2_ids = {s['id']: k for k, s in enumerate(f2_spaces)}
 db2 = lambda a, b, near, w=1.0, kind='door', label=None: door_between(f2_owner, f2_ids, a, b, near, w, kind, label)
 
@@ -330,18 +392,60 @@ f2_open = [
     {'kind': 'open', 'a': [68.7, 94.0], 'b': [69.8, 94.0]},
     door_h(69.25, 100.5), door_h(72.25, 105), door_h(67, 100.5),
     db2('2F-north', '2F-rear', (76.5, 78), 1.6, 'open'),
-    db2('2F-outer', '2F-rear', (79, 76.5), 1.6, label='D1'), db2('2F-outer', '2F-rear', (90, 79), 1.6, label='D2'),
-    db2('2F-outer', '2F-rear', (116.5, 108), 1.6, label='C2'), db2('2F-outer', '2F-rear', (119, 114.5), 1.6, label='C1'),
     db2('2F-208', '2F-rear', (88, 81)), db2('2F-209', '2F-rear', (100, 96)),
-    db2('2F-210', '2F-outer', (121, 104)), db2('2F-211', '2F-outer', (124, 115)),
-    db2('2F-east', '2F-rear', (120, 120.5), 2.0, 'open'), db2('2F-east', '2F-outer', (123.5, 120.5), 1.0, 'open'),
+    db2('2F-210', '2F-rear', (121, 104)), db2('2F-211', '2F-rear', (124, 115)),
+    db2('2F-east', '2F-rear', (121, 120.5), 3.0, 'open'),
     door_h(120.75, 126.5, 3.0, 'open'),
-    door_h(90.25, 125.5),
+    door_h(90.25, 125.5), door_h(90.25, 128.5), door_h(67, 108.5, 1.0, 'closed'), door_h(86.75, 128.5, 1.2, 'closed'),
     door_h(87.75, 131, 1.5, 'open'), {'kind': 'elevator', 'a': [89.8, 131.0], 'b': [91.7, 131.0], 'label': '電梯'},
     door_h(95, 131), core_open('A'), door_v(86, 133.5), door_v(81, 133.5),
     # The rake's top tier is level with this floor: two gaps in the gallery rail step straight onto it.
     db2('2F-rear', '2F-hallvoid', (84, 88), 1.6, 'open'), db2('2F-rear', '2F-hallvoid', (109.3, 114), 1.6, 'open'),
 ]
+
+
+# ---------------------------------------------------------------- reachability check
+def sides(owner, o):
+    (ax, ay), (bx, by) = o['a'], o['b']
+    mx, my = (ax + bx) / 2, (ay + by) / 2
+    horiz = abs(ay - by) < 1e-6
+    pts = [(mx, my - C / 2), (mx, my + C / 2)] if horiz else [(mx - C / 2, my), (mx + C / 2, my)]
+    out = []
+    for x, y in pts:
+        i, j = int((x - GX0) / C), int((y - GY0) / C)
+        out.append(owner[j][i] if 0 <= i < NI and 0 <= j < NJ else -1)
+    return out
+
+
+graph = {}
+starts = []
+for fl, spaces, owner, opens in (('1F', f1_spaces, f1_owner, f1_open), ('2F', f2_spaces, f2_owner, f2_open)):
+    for o in opens:
+        a, b = sides(owner, o)
+        names = [spaces[k]['id'] if k >= 0 else None for k in (a, b)]
+        if o['kind'] == 'exit':
+            starts += [n for n in names if n]
+            continue
+        if o['kind'] == 'closed' or None in names:
+            if None in names and o['kind'] != 'closed':
+                print('  ! opening onto nothing', fl, o)
+            continue
+        if names[0] == names[1]:
+            print('  ! opening inside one space', fl, o)
+        graph.setdefault(names[0], set()).add(names[1])
+        graph.setdefault(names[1], set()).add(names[0])
+for a, b in [('1F-stair-N', '2F-stair-N'), ('1F-stair-A', '2F-stair-A'), ('1F-stair-W', '2F-stair-W'), ('1F-elev', '2F-elev'), ('1F-west', '1F-stair-W')]:
+    graph.setdefault(a, set()).add(b)
+    graph.setdefault(b, set()).add(a)
+seen, todo = set(starts), list(starts)
+while todo:
+    n = todo.pop()
+    for m in graph.get(n, ()):
+        if m not in seen:
+            seen.add(m)
+            todo.append(m)
+lost = [s['id'] + ' ' + s['name'] for s in f1_spaces + f2_spaces if s['id'] not in seen and s['kind'] not in ('void',) and not s['id'].endswith('-solid') and 'lift' not in s['id']]
+print('unreachable:', lost or 'none')
 
 # ---------------------------------------------------------------- seats and stage (1F extras)
 items, colliders = [], []
@@ -407,7 +511,7 @@ for a, b, ext in rows:
             phi = math.degrees(math.atan2(x - cx, cy - y))
             if any(lo <= phi <= hi for lo, hi in AISLES) or y > cy - 0.3:
                 continue
-            if not in_space(f1_owner, f1_ids, '1F-hall', x, y):
+            if not all(in_space(f1_owner, f1_ids, '1F-hall', x + dx, y + dy) for dx in (-0.35, 0.35) for dy in (-0.35, 0.35)):
                 continue
             ry = yaw_toward(STAGE_C[0] - x, STAGE_C[1] - y)
             items.append({'kind': 'chair', 'x': round(x, 3), 'y': tier_h(x, y), 'z': round(y, 3), 'ry': round(ry, 4), 'sx': 1.05, 'sy': 1.0, 'sz': 1.05, 'tint': 0.3})
@@ -476,17 +580,6 @@ for h in sorted({v for row in tgrid for v in row if v > 0}):
         tiers += 1
 print(f'{seats} seats, {len(plat)} stage blocks, {tiers} tier blocks')
 
-# ---------------------------------------------------------------- outline → shell ring
-arc = []
-x0a, x1a = 76.5, 133.5
-for n in range(0, 49):
-    x = x0a + (x1a - x0a) * n / 48
-    arc.append((x, OUTER[1] - math.sqrt(OUTER[2] ** 2 - (x - OUTER[0]) ** 2)))
-outline = ([(56.5, 65.5), (66, 65.5), (66, 67), (68.5, 67), (68.5, 66.5), (76.5, 66.5)] + arc +
-           [(133.5, 120.5), (131, 120.5), (131, 140), (121.5, 140), (121.5, 143.5), (111.5, 143.5), (111.5, 140),
-            (81, 140), (81, 136.5), (60.5, 136.5), (60.5, 111.5), (57, 111.5), (57, 83.5), (56.5, 83.5), (56.5, 81.5),
-            (55.5, 81.5), (55.5, 75), (56.5, 75)])
-
 old = json.load(open(SRC))
 T = old['transform']
 ang = math.radians(T['angleDeg'])
@@ -497,6 +590,17 @@ def to_world(x, y):
     qx, qy = x - T['planCentroid'][0], y - T['planCentroid'][1]
     return (qx * ca - qy * sa + T['worldCentroid'][0], qx * sa + qy * ca + T['worldCentroid'][1])
 
+
+# Exterior details from the photos (src/buildings/yuntayExterior.ts) share this frame and geometry.
+json.dump({
+    'transform': T,
+    'outer': list(OUTER),          # curved facade circle (plan)
+    'arcX': [76.5, 133.5],         # its extent along plan x
+    'shellHeight': 7.2,
+    'flyTower': [66, 108.5, 88.5, 130.5],
+    'portal': [111.5, 140, 121.5, 143.5],   # A門 vestibule
+    'pylon': [125, 150.5],
+}, open(ROOT + 'src/buildings/yuntayFrame.json', 'w'), indent=1)
 
 campus = json.load(open(ROOT + 'public/data/campus.json'))
 osm = next(b for b in campus['buildings'] if b['id'] == OSM_ID)['outer']

@@ -588,7 +588,9 @@ export class ChunkBuilder {
       // Generated teaching interiors: real windows where a classroom meets the outside wall.
       // Buildings with a generated interior get a heavy shell: thick outer walls and a slab per storey.
       const interior = !this.entrances[String(b.id)] && hasInterior(b) ? generateInterior(b, fallback)?.source ?? null : null;
-      const thick = interior ? { out: details, t: SHELL_WALL } : undefined;
+      // Plan-traced interiors too: their rooms stop at a 0.25 m raster, so on curved or slanted walls
+      // the gap to the outline would show the ground; the thick wall's inner face hides it.
+      const thick = interior || this.entrances[String(b.id)] ? { out: details, t: SHELL_WALL } : undefined;
       const cuts = interior && buildingKind(b.name) === 'teaching' ? classroomWindows(b, interior, fallback, photoEdges) : null;
       addWalls(facade, b.outer, b.height, floors, style, shots && photoOut ? { edges: shots.edges, out: photoOut } : undefined, doors,
         cuts?.size ? { cuts, glass, frames: details } : undefined, thick);

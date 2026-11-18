@@ -46,7 +46,7 @@
     "學生活動中心": { "preset": "civic", "style": { "wall": "#a9a9a3", "trim": "#8f8f89", "glass": "#33404a", "pattern": "ribbon", "win": [0.75, 0.45], "groundGlass": false, "balcony": "continuous", "balconyDepth": 1.6, "fins": "none", "columns": true, "rooftop": true } },
     "學生宿舍E": { "preset": "dorm", "style": { "wall": "#e8e6df", "trim": "#c8c5bd", "balcony": "none", "fins": "horizontal", "finDepth": 0.4 } },
     "行政大樓": { "preset": "civic", "style": { "wall": "#a7a8a4", "trim": "#8c8d89", "glass": "#2f3b44", "pattern": "punched", "win": [0.65, 0.5], "sill": 0.25, "groundGlass": false, "columns": true, "fins": "none", "canopy": true } },
-    "雲泰表演廳": { "preset": "civic", "style": { "wall": "#77797b", "trim": "#a5a7a6", "glass": "#2c3a42", "pattern": "blank", "groundGlass": true, "columns": true, "fins": "none", "canopy": true, "parapet": 0.4 } },
+    "雲泰表演廳": { "preset": "civic", "style": { "wall": "#8b8f93", "trim": "#6b6f72", "glass": "#26323a", "pattern": "blank", "groundGlass": true, "columns": true, "fins": "none", "canopy": false, "parapet": 0.4 } },
     "人科二館": { "preset": "humanities", "style": { "wall": "#d9d8d2", "trim": "#bdbcb5", "glass": "#2f3a42", "pattern": "punched", "win": [0.5, 0.45], "fins": "none" } },
     "觀雲閣": { "preset": "civic", "style": { "wall": "#d3cfc6", "trim": "#b9b4aa", "glass": "#3a464d", "pattern": "punched", "win": [0.32, 0.35], "sill": 0.35, "groundGlass": false, "columns": true, "fins": "horizontal", "finDepth": 0.9, "parapet": 1.2 } },
     "表演廳": { "preset": "civic", "style": { "wall": "#c8c9c4", "trim": "#a9aaa5", "glass": "#3a5866", "pattern": "ribbon", "win": [0.85, 0.5], "groundGlass": true, "fins": "horizontal", "finDepth": 0.8, "columns": false } },
