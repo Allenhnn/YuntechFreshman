@@ -56,7 +56,7 @@ import { createMbLobby } from './buildings/mbLobby';
 import { MAIN_GATE_GUARDHOUSE, createMainGate, gateTreeExclusions, inGateZone } from './campus/mainGate';
 import { addBoundaryZone } from './campus/boundaryZone';
 import { createBlockWallZone, createBlockWalls } from './campus/blockWall';
-import { applyBuildingFixes, divideLongtan, includeLongtanRoad, widenCampusRoads, widenCentralAxis } from './campus/campusFixes';
+import { applyBuildingFixes, divideLongtan, includeLongtanRoad, streetscapeFixes, widenCampusRoads, widenCentralAxis } from './campus/campusFixes';
 import { createLongtanSidewalks } from './campus/longtanRoad';
 import { createStreetscape } from './campus/streetscape';
 import { SCOOTER_LOTS, createScooterLots } from './campus/scooterLots';
@@ -168,6 +168,7 @@ async function boot(): Promise<void> {
   applyBuildingFixes(campus);
   widenCampusRoads(campus);
   widenCentralAxis(campus);
+  streetscapeFixes(campus);
   campus.parking = SCOOTER_LOTS.map((l) => ({ name: l.name, ring: l.ring }));
   actions.setMapData(campus);
   const librarySrc = await loadBuildingSource(LIBRARY_URL);

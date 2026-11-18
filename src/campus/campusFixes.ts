@@ -215,3 +215,21 @@ export function isCentralAxis(r: { kind: string; points: readonly number[] }): b
 export function widenCentralAxis(campus: CampusData): void {
   for (const r of campus.roads) if (isCentralAxis(r)) r.width = CENTRAL_AXIS.width;
 }
+
+/**
+ * Per-road details read off Street View (docs/streetscape-remodel.md): the dorm-area roads have a
+ * yellow kerb line instead of the red one. Roads are matched by their first OSM vertex.
+ */
+const YELLOW_KERB: readonly [number, number][] = [
+  [26.5, 281.1], // 19: dorm road east
+  [22.8, 258.0], // 79
+  [222.8, 200.7], // 116
+  [144.0, 332.2], // 142
+];
+
+export function streetscapeFixes(campus: CampusData): void {
+  for (const r of campus.roads) {
+    if (r.kind === 'walkway') continue;
+    if (YELLOW_KERB.some(([x, z]) => Math.hypot(r.points[0]! - x, r.points[1]! - z) < 0.5)) r.kerb = 'yellow';
+  }
+}

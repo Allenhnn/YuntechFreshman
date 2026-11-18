@@ -776,6 +776,61 @@ export class ChunkBuilder {
         }
       }
     }
+    // Footpaths that run alongside a campus road (北環路, Street View): a tree tunnel, one row on
+    // each side of the path. Segments within 16 m of a parallel campus road only.
+    const vehiclesNear = roads.filter(({ road }) => road.kind !== 'walkway' && !isLongtanMain(road) && !road.median);
+    const parallelRoad = (ax: number, az: number, ux: number, uz: number, len: number): boolean => {
+      const mx = ax + ux * len / 2, mz = az + uz * len / 2;
+      for (const { road, from, to } of vehiclesNear) {
+        const q = road.points;
+        for (let j = from; j < to; j++) {
+          const qx = q[j * 2]!, qz = q[j * 2 + 1]!, rx = q[j * 2 + 2]! - qx, rz = q[j * 2 + 3]! - qz, rl = Math.hypot(rx, rz) || 1;
+          if (Math.abs((rx * ux + rz * uz) / rl) < 0.94) continue;
+          if (distToSegment(mx, mz, qx, qz, qx + rx, qz + rz) < 16 && pointInRing(mx, mz, boundary)) return true;
+        }
+      }
+      return false;
+    };
+    const seenWalk = new Set<string>();
+    const taken = (x: number, z: number): boolean => {
+      for (let k = 0; k < out.length; k += 5) if (Math.abs(out[k]! - x) < 4 && Math.abs(out[k + 1]! - z) < 4) return true;
+      return false;
+    };
+    for (const { road, from, to } of roads) {
+      if (road.kind !== 'walkway' || road.width > 4) continue;
+      const p = road.points, off = road.width / 2 + 1.3;
+      for (let i = from; i < to; i++) {
+        const key = `${p[i * 2]},${p[i * 2 + 1]},${p[i * 2 + 2]}`;
+        if (seenWalk.has(key)) continue;
+        seenWalk.add(key);
+        const ax = p[i * 2]!, az = p[i * 2 + 1]!, bx = p[i * 2 + 2]!, bz = p[i * 2 + 3]!;
+        const len = Math.hypot(bx - ax, bz - az);
+        if (len < 10) continue;
+        const ux = (bx - ax) / len, uz = (bz - az) / len;
+        if (!parallelRoad(ax, az, ux, uz, len)) continue;
+        const n = Math.max(1, Math.round(len / CAMPUS_TREE_STEP));
+        for (let k = 0; k < n; k++) {
+          const t = ((k + 0.5) / n) * len;
+          for (const side of [-1, 1]) {
+            const x = ax + ux * t - uz * side * off, z = az + uz * t + ux * side * off;
+            if (!inChunk(x, z) || taken(x, z)) continue;
+            let blocked = false;
+            for (const { road: other, from: f, to: t2 } of roads) {
+              const q = other.points;
+              const pad = other === road ? off - 0.5 : other.width / 2 + (other.kind === 'walkway' ? 0.8 : 2.2);
+              for (let j = f; j < t2 && !blocked; j++) if (distToSegment(x, z, q[j * 2]!, q[j * 2 + 1]!, q[j * 2 + 2]!, q[j * 2 + 3]!) < pad) blocked = true;
+              if (blocked) break;
+            }
+            if (blocked) continue;
+            if (this.exclusions.some(({ item, bounds: [a, b, c, d] }) => x > a - 1 && x < c + 1 && z > b - 1 && z < d + 1 && pointInRing(x, z, item))) continue;
+            if (buildings.some(({ item, bounds: [a, b, c, d] }) => x > a - 3 && x < c + 3 && z > b - 3 && z < d + 3 && (pointInRing(x, z, item.outer) || distToRingEdge(x, z, item.outer) < 3))) continue;
+            if (fields.some(({ item, bounds: [a, b, c, d] }) => x > a - 2 && x < c + 2 && z > b - 2 && z < d + 2 && (pointInRing(x, z, item.outer) || distToRingEdge(x, z, item.outer) < 2))) continue;
+            const h = ((x * 3.71 + z * 51.3) % 1 + 1) % 1;
+            out.push(x, z, 1.0 + h * 0.3, h * Math.PI * 2, h);
+          }
+        }
+      }
+    }
     return new Float32Array(out);
   }
 }

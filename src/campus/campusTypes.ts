@@ -33,6 +33,8 @@ export interface CampusRoad {
   boxAt?: number[];
   /** 減速標線 (white transverse bar sets) centres [x0, z0, …]. */
   slowAt?: number[];
+  /** Kerb line colour on a campus road; red (no stopping) unless the dorm roads' yellow (Street View). */
+  kerb?: 'yellow';
 }
 
 export type FieldKind = 'soccer' | 'court' | 'track' | 'park';

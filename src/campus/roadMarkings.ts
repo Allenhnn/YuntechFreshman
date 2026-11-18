@@ -8,7 +8,9 @@ import type { GeoBuilder } from './chunkBuilder';
  *  - 車道線: white dashes (4 m line, 6 m gap) between lanes going the same way;
  *  - 路面邊線: solid white edge lines;
  *  - 禁止臨時停車線: solid red along the kerb of campus roads (Street View: no white edge lines there);
- *  - 行人穿越道 (枕木紋): white bars where a walkway crosses the road.
+ *    禁止停車線 (yellow) on the dorm roads;
+ *  - 行人穿越道 (枕木紋): white bars where a walkway crosses the road, and on each arm of a junction
+ *    between campus roads (Street View: 北環路 / 東側路 corner).
  * Lines break at junctions and under crossings. Pure data → geometry, so it runs in the chunk worker.
  */
 const WHITE: readonly [number, number, number] = [0.95, 0.95, 0.92];
@@ -64,7 +66,10 @@ function linesFor(road: CampusRoad, campus: boolean): Line[] {
     out.push({ off: -0.13, wid: 0.1, color: YELLOW }, { off: 0.13, wid: 0.1, color: YELLOW });
     if (w >= 12) out.push({ off: -w / 4, wid: 0.12, color: WHITE, dash: DASH }, { off: w / 4, wid: 0.12, color: WHITE, dash: DASH });
   } else out.push({ off: 0, wid: 0.1, color: YELLOW, dash: DASH });
-  if (campus) return [...out.slice(2), { off: -(w / 2 - 0.1), wid: 0.12, color: RED }, { off: w / 2 - 0.1, wid: 0.12, color: RED }];
+  if (campus) {
+    const kerb = road.kerb === 'yellow' ? YELLOW : RED;
+    return [...out.slice(2), { off: -(w / 2 - 0.1), wid: 0.12, color: kerb }, { off: w / 2 - 0.1, wid: 0.12, color: kerb }];
+  }
   return out;
 }
 
@@ -92,6 +97,10 @@ export class RoadMarker {
       for (let i = 0; i + 1 < n; i++) cum.push(cum[i]! + Math.hypot(p[i * 2 + 2]! - p[i * 2]!, p[i * 2 + 3]! - p[i * 2 + 1]!));
       const skips: [number, number][] = [];
       const boxes: number[] = [];
+      let campus = false;
+      for (let i = 0; i < p.length && !campus; i += 2) campus = pointInRing(p[i]!, p[i + 1]!, data.boundary);
+      campus &&= r.kind === 'service';
+      const zebras: number[] = [];
       for (let i = 0; i < n; i++) {
         const others = at.get(key(p[i * 2]!, p[i * 2 + 1]!))!;
         if (others.size < 2) continue;
@@ -99,6 +108,12 @@ export class RoadMarker {
         for (const o of others) if (o !== r) widest = Math.max(widest, o.width);
         const clear = JUNCTION_CLEAR + widest / 2;
         skips.push([cum[i]! - clear, cum[i]! + clear]);
+        // Junction crossings on campus: one just outside the crossing road, on each arm.
+        if (campus && r.width >= 6 && widest >= 6) {
+          for (const s of [cum[i]! - widest / 2 - 2.4, cum[i]! + widest / 2 + 2.4]) {
+            if (s > 2 && s < cum[n - 1]! - 2 && zebras.every((z) => Math.abs(z - s) > 6)) zebras.push(s);
+          }
+        }
         if (r.longtanWest && i > 0 && i < n - 1) boxes.push(cum[i]!);
       }
       // Boxes OSM has no junction for, and rumble bars: nearest arc length on this road.
@@ -115,7 +130,6 @@ export class RoadMarker {
         }
         if (best < 8) (slow ? slows : boxes).push(at);
       }
-      const zebras: number[] = [];
       for (let i = 0; i + 1 < n; i++) {
         const ax = p[i * 2]!, az = p[i * 2 + 1]!, bx = p[i * 2 + 2]!, bz = p[i * 2 + 3]!;
         const rx = bx - ax, rz = bz - az;
@@ -134,9 +148,7 @@ export class RoadMarker {
         }
       }
       for (const z of zebras) skips.push([z - ZEBRA_LEN / 2 - 0.6, z + ZEBRA_LEN / 2 + 0.6]);
-      let campus = false;
-      for (let i = 0; i < p.length && !campus; i += 2) campus = pointInRing(p[i]!, p[i + 1]!, data.boundary);
-      this.meta.set(r, { cum, skips, zebras, boxes, slows, lines: linesFor(r, campus && r.kind === 'service') });
+      this.meta.set(r, { cum, skips, zebras, boxes, slows, lines: linesFor(r, campus) });
     }
   }
 
