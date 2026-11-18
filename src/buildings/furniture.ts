@@ -9,7 +9,7 @@ import type { ColliderBox } from './buildingMesh';
  * walls, doors, voids, cores and neighbouring rooms without hand placement. Keep-out circles protect
  * elevator landings, signs and stair ends.
  */
-export type FurnitureKind = 'shelf' | 'table' | 'chair' | 'plinth' | 'stage' | 'screen' | 'bed' | 'whiteboard' | 'bunk' | 'toilet' | 'sink' | 'mirror' | 'partition' | 'hydrant' | 'bins' | 'sign' | 'bracket' | 'vending';
+export type FurnitureKind = 'shelf' | 'table' | 'chair' | 'plinth' | 'stage' | 'riser' | 'screen' | 'bed' | 'whiteboard' | 'bunk' | 'toilet' | 'sink' | 'mirror' | 'partition' | 'hydrant' | 'bins' | 'sign' | 'bracket' | 'vending';
 
 export interface FurnitureItem {
   kind: FurnitureKind;

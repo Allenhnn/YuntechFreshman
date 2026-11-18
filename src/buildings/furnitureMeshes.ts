@@ -140,6 +140,8 @@ export function createFurnitureKit(tracker: ResourceTracker): FurnitureKit {
   const unit = tracker.geometry(unitBox(1, 1, 1));
   // Raised stage blocks: dark stained boards.
   const stageFloor = tracker.material(new MeshStandardMaterial({ color: 0x3b2e26, roughness: 0.55 }));
+  // Auditorium rake tiers: dark grey carpet.
+  const tierFloor = tracker.material(new MeshStandardMaterial({ color: 0x4d4a4c, roughness: 0.95 }));
 
   // Fire-hose cabinet: 0.75 × 1.6 × 0.25 m, front (−Z) with the label; BoxGeometry face order +x −x +y −y +z −z.
   const label = (w: number, h: number, paint: (g: CanvasRenderingContext2D) => void): CanvasTexture => {
@@ -458,9 +460,9 @@ export function createFurnitureKit(tracker: ResourceTracker): FurnitureKit {
 
   return {
     signMaterial,
-    geometry: { shelf, table, chair, plinth: unit, stage: unit, screen: tracker.geometry(unitBox(1, 1, 1)), bed, whiteboard, bunk, toilet, sink, mirror: tracker.geometry(unitBox(1, 1, 1)), partition: tracker.geometry(unitBox(1, 1, 1)), hydrant, bins, sign: signGeo, bracket: unit, vending: unit },
+    geometry: { shelf, table, chair, plinth: unit, stage: unit, riser: unit, screen: tracker.geometry(unitBox(1, 1, 1)), bed, whiteboard, bunk, toilet, sink, mirror: tracker.geometry(unitBox(1, 1, 1)), partition: tracker.geometry(unitBox(1, 1, 1)), hydrant, bins, sign: signGeo, bracket: unit, vending: unit },
     material: {
-      shelf: [wood, wood, wood, wood, books, books], table: laminate, chair: fabric, plinth, stage: stageFloor, screen, bed: [wood, linen, linen],
+      shelf: [wood, wood, wood, wood, books, books], table: laminate, chair: fabric, plinth, stage: stageFloor, riser: tierFloor, screen, bed: [wood, linen, linen],
       whiteboard: [alu, boardFace], bunk: [wood, linen], toilet: ceramic, sink: [counter, ceramic, chrome], mirror, partition: panel,
       hydrant: [red, red, red, red, red, cabinetFront], bins: [binColor(0x6e7275), binColor(0x2c6fd6), binColor(0x2f8f4a)], sign: panel, bracket: mountBlack,
       vending: [vendingBody, vendingBody, vendingTop, vendingTop, vendingBody, vendingFace], // front on −Z

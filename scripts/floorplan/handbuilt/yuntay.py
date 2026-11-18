@@ -13,7 +13,8 @@ rasterised to 0.5 m cells; each cell goes to the first space that claims it.
 Also writes the building outline in world coordinates to src/campus/buildingRings.json: the OSM
 footprint is a rough quadrilateral, the shell is redrawn from the plan so it holds the interior.
 
-Simplifications: the raked seating is laid flat (no risers); the stage is a 0.9 m platform with steps.
+Simplifications: the rake is 0.21 m steps per row (B1–B3, A1–A3 stay shut: the side stairs to them are
+not modelled); the stage is a 0.9 m platform with steps.
 """
 import json, math
 
@@ -248,7 +249,7 @@ f1_defs = [
     (sp('1F-117', '女廁', 'toilet', code='YT117', furnish='restroom'), all_(band, R(108, 110.5, 114, 116))),
     (sp('1F-118', '男廁', 'toilet', code='YT118', furnish='restroom'), all_(band, R(109, 117, 114.5, 121))),
     (sp('1F-side', '觀眾席側廊', 'corridor'), band),
-    (sp('1F-hall', '觀眾席', noCeiling=True, group='theatre'), hall),
+    (sp('1F-hall', '觀眾席', noCeiling=True, group='theatre', ceiling=FH), hall),  # walls up to the 2F slab: the back tiers reach it
     (sp('1F-111', '內迴廊', 'corridor', code='YT111'), ring111),
 ]
 f1_spaces, f1_owner = raster(f1_defs)
@@ -261,9 +262,10 @@ f1_open = [
     door_v(55.5, 78, 2.4, 'exit', 'B門'), door_v(56.5, 82.5, 1.2, 'exit', 'D'),
     door_h(62.5, 83.5), door_v(66, 97), door_v(57, 86.5, 1.2, 'exit'), door_v(57, 109.5, 1.2, 'exit'),
     {'kind': 'open', 'a': [68.7, 85.5], 'b': [69.8, 85.5]},
-    door_v(70, 95.5, 1.6, label='B2'), door_v(70, 100.5, 1.6, label='B1'),
+    # B1–B3 and A1–A3 open onto the raked aisles above floor level: fixed leaves (the side stairs aren't modelled).
+    door_v(70, 95.5, 1.6, 'closed', 'B2'), door_v(70, 100.5, 1.6, 'closed', 'B1'),
     door_v(70, 107, 1.2), door_v(73, 107, 1.6, label='B0'),
-    db1('1F-side', '1F-hall', (75.5, 88), 1.6, label='B3'),
+    db1('1F-side', '1F-hall', (75.5, 88), 1.6, 'closed', 'B3'),
     door_h(67.2, 111.5),
     door_v(66, 113.5), door_v(66, 117), door_v(66, 119.5), door_v(66, 123, 1.6, 'open'),
     door_v(63.5, 123), door_v(63.5, 127.5), door_h(64.5, 129.5),
@@ -272,7 +274,7 @@ f1_open = [
     door_v(85.5, 128.25, 1.2), door_v(88, 128.25, 1.2), door_h(88.75, 130.5),
     {'kind': 'elevator', 'a': [89.8, 131.0], 'b': [91.7, 131.0], 'label': '電梯'},
     door_h(103, 131), core_open('A'),
-    door_h(89.75, 126, 1.6, label='A0'), door_h(96.5, 126, 1.6, label='A1'), door_h(102, 126, 1.6, label='A2'), door_h(107, 126, 1.6, label='A3'),
+    door_h(89.75, 126, 1.6, label='A0'), door_h(96.5, 126, 1.6, 'closed', 'A1'), door_h(102, 126, 1.6, 'closed', 'A2'), door_h(107, 126, 1.6, 'closed', 'A3'),
     db1('1F-side', '1F-A', (113.5, 126), 2.5, 'open'),
     door_v(127, 121.5), door_v(127, 124.75),
     door_h(116.5, 140, 4.0, 'open'), door_h(116.5, 143.5, 4.0, 'exit', 'A門'),
@@ -298,11 +300,9 @@ f2_defs = [
     (sp('2F-205', '音響機房', code='YT205'), R(68.5, 100.5, 74.5, 105)),
     (sp('2F-204', '左燈光包廂', code='YT204'), R(70, 105, 74.5, 108.5)),
     (sp('2F-lift-W', '機房'), R(65.5, 108.5, 73, 111.5)),
-    (sp('2F-side', '二樓側廊', 'corridor'), R(70, 80.5, 74.5, 100.5)),
     (sp('2F-lift-E', '升降機'), R(85.5, 124, 88, 128.5)),
     (sp('2F-203', '右燈光包廂', code='YT203'), R(88, 122.5, 92.5, 125.5)),
     (sp('2F-202', '燈光機房', code='YT202'), R(88, 125.5, 92.5, 128.5)),
-    (sp('2F-access', '無障礙通道', 'corridor'), R(92.5, 122.5, 110, 126.5)),
     (sp('2F-south', '二樓南廊', 'corridor'), any_(R(85.5, 128.5, 109.5, 131), R(92.5, 126.5, 109.5, 128.5), R(109.5, 126.5, 124, 131))),
     (sp('2F-backS', '二樓後台走道', 'corridor'), R(65.5, 131, 81, 136.5)),
     (sp('2F-201a', '經管組檔案室', code='YT201a'), R(81, 131, 86, 140)),
@@ -328,7 +328,7 @@ f2_open = [
     core_open('N', 70.3, 76.2), door_v(70, 77, 3.0, 'open'), door_v(74.5, 76.5),
     door_h(62, 83.5), door_h(67, 83.5, 2.5, 'open'), door_v(65.5, 97),
     {'kind': 'open', 'a': [68.7, 94.0], 'b': [69.8, 94.0]},
-    door_v(70, 97, 1.2), door_h(72.25, 80.5, 3.5, 'open'), door_h(71.5, 100.5), door_h(72.25, 105), door_h(67, 100.5),
+    door_h(69.25, 100.5), door_h(72.25, 105), door_h(67, 100.5),
     db2('2F-north', '2F-rear', (76.5, 78), 1.6, 'open'),
     db2('2F-outer', '2F-rear', (79, 76.5), 1.6, label='D1'), db2('2F-outer', '2F-rear', (90, 79), 1.6, label='D2'),
     db2('2F-outer', '2F-rear', (116.5, 108), 1.6, label='C2'), db2('2F-outer', '2F-rear', (119, 114.5), 1.6, label='C1'),
@@ -336,9 +336,11 @@ f2_open = [
     db2('2F-210', '2F-outer', (121, 104)), db2('2F-211', '2F-outer', (124, 115)),
     db2('2F-east', '2F-rear', (120, 120.5), 2.0, 'open'), db2('2F-east', '2F-outer', (123.5, 120.5), 1.0, 'open'),
     door_h(120.75, 126.5, 3.0, 'open'),
-    door_h(100, 126.5, 6.0, 'open'), door_v(92.5, 124), door_h(90.25, 125.5),
+    door_h(90.25, 125.5),
     door_h(87.75, 131, 1.5, 'open'), {'kind': 'elevator', 'a': [89.8, 131.0], 'b': [91.7, 131.0], 'label': '電梯'},
     door_h(95, 131), core_open('A'), door_v(86, 133.5), door_v(81, 133.5),
+    # The rake's top tier is level with this floor: two gaps in the gallery rail step straight onto it.
+    db2('2F-rear', '2F-hallvoid', (84, 88), 1.6, 'open'), db2('2F-rear', '2F-hallvoid', (109.3, 114), 1.6, 'open'),
 ]
 
 # ---------------------------------------------------------------- seats and stage (1F extras)
@@ -355,6 +357,35 @@ def yaw_toward(fx, fy):
 
 
 cx, cy = SEAT_C
+# Rake: row k sits on the ellipse a = 14.3 + 1.03 s, b = 16.8 + 1.025 s at s = k. Every point of the
+# hall gets the s of the ellipse through it; each 1-unit band of s is one tier, STEP higher than the
+# one in front, so the aisles (west side, south side) step up with the rows. The top band reaches
+# the 2F floor (3.6 m), where the rear gallery opens onto it.
+STEP = 0.21
+
+
+def s_of(x, y):
+    if y >= cy:
+        return -9.0 if x < cx else (x - cx - 14.3) / 1.03
+    if x < cx:
+        return (cy - y - 16.8) / 1.025
+    lo, hi = -13.8, 40.0
+    for _ in range(50):
+        m = (lo + hi) / 2
+        if ((x - cx) / (14.3 + 1.03 * m)) ** 2 + ((y - cy) / (16.8 + 1.025 * m)) ** 2 > 1:
+            lo = m
+        else:
+            hi = m
+    return (lo + hi) / 2
+
+
+def tier_h(x, y):
+    s = s_of(x, y)
+    if s < -0.5:
+        return 0.0
+    return round(min(FH, STEP * (math.floor(s + 0.5) + 1)), 3)
+
+
 rows = [(14.3 + 1.03 * k, 16.8 + 1.025 * k, True) for k in range(13)] + [(28.9, 31.1, False), (29.9, 32.1, False), (30.9, 33.0, False)]
 AISLES = [(19.5, 23.5), (51.5, 55.5)]  # degrees from the top of the ellipse
 PITCH = 0.56
@@ -379,7 +410,7 @@ for a, b, ext in rows:
             if not in_space(f1_owner, f1_ids, '1F-hall', x, y):
                 continue
             ry = yaw_toward(STAGE_C[0] - x, STAGE_C[1] - y)
-            items.append({'kind': 'chair', 'x': round(x, 3), 'y': 0, 'z': round(y, 3), 'ry': round(ry, 4), 'sx': 1.05, 'sy': 1.0, 'sz': 1.05, 'tint': 0.3})
+            items.append({'kind': 'chair', 'x': round(x, 3), 'y': tier_h(x, y), 'z': round(y, 3), 'ry': round(ry, 4), 'sx': 1.05, 'sy': 1.0, 'sz': 1.05, 'tint': 0.3})
             seats += 1
         acc += seg
 
@@ -418,9 +449,9 @@ def merge_cells(pred, x0, y0, x1, y1, g):
     return out
 
 
-def block(r, h):
+def block(r, h, kind='stage'):
     ax0, ay0, ax1, ay1 = r
-    items.append({'kind': 'stage', 'x': (ax0 + ax1) / 2, 'y': 0, 'z': (ay0 + ay1) / 2, 'ry': 0, 'sx': ax1 - ax0, 'sy': h, 'sz': ay1 - ay0, 'tint': 0})
+    items.append({'kind': kind, 'x': (ax0 + ax1) / 2, 'y': 0, 'z': (ay0 + ay1) / 2, 'ry': 0, 'sx': ax1 - ax0, 'sy': h, 'sz': ay1 - ay0, 'tint': 0})
     colliders.append({'c': [(ax0 + ax1) / 2, h / 2, (ay0 + ay1) / 2], 'h': [(ax1 - ax0) / 2, h / 2, (ay1 - ay0) / 2]})
 
 
@@ -432,7 +463,18 @@ for n, h in enumerate([0.225, 0.45, 0.675]):
     block((66 + 0.5 * n, 118.5, 66.5 + 0.5 * n, 121.5), h)
     block((71, 130 - 0.5 * n, 74.5, 130.5 - 0.5 * n), h)
     block((85 - 0.5 * n, 126, 85.5 - 0.5 * n, 128.5), h)
-print(f'{seats} seats, {len(plat)} stage blocks')
+# Tiers: the hall on a 0.25 m raster, each cell at its tier height, merged into boxes per height.
+TG = 0.25
+TX0, TY0, TX1, TY1 = 70.0, 80.0, 112.0, 126.0
+tni, tnj = int((TX1 - TX0) / TG), int((TY1 - TY0) / TG)
+tgrid = [[(tier_h(TX0 + (i + 0.5) * TG, TY0 + (j + 0.5) * TG) if in_space(f1_owner, f1_ids, '1F-hall', TX0 + (i + 0.5) * TG, TY0 + (j + 0.5) * TG) else 0.0)
+          for i in range(tni)] for j in range(tnj)]
+tiers = 0
+for h in sorted({v for row in tgrid for v in row if v > 0}):
+    for r in merge_cells(lambda x, y, h=h: tgrid[int((y - TY0) / TG)][int((x - TX0) / TG)] == h, TX0, TY0, TX1, TY1, TG):
+        block(r, h, 'riser')
+        tiers += 1
+print(f'{seats} seats, {len(plat)} stage blocks, {tiers} tier blocks')
 
 # ---------------------------------------------------------------- outline → shell ring
 arc = []
