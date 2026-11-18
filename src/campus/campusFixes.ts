@@ -217,8 +217,11 @@ export function widenCentralAxis(campus: CampusData): void {
 }
 
 /**
- * Per-road details read off Street View (docs/streetscape-remodel.md): the dorm-area roads have a
- * yellow kerb line instead of the red one. Roads are matched by their first OSM vertex.
+ * Per-road details read off Street View (docs/streetscape-remodel.md), roads matched by their first
+ * OSM vertex:
+ *  - the dorm-area roads have a yellow kerb line instead of the red one;
+ *  - two dorm lanes (79, 142) are paver lanes, not asphalt, with no markings;
+ *  - the dorm road (19) has a sidewalk right at the kerb on both sides, which OSM leaves out.
  */
 const YELLOW_KERB: readonly [number, number][] = [
   [26.5, 281.1], // 19: dorm road east
@@ -226,10 +229,71 @@ const YELLOW_KERB: readonly [number, number][] = [
   [222.8, 200.7], // 116
   [144.0, 332.2], // 142
 ];
+const PAVED: readonly [number, number][] = [[22.8, 258.0], [144.0, 332.2]];
+const KERB_SIDEWALK: readonly [number, number][] = [[26.5, 281.1]];
+const SIDEWALK_WIDTH = 2.2;
+
+const matches = (r: { points: number[] }, list: readonly [number, number][]): boolean =>
+  list.some(([x, z]) => Math.hypot(r.points[0]! - x, r.points[1]! - z) < 0.5);
+
+function inRing(x: number, z: number, r: number[]): boolean {
+  let hit = false;
+  for (let i = 0, n = r.length / 2, j = n - 1; i < n; j = i++) {
+    const xi = r[i * 2]!, zi = r[i * 2 + 1]!, xj = r[j * 2]!, zj = r[j * 2 + 1]!;
+    if (zi > z !== zj > z && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) hit = !hit;
+  }
+  return hit;
+}
+
+function polyDist(x: number, z: number, p: readonly number[]): number {
+  let best = Infinity;
+  for (let i = 0; i + 3 < p.length; i += 2) {
+    const ax = p[i]!, az = p[i + 1]!, dx = p[i + 2]! - ax, dz = p[i + 3]! - az;
+    const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz || 1)));
+    best = Math.min(best, Math.hypot(ax + dx * t - x, az + dz * t - z));
+  }
+  return best;
+}
+
+/** Footpaths at `off` m either side of a road, sampled every metre and broken where they would run into a building or another road. */
+function kerbSidewalks(campus: CampusData, road: CampusData['roads'][number]): CampusData['roads'] {
+  const off = road.width / 2 + SIDEWALK_WIDTH / 2;
+  const others = campus.roads.filter((r) => r !== road && r.kind !== 'walkway');
+  const out: CampusData['roads'] = [];
+  for (const side of [-1, 1]) {
+    let run: number[] = [];
+    const flush = (): void => {
+      if (run.length >= 8) out.push({ kind: 'walkway', width: SIDEWALK_WIDTH, points: run, sidewalk: true });
+      run = [];
+    };
+    const p = road.points;
+    for (let i = 0; i + 3 < p.length; i += 2) {
+      const ax = p[i]!, az = p[i + 1]!, bx = p[i + 2]!, bz = p[i + 3]!;
+      const len = Math.hypot(bx - ax, bz - az);
+      if (len < 0.01) continue;
+      const ux = (bx - ax) / len, uz = (bz - az) / len;
+      for (let t = 0; t < len; t += 1) {
+        const x = ax + ux * t - uz * side * off, z = az + uz * t + ux * side * off;
+        const ok = inRing(x, z, campus.boundary)
+          && polyDist(x, z, p) > off - 0.3 // the inside of a bend
+          && !campus.buildings.some((b) => inRing(x, z, b.outer))
+          && others.every((o) => polyDist(x, z, o.points) > o.width / 2 + SIDEWALK_WIDTH / 2 + 0.3);
+        if (ok) run.push(+x.toFixed(2), +z.toFixed(2));
+        else flush();
+      }
+    }
+    flush();
+  }
+  return out;
+}
 
 export function streetscapeFixes(campus: CampusData): void {
+  const added: CampusData['roads'] = [];
   for (const r of campus.roads) {
     if (r.kind === 'walkway') continue;
-    if (YELLOW_KERB.some(([x, z]) => Math.hypot(r.points[0]! - x, r.points[1]! - z) < 0.5)) r.kerb = 'yellow';
+    if (matches(r, YELLOW_KERB)) r.kerb = 'yellow';
+    if (matches(r, PAVED)) r.paved = true;
+    if (matches(r, KERB_SIDEWALK)) added.push(...kerbSidewalks(campus, r));
   }
+  campus.roads.push(...added);
 }

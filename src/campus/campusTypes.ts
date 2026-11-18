@@ -35,6 +35,10 @@ export interface CampusRoad {
   slowAt?: number[];
   /** Kerb line colour on a campus road; red (no stopping) unless the dorm roads' yellow (Street View). */
   kerb?: 'yellow';
+  /** A lane surfaced with pavers instead of asphalt, no markings (dorm area, Street View). */
+  paved?: boolean;
+  /** A footpath generated along a road's kerb (not from OSM). */
+  sidewalk?: boolean;
 }
 
 export type FieldKind = 'soccer' | 'court' | 'track' | 'park';

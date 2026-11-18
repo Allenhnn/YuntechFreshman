@@ -439,7 +439,7 @@ export function createStreetscape(scene: Scene, physics: RAPIER.World, campus: C
   // --- Bollards where a footpath meets a campus road (Street View: grey concrete posts). ---------
   const bollards: Spot[] = [];
   for (const w of walks) {
-    if (w.width < 2 || isCentralAxis(w)) continue;
+    if (w.width < 2 || w.sidewalk || isCentralAxis(w)) continue;
     const p = w.points, n = p.length / 2;
     for (const [e, f] of [[0, 1], [n - 1, n - 2]] as const) {
       const ex = p[e * 2]!, ez = p[e * 2 + 1]!, fx = p[f * 2]!, fz = p[f * 2 + 1]!;
