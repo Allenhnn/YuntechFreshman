@@ -29,6 +29,7 @@ import type { ResourceTracker } from '../core/resources';
 import type { CampusData, CampusRoad, Ring } from './campusTypes';
 import { isCentralAxis } from './campusFixes';
 import { isLongtanMain } from './longtanConst';
+import { PAVED_TRIM, trimEnds } from './polyline';
 
 /**
  * Street furniture read off Street View (people's 360° photos cover almost every campus road):
@@ -124,6 +125,88 @@ function busSignTexture(): CanvasTexture {
   g.fillText('BUS STOP', 128, 200);
   const t = new CanvasTexture(c);
   t.colorSpace = SRGBColorSpace;
+  return t;
+}
+
+/** Staff-housing (學人宿舍) entrance at the west end of its lane (Street View, from the town road): first OSM vertex. */
+const STAFF_GATE_ROAD: readonly [number, number] = [-432.98, -203.75];
+
+/** The staff-housing lane and how far along it (m) it crosses the campus boundary, where its gate stands. */
+function staffGate(campus: CampusData): { road: CampusRoad; at: number } | null {
+  const road = campus.roads.find((r) => r.kind !== 'walkway' && Math.hypot(r.points[0]! - STAFF_GATE_ROAD[0], r.points[1]! - STAFF_GATE_ROAD[1]) < 0.5);
+  if (!road) return null;
+  const p = road.points, len = Math.hypot(p[2]! - p[0]!, p[3]! - p[1]!);
+  for (let t = 0; t < len; t += 0.1) {
+    if (pointInRing(p[0]! + ((p[2]! - p[0]!) * t) / len, p[1]! + ((p[3]! - p[1]!) * t) / len, campus.boundary)) return { road, at: t };
+  }
+  return null;
+}
+
+/** Where the boundary fence leaves a gap for the staff-housing gate (its own pillars and gate fill it). */
+export function staffGateZone(campus: CampusData): (x: number, z: number) => boolean {
+  const g = staffGate(campus);
+  if (!g) return () => false;
+  const p = g.road.points, len = Math.hypot(p[2]! - p[0]!, p[3]! - p[1]!);
+  const cx = p[0]! + ((p[2]! - p[0]!) * g.at) / len, cz = p[1]! + ((p[3]! - p[1]!) * g.at) / len;
+  return (x, z) => Math.hypot(x - cx, z - cz) < g.road.width / 2 + 0.9;
+}
+
+/** Yellow and black bands for the barrier arm (along local z). */
+function barTexture(): CanvasTexture {
+  const c = document.createElement('canvas');
+  c.width = 8;
+  c.height = 256;
+  const g = c.getContext('2d')!;
+  for (let i = 0; i < 8; i++) {
+    g.fillStyle = i % 2 ? '#1d1d1d' : '#f2c21b';
+    g.fillRect(0, i * 32, 8, 32);
+  }
+  const t = new CanvasTexture(c);
+  t.colorSpace = SRGBColorSpace;
+  return t;
+}
+
+/** Name plate on the entrance pillar, vertical text. */
+function staffPlate(): CanvasTexture {
+  const c = document.createElement('canvas');
+  c.width = 128;
+  c.height = 288;
+  const g = c.getContext('2d')!;
+  g.fillStyle = '#2b2a27';
+  g.fillRect(0, 0, 128, 288);
+  g.fillStyle = '#e8dcc0';
+  g.font = 'bold 54px "Songti TC", "PingFang TC", serif';
+  g.textAlign = 'center';
+  ['學', '人', '宿', '舍'].forEach((ch, i) => g.fillText(ch, 64, 62 + i * 64));
+  const t = new CanvasTexture(c);
+  t.colorSpace = SRGBColorSpace;
+  return t;
+}
+
+/** Red brick, running bond, one 2 m × 2 m tile (u across, v along). */
+function redBrick(): CanvasTexture {
+  const S = 256, bw = S / 10, bh = S / 20; // 0.2 m × 0.1 m bricks
+  const c = document.createElement('canvas');
+  c.width = c.height = S;
+  const g = c.getContext('2d')!;
+  g.fillStyle = '#6e3328';
+  g.fillRect(0, 0, S, S);
+  let seed = 7;
+  const rnd = (): number => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  for (let row = 0; row < 20; row++) {
+    for (let k = -1; k < 11; k++) {
+      const x = k * bw + (row % 2 ? bw / 2 : 0);
+      const r = rnd();
+      const base = r < 0.12 ? [120, 112, 104] : r < 0.3 ? [128, 58, 44] : [150, 72, 54];
+      const v = 0.88 + rnd() * 0.24;
+      g.fillStyle = `rgb(${base.map((q) => Math.round(q * v)).join(',')})`;
+      g.fillRect(x + 1, row * bh + 1, bw - 2, bh - 2);
+    }
+  }
+  const t = new CanvasTexture(c);
+  t.wrapS = t.wrapT = RepeatWrapping;
+  t.colorSpace = SRGBColorSpace;
+  t.anisotropy = 8;
   return t;
 }
 
@@ -307,6 +390,7 @@ export function createStreetscape(scene: Scene, physics: RAPIER.World, campus: C
 
   // --- Central axis: palms both sides and black post lanterns. -----------------------------------
   const paving = tracker.material(new MeshStandardMaterial({ map: tracker.texture(axisPaving()), roughness: 0.9, polygonOffset: true, polygonOffsetFactor: -5, polygonOffsetUnits: -10 }));
+  const barStripe = tracker.material(new MeshStandardMaterial({ map: tracker.texture(barTexture()), roughness: 0.6 }));
   const racks: Spot[] = [];
   const bins: Spot[] = [];
   for (const axis of campus.roads.filter(isCentralAxis)) {
@@ -573,6 +657,84 @@ export function createStreetscape(scene: Scene, physics: RAPIER.World, campus: C
       const w = local(x, z);
       colliders.push(tracker.collider(physics.createCollider(RAPIER.ColliderDesc.cuboid(hx, 1.3, hz).setTranslation(w.x, 1.3, w.z).setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }))));
     }
+  }
+
+  // --- Red-brick lanes (road 31): laid over the grey paver ribbon the chunks draw. ----------------
+  const brick = tracker.material(new MeshStandardMaterial({ map: tracker.texture(redBrick()), roughness: 0.9, polygonOffset: true, polygonOffsetFactor: -5, polygonOffsetUnits: -10 }));
+  for (const r of vehicles) {
+    if (r.brick !== 'red') continue;
+    const geo = ribbon(trimEnds(r.points, PAVED_TRIM, PAVED_TRIM), r.width, 0.045, 2);
+    // u runs 0..1 across the lane; tile every 2 m across too.
+    const uv = geo.getAttribute('uv') as BufferAttribute;
+    for (let i = 0; i < uv.count; i++) uv.setX(i, uv.getX(i) * r.width / 2);
+    const m = new Mesh(tracker.geometry(geo), brick);
+    m.receiveShadow = true;
+    m.name = 'streetscape';
+    scene.add(m);
+    meshes.push(m);
+  }
+
+  // --- 學人宿舍 entrance: gate pillars with a name plate, a guard booth, a raised barrier, hedges. ---
+  const sg = staffGate(campus);
+  if (sg) {
+    const gateRoad = sg.road, G = sg.at;
+    const p = gateRoad.points, w = gateRoad.width;
+    const len = Math.hypot(p[2]! - p[0]!, p[3]! - p[1]!);
+    const ux = (p[2]! - p[0]!) / len, uz = (p[3]! - p[1]!) / len;
+    const nx = -uz, nz = ux; // +side: the right-hand side coming in from the town road
+    const g = new Group();
+    g.position.set(p[0]!, 0, p[1]!);
+    g.rotation.y = Math.atan2(-uz, ux); // local +x along the lane, +z toward the + side
+    const q = new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), g.rotation.y);
+    const world = (t: number, o: number): [number, number] => [p[0]! + ux * t + nx * o, p[1]! + uz * t + nz * o];
+    const part = (geo: BufferGeometry, m: Material, t: number, y: number, o: number, solid?: [number, number, number]): Mesh => {
+      const o3 = new Mesh(tracker.geometry(geo), m);
+      o3.position.set(t, y, o);
+      o3.castShadow = true;
+      o3.receiveShadow = true;
+      g.add(o3);
+      if (solid) {
+        const [wx, wz] = world(t, o);
+        colliders.push(tracker.collider(physics.createCollider(RAPIER.ColliderDesc.cuboid(solid[0], solid[1], solid[2]).setTranslation(wx, solid[1], wz).setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }))));
+      }
+      return o3;
+    };
+    const white = mat(0xeeece6, { roughness: 0.8 });
+    const stone = mat(0x9d9a92, { roughness: 0.9 });
+    // Pillars either side of the lane mouth, a plate on the + side one.
+    for (const side of [-1, 1]) part(new BoxGeometry(0.7, 2.0, 0.7).translate(0, 1, 0), stone, G, 0, side * (w / 2 + 0.6), [0.35, 1, 0.35]);
+    // Closed iron sliding gate between them (the invisible boundary is the collision).
+    const iron = mat(0x3b3f42, { metalness: 0.6, roughness: 0.5 });
+    const span = w + 0.5;
+    part(new BoxGeometry(0.06, 0.08, span), iron, G, 1.55, 0);
+    part(new BoxGeometry(0.06, 0.08, span), iron, G, 0.18, 0);
+    for (let z = -span / 2; z <= span / 2 + 1e-6; z += 0.16) part(new BoxGeometry(0.03, 1.45, 0.03), iron, G, 0.86, z);
+    for (const z of [-span / 4, span / 4]) part(new CylinderGeometry(0.08, 0.08, 0.06, 10).rotateZ(Math.PI / 2), iron, G, 0.06, z); // rollers
+    const plate = new Mesh(tracker.geometry(new PlaneGeometry(0.62, 1.4)), tracker.material(new MeshStandardMaterial({ map: tracker.texture(staffPlate()), roughness: 0.6 })));
+    plate.position.set(G - 0.36, 1.1, w / 2 + 0.6);
+    plate.rotation.y = -Math.PI / 2;
+    g.add(plate);
+    // Guard booth on the + side.
+    part(new BoxGeometry(2.2, 2.5, 2.0).translate(0, 1.25, 0), white, G + 4, 0, w / 2 + 2.2, [1.1, 1.25, 1.0]);
+    part(new BoxGeometry(2.8, 0.15, 2.6), mat(0x5c6266), G + 4, 2.6, w / 2 + 2.2);
+    const pane = tracker.material(new MeshStandardMaterial({ color: 0x3a4a52, roughness: 0.15, metalness: 0.3 }));
+    part(new BoxGeometry(1.6, 0.9, 0.04), pane, G + 4, 1.55, w / 2 + 1.18); // window toward the lane
+    part(new BoxGeometry(0.04, 0.9, 1.2), pane, G + 2.88, 1.55, w / 2 + 2.2); // window toward the road
+    // Barrier: yellow housing by the kerb, striped arm raised.
+    part(new BoxGeometry(0.4, 1.0, 0.35).translate(0, 0.5, 0), mat(0xd9a520), G + 6.5, 0, w / 2 + 0.4, [0.2, 0.5, 0.18]);
+    const arm = part(new BoxGeometry(0.08, 0.08, w - 0.6).translate(0, 0, -(w - 0.6) / 2), barStripe, G + 6.5, 0.95, w / 2 + 0.4);
+    arm.rotation.x = 1.35; // swung up
+    // Hedges along both sides of the entrance stretch, clear of the booth.
+    const hedge = mat(0x3e6f2e, { roughness: 0.95 });
+    const runs: [number, number, number][] = [[-1, G + 1, G + 20], [1, G + 8, G + 20]];
+    for (const [side, t0, t1] of runs) {
+      const L = Math.min(t1, len - 2) - t0;
+      if (L < 2) continue;
+      part(new BoxGeometry(L, 0.8, 0.8).translate(0, 0.4, 0), hedge, t0 + L / 2, 0, side * (w / 2 + 1.0), [L / 2, 0.4, 0.4]);
+    }
+    g.name = 'streetscape';
+    scene.add(g);
+    meshes.push(g);
   }
 
   return {

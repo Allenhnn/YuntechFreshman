@@ -58,7 +58,7 @@ import { addBoundaryZone } from './campus/boundaryZone';
 import { createBlockWallZone, createBlockWalls } from './campus/blockWall';
 import { applyBuildingFixes, divideLongtan, includeLongtanRoad, streetscapeFixes, widenCampusRoads, widenCentralAxis } from './campus/campusFixes';
 import { createLongtanSidewalks } from './campus/longtanRoad';
-import { createStreetscape } from './campus/streetscape';
+import { createStreetscape, staffGateZone } from './campus/streetscape';
 import { SCOOTER_LOTS, createScooterLots } from './campus/scooterLots';
 import { createSensorGates } from './campus/sensorGates';
 import { inGateArea } from './campus/mainGate';
@@ -282,7 +282,8 @@ async function boot(): Promise<void> {
   addCafeteriaSign(scene, campus, sceneResources);
   const mainGate = createMainGate(scene, physics, campus, sceneResources);
   const onBlockWall = createBlockWallZone(campus);
-  addBoundaryZone(scene, campus, sceneResources, (x, z) => inGateZone(x, z) || onBlockWall(x, z));
+  const staffGap = staffGateZone(campus);
+  addBoundaryZone(scene, campus, sceneResources, (x, z) => inGateZone(x, z) || onBlockWall(x, z) || staffGap(x, z));
   const blockWalls = createBlockWalls(scene, physics, campus, sceneResources);
   const scooterLots = createScooterLots(scene, physics, campus, sceneResources);
   const longtanSidewalks = createLongtanSidewalks(scene, physics, campus, sceneResources);

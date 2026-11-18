@@ -223,7 +223,7 @@ export function widenCentralAxis(campus: CampusData): void {
  *  - two dorm lanes (79, 142) are paver lanes, not asphalt, with no markings;
  *  - the dorm road (19) has a sidewalk right at the kerb on both sides, which OSM leaves out.
  * Roads with no panorama of their own, read from the panoramas at their entrances:
- *  - 31 (between dorms C/D) is a brick lane, 78 (to dorm road 79) has a yellow kerb and a sidewalk
+ *  - 31 (between dorms C/D) is a red-brick lane, 78 (to dorm road 79) has a yellow kerb and a sidewalk
  *    on its east side;
  *  - the staff-housing lanes (37, 39, 29, 30) have no kerb lines, 住宅道路 (64) no markings at all.
  */
@@ -235,6 +235,7 @@ const YELLOW_KERB: readonly [number, number][] = [
   [13.46, 210.25], // 78
 ];
 const PAVED: readonly [number, number][] = [[22.8, 258.0], [144.0, 332.2], [245.51, 315.51]];
+const RED_BRICK: readonly [number, number][] = [[245.51, 315.51]];
 /** Roads given kerb sidewalks, and on which side (0 both, ±1 one side: +1 left of the polyline). */
 const KERB_SIDEWALK: readonly [number, number, 0 | 1 | -1][] = [[26.5, 281.1, 0], [13.46, 210.25, -1]];
 const NO_KERB: readonly [number, number][] = [[-432.98, -203.75], [-361.62, -207.47], [-373.42, -217.32], [-383.68, -106.24]];
@@ -301,6 +302,7 @@ export function streetscapeFixes(campus: CampusData): void {
     if (r.kind === 'walkway') continue;
     if (matches(r, YELLOW_KERB)) r.kerb = 'yellow';
     if (matches(r, PAVED)) r.paved = true;
+    if (matches(r, RED_BRICK)) r.brick = 'red';
     if (matches(r, NO_KERB)) r.kerb = 'none';
     if (matches(r, PLAIN)) r.plain = true;
     const sw = KERB_SIDEWALK.find(([x, z]) => Math.hypot(r.points[0]! - x, r.points[1]! - z) < 0.5);

@@ -39,6 +39,8 @@ export interface CampusRoad {
   plain?: boolean;
   /** A lane surfaced with pavers instead of asphalt, no markings (dorm area, Street View). */
   paved?: boolean;
+  /** Paver colour where it is not the default grey (Street View: red brick). */
+  brick?: 'red';
   /** A footpath generated along a road's kerb (not from OSM). */
   sidewalk?: boolean;
 }
