@@ -1,4 +1,5 @@
 import type { CampusData } from './campusTypes';
+import buildingRings from './buildingRings.json';
 
 /**
  * Corrections to the OSM-derived campus applied at load time, so `npm run campus:fetch` output
@@ -166,8 +167,17 @@ export function divideLongtan(campus: CampusData): void {
  */
 export const BUILDING_FIXES: Record<number, { levels?: number; height?: number }> = {};
 
+/**
+ * Outlines redrawn from newer floor plans than OSM's (world x, z pairs), written by the hand-built
+ * plan scripts (scripts/floorplan/handbuilt/yuntay.py → buildingRings.json), so the shell matches the
+ * traced interior inside it. build-buildings.ts applies the same fixes before placing shell doors.
+ */
+const RINGS = buildingRings as Record<string, number[]>;
+
 export function applyBuildingFixes(campus: CampusData): void {
   for (const b of campus.buildings) {
+    const ring = RINGS[String(b.id)];
+    if (ring) b.outer = [...ring];
     const f = BUILDING_FIXES[b.id];
     if (!f) continue;
     if (f.levels !== undefined) b.levels = f.levels;

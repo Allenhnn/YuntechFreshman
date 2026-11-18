@@ -94,6 +94,8 @@ export const RENDER = {
  * every building except the library gets a generated interior; the traced data stays in the repo.
  */
 export const FLOORPLAN_INTERIORS = false;
+/** Traced interiors used even while FLOORPLAN_INTERIORS is off (hand-checked against newer plans). */
+export const FLOORPLAN_INTERIOR_IDS: readonly string[] = ['plan-234786942']; // 雲泰表演廳
 
 export const BIKE = {
   /** Cruising and sprinting speed (m/s); walking is 3.5 and running 7. */

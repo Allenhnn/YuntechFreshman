@@ -10,6 +10,7 @@ import type { CampusData } from '../src/campus/campusTypes';
 import { createPlanTransform } from '../src/buildings/planTransform';
 import { CELL, OUTSIDE, applyOpenings, areaOf, boundarySegments, rasterize } from '../src/buildings/floorGrid';
 import { buildBuildingMeshes } from '../src/buildings/buildingMesh';
+import { applyBuildingFixes } from '../src/campus/campusFixes';
 
 const SRC = 'assets-src/floorplans';
 const OUT = 'public/data/buildings';
@@ -17,6 +18,7 @@ const OUT = 'public/data/buildings';
 let problems = 0;
 mkdirSync(OUT, { recursive: true });
 const campus = JSON.parse(readFileSync('public/data/campus.json', 'utf8')) as CampusData;
+applyBuildingFixes(campus); // redrawn outlines, so shell doors land on the walls the game builds
 const traced: TracedIndex = { buildings: [], entrances: {} };
 
 /**

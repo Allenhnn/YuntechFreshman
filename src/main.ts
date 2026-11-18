@@ -2,7 +2,7 @@ import { ACESFilmicToneMapping, PCFShadowMap, PerspectiveCamera, Scene, SRGBColo
 import { createPhoneCamera } from './game/phoneCamera';
 import { addPhoto } from './state/album';
 import { createWorld } from 'bitecs';
-import { CAMERA, FIXED_DT, FLOORPLAN_INTERIORS, MAX_SUBSTEPS, RENDER } from './config';
+import { CAMERA, FIXED_DT, FLOORPLAN_INTERIOR_IDS, FLOORPLAN_INTERIORS, MAX_SUBSTEPS, RENDER } from './config';
 import { createAudioBus } from './audio/audio';
 import { createPointerLock } from './input/pointerLock';
 import { createSession, type GameApi } from './game/session';
@@ -86,6 +86,13 @@ const LIBRARY_URL = `${import.meta.env.BASE_URL}data/buildings/library.json`;
 const HAND_BUILT_URLS = [`${import.meta.env.BASE_URL}data/buildings/ma.json`, `${import.meta.env.BASE_URL}data/buildings/mb.json`];
 const FACADES_URL = `${import.meta.env.BASE_URL}data/facades.json`;
 const TRACED_URL = `${import.meta.env.BASE_URL}data/buildings/traced.json`;
+
+/** The traced index cut down to `ids` (and the shell entrances of their OSM buildings). */
+function onlyTraced(t: TracedIndex, ids: readonly string[]): TracedIndex {
+  const buildings = t.buildings.filter((b) => ids.includes(b.id));
+  const osm = new Set(buildings.flatMap((b) => b.osmIds.map(String)));
+  return { buildings, entrances: Object.fromEntries(Object.entries(t.entrances).filter(([id]) => osm.has(id))) };
+}
 
 const FOOD: ReadonlySet<ItemId> = new Set<ItemId>(['bread', 'bento', 'buffet', 'beefNoodles', 'plainNoodles', 'bubbleTea', 'soyMilk']);
 
@@ -173,9 +180,10 @@ async function boot(): Promise<void> {
     .then((r) => (r.ok ? (r.json() as Promise<FacadeData>) : undefined))
     .catch(() => undefined);
   // Plan-traced interiors (scripts/floorplan/trace.py) and the shell door gaps they need.
-  const traced = FLOORPLAN_INTERIORS
+  const traced = FLOORPLAN_INTERIORS || FLOORPLAN_INTERIOR_IDS.length
     ? await fetch(TRACED_URL)
         .then((r) => (r.ok ? (r.json() as Promise<TracedIndex>) : undefined))
+        .then((t) => (t && !FLOORPLAN_INTERIORS ? onlyTraced(t, FLOORPLAN_INTERIOR_IDS) : t))
         .catch(() => undefined)
     : undefined;
   const bikeStations = placeBikeStations(campus);

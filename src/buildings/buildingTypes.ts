@@ -93,6 +93,14 @@ export interface FloorPlan {
   blankWalls?: { a: Vec2; b: Vec2 }[];
   /** Wall stretches [a, b] glazed floor to ceiling in black frames (shopfront / entrance screens). */
   glassWalls?: { a: Vec2; b: Vec2 }[];
+  /**
+   * Hand-placed furniture and solids laid out by the source script (curved auditorium seating, a raised
+   * stage): plan x / z, `y` above this floor's base. Colliders are axis-aligned boxes (centre, half size).
+   */
+  extras?: {
+    items: { kind: 'chair' | 'stage'; x: number; y: number; z: number; ry: number; sx: number; sy: number; sz: number; tint: number }[];
+    colliders: { c: [number, number, number]; h: [number, number, number] }[];
+  };
 }
 
 export interface Level {
