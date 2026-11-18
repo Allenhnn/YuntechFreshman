@@ -3,7 +3,11 @@ import {
   BufferAttribute,
   BufferGeometry as Geometry,
   CanvasTexture,
+  CircleGeometry,
   ConeGeometry,
+  DoubleSide,
+  Group,
+  PlaneGeometry,
   Mesh,
   RepeatWrapping,
   SRGBColorSpace,
@@ -44,6 +48,84 @@ const HEDGE_ROADS: readonly [number, number][] = [
   [-87.04, -303.02], // 4: central N–S road
   [-47.75, -77.03], // 198: 龍潭路 – 雲泰 road
 ];
+
+/** Direction signposts at the main campus nodes; each points to the nearest landmarks round it. */
+const SIGNPOSTS: readonly [number, number][] = [
+  [15, -291], // by the fountain at the head of the gate boulevard
+  [-81, -296], // 中央南北路 × 北環路
+  [69, -111], // central axis, south end
+  [96, 104], // central axis, north end
+  [163, -124], // 東側路 inside the 龍潭路 barrier
+  [120, 190], // 學生餐廳 / 學生活動中心
+  [33, 268], // dorm roads
+];
+/** Signpost targets: label → building name in the OSM data ('大門' is the gate). */
+const LANDMARKS: readonly [string, string][] = [
+  ['圖書館', '圖書館'], ['行政大樓', '行政大樓'], ['雲泰表演廳', '雲泰表演廳'], ['學生活動中心', '學生活動中心'],
+  ['學生餐廳', '學生餐廳'], ['管理學院', '管理一館'], ['工程學院', '工程一館'], ['設計學院', '設計學院'],
+  ['人文科學', '人科一館'], ['國際會議廳', '國際會議廳'], ['技職大樓', '技職大樓'], ['未來學院', '未來學院'],
+  ['學生宿舍', '學生宿舍A1'], ['大門', '警衛室'],
+];
+/** Bus stop on the campus-side sidewalk of 大學路, just west of the gate forecourt: centre and road direction. */
+const BUS_STOP = { x: -57, z: -399.6, ux: -0.985, uz: 0.172 };
+
+function signTexture(text: string, arrowRight: boolean): CanvasTexture {
+  const c = document.createElement('canvas');
+  c.width = 320;
+  c.height = 64;
+  const g = c.getContext('2d')!;
+  g.fillStyle = '#1f4d3a';
+  g.fillRect(0, 0, 320, 64);
+  g.strokeStyle = '#e9efe9';
+  g.lineWidth = 3;
+  g.strokeRect(4, 4, 312, 56);
+  g.fillStyle = '#ffffff';
+  g.font = 'bold 34px "PingFang TC", "Noto Sans TC", sans-serif';
+  g.textBaseline = 'middle';
+  g.textAlign = arrowRight ? 'left' : 'right';
+  g.fillText(text, arrowRight ? 18 : 302, 34);
+  // Arrow at the pointing end.
+  const x = arrowRight ? 300 : 20, d = arrowRight ? 1 : -1;
+  g.beginPath();
+  g.moveTo(x, 32);
+  g.lineTo(x - d * 24, 14);
+  g.lineTo(x - d * 24, 26);
+  g.lineTo(x - d * 46, 26);
+  g.lineTo(x - d * 46, 38);
+  g.lineTo(x - d * 24, 38);
+  g.lineTo(x - d * 24, 50);
+  g.closePath();
+  g.fill();
+  const t = new CanvasTexture(c);
+  t.colorSpace = SRGBColorSpace;
+  t.anisotropy = 4;
+  return t;
+}
+
+function busSignTexture(): CanvasTexture {
+  const c = document.createElement('canvas');
+  c.width = 256;
+  c.height = 256;
+  const g = c.getContext('2d')!;
+  g.fillStyle = '#ffffff';
+  g.beginPath();
+  g.arc(128, 128, 124, 0, Math.PI * 2);
+  g.fill();
+  g.strokeStyle = '#1d5fa8';
+  g.lineWidth = 14;
+  g.stroke();
+  g.fillStyle = '#1d5fa8';
+  g.textAlign = 'center';
+  g.font = 'bold 56px "PingFang TC", "Noto Sans TC", sans-serif';
+  g.fillText('公車站', 128, 112);
+  g.font = 'bold 30px "PingFang TC", "Noto Sans TC", sans-serif';
+  g.fillText('雲林科技大學', 128, 164);
+  g.font = '22px sans-serif';
+  g.fillText('BUS STOP', 128, 200);
+  const t = new CanvasTexture(c);
+  t.colorSpace = SRGBColorSpace;
+  return t;
+}
 
 /** Central-axis paving, one 8 m bay: red brick, grey edge bands, a grey cross band and a grey inset panel. */
 function axisPaving(): CanvasTexture {
@@ -172,7 +254,7 @@ export function createStreetscape(scene: Scene, physics: RAPIER.World, campus: C
   };
 
   const colliders: RAPIER.Collider[] = [];
-  const meshes: (InstancedMesh | Mesh)[] = [];
+  const meshes: (InstancedMesh | Mesh | Group)[] = [];
   const post = (x: number, z: number, h: number, r: number): void => {
     colliders.push(tracker.collider(physics.createCollider(RAPIER.ColliderDesc.cuboid(r, h / 2, r).setTranslation(x, h / 2, z))));
   };
@@ -389,6 +471,109 @@ export function createStreetscape(scene: Scene, physics: RAPIER.World, campus: C
     new SphereGeometry(0.12, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2).translate(0, 0.75, 0),
   ])!, mat(0xb4b2ac, { roughness: 0.85 }), bollards);
 
+
+  // --- Direction signposts. ------------------------------------------------------------------------
+  const centre = (name: string): [number, number] | null => {
+    const b = campus.buildings.find((q) => q.name === name);
+    if (!b) return null;
+    let x = 0, z = 0;
+    const n = b.outer.length / 2;
+    for (let i = 0; i < n; i++) { x += b.outer[i * 2]!; z += b.outer[i * 2 + 1]!; }
+    return [x / n, z / n];
+  };
+  const targets = LANDMARKS.flatMap(([label, name]) => { const c = centre(name); return c ? [{ label, x: c[0], z: c[1] }] : []; });
+  const signPole = mat(0x6d7174, { metalness: 0.4 });
+  for (const [sx0, sz0] of SIGNPOSTS) {
+    // Nearest clear spot within a few metres (off roads, paths and buildings).
+    let spot: [number, number] | null = null;
+    for (let r = 0; r <= 6 && !spot; r += 1) {
+      for (let k = 0; k < Math.max(1, r * 6) && !spot; k++) {
+        const t = (k / Math.max(1, r * 6)) * Math.PI * 2;
+        const x = sx0 + Math.cos(t) * r, z = sz0 + Math.sin(t) * r;
+        if (clear(x, z, null, 0.8)) spot = [x, z];
+      }
+    }
+    if (!spot) continue;
+    const [px, pz] = spot;
+    // Up to four landmarks 40–400 m away, nearest first, in clearly different directions.
+    const picks: { label: string; ang: number }[] = [];
+    for (const t of targets.map((t) => ({ ...t, d: Math.hypot(t.x - px, t.z - pz) })).filter((t) => t.d > 40 && t.d < 400).sort((a, b) => a.d - b.d)) {
+      const ang = Math.atan2(t.z - pz, t.x - px);
+      if (picks.some((p) => Math.abs(Math.atan2(Math.sin(ang - p.ang), Math.cos(ang - p.ang))) < 0.45)) continue;
+      picks.push({ label: t.label, ang });
+      if (picks.length === 4) break;
+    }
+    const pm = new Mesh(tracker.geometry(new CylinderGeometry(0.05, 0.05, 3, 8).translate(0, 1.5, 0)), signPole);
+    pm.position.set(px, 0, pz);
+    pm.castShadow = true;
+    pm.name = 'streetscape';
+    scene.add(pm);
+    meshes.push(pm);
+    post(px, pz, 3, 0.06);
+    picks.forEach((p, i) => {
+      const y = 2.65 - i * 0.36;
+      const yaw = -p.ang; // R_y(φ) sends +x to (cos φ, −sin φ): the board's +x end points at the target
+      for (const back of [false, true]) {
+        const plane = new PlaneGeometry(1.5, 0.3);
+        if (back) plane.rotateY(Math.PI);
+        plane.translate(0.82, y, back ? -0.011 : 0.011);
+        const m = new Mesh(tracker.geometry(plane), tracker.material(new MeshStandardMaterial({ map: tracker.texture(signTexture(p.label, !back)), roughness: 0.6 })));
+        m.position.set(px, 0, pz);
+        m.rotation.y = yaw;
+        m.castShadow = !back;
+        m.name = 'streetscape';
+        scene.add(m);
+        meshes.push(m);
+      }
+      const edge = new Mesh(tracker.geometry(new BoxGeometry(1.5, 0.3, 0.02).translate(0.82, y, 0)), mat(0x1f4d3a));
+      edge.position.set(px, 0, pz);
+      edge.rotation.y = yaw;
+      edge.scale.set(1, 0.98, 1);
+      edge.name = 'streetscape';
+      scene.add(edge);
+      meshes.push(edge);
+    });
+  }
+
+  // --- Bus stop on 大學路 at the gate: shelter, bench, stop sign. ---------------------------------
+  {
+    const B = BUS_STOP;
+    const g = new Group();
+    g.position.set(B.x, 0, B.z);
+    g.rotation.y = Math.atan2(-B.uz, B.ux); // local +x along the road, +z toward it
+    const frame = mat(0x4a5157, { metalness: 0.5 });
+    const glass = tracker.material(new MeshStandardMaterial({ color: 0xbfd6dd, roughness: 0.1, metalness: 0.1, transparent: true, opacity: 0.35, depthWrite: false }));
+    const part = (geo: BufferGeometry, m: Material, x: number, y: number, z: number): void => {
+      const o = new Mesh(tracker.geometry(geo), m);
+      o.position.set(x, y, z);
+      o.castShadow = m !== glass;
+      o.receiveShadow = true;
+      g.add(o);
+    };
+    for (const x of [-2, 2]) for (const z of [-0.7, 0.6]) part(new BoxGeometry(0.08, 2.5, 0.08), frame, x, 1.25, z);
+    part(new BoxGeometry(4.6, 0.1, 1.9).rotateX(-0.06), mat(0x2f6f8f, { roughness: 0.5 }), 0, 2.58, -0.05); // roof, sloping back
+    part(new BoxGeometry(4.0, 1.9, 0.02), glass, 0, 1.25, -0.7); // back panel
+    for (const x of [-2, 2]) part(new BoxGeometry(0.02, 1.9, 1.2), glass, x, 1.25, -0.15);
+    part(new BoxGeometry(3.0, 0.06, 0.42), mat(0x9a7b55), 0, 0.46, -0.45); // bench seat
+    for (const x of [-1.3, 1.3]) part(new BoxGeometry(0.06, 0.44, 0.38), frame, x, 0.22, -0.45);
+    // Route panel on the back wall.
+    part(new BoxGeometry(1.2, 0.8, 0.03), mat(0xf2f2ee), 1.2, 1.55, -0.68);
+    // Stop sign on its own pole at the kerb.
+    part(new CylinderGeometry(0.04, 0.04, 2.9, 8), frame, 2.9, 1.45, 0.8);
+    const sign = new Mesh(tracker.geometry(new CircleGeometry(0.32, 32)), tracker.material(new MeshStandardMaterial({ map: tracker.texture(busSignTexture()), roughness: 0.5, side: DoubleSide })));
+    sign.position.set(2.9, 2.6, 0.84);
+    g.add(sign);
+    g.name = 'streetscape';
+    scene.add(g);
+    meshes.push(g);
+    const q = new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), g.rotation.y);
+    // Colliders: back wall and the two side panels (open to the road), the sign pole.
+    const local = (x: number, z: number): Vector3 => new Vector3(x, 0, z).applyQuaternion(q).add(new Vector3(B.x, 0, B.z));
+    for (const [x, z, hx, hz] of [[0, -0.7, 2.0, 0.05], [-2, -0.15, 0.05, 0.6], [2, -0.15, 0.05, 0.6], [2.9, 0.8, 0.05, 0.05]] as const) {
+      const w = local(x, z);
+      colliders.push(tracker.collider(physics.createCollider(RAPIER.ColliderDesc.cuboid(hx, 1.3, hz).setTranslation(w.x, 1.3, w.z).setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }))));
+    }
+  }
 
   return {
     dispose() {

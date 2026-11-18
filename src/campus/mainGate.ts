@@ -5,10 +5,10 @@ import {
   ConeGeometry,
   InstancedMesh,
   Matrix4,
-  RingGeometry,
   Shape,
   ShapeGeometry,
-  TorusGeometry,
+  ExtrudeGeometry,
+  SphereGeometry,
   Vector2,
   CanvasTexture,
   CylinderGeometry,
@@ -369,25 +369,34 @@ export function createMainGate(scene: Scene, physics: RAPIER.World, campus: Camp
     root.add(m);
   }
 
-  // --- Fountain roundabout at the head of the boulevard: ring path, lawn, octagonal basin, jets.
+  // --- Fountain at the head of the boulevard (Street View): a paved circle round a square pool
+  // with chamfered corners, a low concrete rim, greenish water, a row of small jets, and three
+  // flagpoles on the far side.
   const F = { a: 2, n: 129 };
   const ringPave = std(0xdedbd2, 0.85, { polygonOffset: true, polygonOffsetFactor: -5, polygonOffsetUnits: -5 });
-  add(new RingGeometry(8.4, 10.4, 48).rotateX(-Math.PI / 2), ringPave, F.a, 0.066, F.n).castShadow = false;
-  add(new CircleGeometry(8.4, 48).rotateX(-Math.PI / 2), grassMat, F.a, 0.07, F.n).castShadow = false;
-  add(new TorusGeometry(8.2, 0.28, 6, 48).rotateX(Math.PI / 2), std(0x2f6b2c, 0.9), F.a, 0.25, F.n); // low hedge
-  add(new CylinderGeometry(4.2, 4.4, 0.55, 8), std(0xcfccc3, 0.8), F.a, 0.275, F.n, Math.PI / 8);
-  add(new CylinderGeometry(3.85, 3.85, 0.04, 8), std(0x4f8fb5, 0.15, { metalness: 0.3, emissive: new Color(0x1e4a66), emissiveIntensity: 0.25 }), F.a, 0.5, F.n, Math.PI / 8);
-  add(new CylinderGeometry(0.9, 1.2, 0.9, 8), std(0xcfccc3, 0.8), F.a, 0.9, F.n);
-  add(new CylinderGeometry(0.35, 0.5, 1.1, 8), std(0xcfccc3, 0.8), F.a, 1.9, F.n);
+  add(new CircleGeometry(10.4, 48).rotateX(-Math.PI / 2), ringPave, F.a, 0.066, F.n).castShadow = false;
+  const POOL = 6, CHAMFER = 1.8, RIM = 0.45, RIM_H = 0.55;
+  const outline = (h: number, c: number): Shape => {
+    const sh = new Shape();
+    sh.moveTo(-h + c, -h);
+    for (const [x, y] of [[h - c, -h], [h, -h + c], [h, h - c], [h - c, h], [-h + c, h], [-h, h - c], [-h, -h + c]] as const) sh.lineTo(x, y);
+    sh.closePath();
+    return sh;
+  };
+  const rimShape = outline(POOL, CHAMFER);
+  rimShape.holes.push(outline(POOL - RIM, CHAMFER * 0.8));
+  add(new ExtrudeGeometry(rimShape, { depth: RIM_H, bevelEnabled: false }).rotateX(-Math.PI / 2), std(0xc9c6bd, 0.8), F.a, 0.04, F.n);
+  add(new ShapeGeometry(outline(POOL - RIM, CHAMFER * 0.8)).rotateX(-Math.PI / 2), std(0x4f8a52, 0.12, { metalness: 0.2, emissive: new Color(0x173a1c), emissiveIntensity: 0.25 }), F.a, RIM_H - 0.12, F.n).castShadow = false;
   const spray = std(0xffffff, 0.2, { transparent: true, opacity: 0.55, depthWrite: false });
-  add(new ConeGeometry(0.9, 2.2, 16, 1, true).rotateX(Math.PI), spray, F.a, 3.3, F.n).castShadow = false;
-  for (let k = 0; k < 8; k++) {
-    const t = (k / 8) * Math.PI * 2;
-    add(new ConeGeometry(0.18, 1.2, 8, 1, true), spray, F.a + Math.cos(t) * 2.6, 1.1, F.n + Math.sin(t) * 2.6).castShadow = false;
+  for (const [da, dn, h] of [[-3, 0, 1.1], [-1.5, 0, 1.5], [0, 0, 2.2], [1.5, 0, 1.5], [3, 0, 1.1], [0, -2.5, 1.0], [0, 2.5, 1.0]] as const) {
+    add(new ConeGeometry(0.16, h, 8, 1, true), spray, F.a + da, RIM_H - 0.1 + h / 2, F.n + dn).castShadow = false;
   }
-  {
-    const [wx, wz] = toWorld(F.a, F.n);
-    colliders.push(tracker.collider(physics.createCollider(RAPIER.ColliderDesc.cylinder(0.3, 4.3).setTranslation(wx, 0.3, wz))));
+  box(POOL * 2, RIM_H, POOL * 2, F.a, 0, F.n, std(0xc9c6bd, 0.8), true).visible = false;
+  const pole = std(0xeeeeec, 0.4, { metalness: 0.5 });
+  for (const da of [-3, 0, 3]) {
+    add(new CylinderGeometry(0.06, 0.1, 11, 10), pole, F.a + da, 5.5, F.n + POOL + 2.2);
+    add(new SphereGeometry(0.13, 10, 8), std(0xd8b545, 0.4, { metalness: 0.6 }), F.a + da, 11.05, F.n + POOL + 2.2);
+    box(0.5, 0.3, 0.5, F.a + da, 0, F.n + POOL + 2.2, std(0xa9aaa5, 0.85), true);
   }
 
   return {
