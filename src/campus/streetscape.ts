@@ -27,7 +27,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RAPIER } from '../physics/physics';
 import type { ResourceTracker } from '../core/resources';
 import type { CampusData, CampusRoad, Ring } from './campusTypes';
-import { isCentralAxis } from './campusFixes';
+import { MGMT_PATH, isCentralAxis, mgmtFrontage } from './campusFixes';
 import { isLongtanMain } from './longtanConst';
 import { PAVED_TRIM, trimEnds } from './polyline';
 
@@ -149,6 +149,28 @@ export function staffGateZone(campus: CampusData): (x: number, z: number) => boo
   const p = g.road.points, len = Math.hypot(p[2]! - p[0]!, p[3]! - p[1]!);
   const cx = p[0]! + ((p[2]! - p[0]!) * g.at) / len, cz = p[1]! + ((p[3]! - p[1]!) * g.at) / len;
   return (x, z) => Math.hypot(x - cx, z - cz) < g.road.width / 2 + 0.9;
+}
+
+/** 「管理學院」 on a white pillar sign, vertical. */
+function mgmtSign(): CanvasTexture {
+  const c = document.createElement('canvas');
+  c.width = 96;
+  c.height = 448;
+  const g = c.getContext('2d')!;
+  g.fillStyle = '#f4f3ef';
+  g.fillRect(0, 0, 96, 448);
+  g.fillStyle = '#2d5a3f';
+  g.fillRect(0, 0, 96, 10);
+  g.fillStyle = '#333';
+  g.font = 'bold 50px "PingFang TC", "Noto Sans TC", sans-serif';
+  g.textAlign = 'center';
+  ['管', '理', '學', '院'].forEach((ch, i) => g.fillText(ch, 48, 90 + i * 62));
+  g.font = '15px sans-serif';
+  g.fillText('College of', 48, 360);
+  g.fillText('Management', 48, 380);
+  const t = new CanvasTexture(c);
+  t.colorSpace = SRGBColorSpace;
+  return t;
 }
 
 /** Yellow and black bands for the barrier arm (along local z). */
@@ -735,6 +757,87 @@ export function createStreetscape(scene: Scene, physics: RAPIER.World, campus: C
     g.name = 'streetscape';
     scene.add(g);
     meshes.push(g);
+  }
+
+  // --- 管理學院 frontage (user photos): raised planter by 管理二館, kerbed path between the two
+  // buildings with a pillar sign at its mouth, bikes parked along 管理一館. ------------------------
+  {
+    const f = mgmtFrontage();
+    const concrete = mat(0xa8a69f, { roughness: 0.9 });
+    const add = (geo: BufferGeometry, m: Material, x: number, y: number, z: number, yaw: number, solid?: [number, number, number]): void => {
+      const o = new Mesh(tracker.geometry(geo), m);
+      o.position.set(x, y, z);
+      o.rotation.y = yaw;
+      o.castShadow = true;
+      o.receiveShadow = true;
+      o.name = 'streetscape';
+      scene.add(o);
+      meshes.push(o);
+      if (solid) {
+        const q = new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), yaw);
+        colliders.push(tracker.collider(physics.createCollider(RAPIER.ColliderDesc.cuboid(...solid).setTranslation(x, solid[1], z).setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }))));
+      }
+    };
+    const walkYaw = Math.atan2(-f.uz, f.ux); // local +x along the footpath (westward)
+    // Point on the footpath at world x, offset `o` north of its centre line.
+    const at = (x: number, o: number): [number, number] => {
+      const t = (x - f.ax) / f.ux;
+      return [f.ax + f.ux * t + f.nx * o, f.az + f.uz * t + f.nz * o];
+    };
+    // Raised planter in front of 管理二館: x −173.5 … −210, 1.65–5.15 m north of the path centre.
+    {
+      const x0 = -173.5, x1 = -210, o0 = 1.65, o1 = 5.15;
+      const L = Math.abs((x1 - x0) / f.ux), D = o1 - o0, H = 0.5;
+      const [cx, cz] = at((x0 + x1) / 2, (o0 + o1) / 2);
+      for (const side of [-1, 1]) {
+        const [ex, ez] = at((x0 + x1) / 2, (o0 + o1) / 2 + side * (D / 2 - 0.12));
+        add(new BoxGeometry(L, H, 0.24).translate(0, H / 2, 0), concrete, ex, 0, ez, walkYaw);
+      }
+      for (const end of [x0, x1]) {
+        const [ex, ez] = at(end, (o0 + o1) / 2);
+        add(new BoxGeometry(0.24, H, D).translate(0, H / 2, 0), concrete, ex, 0, ez, walkYaw);
+      }
+      add(new BoxGeometry(L - 0.4, 0.04, D - 0.4).translate(0, H - 0.08, 0), mat(0x6f8f45, { roughness: 1 }), cx, 0, cz, walkYaw, [L / 2, H / 2, D / 2]);
+    }
+    // Kerbs along both edges of the path between the buildings, and the pillar sign at its mouth.
+    {
+      const [px0, pz0, px1, pz1] = MGMT_PATH.points;
+      const len = Math.hypot(px1 - px0, pz1 - pz0), ux = (px1 - px0) / len, uz = (pz1 - pz0) / len;
+      const yaw = Math.atan2(-uz, ux);
+      for (const side of [-1, 1]) {
+        const o = side * (MGMT_PATH.width / 2 + 0.1);
+        add(new BoxGeometry(len, 0.18, 0.2).translate(0, 0.09, 0), concrete, (px0 + px1) / 2 - uz * o, 0, (pz0 + pz1) / 2 + ux * o, yaw);
+      }
+      const sign = tracker.material(new MeshStandardMaterial({ map: tracker.texture(mgmtSign()), roughness: 0.6 }));
+      const sx = px0 - 1.9, sz = pz0 - 1.2; // west of the path mouth
+      add(new BoxGeometry(0.34, 1.6, 0.12).translate(0, 0.8, 0), mat(0xf4f3ef), sx, 0, sz, 0, [0.17, 0.8, 0.06]);
+      const face = new Mesh(tracker.geometry(new PlaneGeometry(0.32, 1.5)), sign);
+      face.position.set(sx, 0.82, sz + 0.061); // facing the road (+z)
+      face.name = 'streetscape';
+      scene.add(face);
+      meshes.push(face);
+    }
+    // Bikes along 管理一館, nose to the building, where there is room for them.
+    {
+      const ichi = campus.buildings.find((b) => b.name === '管理一館');
+      const bikeGeo = mergeGeometries([
+        new TorusGeometry(0.31, 0.025, 6, 16).rotateY(Math.PI / 2).translate(0, 0.33, -0.52),
+        new TorusGeometry(0.31, 0.025, 6, 16).rotateY(Math.PI / 2).translate(0, 0.33, 0.52),
+        new BoxGeometry(0.04, 0.04, 0.85).rotateX(-0.25).translate(0, 0.55, 0),
+        new BoxGeometry(0.04, 0.55, 0.04).rotateX(0.3).translate(0, 0.55, 0.32),
+        new BoxGeometry(0.04, 0.45, 0.04).rotateX(-0.2).translate(0, 0.55, -0.38),
+        new BoxGeometry(0.12, 0.04, 0.24).translate(0, 0.84, 0.36),
+        new BoxGeometry(0.5, 0.03, 0.03).translate(0, 0.86, -0.46),
+      ])!;
+      const bikes: Spot[] = [];
+      for (let x = -164.5; x <= -142; x += 0.75) {
+        const [bx, bz] = at(x, 1.25 + 1.05);
+        if (ichi && (pointInRing(bx, bz, ichi.outer) || pointInRing(bx + f.nx * 1.0, bz + f.nz * 1.0, ichi.outer))) continue;
+        bikes.push({ x: bx, z: bz, yaw: walkYaw }); // local +z (the bike's length) points north, at the building
+      }
+      const tints = [0x2b2e33, 0x8a1f24, 0x2c4f7a, 0xd8d6cf, 0x3c6a3f];
+      tints.forEach((c, k) => instance(bikeGeo, mat(c, { metalness: 0.4 }), bikes.filter((_, i) => i % tints.length === k)));
+    }
   }
 
   return {

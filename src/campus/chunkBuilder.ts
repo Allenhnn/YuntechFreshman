@@ -759,16 +759,21 @@ export class ChunkBuilder {
         for (let k = 0; k < n; k++) {
           const t = ((k + 0.5) / n) * len;
           for (const side of [-1, 1]) {
-            const x = ax + ux * t - uz * side * off, z = az + uz * t + ux * side * off;
-            if (!inChunk(x, z) || !pointInRing(x, z, boundary)) continue;
-            let blocked = false;
-            for (const { road: other, from: f, to: t2 } of roads) {
-              const q = other.points;
-              const pad = other === road ? off - 0.5 : other.width / 2 + (other.kind === 'walkway' ? 0.8 : 2.2);
-              for (let j = f; j < t2 && !blocked; j++) if (distToSegment(x, z, q[j * 2]!, q[j * 2 + 1]!, q[j * 2 + 2]!, q[j * 2 + 3]!) < pad) blocked = true;
-              if (blocked) break;
+            // The verge row; where a footpath runs there, the strip between kerb and footpath instead (Street View).
+            let x = 0, z = 0, placed = false;
+            for (const o of [off, road.width / 2 + 1.0]) {
+              x = ax + ux * t - uz * side * o;
+              z = az + uz * t + ux * side * o;
+              let blocked = !inChunk(x, z) || !pointInRing(x, z, boundary);
+              for (const { road: other, from: f, to: t2 } of roads) {
+                if (blocked) break;
+                const q = other.points;
+                const pad = other === road ? o - 0.5 : other.width / 2 + (other.kind === 'walkway' ? 0.8 : 2.2);
+                for (let j = f; j < t2 && !blocked; j++) if (distToSegment(x, z, q[j * 2]!, q[j * 2 + 1]!, q[j * 2 + 2]!, q[j * 2 + 3]!) < pad) blocked = true;
+              }
+              if (!blocked) { placed = true; break; }
             }
-            if (blocked) continue;
+            if (!placed) continue;
             if (this.exclusions.some(({ item, bounds: [a, b, c, d] }) => x > a - 1 && x < c + 1 && z > b - 1 && z < d + 1 && pointInRing(x, z, item))) continue;
             if (buildings.some(({ item, bounds: [a, b, c, d] }) => x > a - 3 && x < c + 3 && z > b - 3 && z < d + 3 && (pointInRing(x, z, item.outer) || distToRingEdge(x, z, item.outer) < 3))) continue;
             if (fields.some(({ item, bounds: [a, b, c, d] }) => x > a - 2 && x < c + 2 && z > b - 2 && z < d + 2 && (pointInRing(x, z, item.outer) || distToRingEdge(x, z, item.outer) < 2))) continue;

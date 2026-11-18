@@ -296,8 +296,38 @@ function kerbSidewalks(campus: CampusData, road: CampusData['roads'][number], si
   return out;
 }
 
+/**
+ * 管理學院 frontage on 北環路 (the user's photos between 管理一館 and 管理二館): the footpath along the
+ * north kerb sits back behind a strip of street trees, and a paved path runs north between the two
+ * buildings. The OSM footpath segment (its two vertices) moves `shift` m north; the path is added.
+ */
+const MGMT_A: readonly [number, number] = [-70.49, -147.31];
+const MGMT_B: readonly [number, number] = [-233.96, -112.48];
+export function mgmtFrontage(): { ax: number; az: number; bx: number; bz: number; ux: number; uz: number; nx: number; nz: number; shift: number } {
+  const len = Math.hypot(MGMT_B[0] - MGMT_A[0], MGMT_B[1] - MGMT_A[1]);
+  const ux = (MGMT_B[0] - MGMT_A[0]) / len, uz = (MGMT_B[1] - MGMT_A[1]) / len;
+  const nx = -uz, nz = ux; // north (−z) of the westward footpath
+  const shift = 2.6;
+  return { ax: MGMT_A[0] + nx * shift, az: MGMT_A[1] + nz * shift, bx: MGMT_B[0] + nx * shift, bz: MGMT_B[1] + nz * shift, ux, uz, nx, nz, shift };
+}
+/** The path between 管理二館 and 管理一館: from the footpath's north edge to behind the buildings. */
+export const MGMT_PATH = { points: [-168.8, -130.3, -168.9, -152] as const, width: 2.4 };
+
 export function streetscapeFixes(campus: CampusData): void {
   const added: CampusData['roads'] = [];
+  const f = mgmtFrontage();
+  for (const r of campus.roads) {
+    if (r.kind !== 'walkway') continue;
+    for (let i = 0; i < r.points.length; i += 2) {
+      for (const [x, z] of [MGMT_A, MGMT_B]) {
+        if (Math.hypot(r.points[i]! - x, r.points[i + 1]! - z) < 0.05) {
+          r.points[i] = x + f.nx * f.shift;
+          r.points[i + 1] = z + f.nz * f.shift;
+        }
+      }
+    }
+  }
+  added.push({ kind: 'walkway', width: MGMT_PATH.width, points: [...MGMT_PATH.points], sidewalk: true });
   for (const r of campus.roads) {
     if (r.kind === 'walkway') continue;
     if (matches(r, YELLOW_KERB)) r.kerb = 'yellow';
