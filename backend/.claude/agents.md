@@ -1,11 +1,15 @@
 # agents.md — 雲寶寶上學趣 Backend 開發紀錄
 
 > 給 AI agent（Claude 等）與組員看的專案脈絡與變更紀錄。
-> 每次有結構性變更（新增服務、改架構、改環境變數），請在「變更紀錄」最上方新增一筆。
+> **規則：每完成一個新需求，都要同步更新本檔**，不用等人提醒：
+> 1. 在「變更紀錄」最上方新增一筆（日期、做了什麼、為什麼）
+> 2. 更新受影響的段落：目錄結構、資料表、Redis keys、API、環境變數、疑難排解
+> 3. 完成的待辦打勾，新發現的待辦加進去
 
 ## 專案概要
 - 專案：《雲寶寶上學趣》— 雲林科技大學 3D 第三人稱校園導覽網頁遊戲（軟體工程課，組別「良田」）
 - 本資料夾：後端 API（`YuntechFreshman/backend`）
+- Git：repo 根目錄是 `YuntechFreshman`，後端在 `back-end` 分支；commit message 格式 `feat:簡短說明`
 
 ## 技術棧
 | 項目 | 選擇 |
@@ -14,27 +18,35 @@
 | Web 框架 | FastAPI |
 | 資料庫 | PostgreSQL 17（Docker）＋ SQLAlchemy 2.0 async ＋ asyncpg |
 | 快取 | Redis 7（Docker，AOF 持久化）＋ redis-py asyncio |
-| 設定 | pydantic-settings，讀取 `.env` |
+| 設定 | pydantic-settings，固定讀取 `backend/.env`（與啟動時所在資料夾無關） |
+| 認證 | Google Identity Services ＋ google-auth、JWT（PyJWT）、argon2id（pwdlib） |
 
 ## 目錄結構
 ```
 backend/
-├── .claude/agents.md      # 本檔：開發紀錄
-├── docker-compose.yml     # postgres + redis
-├── .env / .env.example    # 環境變數（.env 不進 git）
-├── pyproject.toml
+├── .claude/agents.md          # 本檔：開發紀錄
+├── docker-compose.yml         # postgres + redis
+├── .env / .env.example        # 環境變數（皆被 .gitignore 忽略）
+├── pyproject.toml / uv.lock
 └── app/
-    ├── main.py            # FastAPI 入口、lifespan、/health
-    ├── core/config.py     # Settings（DB / Redis 連線字串）
-    └── db/
-        ├── database.py    # engine、SessionLocal、Base、get_db、init_db
-        └── redis.py       # redis_client、get_redis、cache_get/set/delete
-    ├── core/security.py   # 密碼雜湊（argon2）、JWT、refresh token
-    ├── models/user.py     # User、OAuthAccount、LoginLog
-    ├── schemas/auth.py    # 請求 / 回應格式與驗證規則
-    ├── services/google.py # 驗證 Google ID token
-    ├── services/auth.py   # 註冊 / 登入 / 訪客 / refresh 的商業邏輯與 DB、Redis 寫入
-    ├── api/               # auth.py（路由）、deps.py（get_current_user 等）
+    ├── main.py                # 入口：app = create_app()，`python -m app.main` 用 uvicorn 啟動
+    ├── factory.py             # create_app()：lifespan、掛載路由
+    ├── core/
+    │   ├── config.py          # Settings（伺服器 / DB / Redis / Auth 設定）
+    │   └── security.py        # 密碼雜湊（argon2）、JWT、refresh token
+    ├── db/
+    │   ├── database.py        # engine、SessionLocal、Base、get_db、init_db
+    │   └── redis.py           # redis_client、get_redis、cache_get/set/delete
+    ├── models/user.py         # User、OAuthAccount、LoginLog
+    ├── schemas/auth.py        # 請求 / 回應格式與驗證規則
+    ├── services/
+    │   ├── google.py          # 驗證 Google ID token
+    │   └── auth.py            # 註冊 / 登入 / 訪客 / refresh 的商業邏輯與 DB、Redis 寫入
+    ├── routers/
+    │   └── system.py          # 系統路由：/health、/auth-test
+    ├── api/
+    │   ├── auth.py            # /auth/* 路由
+    │   └── deps.py            # get_current_user、get_optional_user、get_client_info
     └── static/auth_test.html  # 開發用測試頁 → http://localhost:8000/auth-test
 ```
 
@@ -43,11 +55,21 @@ backend/
 docker compose up -d            # 啟動 PostgreSQL + Redis
 docker compose ps               # 查看健康狀態
 uv sync                         # 安裝相依套件
-uv run fastapi dev app/main.py  # 開發伺服器 → http://localhost:8000/health
+uv run python -m app.main       # 開發伺服器（uvicorn，在 backend/ 執行）
+uv run app/main.py              # 同上，直接執行檔案也可以
+uv run fastapi dev app/main.py  # FastAPI CLI 也仍可使用
+                                # → /health、/docs、/auth-test
 docker compose exec postgres psql -U yuntech -d yuntech_freshman
 docker compose exec redis redis-cli -a yuntech_redis_pw
 docker compose down             # 停止（加 -v 會連資料一起刪除）
 ```
+
+## 伺服器設定（`.env`）
+| 變數 | 預設 | 說明 |
+|---|---|---|
+| `APP_HOST` | `127.0.0.1` | 要讓同網路的手機/組員連線時改 `0.0.0.0` |
+| `APP_PORT` | `8000` | |
+| `APP_RELOAD` | `true` | 改 `.py` 自動重啟；正式環境設 `false` |
 
 ## 連線資訊（開發環境預設值）
 - PostgreSQL：`postgresql+asyncpg://yuntech:yuntech_dev_pw@localhost:5432/yuntech_freshman`
@@ -101,29 +123,57 @@ docker compose down             # 停止（加 -v 會連資料一起刪除）
 所有登入類 API 都回傳 `{access_token, refresh_token, token_type, user}`。access token 是 JWT（30 分鐘），內含 `sub`（user id）與 `guest` 旗標。
 
 ### 前端串 Google 的方式
-1. Google Cloud Console 建立「OAuth 2.0 用戶端 ID（網頁應用程式）」，已授權的 JavaScript 來源加上前端網址（如 `http://localhost:5173`）。
-2. 把 Client ID 填到 backend 的 `.env` → `GOOGLE_CLIENT_ID`，前端也用同一個 ID。
+1. Google Cloud Console 建立「OAuth 2.0 用戶端 ID（網頁應用程式）」。已授權的 JavaScript 來源要加上：
+   - `http://localhost` 與 `http://localhost:8000`（後端測試頁）
+   - 前端開發網址（如 `http://localhost:5173`）
+   - 用 `127.0.0.1` 開頁面時，`http://127.0.0.1:8000` 要另外加
+   - 改完要等幾分鐘才生效；OAuth 在「測試中」時，只有測試使用者名單裡的帳號能登入
+2. 把 Client ID 填到 backend 的 `.env` → `GOOGLE_CLIENT_ID`（已填），前端可呼叫 `GET /auth/config` 取得同一個 ID。Client ID 可公開，不需要 Client Secret。
 3. 前端用 Google Identity Services（`https://accounts.google.com/gsi/client`）取得 `credential`，當作 `id_token` 送到後端。後端用 `google-auth` 驗證簽章、aud、exp。
 
 ## 開發約定
+- 新增路由模組：建立 router 檔案（系統類放 `app/routers/`，業務 API 目前在 `app/api/`），然後到 `app/factory.py` 的 `_include_routers()` 加一行 `include_router`。
 - ORM model 一律繼承 `app.db.database.Base`；路由用 `Depends(get_db)` 取得 session。
 - 快取 key 命名：`<資源>:<id>`，例如 `player:42`、`leaderboard:weekly`。
 - 目前用 `init_db()` 自動建表；model 穩定後改用 Alembic migration。
 - 密碼只放 `.env`，不要寫進程式碼或 commit。
 
-## 變更紀錄
-### 2026-11-18（測試頁）
-- 新增 `/auth-test` 測試頁與 `/auth/config`；Google Console 的「已授權的 JavaScript 來源」需加上 `http://localhost` 與 `http://localhost:8000`
+## 疑難排解
+| 症狀 | 原因 / 解法 |
+|---|---|
+| `fastapi dev` 啟動就報 `ConnectionRefusedError`、`5432` 或 `6379` | PostgreSQL / Redis 沒開 → 開 Docker Desktop，`docker compose up -d` |
+| 改了 `.env` 沒效果 | `fastapi dev` 只在 `.py` 變動時重新載入 → 手動重啟伺服器 |
+| 測試頁顯示「讀不到 GOOGLE_CLIENT_ID」 | `.env` 沒填或沒重啟；`/auth/config` 可確認後端實際讀到的值 |
+| Google 按鈕跳 `origin_mismatch` | 目前網址來源沒加進 Google Console 已授權的 JavaScript 來源 |
+| `.env.example` 沒被 commit | 根目錄 `.gitignore` 有 `.env*`；需要時用 `git add -f backend/.env.example` |
 
-### 2026-11-18（帳號系統）
+## 變更紀錄
+### 2026-11-18（routers 資料夾）
+- 新增 `app/routers/system.py`：`/health`、`/auth-test` 從 `factory.py` 搬到這裡，`factory.py` 只負責 lifespan 與掛載路由
+- 測試：路由完整、`/auth-test` 200、uvicorn 可正常啟動、帳號系統測試全數通過
+
+### 2026-11-18（App factory 與 uvicorn 啟動）
+- 新增 `app/factory.py`：`create_app()` 負責建立 FastAPI、lifespan、掛載路由；`/health`、`/auth-test` 移到 `system_router`
+- `app/main.py` 改為 `app = create_app()`，並可用 `python -m app.main` / `app/main.py` 直接以 uvicorn 啟動（`app_dir` 固定為 backend，從任何資料夾執行都可以）
+- `config.py` 新增 `APP_HOST`、`APP_PORT`、`APP_RELOAD`，`.env` / `.env.example` 同步新增
+- `pyproject.toml` 明確加入 `uvicorn[standard]`
+- 測試：兩種啟動方式皆成功啟動 uvicorn；所有路由仍正確掛載；帳號系統測試全數通過
+
+### 2026-11-18（測試頁）— `0277bde`
+- 新增 `/auth-test` 測試頁與 `GET /auth/config`
+- 修正：`config.py` 原本用相對路徑找 `.env`，不在 `backend/` 啟動就讀不到（`GOOGLE_CLIENT_ID` 變空字串）→ 改為固定讀 `backend/.env`
+- 測試頁 Google 區塊加上錯誤提示與 OAuth 來源設定檢查清單
+- 已填入 `GOOGLE_CLIENT_ID`，Google 按鈕可正常顯示
+
+### 2026-11-18（帳號系統）— `1219725`
 - 新增資料表 users、oauth_accounts、login_logs，以及上方的 Redis keys
 - 新增 API：Google 註冊、帳密登入、Google 一鍵登入、訪客登入、refresh、logout、/me
 - 訪客可透過 Google 註冊升級，保留同一個 user id
 - 安全機制：argon2id 密碼雜湊、連錯 5 次鎖 15 分鐘、refresh token rotation、訪客建立頻率限制
-- `pyproject.toml` 加入 pwdlib[argon2]、pyjwt、google-auth、requests；`.env` 新增 JWT_SECRET_KEY（已產生隨機值）與 GOOGLE_CLIENT_ID（待填）
+- `pyproject.toml` 加入 pwdlib[argon2]、pyjwt、google-auth、requests；`.env` 新增 JWT_SECRET_KEY（已產生隨機值）與 GOOGLE_CLIENT_ID
 - 測試：用 SQLite + fakeredis 跑 24 個情境（含重複註冊、鎖定、升級、token 失效），全數通過
 
-### 2026-11-18
+### 2026-11-18（資料庫與快取）— `2c3c20e`
 - 新增 `docker-compose.yml`：PostgreSQL 17 + Redis 7（含 healthcheck、volume 持久化）
 - 新增 `app/core/config.py`、`app/db/database.py`、`app/db/redis.py`
 - `app/main.py` 改為 FastAPI app，啟動時連線 DB/Redis，新增 `GET /health`
@@ -131,7 +181,8 @@ docker compose down             # 停止（加 -v 會連資料一起刪除）
 - 新增 `.env.example`、`.env`、`.gitignore`、`.claude/agents.md`
 
 ## 待辦
-- [ ] 填入 `GOOGLE_CLIENT_ID`，用真的 Google 帳號測一次註冊
+- [x] 填入 `GOOGLE_CLIENT_ID`
+- [x] 用真的 Google 帳號在 `/auth-test` 測一次完整註冊 → 帳密登入 → 訪客升級
 - [ ] 定期清除長期未登入的訪客帳號（例如 30 天未登入且 is_guest）
 - [ ] 若部署在反向代理後面，client IP 要改讀 `X-Forwarded-For`
 - [ ] 依需求文件 F01–F14 設計遊戲資料表（任務、成就、地點…），外鍵一律指向 users.id

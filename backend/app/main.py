@@ -1,38 +1,36 @@
-from contextlib import asynccontextmanager
+"""後端入口。
+
+啟動方式（在 backend/ 資料夾）：
+    uv run python -m app.main       # 用 uvicorn 啟動（設定見 .env 的 APP_*）
+    uv run app/main.py              # 同上，直接執行檔案也可以
+    uv run fastapi dev app/main.py  # FastAPI CLI 也仍可使用
+"""
+import sys
 from pathlib import Path
 
-from fastapi import FastAPI
-from fastapi.responses import FileResponse
-from sqlalchemy import text
+BACKEND_DIR = Path(__file__).resolve().parents[1]
+if __package__ in (None, ""):  # 直接執行 app/main.py 時，讓 `import app` 找得到
+    sys.path.insert(0, str(BACKEND_DIR))
 
-from app import models  # noqa: F401  確保資料表註冊到 Base
-from app.api.auth import router as auth_router
-from app.db.database import engine, init_db
-from app.db.redis import redis_client
+from app.core.config import get_settings  # noqa: E402
+from app.factory import create_app  # noqa: E402
 
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    await init_db()
-    await redis_client.ping()
-    yield
-    await redis_client.aclose()
-    await engine.dispose()
+app = create_app()
 
 
-app = FastAPI(title="雲寶寶上學趣 Backend", lifespan=lifespan)
-app.include_router(auth_router)
+def run() -> None:
+    import uvicorn
+
+    s = get_settings()
+    uvicorn.run(
+        "app.main:app",
+        host=s.app_host,
+        port=s.app_port,
+        reload=s.app_reload,
+        app_dir=str(BACKEND_DIR),
+        reload_dirs=[str(BACKEND_DIR / "app")] if s.app_reload else None,
+    )
 
 
-@app.get("/health")
-async def health():
-    async with engine.connect() as conn:
-        db_ok = (await conn.execute(text("SELECT 1"))).scalar() == 1
-    redis_ok = await redis_client.ping()
-    return {"postgres": db_ok, "redis": redis_ok}
-
-
-@app.get("/auth-test", include_in_schema=False)
-async def auth_test_page():
-    """開發用：帳號系統測試頁 → http://localhost:8000/auth-test"""
-    return FileResponse(Path(__file__).parent / "static" / "auth_test.html")
+if __name__ == "__main__":
+    run()

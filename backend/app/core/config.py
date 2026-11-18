@@ -11,6 +11,11 @@ ENV_FILE = Path(__file__).resolve().parents[2] / ".env"
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=ENV_FILE, extra="ignore")
 
+    # 伺服器（python -m app.main 時使用）
+    app_host: str = "127.0.0.1"
+    app_port: int = 8000
+    app_reload: bool = True  # 開發時程式改動自動重啟；正式環境設 false
+
     # PostgreSQL
     postgres_user: str = "yuntech"
     postgres_password: str = "yuntech_dev_pw"
