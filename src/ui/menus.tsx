@@ -7,9 +7,9 @@ function Brand(): ReactNode {
   return (
     <>
       <div className="leaf-row" aria-hidden>
-        <i style={{ background: 'var(--pink)', width: 34 }} />
-        <i style={{ background: 'var(--teal)' }} />
-        <i style={{ background: 'var(--gold)' }} />
+        <i style={{ background: '#2e9e3e', transform: 'rotate(-20deg)' }} />
+        <i style={{ background: '#2c6fd6', height: 30 }} />
+        <i style={{ background: '#f2c230', transform: 'rotate(20deg)' }} />
       </div>
       <h1 className="title">
         雲寶寶上學趣
@@ -28,10 +28,7 @@ export function LoadingScreen(): ReactNode {
         <div className="progress" role="progressbar" aria-valuenow={Math.round(progress * 100)}>
           <div style={{ width: `${Math.max(4, progress * 100)}%` }} />
         </div>
-        <div className="loading-meta">
-          <span>正在載入校園…</span>
-          <span><b>{Math.round(progress * 100)}</b> %</span>
-        </div>
+        <p className="footer">正在載入校園… {Math.round(progress * 100)}%</p>
       </div>
     </div>
   );

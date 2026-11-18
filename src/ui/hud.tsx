@@ -25,16 +25,9 @@ function Clock(): ReactNode {
   const day = Math.floor(minutes / 1440) + 1;
   const hour = Math.floor((minutes % 1440) / 60);
   return (
-    <div className="clock hud-panel">
-      <span className="tag tag-sky" aria-hidden>◷</span>
-      <div className="clock-body">
-        <div className="clock-main">
-          <span className="time">{pad(hour)}:{pad(minutes % 60)}</span>
-          <span className="label">Time</span>
-        </div>
-        <div className="sub">第 {day} 天 · {partOfDay(hour)} · 現實 {pad(real.getHours())}:{pad(real.getMinutes())}</div>
-        <div className="dayline"><i style={{ width: `${((minutes % 1440) / 1440) * 100}%` }} /></div>
-      </div>
+    <div className="clock">
+      <div className="time">{pad(hour)}:{pad(minutes % 60)}</div>
+      <div className="sub">第 {day} 天 · {partOfDay(hour)} · 現實 {pad(real.getHours())}:{pad(real.getMinutes())}</div>
     </div>
   );
 }
@@ -42,13 +35,10 @@ function Clock(): ReactNode {
 function Coins(): ReactNode {
   const coins = useGame((s) => s.coins);
   return (
-    <div className="coins hud-panel" aria-label={`新台幣 ${coins} 元`}>
-      <span className="tag tag-gold">
-        <span className="coin-icon" style={{ backgroundImage: `url(${import.meta.env.BASE_URL}textures/coin/reverse.png)` }} />
-      </span>
+    <div className="coins" aria-label={`新台幣 ${coins} 元`}>
+      <span className="coin-icon" style={{ backgroundImage: `url(${import.meta.env.BASE_URL}textures/coin/reverse.png)` }} />
       {/* key change restarts the bump animation on every pickup */}
-      <span key={coins} className={`amount${coins > 0 ? ' bump' : ''}`}>NT$ {coins.toLocaleString('zh-TW')}</span>
-      <span className="label">Wallet</span>
+      <span key={coins} className={coins > 0 ? 'bump' : ''}>NT$ {coins.toLocaleString('zh-TW')}</span>
     </div>
   );
 }
@@ -196,7 +186,7 @@ export function Hud(): ReactNode {
       {mapMode === 'mini' && <div className="osm-credit">© OpenStreetMap contributors</div>}
       <Hotbar />
       <button className="phone-btn interactive" aria-label="手機" onClick={() => api.toggleModal('phone')}>
-        <span aria-hidden>📱</span><kbd>P</kbd>
+        📱<kbd>P</kbd>
       </button>
       <div className="key-hints">
         <span><kbd>Tab</kbd>背包</span>

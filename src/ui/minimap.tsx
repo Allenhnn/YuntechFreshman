@@ -230,7 +230,7 @@ export function Minimap(): ReactNode {
     g.arc(nx, ny, size * 0.06, 0, Math.PI * 2);
     g.fill();
     g.fillStyle = '#fff';
-    g.font = `bold ${Math.round(size * 0.08)}px system-ui, sans-serif`;
+    g.font = `bold ${Math.round(size * 0.07)}px 'Cubic 11', system-ui`;
     g.textAlign = 'center';
     g.textBaseline = 'middle';
     g.fillText('N', nx, ny + 1);
@@ -238,13 +238,8 @@ export function Minimap(): ReactNode {
 
   return (
     <div className="minimap-wrap">
-      <div className="minimap-head">
-        <span className="tag tag-teal" aria-hidden>◎</span>
-        <span>地圖</span>
-        <span className="label">Map</span>
-        <kbd>M</kbd>
-      </div>
       <canvas ref={canvasRef} aria-label="小地圖" />
+      <kbd>M</kbd>
     </div>
   );
 }
