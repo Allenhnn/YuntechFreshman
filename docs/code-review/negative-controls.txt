@@ -1,0 +1,21 @@
+baseline (unmodified new code):
+meshes 59  vertices 4729  hash c0515de025375676
+colliders 220  hash 7c3c6671066700ba
+== control 1: PIER.spacing 4.4 -> 4.6 (pier count changes)
+meshes 58  vertices 4705  hash 7d6b837217d23f2d
+colliders 219  hash 966f21c21d549cbf
+  piers 18, lamp globes 6
+== control 2: LAMP.phase 1 -> 0 (the lamp condition enters on different piers)
+meshes 62  vertices 5038  hash f4e6b6631dfa4c91
+colliders 221  hash 185f67983108ecbc
+  pier  0: lamp built (base+pole+globe)
+  pier  1: no lamp
+  pier  2: no lamp
+  pier  3: lamp built (base+pole+globe)
+== control 3: last riser '?? 0' -> '?? 0.1' (the fallback branch ends 0.1 m above the ground)
+meshes 59  vertices 4729  hash 082aa4992e970e26
+colliders 220  hash 7c3c6671066700ba
+  riser 3: y 0.10 → 0.15   <- no tier below: down to the ground
+== control 4: roughness of the paving 0.95 -> 0.9 (a material parameter only)
+meshes 59  vertices 4729  hash 5101a1e8742430b5
+colliders 220  hash 7c3c6671066700ba

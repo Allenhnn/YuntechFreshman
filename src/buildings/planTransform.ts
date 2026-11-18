@@ -1,7 +1,7 @@
 import type { BuildingSource } from './buildingTypes';
 
 /** Plan → world transform helpers without needing the meshes (used before the campus is built). */
-export function createPlanTransform(src: BuildingSource): {
+export function createPlanTransform(src: Pick<BuildingSource, 'transform'>): {
   toWorld(x: number, y: number): [number, number];
   toPlan(x: number, z: number): [number, number];
   rotY: number;

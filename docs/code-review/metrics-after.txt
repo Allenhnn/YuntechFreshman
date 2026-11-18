@@ -1,0 +1,8 @@
+file yuntayExterior.ts
+total lines 429
+block-bodied functions 25; longest createContext = 71 lines (L211-281)
+three longest: createContext(71), addPortal(26), addPiersAndLamps(23)
+functions over 60 lines: createContext(71)
+'as unknown as' casts 0; non-null assertions 0
+magic numbers in functions 48 (30 distinct)
+values written 3+ times: 3×6 128×3 96×3

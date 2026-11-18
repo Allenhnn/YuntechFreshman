@@ -1,0 +1,8 @@
+file yuntayExterior.before.ts
+total lines 314
+block-bodied functions 13; longest createYuntayExterior = 200 lines (L114-313)
+three longest: createYuntayExterior(200), ribbon(19), annulus(19)
+functions over 60 lines: createYuntayExterior(200)
+'as unknown as' casts 2; non-null assertions 7
+magic numbers in functions 134 (66 distinct)
+values written 3+ times: 3×11 0.3×10 0.15×5 0.45×5 2.3×5 2.5×4 96×4 0.7×4 0.6×4 0.95×3 128×3 0.9×3 0.012×3 0.8×3

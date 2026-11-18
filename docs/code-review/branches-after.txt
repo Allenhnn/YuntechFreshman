@@ -1,0 +1,40 @@
+module yuntayExterior
+
+A  lamp condition (i % 3 !== 1 → skip the lamp)
+  pier  0: no lamp
+  pier  1: lamp built (base+pole+globe)
+  pier  2: no lamp
+  pier  3: no lamp
+  pier  4: lamp built (base+pole+globe)
+  pier  5: no lamp
+  pier  6: no lamp
+  pier  7: lamp built (base+pole+globe)
+  pier  8: no lamp
+  pier  9: no lamp
+  pier 10: lamp built (base+pole+globe)
+  pier 11: no lamp
+  pier 12: no lamp
+  pier 13: lamp built (base+pole+globe)
+  pier 14: no lamp
+  pier 15: no lamp
+  pier 16: lamp built (base+pole+globe)
+  pier 17: no lamp
+  pier 18: no lamp
+  piers 19, lamp globes 6
+
+B  shadow flag
+  casts shadows 48, does not cast 11; of those: receive 41
+
+C  risers: each runs down to the next tier's surface; the last has no tier below and runs to the ground
+  riser 1: y 0.30 → 0.45
+  riser 2: y 0.15 → 0.30
+  riser 3: y 0.00 → 0.15   <- no tier below: down to the ground
+  end cap: y 0.00 → 0.45
+  end cap: y 0.00 → 0.45
+
+D  canvas present?
+  no 2D context : painter calls 0
+  with 2D context: painter calls 21
+
+E  resources registered with the tracker (one build)
+  geometries 26, materials 13, textures 6

@@ -1,0 +1,11 @@
+mode headless
+meshes 59  vertices 4729  hash c0515de025375676
+by geometry BoxGeometry:31 BufferGeometry:15 CylinderGeometry:6 ShapeGeometry:1 SphereGeometry:6
+colliders 220  hash 7c3c6671066700ba
+tree-free rings 3 (98/4/4 pts)  hash d9cfebcdf12916a9
+mode paint
+meshes 59  vertices 4729  hash c0515de025375676
+by geometry BoxGeometry:31 BufferGeometry:15 CylinderGeometry:6 ShapeGeometry:1 SphereGeometry:6
+colliders 220  hash 7c3c6671066700ba
+tree-free rings 3 (98/4/4 pts)  hash d9cfebcdf12916a9
+canvas calls 36  hash 94045bfbb8d3b33f
