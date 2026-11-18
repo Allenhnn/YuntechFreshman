@@ -3,6 +3,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from sqlalchemy import text
 
+from app import models  # noqa: F401  確保資料表註冊到 Base
+from app.api.auth import router as auth_router
 from app.db.database import engine, init_db
 from app.db.redis import redis_client
 
@@ -17,6 +19,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="雲寶寶上學趣 Backend", lifespan=lifespan)
+app.include_router(auth_router)
 
 
 @app.get("/health")

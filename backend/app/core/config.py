@@ -20,6 +20,16 @@ class Settings(BaseSettings):
     redis_db: int = 0
     cache_default_ttl: int = 300  # 秒
 
+    # Auth
+    jwt_secret_key: str = "change-me-in-env"
+    jwt_algorithm: str = "HS256"
+    access_token_expire_minutes: int = 30
+    refresh_token_expire_days: int = 30
+    google_client_id: str = ""
+    login_max_failures: int = 5  # 連續失敗幾次後鎖定
+    login_lock_minutes: int = 15
+    guest_create_limit_per_hour: int = 10  # 同一 IP 每小時可建立的訪客數
+
     @property
     def database_url(self) -> str:
         return (
