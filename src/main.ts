@@ -54,6 +54,7 @@ import { courtPit, createMgmtCourtyard } from './buildings/mgmtCourtyard';
 import { createMbLobby } from './buildings/mbLobby';
 import { MAIN_GATE_GUARDHOUSE, createMainGate, gateTreeExclusions, inGateZone } from './campus/mainGate';
 import { addBoundaryZone } from './campus/boundaryZone';
+import { createBlockWallZone, createBlockWalls } from './campus/blockWall';
 import { applyBuildingFixes, divideLongtan, includeLongtanRoad, widenCampusRoads } from './campus/campusFixes';
 import { createLongtanSidewalks } from './campus/longtanRoad';
 import { SCOOTER_LOTS, createScooterLots } from './campus/scooterLots';
@@ -266,7 +267,9 @@ async function boot(): Promise<void> {
   const sports = createSportsGames(scene, sceneResources, courts, playground?.pitch ?? null);
   addCafeteriaSign(scene, campus, sceneResources);
   const mainGate = createMainGate(scene, physics, campus, sceneResources);
-  addBoundaryZone(scene, campus, sceneResources, inGateZone);
+  const onBlockWall = createBlockWallZone(campus);
+  addBoundaryZone(scene, campus, sceneResources, (x, z) => inGateZone(x, z) || onBlockWall(x, z));
+  const blockWalls = createBlockWalls(scene, physics, campus, sceneResources);
   const scooterLots = createScooterLots(scene, physics, campus, sceneResources);
   const longtanSidewalks = createLongtanSidewalks(scene, physics, campus, sceneResources);
   const sensorGates = createSensorGates(scene, physics, sceneResources);
@@ -959,6 +962,7 @@ async function boot(): Promise<void> {
     navLine.dispose();
     scooterLots.dispose();
     longtanSidewalks.dispose();
+    blockWalls.dispose();
     sensorGates.dispose();
     env.dispose();
     player.despawn();
