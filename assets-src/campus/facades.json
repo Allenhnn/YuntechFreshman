@@ -69,7 +69,8 @@
     "學生宿舍A2": { "preset": "dorm", "style": { "wall": "#9c9d99", "trim": "#c9c9c4", "glass": "#3a454c", "balcony": "none", "fins": "horizontal", "finDepth": 0.4, "win": [0.6, 0.45] } },
     "學生宿舍A3": { "preset": "dorm", "style": { "wall": "#9c9d99", "trim": "#c9c9c4", "glass": "#3a454c", "balcony": "none", "fins": "horizontal", "finDepth": 0.4, "win": [0.6, 0.45] } },
     "學生宿舍B1": { "preset": "dorm", "style": { "wall": "#e6e4de", "trim": "#bdbbb4", "balcony": "continuous" } },
-    "學生宿舍B3": { "preset": "dorm", "style": { "wall": "#e6e4de", "trim": "#bdbbb4", "balcony": "continuous" } }
+    "學生宿舍B3": { "preset": "dorm", "style": { "wall": "#e6e4de", "trim": "#bdbbb4", "balcony": "continuous" } },
+    "管理三館": { "preset": "management", "style": { "wall": "#9e9c96", "trim": "#a4503a", "glass": "#2c353c", "pattern": "ribbon", "brick": true, "win": [0.78, 0.45], "columns": true, "fins": "none", "balcony": "continuous", "balconyDepth": 1.4, "canopy": true } }
   },
   "photos": {}
 }
