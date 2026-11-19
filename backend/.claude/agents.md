@@ -171,6 +171,7 @@ docker compose down             # 停止（加 -v 會連資料一起刪除）
 - 新增資料表 `game_saves` 與 `GET/PUT/DELETE /save`：登入後遊戲進度存到帳號，前端在自動存檔、暫停、離開、最佳紀錄、重生點變動時上傳，登入時下載
 - `UserOut` 新增 `has_password`、`has_google`
 - Google 公鑰抓取失敗時重試一次，仍失敗回 503（原本是未處理的 500）
+- 修正：Google 自動註冊時先查可用的使用者名稱再建立 User（查詢會 autoflush 半成品 User，造成 username NOT NULL 錯誤）
 - 測試：curl 測帳密註冊 / 重名 / guest_ 開頭 / 格式錯誤、改名（含重名、訪客限制）、存檔讀寫刪、訪客升級後存檔保留；前端實測註冊、進度上傳、清空本機後重新登入取回進度、換帳號不繼承進度、設定改名
 
 ### 2026-11-18（routers 資料夾）

@@ -203,13 +203,15 @@ async def login_with_google(
 
     if await db.scalar(select(User.id).where(User.email == profile.email)):
         raise HTTPException(status.HTTP_409_CONFLICT, "此 email 已被其他帳號使用")
+    # 先查好可用的名稱再建立 User：查詢會觸發 autoflush，半成品的 User 會被寫進 DB 而違反 NOT NULL
+    username = await _free_username(db, profile)
     if guest is not None and guest.is_guest:
         user = guest
         user.is_guest = False
     else:
         user = User()
         db.add(user)
-    user.username = await _free_username(db, profile)
+    user.username = username
     user.email = profile.email
     user.display_name = (profile.name or user.username)[:64]
     user.avatar_url = profile.picture
