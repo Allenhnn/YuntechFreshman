@@ -82,10 +82,12 @@ async function request<T>(method: string, path: string, body?: unknown, token?: 
   } catch {
     throw new OfflineError('連不上伺服器');
   }
-  // Vite's proxy answers 502/504 when the backend is not running.
-  if (res.status === 502 || res.status === 503 || res.status === 504) throw new OfflineError('連不上伺服器');
   if (res.status === 204) return undefined as T;
   const data: unknown = await res.json().catch(() => null);
+  // Vite's proxy answers 502/503/504 with no JSON when the backend is not running; the backend's own errors carry `detail`.
+  if ((res.status === 502 || res.status === 503 || res.status === 504) && !(data as { detail?: unknown } | null)?.detail) {
+    throw new OfflineError('連不上伺服器');
+  }
   if (!res.ok) throw new ApiError(res.status, messageOf(res.status, data));
   return data as T;
 }
