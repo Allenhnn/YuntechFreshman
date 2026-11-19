@@ -41,6 +41,7 @@ import { ANIM_NAMES, AnimState, CharacterMotor, Transform, Velocity } from './ec
 import { bodies, colliders, objects } from './ecs/registry';
 import { CAPSULE_CENTER_OFFSET, createCharacterControllerSystem, type MoveModifiers } from './ecs/systems/characterController';
 import { createBikeSystem } from './bikes/bikeSystem';
+import { createTraffic } from './ambient/traffic';
 import { createPlayground } from './playground/playground';
 import { createCourts } from './minigames/sportsCourts';
 import { createSportsGames } from './minigames/sportsGames';
@@ -292,6 +293,12 @@ async function boot(): Promise<void> {
   const navGraph = buildNavGraph(campus);
   const navLine = createNavLine(scene, sceneResources);
   const bikes = createBikeSystem(scene, bikeStations, sceneResources);
+  const traffic = createTraffic(scene, campus, sceneResources);
+  const applyAmbient = (a: GameState['ambient']): void => {
+    traffic.setEnabled('people', a.people);
+    traffic.setEnabled('vehicles', a.vehicles);
+  };
+  applyAmbient(gameStore.getState().ambient);
   const insideBuilding = createBuildingTest(campus);
   const moveMods: MoveModifiers = { fly: false, noclip: false, speed: 1, bike: false, blocked: null };
   const joints = findMascotJoints(model.root);
@@ -745,13 +752,12 @@ async function boot(): Promise<void> {
     if (document.visibilityState === 'hidden') saveIfPlaying();
   };
   window.addEventListener('pagehide', saveIfPlaying);
-  // Autosave while playing, so the account copy (net/cloudSave.ts) is never far behind.
-  const autosave = window.setInterval(saveIfPlaying, 30_000);
   document.addEventListener('visibilitychange', onVisibility);
 
   const unsubscribe = gameStore.subscribe((st, prev) => {
     if (prev.phase === 'playing' && st.phase !== 'playing') saveNow(); // before quitting moves the player
     if (st.settings !== prev.settings) applySettings(st.settings);
+    if (st.ambient !== prev.ambient) applyAmbient(st.ambient);
     if (st.settings !== prev.settings || st.phase !== prev.phase) applyDebugVisibility(st);
     if (st.phase !== prev.phase || st.modal !== prev.modal || st.lookMode !== prev.lookMode || st.mapMode !== prev.mapMode) applyInputGate(st);
   });
@@ -882,6 +888,7 @@ async function boot(): Promise<void> {
       if (joints) applyPose(joints, computeRidePose(bikes.pedal, time * CLOCK_RATE, ridePose));
     }
     coins.render(world, time);
+    traffic.update(dt, Transform.x[eid]!, Transform.z[eid]!);
     const f = readFocus();
     rig.update(dt, f, colliders[eid], cameraFilter);
     // In a tight spot the camera sits right behind the character: hide it rather than fill the view.
@@ -955,7 +962,6 @@ async function boot(): Promise<void> {
     renderer.setAnimationLoop(null);
     window.removeEventListener('resize', onResize);
     window.removeEventListener('pagehide', saveIfPlaying);
-    window.clearInterval(autosave);
     document.removeEventListener('visibilitychange', onVisibility);
     canvas.removeEventListener('click', onCanvasClick);
     unsubscribe();
@@ -975,6 +981,7 @@ async function boot(): Promise<void> {
     mbLobby?.dispose();
     interiors.dispose();
     bikes.dispose();
+    traffic.dispose();
     playground?.dispose();
     sports.dispose();
     courts.dispose();

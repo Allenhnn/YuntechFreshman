@@ -191,7 +191,7 @@ const CONTROLS: readonly [string, string][] = [
   ['M', '小地圖 / 全螢幕地圖'],
   ['1 – 5', '選擇快捷欄'],
   ['E', '互動（搭電梯、騎 / 下腳踏車）'],
-  ['Enter', '對話框（輸入 /help 查看指令，/tester 切換測試員模式）'],
+  ['Enter', '對話框（輸入 /help 查看指令，/tester 切換管理員模式）'],
   ['Esc', '暫停 / 關閉視窗'],
   ...(TESTER_AVAILABLE ? [['`', '測試員模式：F 飛行、N 穿牆、+/- 速度'] as [string, string]] : []),
 ];
@@ -219,6 +219,7 @@ export function SettingsPanel(): ReactNode {
   const api = useApi();
   const s = useGame((st) => st.settings);
   const tester = useGame((st) => st.tester);
+  const ambient = useGame((st) => st.ambient);
   const update = (patch: Partial<Settings>): void => api.updateSettings(patch);
   const pct = (v: number): string => `${Math.round(v * 100)}%`;
   return (
@@ -241,7 +242,13 @@ export function SettingsPanel(): ReactNode {
       <Slider label="滑鼠靈敏度" value={s.mouseSensitivity} {...SETTINGS_LIMITS.mouseSensitivity} format={(v) => `${v.toFixed(1)}×`} onChange={(v) => update({ mouseSensitivity: v })} />
       <Toggle label="反轉 Y 軸" value={s.invertY} onChange={(v) => update({ invertY: v })} />
       <Toggle label="除錯資訊" value={s.showDebug} onChange={(v) => update({ showDebug: v })} />
-      {TESTER_AVAILABLE && <Toggle label="測試員模式（開發版）" value={tester.enabled} onChange={(v) => actions.setTester({ enabled: v })} />}
+      {TESTER_AVAILABLE && <Toggle label="管理員模式（開發版）" value={tester.enabled} onChange={(v) => actions.setTester({ enabled: v })} />}
+      {TESTER_AVAILABLE && tester.enabled && (
+        <div className="admin-group">
+          <Toggle label="校園行人、腳踏車" value={ambient.people} onChange={(v) => actions.setAmbient({ people: v })} />
+          <Toggle label="道路機車、汽車" value={ambient.vehicles} onChange={(v) => actions.setAmbient({ vehicles: v })} />
+        </div>
+      )}
     </div>
   );
 }

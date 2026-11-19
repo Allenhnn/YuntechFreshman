@@ -47,6 +47,15 @@ export interface SpawnPoint {
 }
 
 const SPAWN_KEY = 'yfm.spawn.v1';
+const AMBIENT_KEY = 'yfm.ambient.v1';
+
+/** Ambient campus life (ambient/traffic.ts), switchable in 管理員模式. */
+export interface AmbientState {
+  /** Students walking and cycling. */
+  people: boolean;
+  /** Scooters and cars on the roads. */
+  vehicles: boolean;
+}
 const RACE_BEST_KEY = 'yfm.raceBest.v1';
 
 /** Per-browser storage that may be unavailable (private mode): failures fall back to defaults. */
@@ -180,6 +189,7 @@ export interface GameState {
   chat: ChatLine[];
   /** Respawn point chosen on the map; null = the campus default (dorm C entrance). */
   customSpawn: SpawnPoint | null;
+  ambient: AmbientState;
 }
 
 export const START_MINUTES = 8 * 60;
@@ -219,6 +229,7 @@ export const gameStore = createStore<GameState>()(() => ({
   tester: { enabled: false, fly: false, noclip: false, speed: 1 },
   chat: [],
   customSpawn: loadJson<SpawnPoint | null>(SPAWN_KEY, null),
+  ambient: { people: true, vehicles: true, ...loadJson<Partial<AmbientState>>(AMBIENT_KEY, {}) },
 }));
 
 export function useGame<T>(selector: (s: GameState) => T): T {
@@ -412,6 +423,11 @@ export const actions = {
     saveJson(RACE_BEST_KEY, raceBest);
     saveJson(SPAWN_KEY, customSpawn);
     set({ raceBest, customSpawn, hasSave: loadProgress() !== null });
+  },
+  setAmbient(patch: Partial<AmbientState>): void {
+    const ambient = { ...get().ambient, ...patch };
+    set({ ambient });
+    saveJson(AMBIENT_KEY, ambient);
   },
   updateSettings(patch: Partial<Settings>): void {
     const settings = { ...get().settings, ...patch };

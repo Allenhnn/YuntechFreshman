@@ -30,6 +30,8 @@ interface Meta {
 
 const META_KEY = 'yfm.save.meta';
 const UPLOAD_DELAY_MS = 3000;
+/** The game autosaves every few seconds while playing; upload at most this often (pause/quit/close still flush). */
+const MIN_UPLOAD_GAP_MS = 20_000;
 
 const readMeta = (): Meta => {
   try {
@@ -47,6 +49,7 @@ const writeMeta = (m: Meta): void => {
 let account: string | null = null;
 let timer: number | undefined;
 let uploading: Promise<void> | null = null;
+let lastUpload = 0;
 
 function snapshot(): Payload {
   const st = gameStore.getState();
@@ -79,6 +82,7 @@ function applyLocally(p: Payload, owner: string): void {
 async function upload(): Promise<void> {
   if (!account) return;
   const p = snapshot();
+  lastUpload = Date.now();
   await api.putSave(p as unknown as Record<string, unknown>);
 }
 
@@ -96,8 +100,11 @@ saveListeners.add(() => {
   const meta = readMeta();
   writeMeta({ owner: account ?? meta.owner, savedAt: Date.now() });
   if (!account) return;
+  const playing = gameStore.getState().phase === 'playing';
+  if (playing && timer !== undefined) return; // an upload is already scheduled
   window.clearTimeout(timer);
-  timer = window.setTimeout(flush, UPLOAD_DELAY_MS);
+  const wait = playing ? Math.max(UPLOAD_DELAY_MS, MIN_UPLOAD_GAP_MS - (Date.now() - lastUpload)) : UPLOAD_DELAY_MS;
+  timer = window.setTimeout(flush, wait);
 });
 
 const onPageHide = (): void => {
