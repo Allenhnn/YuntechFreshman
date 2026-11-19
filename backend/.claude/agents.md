@@ -164,6 +164,11 @@ docker compose down             # 停止（加 -v 會連資料一起刪除）
 | `.env.example` 沒被 commit | 根目錄 `.gitignore` 有 `.env*`；需要時用 `git add -f backend/.env.example` |
 
 ## 變更紀錄
+### 2026-11-19（前端：宿舍服務中心只讓台階突出、往前幅度減半）— 分支 `feat/dorm-c-d-exterior`
+- 需求：宿舍服務中心只要台階部分突出，整體往前移動的幅度縮減一半
+- `frontend/src/buildings/dormFeatures.ts`：前廊改為內凹（在建築輪廓內），店面牆退到前廊後面（`WALL_K = outerK − 前廊深 × √2`），前廊上方以牆色楣樑、白色簷底、屋頂延伸到外緣、牆到牆；招牌移到前廊外緣；只有台階（與旁邊的坡道）突出到廣場。前廊外緣 `CORNER.outerK` = 6.725（上一版往前的 0.8 m 減半）；店面、招牌、台階、坡道、花盆、燈柱、樹穴位置配合新正面調整
+- 測試：`tsc --noEmit` 通過、`vite build` 成功；用實際校園資料檢查不壓道路與建築；headless Chrome 在使用者截圖位置 (32.3, 337.7) 截圖確認
+
 ### 2026-11-19（前端：宿舍服務中心與學生宿舍D 入口範圍擴大）— 分支 `feat/dorm-c-d-exterior`
 - 需求：D 棟入口與宿舍服務中心的範圍再擴大一點，並以網頁呈現結果
 - `frontend/src/buildings/dormFeatures.ts`：服務中心正面往外移約 0.8 m（`CORNER.frontK` 6.15 → 7.3，正面長 14.4 → 16.1 m、量體加深），店面、招牌、台階、坡道、花盆、燈柱、樹穴同步右移；D 棟門廊加深到 3.6 m（寬約 12.4 m）、台階加寬、廣場往外延伸，樹穴、花盆、燈柱往外移，北翼牆外花台改到 6.2–8.2 m
