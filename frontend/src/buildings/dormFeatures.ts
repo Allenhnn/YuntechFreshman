@@ -80,10 +80,16 @@ const TREAD = 0.35;
 const PORCH = { z0: SVC.depth, z1: SVC.depth + 1.6, top: 0.6 };
 /** 店面牆的 45° 線（outerK 往內退前廊深度）。 */
 const WALL_K = CORNER.outerK - (PORCH.z1 - PORCH.z0) * Math.SQRT2;
-/** 台階從 x0 到前廊外緣的東端（店面與東段前方）。 */
+/**
+ * 台階（照片）：頂階西端在前廊外緣的 x0；兩端都不是直角收頭，而是 45° 轉角——西端沿著坡道矮牆的斜段往外斜下，
+ * 東端沿北棟牆面（與正面成 45°）接到牆上。
+ */
 const STEPS = { x0: 4.8 };
-/** 坡道：前廊前方、與立面平行，西端（x0）著地、東端（x1）接前廊；外側矮牆從 wallFrom 開始，西端留入口。 */
-const RAMP = { x0: -1.2, x1: 4.6, z0: PORCH.z1, z1: PORCH.z1 + 1.4, wall: 0.15, wallFrom: 0.0, wallTop: 1.15 };
+/**
+ * 坡道：前廊前方、與立面平行，西端（x0）著地、東端（x1）到頂；外側矮牆從 wallFrom 沿坡道到 x1，再斜 45° 折回
+ * 前廊外緣的 STEPS.x0（台階西端就靠著這段斜牆）；坡道頂與斜牆之間是一塊三角形平台。x1 = STEPS.x0 − 坡道寬。
+ */
+const RAMP = { x0: -1.2, x1: 3.4, z0: PORCH.z1, z1: PORCH.z1 + 1.4, wall: 0.15, wallFrom: 0.0, wallTop: 1.15 };
 /**
  * 前方廣場（C_SOUTH 牆面座標）：灰色連鎖磚夾紅磚帶（照片），從正面鋪到兩條路邊；
  * 多邊形 = 正面西端 → 正面東端 → 沿北棟南面延伸到南北向路邊 → 沿兩條路邊（路口處切角）→ 南翼東南角；離路緣約 0.4 m。
@@ -511,11 +517,28 @@ function addServiceCentre(ctx: Ctx, c: Frame): Frame {
   const box = f.add(new BoxGeometry(fx1 - fx0, fy1 - fy0, 0.32), [dark, dark, dark, dark, sign, dark]);
   box.position.set((fx0 + fx1) / 2, (fy0 + fy1) / 2, PORCH.z1 - 0.14);
 
-  // Steps down from the porch's outer edge to the plaza, in front of the storefront and the east section.
-  addSteps(f, STEPS.x0, oex, PORCH.z1, top, concrete);
+  const prism = (pts: readonly [number, number][], y0: number, y1: number, m: Material): void => {
+    f.add(new ExtrudeGeometry(new Shape(pts.map(([x, z]) => new Vector2(x, -z))), { depth: y1 - y0, bevelEnabled: false }).rotateX(-Math.PI / 2).translate(0, y0, 0), m);
+    const v: number[] = [];
+    for (const [x, z] of pts) { const [wx, wz] = f.world(x, z); v.push(wx, y0, wz, wx, y1, wz); }
+    const d = RAPIER.ColliderDesc.convexHull(new Float32Array(v));
+    if (d) ctx.colliders.push(ctx.tracker.collider(ctx.physics.createCollider(d)));
+  };
 
-  // Ramp along the front of the west section, rising eastward onto the porch; a solid concrete
-  // parapet on its outer side (open at the low west end) with a steel rail and a blue sign.
+  // Steps down from the porch's outer edge, each tier a band widening outward at 45° at both ends:
+  // west along the ramp parapet's diagonal, east along the north block's wall.
+  const z1 = PORCH.z1;
+  for (let k = 0; ; k++) {
+    const h = top - (k + 1) * RISE;
+    if (h <= 0.001) break;
+    const za = z1 + k * TREAD, zb = za + TREAD;
+    const west = (z: number): number => STEPS.x0 - (z - z1), east = (z: number): number => oex + (z - z1);
+    prism([[west(za), za], [east(za), za], [east(zb), zb], [west(zb), zb]], 0, h, concrete);
+  }
+
+  // Ramp along the front of the west section, rising eastward; a solid concrete parapet on its
+  // outer side (open at the low west end) with a steel rail and a blue sign, turning 45° at the top
+  // back to the porch edge; a triangular landing between the ramp top and that diagonal.
   const { x0: rx0, x1: rx1, z0: rz0, z1: rz1, wall: t, wallFrom, wallTop } = RAMP;
   const run = rx1 - rx0, slope = Math.atan2(top, run), hyp = Math.hypot(top, run);
   const ramp = f.add(new BoxGeometry(hyp, 0.1, rz1 - rz0), concrete);
@@ -528,10 +551,11 @@ function addServiceCentre(ctx: Ctx, c: Frame): Frame {
       RAPIER.ColliderDesc.cuboid(hyp / 2, 0.05, (rz1 - rz0) / 2).setTranslation(cx, top / 2 - 0.05, cz).setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }),
     )));
   }
-  f.add(span(rx1, STEPS.x0, 0, top, rz0, rz1), concrete); // landing between the ramp top and the steps
-  f.solid((rx1 + STEPS.x0) / 2, top / 2, (rz0 + rz1) / 2, (STEPS.x0 - rx1) / 2, top / 2, (rz1 - rz0) / 2);
-  f.add(span(wallFrom, STEPS.x0, 0, wallTop, rz1, rz1 + t), concrete);
-  f.solid((wallFrom + STEPS.x0) / 2, wallTop / 2, rz1 + t / 2, (STEPS.x0 - wallFrom) / 2, wallTop / 2, t / 2);
+  prism([[rx1, rz0], [STEPS.x0, rz0], [rx1, rz1]], 0, top, concrete); // landing
+  prism([[wallFrom, rz1], [rx1, rz1], [rx1, rz1 + t], [wallFrom, rz1 + t]], 0, wallTop, concrete); // parapet along the ramp
+  // ...and its diagonal back to the porch edge (outer face on the steps' side).
+  const s2 = t * Math.SQRT1_2;
+  prism([[rx1, rz1], [STEPS.x0, rz0], [STEPS.x0 + s2 * 2, rz0], [rx1 + s2, rz1 + s2]], 0, wallTop, concrete);
   const steel = ctx.mat(0xc9ccce, { metalness: 0.7, roughness: 0.3 });
   const rail = f.add(new CylinderGeometry(0.025, 0.025, hyp, 8).rotateZ(Math.PI / 2), steel);
   rail.position.set((rx0 + rx1) / 2, top / 2 + 0.85, rz1 - 0.1);
