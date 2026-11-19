@@ -21,6 +21,9 @@ uv run python -m app.main       # API → http://127.0.0.1:8000（文件 /docs�
 登入流程（`frontend/src/net/authApi.ts`、`frontend/src/state/auth.ts`、`frontend/src/ui/login.tsx`）：
 
 - 載入時讀 `GET /auth/config`，有存 refresh token 就呼叫 `GET /auth/me`（access token 過期會自動 `POST /auth/refresh`）。
-- 登入：`POST /auth/login`；Google：`POST /auth/login/google`，回 404 表示還沒註冊 → 顯示設定帳密表單 → `POST /auth/register/google`。
-- 訪客：`POST /auth/guest`；主選單的「綁定帳號」會帶訪客 token 呼叫註冊，把同一個帳號升級。
-- 登出：`POST /auth/logout`。連不上伺服器時可選「離線遊玩」。
+- 登入分頁：帳密 `POST /auth/login`；同一列是 Google 按鈕（`POST /auth/login/google`，第一次使用自動註冊並登入）和訪客（`POST /auth/guest`）。
+- 註冊分頁：使用者名稱 + 密碼 `POST /auth/register`，不需要 Google。
+- 訪客在主選單按「註冊帳號」，會帶訪客 token 註冊，把同一個帳號升級並保留進度。
+- 設定 → 顯示名稱 / 使用者名稱：`PATCH /auth/me`。
+- 進度同步（`frontend/src/net/cloudSave.ts`）：登入時 `GET /save` 下載；之後每次本機存檔幾秒內 `PUT /save` 上傳，關頁時再送一次。
+- 登出：`POST /auth/logout`。連不上伺服器時可選「離線遊玩」，下次登入時再同步。

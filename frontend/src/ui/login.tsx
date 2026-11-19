@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { auth, authStore, useAuth } from '../state/auth';
+import { auth, useAuth } from '../state/auth';
 import { useApi } from './api';
 import { Brand } from './menus';
 
@@ -26,7 +26,7 @@ function loadGis(): Promise<boolean> {
   return gisLoading;
 }
 
-/** The official Google button; `onCredential` receives the ID token. */
+/** Google's own button (Google requires its button for sign-in), sized to its slot. */
 function GoogleButton({ text, onCredential }: { text: 'signin_with' | 'signup_with' | 'continue_with'; onCredential: (t: string) => void }): ReactNode {
   const clientId = useAuth((s) => s.googleClientId);
   const box = useRef<HTMLDivElement>(null);
@@ -38,21 +38,23 @@ function GoogleButton({ text, onCredential }: { text: 'signin_with' | 'signup_wi
     let live = true;
     void loadGis().then((ok) => {
       const id = gis();
+      const el = box.current;
       if (!live) return;
-      if (!ok || !id || !box.current) { setState('blocked'); return; }
+      if (!ok || !id || !el) { setState('blocked'); return; }
       id.initialize({ client_id: clientId, callback: (r) => cb.current(r.credential) });
-      box.current.replaceChildren();
-      id.renderButton(box.current, { theme: 'outline', size: 'large', shape: 'pill', text, locale: 'zh-TW', width: 300 });
+      el.replaceChildren();
+      const width = Math.max(200, Math.min(400, Math.floor(el.clientWidth)));
+      id.renderButton(el, { theme: 'outline', size: 'large', shape: 'pill', text, locale: 'zh-TW', width });
       setState('ready');
     });
     return () => { live = false; };
   }, [clientId, text]);
-  if (!clientId) return <p className="login-note">伺服器尚未設定 Google 登入（GOOGLE_CLIENT_ID）</p>;
+  if (!clientId) return <p className="login-note">伺服器尚未設定 Google 登入</p>;
   return (
     <div className="google-slot">
-      <div ref={box} />
+      <div ref={box} className="google-box" />
       {state === 'loading' && <p className="login-note">正在載入 Google 登入…</p>}
-      {state === 'blocked' && <p className="login-note">Google 登入元件載入失敗，請檢查網路或擴充功能</p>}
+      {state === 'blocked' && <p className="login-note">Google 登入元件載入失敗</p>}
     </div>
   );
 }
@@ -65,8 +67,6 @@ export function LoginScreen(): ReactNode {
   const [tab, setTab] = useState<Tab>(upgrading ? 'register' : 'login');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  /** Google ID token waiting for a username and password (register step 2). */
-  const [credential, setCredential] = useState<string | null>(null);
   const [newName, setNewName] = useState('');
   const [newPass, setNewPass] = useState('');
   const [newPass2, setNewPass2] = useState('');
@@ -83,26 +83,16 @@ export function LoginScreen(): ReactNode {
     ui.click();
     void auth.login(username, password);
   };
-  const onGoogle = async (token: string): Promise<void> => {
-    if (upgrading) { setCredential(token); return; }
-    const r = await auth.google(token);
-    if (r === 'new') {
-      setCredential(token);
-      setTab('register');
-      auth.setError('');
-    }
-  };
   const onRegister = (e: FormEvent): void => {
     e.preventDefault();
-    if (!credential) return;
     if (!/^[A-Za-z0-9_]{3,20}$/.test(newName)) { auth.setError('使用者名稱需為 3–20 個英文、數字或底線'); return; }
+    if (/^guest_/i.test(newName)) { auth.setError('使用者名稱不能以 guest_ 開頭'); return; }
     if (newPass.length < 8) { auth.setError('密碼至少需要 8 個字元'); return; }
     if (newPass !== newPass2) { auth.setError('兩次輸入的密碼不一樣'); return; }
     ui.click();
-    void auth.register(credential, newName, newPass, displayName.trim() || undefined).then((ok) => {
-      if (!ok && /過期|Google 驗證失敗/.test(authStore.getState().error)) setCredential(null);
-    });
+    void auth.register(newName, newPass, displayName.trim() || undefined);
   };
+  const onGoogle = (token: string): void => { void auth.google(token); };
 
   return (
     <div className="login-screen">
@@ -112,8 +102,8 @@ export function LoginScreen(): ReactNode {
           <p className="tagline">走進校園，開始你的大學第一天</p>
           <ul className="login-perks">
             <li>☁️ 進度存在帳號，換電腦也能繼續</li>
-            <li>🎒 背包、相簿、最佳紀錄跟著你走</li>
-            <li>🚲 先用訪客玩，之後再綁 Google 也行</li>
+            <li>🎒 背包、最佳紀錄、重生點跟著你走</li>
+            <li>🚲 先用訪客玩，之後再註冊也能保留進度</li>
           </ul>
         </div>
 
@@ -121,7 +111,7 @@ export function LoginScreen(): ReactNode {
           {!serverUp ? (
             <div className="login-offline">
               <h2>連不上伺服器</h2>
-              <p>帳號功能需要後端伺服器。你可以重試，或先離線遊玩（進度只存在這個瀏覽器）。</p>
+              <p>帳號功能需要後端伺服器。你可以重試，或先離線遊玩（進度只存在這個瀏覽器，下次登入時會同步到帳號）。</p>
               <button className="btn primary" onClick={() => { ui.click(); void auth.init(); }}>重新連線</button>
               <button className="btn" onClick={() => { ui.click(); auth.playOffline(); }}>離線遊玩</button>
             </div>
@@ -129,8 +119,8 @@ export function LoginScreen(): ReactNode {
             <>
               {upgrading ? (
                 <div className="login-upgrade-head">
-                  <h2>綁定 Google 帳號</h2>
-                  <p>{user?.display_name ?? '訪客'}的進度會保留，之後可用帳號密碼或 Google 登入。</p>
+                  <h2>註冊帳號並保留進度</h2>
+                  <p>{user?.display_name ?? '訪客'}目前的進度會直接移到新帳號。</p>
                 </div>
               ) : (
                 <div className="login-tabs" role="tablist">
@@ -139,39 +129,29 @@ export function LoginScreen(): ReactNode {
                 </div>
               )}
 
-              {tab === 'login' && !upgrading && (
-                <>
-                  <form className="login-fields" onSubmit={onLogin}>
-                    <label>
-                      <span>使用者名稱</span>
-                      <input value={username} onChange={(e) => setUsername(e.currentTarget.value)} autoComplete="username" autoFocus maxLength={32} />
-                    </label>
-                    <label>
-                      <span>密碼</span>
-                      <input type="password" value={password} onChange={(e) => setPassword(e.currentTarget.value)} autoComplete="current-password" maxLength={128} />
-                    </label>
-                    <button className="btn primary" type="submit" disabled={busy}>{busy ? '登入中…' : '登入'}</button>
-                  </form>
-                  <div className="login-or"><span>或</span></div>
-                  <GoogleButton text="signin_with" onCredential={(t) => void onGoogle(t)} />
-                  <button className="btn guest" onClick={() => { ui.click(); void auth.guest(); }} disabled={busy}>
-                    以訪客身分遊玩
-                  </button>
-                </>
-              )}
-
-              {tab === 'register' && (
-                credential ? (
-                  <form className="login-fields" onSubmit={onRegister}>
-                    <p className="login-step">✅ 已通過 Google 驗證，請設定登入用的帳號密碼</p>
-                    <label>
-                      <span>使用者名稱</span>
-                      <input value={newName} onChange={(e) => setNewName(e.currentTarget.value)} autoComplete="username" autoFocus maxLength={20} placeholder="3–20 個英文、數字或底線" />
-                    </label>
-                    <label>
-                      <span>顯示名稱（選填）</span>
-                      <input value={displayName} onChange={(e) => setDisplayName(e.currentTarget.value)} maxLength={64} placeholder="預設用 Google 名稱" />
-                    </label>
+              {tab === 'login' && !upgrading ? (
+                <form className="login-fields" onSubmit={onLogin}>
+                  <label>
+                    <span>使用者名稱</span>
+                    <input value={username} onChange={(e) => setUsername(e.currentTarget.value)} autoComplete="username" autoFocus maxLength={32} />
+                  </label>
+                  <label>
+                    <span>密碼</span>
+                    <input type="password" value={password} onChange={(e) => setPassword(e.currentTarget.value)} autoComplete="current-password" maxLength={128} />
+                  </label>
+                  <button className="btn primary" type="submit" disabled={busy}>{busy ? '登入中…' : '登入'}</button>
+                </form>
+              ) : (
+                <form className="login-fields" onSubmit={onRegister}>
+                  <label>
+                    <span>使用者名稱</span>
+                    <input value={newName} onChange={(e) => setNewName(e.currentTarget.value)} autoComplete="username" autoFocus maxLength={20} placeholder="3–20 個英文、數字或底線" />
+                  </label>
+                  <label>
+                    <span>顯示名稱（選填）</span>
+                    <input value={displayName} onChange={(e) => setDisplayName(e.currentTarget.value)} maxLength={64} placeholder="遊戲裡別人看到的名字" />
+                  </label>
+                  <div className="login-pair">
                     <label>
                       <span>密碼</span>
                       <input type="password" value={newPass} onChange={(e) => setNewPass(e.currentTarget.value)} autoComplete="new-password" maxLength={128} placeholder="至少 8 個字元" />
@@ -180,17 +160,20 @@ export function LoginScreen(): ReactNode {
                       <span>確認密碼</span>
                       <input type="password" value={newPass2} onChange={(e) => setNewPass2(e.currentTarget.value)} autoComplete="new-password" maxLength={128} />
                     </label>
-                    <button className="btn primary" type="submit" disabled={busy}>{busy ? '建立中…' : upgrading ? '綁定並保留進度' : '建立帳號'}</button>
-                    <button className="btn link" type="button" onClick={() => { setCredential(null); auth.setError(''); }}>換一個 Google 帳號</button>
-                  </form>
-                ) : (
-                  <div className="login-fields">
-                    <p className="login-step">第 1 步：用 Google 驗證身分（我們只取得名稱、email 和頭像）</p>
-                    <GoogleButton text="signup_with" onCredential={(t) => void onGoogle(t)} />
-                    <p className="login-step muted">第 2 步：設定使用者名稱與密碼</p>
                   </div>
-                )
+                  <button className="btn primary" type="submit" disabled={busy}>{busy ? '建立中…' : upgrading ? '註冊並保留進度' : '建立帳號'}</button>
+                </form>
               )}
+
+              <div className="login-or"><span>{tab === 'login' && !upgrading ? '或' : '或用 Google 帳號直接註冊'}</span></div>
+              <div className="login-alt">
+                <GoogleButton text={tab === 'login' && !upgrading ? 'signin_with' : 'signup_with'} onCredential={onGoogle} />
+                {!upgrading && (
+                  <button className="btn guest" onClick={() => { ui.click(); void auth.guest(); }} disabled={busy}>
+                    以訪客身分遊玩
+                  </button>
+                )}
+              </div>
 
               {upgrading && <button className="btn link" onClick={() => { ui.click(); auth.cancelUpgrade(); }}>先不要，回主選單</button>}
             </>

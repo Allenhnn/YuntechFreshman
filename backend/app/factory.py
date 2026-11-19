@@ -8,6 +8,7 @@ from fastapi import FastAPI
 
 from app import models  # noqa: F401  確保資料表註冊到 Base
 from app.api.auth import router as auth_router
+from app.api.save import router as save_router
 from app.db.database import engine, init_db
 from app.db.redis import redis_client
 from app.routers.system import router as system_router
@@ -27,6 +28,7 @@ async def lifespan(app: FastAPI):
 def _include_routers(app: FastAPI) -> None:
     app.include_router(system_router)
     app.include_router(auth_router)
+    app.include_router(save_router)
 
 
 def create_app() -> FastAPI:

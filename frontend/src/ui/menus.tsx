@@ -42,6 +42,7 @@ export function MenuScreen({ paused }: { paused: boolean }): ReactNode {
   const hint = useGame((s) => s.menuHint);
   const hasSave = useGame((s) => s.hasSave);
   const [confirmingNew, setConfirmingNew] = useState(false);
+  const account = useAuth((s) => s.status);
   const open = (p: 'root' | 'controls' | 'settings'): void => {
     api.click();
     actions.setMenuPanel(p);
@@ -96,7 +97,7 @@ export function MenuScreen({ paused }: { paused: boolean }): ReactNode {
             )}
           </nav>
           <p className="hint">{hint}</p>
-          <p className="start-point">{hasSave ? '💾 進度已儲存在這個瀏覽器' : '📍 起點：學生宿舍C 中庭'}</p>
+          <p className="start-point">{hasSave ? (account === 'signedIn' ? '☁️ 進度已同步到帳號' : '💾 進度已儲存在這個瀏覽器') : '📍 起點：學生宿舍C 中庭'}</p>
         </aside>
         <PlayerCard />
         <p className="title-credit">核心原型 v0.7 · 國立雲林科技大學校園 · 地圖資料 © OpenStreetMap contributors</p>
@@ -136,6 +137,7 @@ function MenuItem({ icon, label, sub, primary, onClick }: { icon: string; label:
 function PlayerCard(): ReactNode {
   const api = useApi();
   const { status, user } = useAuth((s) => s);
+  const [confirmOut, setConfirmOut] = useState(false);
   if (status === 'offline') {
     return (
       <div className="player-card">
@@ -149,6 +151,18 @@ function PlayerCard(): ReactNode {
     );
   }
   if (!user) return null;
+  if (confirmOut) {
+    return (
+      <div className="player-card confirm">
+        <p>訪客登出後就無法再登入這個帳號，進度也會留在這台電腦上。要先註冊保留進度嗎？</p>
+        <div className="player-actions">
+          <button className="btn small primary" onClick={() => { api.click(); setConfirmOut(false); auth.startUpgrade(); }}>註冊帳號</button>
+          <button className="btn small" onClick={() => { api.click(); setConfirmOut(false); void auth.logout(); }}>仍要登出</button>
+          <button className="btn small" onClick={() => setConfirmOut(false)}>取消</button>
+        </div>
+      </div>
+    );
+  }
   const initial = [...(user.display_name || user.username)][0] ?? '?';
   return (
     <div className="player-card">
@@ -160,8 +174,8 @@ function PlayerCard(): ReactNode {
         <small>{user.is_guest ? '訪客帳號' : `@${user.username}`}</small>
       </div>
       <div className="player-actions">
-        {user.is_guest && <button className="btn small primary" onClick={() => { api.click(); auth.startUpgrade(); }}>綁定帳號</button>}
-        <button className="btn small" onClick={() => { api.click(); void auth.logout(); }}>登出</button>
+        {user.is_guest && <button className="btn small primary" onClick={() => { api.click(); auth.startUpgrade(); }}>註冊帳號</button>}
+        <button className="btn small" onClick={() => { api.click(); if (user.is_guest) setConfirmOut(true); else void auth.logout(); }}>登出</button>
       </div>
     </div>
   );
@@ -209,6 +223,7 @@ export function SettingsPanel(): ReactNode {
   const pct = (v: number): string => `${Math.round(v * 100)}%`;
   return (
     <div className="settings">
+      <AccountSettings />
       <Slider label="畫面解析度" value={s.renderScale} {...SETTINGS_LIMITS.renderScale} format={pct} onChange={(v) => update({ renderScale: v })} />
       <div className="setting">
         <span>陰影品質</span>
@@ -227,6 +242,52 @@ export function SettingsPanel(): ReactNode {
       <Toggle label="反轉 Y 軸" value={s.invertY} onChange={(v) => update({ invertY: v })} />
       <Toggle label="除錯資訊" value={s.showDebug} onChange={(v) => update({ showDebug: v })} />
       {TESTER_AVAILABLE && <Toggle label="測試員模式（開發版）" value={tester.enabled} onChange={(v) => actions.setTester({ enabled: v })} />}
+    </div>
+  );
+}
+
+/** 設定 → 帳號: rename the display name (everyone) and the username (registered accounts). */
+function AccountSettings(): ReactNode {
+  const api = useApi();
+  const user = useAuth((s) => s.user);
+  const status = useAuth((s) => s.status);
+  const [name, setName] = useState(user?.display_name ?? '');
+  const [username, setUsername] = useState(user?.username ?? '');
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  if (!user || status !== 'signedIn') return null;
+  const dirty = name.trim() !== user.display_name || (!user.is_guest && username.toLowerCase() !== user.username);
+  const save = async (): Promise<void> => {
+    if (!name.trim()) { setMsg({ ok: false, text: '顯示名稱不能空白' }); return; }
+    if (!user.is_guest && !/^[A-Za-z0-9_]{3,20}$/.test(username)) { setMsg({ ok: false, text: '使用者名稱需為 3–20 個英文、數字或底線' }); return; }
+    api.click();
+    setBusy(true);
+    const patch: { display_name?: string; username?: string } = {};
+    if (name.trim() !== user.display_name) patch.display_name = name.trim();
+    if (!user.is_guest && username.toLowerCase() !== user.username) patch.username = username;
+    const err = await auth.rename(patch);
+    setBusy(false);
+    setMsg(err ? { ok: false, text: err } : { ok: true, text: '已更新' });
+    if (!err) setUsername((u) => u.toLowerCase());
+  };
+  return (
+    <div className="account-settings">
+      <div className="setting">
+        <span>顯示名稱</span>
+        <input className="text-input" value={name} maxLength={64} onChange={(e) => { setName(e.currentTarget.value); setMsg(null); }} />
+        <span />
+      </div>
+      <div className="setting">
+        <span>使用者名稱</span>
+        {user.is_guest
+          ? <span className="muted">訪客帳號，註冊後才能設定</span>
+          : <input className="text-input" value={username} maxLength={20} onChange={(e) => { setUsername(e.currentTarget.value); setMsg(null); }} />}
+        <span />
+      </div>
+      <div className="account-save">
+        <span className={msg ? (msg.ok ? 'ok' : 'err') : ''}>{msg?.text ?? (user.has_password ? '' : user.is_guest ? '' : '此帳號用 Google 登入')}</span>
+        <button className="btn small primary" disabled={!dirty || busy} onClick={() => void save()}>{busy ? '儲存中…' : '儲存名稱'}</button>
+      </div>
     </div>
   );
 }

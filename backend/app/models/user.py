@@ -43,6 +43,15 @@ class User(Base):
         back_populates="user", cascade="all, delete-orphan", lazy="selectin"
     )
 
+    @property
+    def has_password(self) -> bool:
+        """可以用帳密登入（Google 自動註冊的帳號一開始沒有密碼）。"""
+        return self.password_hash is not None
+
+    @property
+    def has_google(self) -> bool:
+        return any(o.provider == "google" for o in self.oauth_accounts)
+
 
 class OAuthAccount(Base):
     """第三方登入綁定（目前只有 Google）。一個 user 可綁多個 provider。"""

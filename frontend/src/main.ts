@@ -745,6 +745,8 @@ async function boot(): Promise<void> {
     if (document.visibilityState === 'hidden') saveIfPlaying();
   };
   window.addEventListener('pagehide', saveIfPlaying);
+  // Autosave while playing, so the account copy (net/cloudSave.ts) is never far behind.
+  const autosave = window.setInterval(saveIfPlaying, 30_000);
   document.addEventListener('visibilitychange', onVisibility);
 
   const unsubscribe = gameStore.subscribe((st, prev) => {
@@ -953,6 +955,7 @@ async function boot(): Promise<void> {
     renderer.setAnimationLoop(null);
     window.removeEventListener('resize', onResize);
     window.removeEventListener('pagehide', saveIfPlaying);
+    window.clearInterval(autosave);
     document.removeEventListener('visibilitychange', onVisibility);
     canvas.removeEventListener('click', onCanvasClick);
     unsubscribe();

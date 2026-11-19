@@ -4,7 +4,7 @@ import { HOTBAR_SIZE, ITEMS, starterInventory, type ItemId, type ItemStack } fro
 import { loadSettings, saveSettings, type Settings } from './settings';
 import type { CampusData } from '../campus/campusTypes';
 import type { BikeStation } from '../bikes/bikeStations';
-import { clearProgress, loadProgress, type SaveData } from './saveGame';
+import { clearProgress, loadProgress, notifySaveChanged, type SaveData } from './saveGame';
 
 /**
  * Single source of truth for everything the DOM UI shows. The game loop writes here only
@@ -271,6 +271,7 @@ export const actions = {
   setRaceBest(raceBest: number): void {
     set({ raceBest });
     saveJson(RACE_BEST_KEY, raceBest);
+    notifySaveChanged();
   },
   setShop(shop: ShopMenu | null): void {
     set({ shop });
@@ -404,6 +405,13 @@ export const actions = {
   setCustomSpawn(customSpawn: SpawnPoint | null): void {
     set({ customSpawn });
     saveJson(SPAWN_KEY, customSpawn);
+    notifySaveChanged();
+  },
+  /** Progress, best time and respawn point fetched from the account (already written to storage). */
+  applyAccountSave(raceBest: number | null, customSpawn: SpawnPoint | null): void {
+    saveJson(RACE_BEST_KEY, raceBest);
+    saveJson(SPAWN_KEY, customSpawn);
+    set({ raceBest, customSpawn, hasSave: loadProgress() !== null });
   },
   updateSettings(patch: Partial<Settings>): void {
     const settings = { ...get().settings, ...patch };

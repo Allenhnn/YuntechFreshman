@@ -18,6 +18,12 @@ export interface SaveData {
 }
 
 const SAVE_KEY = 'yfm.save.v1';
+
+/** Listeners told whenever stored progress changes (the cloud save uploads it). */
+export const saveListeners = new Set<() => void>();
+export function notifySaveChanged(): void {
+  for (const fn of saveListeners) fn();
+}
 /** Bumped when generated interiors are re-laid-out: an indoor position from an older layout may now be inside a wall. */
 export const INTERIOR_LAYOUT = 2;
 
@@ -60,6 +66,7 @@ export function saveProgress(data: SaveData): void {
   } catch {
     /* storage unavailable or full: the session just isn't saved */
   }
+  notifySaveChanged();
 }
 
 export function clearProgress(): void {
@@ -67,5 +74,16 @@ export function clearProgress(): void {
     localStorage.removeItem(SAVE_KEY);
   } catch {
     /* nothing to clear */
+  }
+  notifySaveChanged();
+}
+
+/** Writes progress fetched from the account without notifying listeners (it came from there). */
+export function replaceProgress(data: SaveData | null): void {
+  try {
+    if (data) localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+    else localStorage.removeItem(SAVE_KEY);
+  } catch {
+    /* storage unavailable */
   }
 }

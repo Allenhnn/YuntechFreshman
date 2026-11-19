@@ -1,3 +1,4 @@
+import re
 import secrets
 import uuid
 from dataclasses import dataclass
@@ -19,7 +20,7 @@ from app.core.security import (
     verify_password,
 )
 from app.models import LoginLog, OAuthAccount, User
-from app.schemas.auth import GoogleRegisterRequest, TokenResponse, UserOut
+from app.schemas.auth import GoogleRegisterRequest, RegisterRequest, TokenResponse, UpdateMeRequest, UserOut
 from app.services.google import GoogleProfile
 
 
@@ -107,6 +108,48 @@ async def register_with_google(
     return await _issue_tokens(redis, user)
 
 
+# ---------- 1b. 帳號密碼註冊（不用 Google） ----------
+async def register_with_password(
+    db: AsyncSession, redis: Redis, body: RegisterRequest, client: ClientInfo, guest: User | None = None,
+) -> TokenResponse:
+    """沒有或不想用 Google 帳號時直接註冊。帶著訪客 token 時把該訪客升級（保留遊戲進度）。"""
+    if await db.scalar(select(User.id).where(User.username == body.username)):
+        raise HTTPException(status.HTTP_409_CONFLICT, "使用者名稱已被使用")
+    if guest is not None and guest.is_guest:
+        user = guest
+        user.is_guest = False
+    else:
+        user = User()
+        db.add(user)
+    user.username = body.username
+    user.password_hash = hash_password(body.password)
+    user.display_name = body.display_name or body.username
+    user.last_login_at = _now()
+    try:
+        await db.flush()
+        _log(db, client, "register", True, user.id, body.username)
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status.HTTP_409_CONFLICT, "使用者名稱已被使用")
+    await db.refresh(user)
+    return await _issue_tokens(redis, user)
+
+
+async def _free_username(db: AsyncSession, profile: GoogleProfile) -> str:
+    """Google 自動註冊時的使用者名稱：取 email @ 前面，整理成 3–20 個英數底線，撞名就加數字。"""
+    base = re.sub(r"[^a-z0-9_]", "_", profile.email.split("@")[0].lower()).strip("_")[:16]
+    if base.startswith("guest_"):
+        base = "g" + base
+    if len(base) < 3:
+        base = f"user_{base}".strip("_")
+    candidates = [base] + [f"{base}{n}" for n in range(2, 100)]
+    for name in candidates:
+        if not await db.scalar(select(User.id).where(User.username == name)):
+            return name
+    return f"{base[:11]}_{secrets.token_hex(4)}"
+
+
 # ---------- 2a. 帳號密碼登入 ----------
 async def login_with_password(
     db: AsyncSession, redis: Redis, username: str, password: str, client: ClientInfo
@@ -140,23 +183,67 @@ async def login_with_password(
     return await _issue_tokens(redis, user)
 
 
-# ---------- 2b. Google 登入（已註冊者） ----------
+# ---------- 2b. Google 登入（未註冊就直接註冊） ----------
 async def login_with_google(
-    db: AsyncSession, redis: Redis, profile: GoogleProfile, client: ClientInfo
+    db: AsyncSession, redis: Redis, profile: GoogleProfile, client: ClientInfo, guest: User | None = None,
 ) -> TokenResponse:
+    """已綁定的 Google 帳號直接登入；第一次用 Google 就自動建立帳號並登入（之後可在設定改名稱）。
+    帶著訪客 token 時，新 Google 帳號會升級那個訪客，保留遊戲進度。"""
     linked = await db.scalar(select(OAuthAccount).where(
         OAuthAccount.provider == "google", OAuthAccount.provider_user_id == profile.sub))
-    if not linked:
-        # 前端收到 404 → 顯示「設定使用者名稱與密碼」表單，再呼叫 /auth/register/google
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "此 Google 帳號尚未註冊")
-    user = await db.get(User, linked.user_id)
-    if not user or not user.is_active:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "帳號已停用")
+    if linked:
+        user = await db.get(User, linked.user_id)
+        if not user or not user.is_active:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "帳號已停用")
+        user.last_login_at = _now()
+        _log(db, client, "google", True, user.id, user.username)
+        await db.commit()
+        await db.refresh(user)
+        return await _issue_tokens(redis, user)
+
+    if await db.scalar(select(User.id).where(User.email == profile.email)):
+        raise HTTPException(status.HTTP_409_CONFLICT, "此 email 已被其他帳號使用")
+    if guest is not None and guest.is_guest:
+        user = guest
+        user.is_guest = False
+    else:
+        user = User()
+        db.add(user)
+    user.username = await _free_username(db, profile)
+    user.email = profile.email
+    user.display_name = (profile.name or user.username)[:64]
+    user.avatar_url = profile.picture
     user.last_login_at = _now()
-    _log(db, client, "google", True, user.id, user.username)
-    await db.commit()
+    user.oauth_accounts.append(
+        OAuthAccount(provider="google", provider_user_id=profile.sub, email=profile.email))
+    try:
+        await db.flush()
+        _log(db, client, "register", True, user.id, user.username)
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status.HTTP_409_CONFLICT, "建立帳號時發生衝突，請再試一次")
     await db.refresh(user)
     return await _issue_tokens(redis, user)
+
+
+# ---------- 修改帳戶名稱 ----------
+async def update_me(db: AsyncSession, user: User, body: UpdateMeRequest) -> User:
+    if body.username is not None and body.username != user.username:
+        if user.is_guest:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "訪客請先註冊帳號再修改使用者名稱")
+        if await db.scalar(select(User.id).where(User.username == body.username)):
+            raise HTTPException(status.HTTP_409_CONFLICT, "使用者名稱已被使用")
+        user.username = body.username
+    if body.display_name is not None:
+        user.display_name = body.display_name
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status.HTTP_409_CONFLICT, "使用者名稱已被使用")
+    await db.refresh(user)
+    return user
 
 
 # ---------- 3. 訪客登入 ----------

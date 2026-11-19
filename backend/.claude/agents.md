@@ -38,7 +38,9 @@ backend/
     │   ├── database.py        # engine、SessionLocal、Base、get_db、init_db
     │   └── redis.py           # redis_client、get_redis、cache_get/set/delete
     ├── models/user.py         # User、OAuthAccount、LoginLog
+    ├── models/save.py         # GameSave（每個帳號一份遊戲進度）
     ├── schemas/auth.py        # 請求 / 回應格式與驗證規則
+    ├── schemas/save.py        # 存檔的請求 / 回應格式
     ├── services/
     │   ├── google.py          # 驗證 Google ID token
     │   └── auth.py            # 註冊 / 登入 / 訪客 / refresh 的商業邏輯與 DB、Redis 寫入
@@ -46,6 +48,7 @@ backend/
     │   └── system.py          # 系統路由：/health、/auth-test
     ├── api/
     │   ├── auth.py            # /auth/* 路由
+    │   ├── save.py            # /save 路由（雲端存檔）
     │   └── deps.py            # get_current_user、get_optional_user、get_client_info
     └── static/auth_test.html  # 開發用測試頁 → http://localhost:8000/auth-test
 ```
@@ -98,6 +101,14 @@ docker compose down             # 停止（加 -v 會連資料一起刪除）
 | provider_user_id | Google 的 `sub`（永久不變，比 email 可靠） |
 | email | 綁定當下的 Google email |
 
+**game_saves** — 每個帳號一份遊戲進度
+| 欄位 | 說明 |
+|---|---|
+| user_id | PK、FK → users.id（ON DELETE CASCADE）；訪客升級後 id 不變，存檔自動跟著 |
+| data | JSON，內容由前端定義（`frontend/src/net/cloudSave.ts`）：`{v, savedAt, progress, raceBest, customSpawn}`；上限 64 KB |
+| version | 每次寫入 +1 |
+| updated_at | timestamptz |
+
 **login_logs** — 每次登入 / 註冊（含失敗）一筆：user_id、method（register / password / google / guest）、success、username_attempted、ip_address、user_agent、created_at
 
 ### Redis keys
@@ -110,9 +121,14 @@ docker compose down             # 停止（加 -v 會連資料一起刪除）
 ### API（`/docs` 可直接測試）
 | 方法 | 路徑 | 說明 |
 |---|---|---|
-| POST | `/auth/register/google` | `{id_token, username, password, display_name?}` → 201。帶訪客的 `Authorization: Bearer` 時，直接把該訪客升級成正式帳號 |
+| POST | `/auth/register` | `{username, password, display_name?}` → 201。不用 Google 直接註冊；帶訪客的 `Authorization: Bearer` 時把該訪客升級 |
+| POST | `/auth/register/google` | `{id_token, username, password, display_name?}` → 201（舊流程，前端已不用，保留給測試頁） |
 | POST | `/auth/login` | `{username, password}` → 200；錯誤一律回「帳號或密碼錯誤」 |
-| POST | `/auth/login/google` | `{id_token}` → 200；未註冊回 404，前端改顯示註冊表單 |
+| POST | `/auth/login/google` | `{id_token}` → 200；**第一次使用的 Google 帳號會自動註冊並登入**（使用者名稱取 email @ 前段，撞名加數字；沒有密碼）。帶訪客 token 時把訪客升級 |
+| PATCH | `/auth/me` | `{display_name?, username?}` → 修改帳戶名稱；訪客只能改顯示名稱，重名回 409 |
+| GET | `/save` | 目前帳號的存檔 `{data, version, updated_at}`；沒有回 404 |
+| PUT | `/save` | `{data}` 覆寫存檔 |
+| DELETE | `/save` | 刪除存檔 → 204 |
 | POST | `/auth/guest` | 建立訪客 → 201 |
 | POST | `/auth/refresh` | `{refresh_token}` → 新的 access + refresh |
 | POST | `/auth/logout` | `{refresh_token}` → 204 |
@@ -148,6 +164,15 @@ docker compose down             # 停止（加 -v 會連資料一起刪除）
 | `.env.example` 沒被 commit | 根目錄 `.gitignore` 有 `.env*`；需要時用 `git add -f backend/.env.example` |
 
 ## 變更紀錄
+### 2026-11-19（帳密註冊、Google 自動註冊、改名、雲端存檔）
+- 新增 `POST /auth/register`：沒有或不想用 Google 帳號時，直接用使用者名稱 + 密碼註冊（可升級訪客）
+- `POST /auth/login/google` 改為第一次使用就自動註冊並登入（不再回 404 要求另填帳密）；自動產生使用者名稱，之後可在設定修改
+- 新增 `PATCH /auth/me`：修改顯示名稱 / 使用者名稱
+- 新增資料表 `game_saves` 與 `GET/PUT/DELETE /save`：登入後遊戲進度存到帳號，前端在自動存檔、暫停、離開、最佳紀錄、重生點變動時上傳，登入時下載
+- `UserOut` 新增 `has_password`、`has_google`
+- Google 公鑰抓取失敗時重試一次，仍失敗回 503（原本是未處理的 500）
+- 測試：curl 測帳密註冊 / 重名 / guest_ 開頭 / 格式錯誤、改名（含重名、訪客限制）、存檔讀寫刪、訪客升級後存檔保留；前端實測註冊、進度上傳、清空本機後重新登入取回進度、換帳號不繼承進度、設定改名
+
 ### 2026-11-18（routers 資料夾）
 - 新增 `app/routers/system.py`：`/health`、`/auth-test` 從 `factory.py` 搬到這裡，`factory.py` 只負責 lifespan 與掛載路由
 - 測試：路由完整、`/auth-test` 200、uvicorn 可正常啟動、帳號系統測試全數通過
@@ -187,3 +212,5 @@ docker compose down             # 停止（加 -v 會連資料一起刪除）
 - [ ] 若部署在反向代理後面，client IP 要改讀 `X-Forwarded-For`
 - [ ] 依需求文件 F01–F14 設計遊戲資料表（任務、成就、地點…），外鍵一律指向 users.id
 - [ ] 導入 Alembic
+- [ ] Google 自動註冊的帳號目前沒有密碼，之後可在設定加「設定密碼」讓它也能帳密登入
+- [ ] 相簿照片（前端 IndexedDB）尚未上傳到帳號

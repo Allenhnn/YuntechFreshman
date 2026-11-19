@@ -11,6 +11,8 @@ from app.schemas.auth import (
     GoogleLoginRequest,
     GoogleRegisterRequest,
     LoginRequest,
+    RegisterRequest,
+    UpdateMeRequest,
     RefreshRequest,
     TokenResponse,
     UserOut,
@@ -36,6 +38,19 @@ async def register_google(
     return await auth_service.register_with_google(db, redis, body, profile, client, guest=current)
 
 
+@router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED,
+             summary="1b. 使用者名稱 + 密碼註冊（不用 Google）")
+async def register(
+    body: RegisterRequest,
+    db: AsyncSession = Depends(get_db),
+    redis: Redis = Depends(get_redis),
+    client: ClientInfo = Depends(get_client_info),
+    current: User | None = Depends(get_optional_user),
+):
+    """帶訪客的 Authorization header 呼叫時，會把該訪客升級成正式帳號並保留進度。"""
+    return await auth_service.register_with_password(db, redis, body, client, guest=current)
+
+
 @router.post("/login", response_model=TokenResponse, summary="2. 使用者名稱 + 密碼登入")
 async def login(
     body: LoginRequest,
@@ -47,15 +62,17 @@ async def login(
 
 
 @router.post("/login/google", response_model=TokenResponse,
-             summary="2b. 已註冊者用 Google 一鍵登入（未註冊回 404）")
+             summary="2b. Google 一鍵登入；第一次使用會自動註冊並登入")
 async def login_google(
     body: GoogleLoginRequest,
     db: AsyncSession = Depends(get_db),
     redis: Redis = Depends(get_redis),
     client: ClientInfo = Depends(get_client_info),
+    current: User | None = Depends(get_optional_user),
 ):
+    """帶訪客的 Authorization header 且這個 Google 帳號還沒註冊時，會把訪客升級並保留進度。"""
     profile = await verify_google_id_token(body.id_token)
-    return await auth_service.login_with_google(db, redis, profile, client)
+    return await auth_service.login_with_google(db, redis, profile, client, guest=current)
 
 
 @router.post("/guest", response_model=TokenResponse, status_code=status.HTTP_201_CREATED,
@@ -82,6 +99,15 @@ async def logout(body: RefreshRequest, redis: Redis = Depends(get_redis)):
 @router.get("/me", response_model=UserOut, summary="目前登入的使用者")
 async def me(user: User = Depends(get_current_user)):
     return user
+
+
+@router.patch("/me", response_model=UserOut, summary="修改顯示名稱 / 使用者名稱")
+async def update_me(
+    body: UpdateMeRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    return await auth_service.update_me(db, user, body)
 
 
 @router.get("/config", summary="前端需要的公開設定（Google Client ID）")
