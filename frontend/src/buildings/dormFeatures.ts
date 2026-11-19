@@ -1,10 +1,13 @@
 import {
   BoxGeometry,
   CanvasTexture,
+  BufferGeometry,
   Color,
   ConeGeometry,
   CylinderGeometry,
+  DoubleSide,
   ExtrudeGeometry,
+  Float32BufferAttribute,
   Group,
   InstancedMesh,
   Matrix4,
@@ -19,7 +22,6 @@ import {
   SRGBColorSpace,
   Vector2,
   Vector3,
-  type BufferGeometry,
   type Material,
   type Scene,
 } from 'three';
@@ -35,8 +37,8 @@ import { campusTreeGeometry } from '../campus/campusWorld';
  *  - 學生宿舍C：L 形轉角內、貼著北棟南面與西側斜牆 / 南翼的單層「宿舍服務中心」（正面照）。正面由西到東：
  *    有窗與無障礙標誌的實牆段、玻璃店面（上排氣窗、中間大片玻璃、下排黃底紅字「宿 舍 服 … 務 中 心」）、
  *    深色窗的實牆段；店面上方深灰招牌（藍色 C、金字「國立雲林科技大學 學生宿舍服務中心」、右側紅色 LED 板），
- *    招牌下白色出挑簷口。前面整排前廊、幾乎全寬的三階台階；西段前方是與立面平行、往東上升的無障礙坡道，
- *    外側整面混凝土矮牆（藍色指標牌）與扶手。前廊與廣場上多盆紅色花盆，坡道口一支黑色雙燈頭燈柱。
+ *    招牌下白色出挑簷口。內凹前廊、沿整個正面的三階台階；無障礙坡道從前廊西端沿南翼牆面往外下降，
+ *    外側混凝土矮牆（藍色指標牌）與扶手。前廊與廣場上多盆紅色花盆，坡道口一支黑色雙燈頭燈柱。
  *  - 學生宿舍D（入口正面照）：東北向的凹角整個做成門廊，寬度從東翼北面到北翼東面（約 12.4 m、深 3.6 m）：
  *    門廊頂板與前緣厚混凝土帶（藍色 D）、下方方柱、兩樘門（斜牆一樘、北翼東面一樘）之間一長條綠籬花台、
  *    全寬平台與四階台階、左側藍色扶手與白色告示牌；前方灰色連鎖磚夾紅磚帶的廣場、三個方形樹穴、紅色花盆、
@@ -81,15 +83,11 @@ const PORCH = { z0: SVC.depth, z1: SVC.depth + 1.6, top: 0.6 };
 /** 店面牆的 45° 線（outerK 往內退前廊深度）。 */
 const WALL_K = CORNER.outerK - (PORCH.z1 - PORCH.z0) * Math.SQRT2;
 /**
- * 台階（照片）：頂階西端在前廊外緣的 x0；兩端都不是直角收頭，而是 45° 轉角——西端沿著坡道矮牆的斜段往外斜下，
- * 東端沿北棟牆面（與正面成 45°）接到牆上。
+ * 無障礙坡道（使用者標線）：從前廊外緣的西端（南翼牆角）沿南翼牆面往外（往南）下降，離牆 inset、寬 width、
+ * 沿牆長 len；外側（廣場側）一道混凝土矮牆（藍色指標牌、扶手），低端開口。
+ * 台階：沿整個正面，從坡道外側矮牆一路到北棟牆面；兩端都是斜角——西端貼著坡道矮牆斜下、東端沿北棟牆面接到牆上。
  */
-const STEPS = { x0: 4.8 };
-/**
- * 坡道：前廊前方、與立面平行，西端（x0）著地、東端（x1）到頂；外側矮牆從 wallFrom 沿坡道到 x1，再斜 45° 折回
- * 前廊外緣的 STEPS.x0（台階西端就靠著這段斜牆）；坡道頂與斜牆之間是一塊三角形平台。x1 = STEPS.x0 − 坡道寬。
- */
-const RAMP = { x0: -1.2, x1: 3.4, z0: PORCH.z1, z1: PORCH.z1 + 1.4, wall: 0.15, wallFrom: 0.0, wallTop: 1.15 };
+const RAMP = { len: 4.0, width: 1.4, inset: 0.1, wall: 0.15, wallTop: 1.15 };
 /**
  * 前方廣場（C_SOUTH 牆面座標）：灰色連鎖磚夾紅磚帶（照片），從正面鋪到兩條路邊；
  * 多邊形 = 正面西端 → 正面東端 → 沿北棟南面延伸到南北向路邊 → 沿兩條路邊（路口處切角）→ 南翼東南角；離路緣約 0.4 m。
@@ -525,50 +523,74 @@ function addServiceCentre(ctx: Ctx, c: Frame): Frame {
     if (d) ctx.colliders.push(ctx.tracker.collider(ctx.physics.createCollider(d)));
   };
 
-  // Steps down from the porch's outer edge, each tier a band widening outward at 45° at both ends:
-  // west along the ramp parapet's diagonal, east along the north block's wall.
+  // Ramp down along the south wing's face from the porch's west corner. Directions in the front
+  // frame: w along the wing, outward; p across it, toward the plaza.
   const z1 = PORCH.z1;
+  const [wa, wb] = CORNER.wing.map(([x, z]) => toFront(x, z)) as [[number, number], [number, number]];
+  const wl = Math.hypot(wb[0] - wa[0], wb[1] - wa[1]);
+  const w: [number, number] = [(wb[0] - wa[0]) / wl, (wb[1] - wa[1]) / wl];
+  const pw: [number, number] = [w[1], -w[0]];
+  const [cwx, cwz] = toFront(...outer.west); // porch's outer west corner, on the wing face
+  /** Point at offset `o` from the wing face, on the porch's outer edge (z = z1). */
+  const onEdge = (o: number): [number, number] => {
+    const sAlong = (z1 - cwz - pw[1] * o) / w[1];
+    return [cwx + pw[0] * o + w[0] * sAlong, z1];
+  };
+  const { len: RL, width: RW, inset, wall: t, wallTop } = RAMP;
+  const add2 = (a: [number, number], b: [number, number], k = 1): [number, number] => [a[0] + b[0] * k, a[1] + b[1] * k];
+  const rA = onEdge(inset), rB = onEdge(inset + RW); // top edge (porch height)
+  const rD = add2(rA, w, RL), rC = add2(rB, w, RL); // low edge (ground); both edges parallel to the porch edge
+  {
+    // Sloped slab: top face A-B (y = top) → D-C (y = 0), the end at the porch and the two sides.
+    const P = (q: [number, number], y: number): number[] => [q[0], y, q[1]];
+    const tris = [
+      [P(rA, top), P(rB, top), P(rC, 0)], [P(rA, top), P(rC, 0), P(rD, 0)],
+      [P(rA, 0), P(rB, 0), P(rB, top)], [P(rA, 0), P(rB, top), P(rA, top)],
+      [P(rA, 0), P(rA, top), P(rD, 0)], [P(rB, 0), P(rC, 0), P(rB, top)],
+    ];
+    const g = new BufferGeometry();
+    g.setAttribute('position', new Float32BufferAttribute(tris.flat(2), 3));
+    g.computeVertexNormals();
+    const slabM = ctx.tracker.material(new MeshStandardMaterial({ color: CONCRETE, roughness: 0.9, side: DoubleSide }));
+    f.add(g, slabM);
+    const v: number[] = [];
+    for (const [q, y] of [[rA, top], [rB, top], [rA, 0], [rB, 0], [rC, 0], [rD, 0]] as const) { const [wx, wz] = f.world(q[0], q[1]); v.push(wx, y, wz); }
+    const d = RAPIER.ColliderDesc.convexHull(new Float32Array(v));
+    if (d) ctx.colliders.push(ctx.tracker.collider(ctx.physics.createCollider(d)));
+  }
+  // Parapet on the plaza side of the ramp, a steel rail along its top, the blue sign near the low end.
+  const rBo = add2(rB, pw, t), rCo = add2(rC, pw, t);
+  prism([rB, rC, rCo, rBo], 0, wallTop, concrete);
+  const steel = ctx.mat(0xc9ccce, { metalness: 0.7, roughness: 0.3 });
+  {
+    const a = new Vector3(rB[0] - pw[0] * 0.1, top + 0.85, rB[1] - pw[1] * 0.1), b = new Vector3(rC[0] - pw[0] * 0.1, 0.85, rC[1] - pw[1] * 0.1);
+    const dir = b.clone().sub(a);
+    const rail = f.add(new CylinderGeometry(0.025, 0.025, dir.length(), 8), steel);
+    rail.quaternion.setFromUnitVectors(new Vector3(0, 1, 0), dir.normalize());
+    rail.position.copy(a.add(b).multiplyScalar(0.5));
+  }
+  const blue = f.add(new PlaneGeometry(0.5, 0.35), ctx.mat(0x1f5fb8), false);
+  const [bx, bz] = add2(add2(rB, w, RL - 1.0), pw, t + 0.01);
+  blue.position.set(bx, wallTop - 0.4, bz);
+  blue.rotation.y = Math.atan2(pw[0], pw[1]);
+
+  // Steps the whole width of the front, from the ramp parapet to the north block's wall; each tier
+  // widens outward, its west end along the parapet and its east end along the wall.
+  const stepsWest = (z: number): number => rBo[0] + (z - z1) * (w[0] / w[1]);
   for (let k = 0; ; k++) {
     const h = top - (k + 1) * RISE;
     if (h <= 0.001) break;
     const za = z1 + k * TREAD, zb = za + TREAD;
-    const west = (z: number): number => STEPS.x0 - (z - z1), east = (z: number): number => oex + (z - z1);
-    prism([[west(za), za], [east(za), za], [east(zb), zb], [west(zb), zb]], 0, h, concrete);
+    const east = (z: number): number => oex + (z - z1);
+    prism([[stepsWest(za), za], [east(za), za], [east(zb), zb], [stepsWest(zb), zb]], 0, h, concrete);
   }
-
-  // Ramp along the front of the west section, rising eastward; a solid concrete parapet on its
-  // outer side (open at the low west end) with a steel rail and a blue sign, turning 45° at the top
-  // back to the porch edge; a triangular landing between the ramp top and that diagonal.
-  const { x0: rx0, x1: rx1, z0: rz0, z1: rz1, wall: t, wallFrom, wallTop } = RAMP;
-  const run = rx1 - rx0, slope = Math.atan2(top, run), hyp = Math.hypot(top, run);
-  const ramp = f.add(new BoxGeometry(hyp, 0.1, rz1 - rz0), concrete);
-  ramp.position.set((rx0 + rx1) / 2, top / 2 - 0.05, (rz0 + rz1) / 2);
-  ramp.rotation.z = slope; // +x (east) end up
-  {
-    const [cx, cz] = f.world((rx0 + rx1) / 2, (rz0 + rz1) / 2);
-    const q = new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), f.g.rotation.y).multiply(new Quaternion().setFromAxisAngle(new Vector3(0, 0, 1), slope));
-    ctx.colliders.push(ctx.tracker.collider(ctx.physics.createCollider(
-      RAPIER.ColliderDesc.cuboid(hyp / 2, 0.05, (rz1 - rz0) / 2).setTranslation(cx, top / 2 - 0.05, cz).setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }),
-    )));
-  }
-  prism([[rx1, rz0], [STEPS.x0, rz0], [rx1, rz1]], 0, top, concrete); // landing
-  prism([[wallFrom, rz1], [rx1, rz1], [rx1, rz1 + t], [wallFrom, rz1 + t]], 0, wallTop, concrete); // parapet along the ramp
-  // ...and its diagonal back to the porch edge (outer face on the steps' side).
-  const s2 = t * Math.SQRT1_2;
-  prism([[rx1, rz1], [STEPS.x0, rz0], [STEPS.x0 + s2 * 2, rz0], [rx1 + s2, rz1 + s2]], 0, wallTop, concrete);
-  const steel = ctx.mat(0xc9ccce, { metalness: 0.7, roughness: 0.3 });
-  const rail = f.add(new CylinderGeometry(0.025, 0.025, hyp, 8).rotateZ(Math.PI / 2), steel);
-  rail.position.set((rx0 + rx1) / 2, top / 2 + 0.85, rz1 - 0.1);
-  rail.rotation.z = slope;
-  const blue = f.add(new PlaneGeometry(0.5, 0.35), ctx.mat(0x1f5fb8), false);
-  blue.position.set(wallFrom + 0.6, wallTop - 0.35, rz1 + t + 0.01);
 
   // Pots along the porch edge and on the plaza, the lantern by the ramp's low end.
   addPots(ctx, f, [
     [-0.6, PORCH.z1 - 0.4, top], [1.0, PORCH.z1 - 0.4, top], [10.4, PORCH.z0 + 0.4, top], [11.1, PORCH.z0 + 0.4, top],
     [5.6, D + 4.6], [4.4, D + 4.9], [12.2, D + 3.9], [1.4, D + 3.9], [3.0, D + 4.1],
   ]);
-  addLanterns(ctx, f, [[-0.8, D + 5.2]]);
+  addLanterns(ctx, f, [[-2.4, D + 5.2]]);
   return f;
 }
 
