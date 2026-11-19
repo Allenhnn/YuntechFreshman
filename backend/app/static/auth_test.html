@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>帳號系統測試｜雲寶寶上學趣</title>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<style>
+  :root { --bg:#f5f6f8; --card:#fff; --line:#e3e6eb; --text:#1f2430; --muted:#6b7280;
+          --pri:#2f6fed; --ok:#16a34a; --err:#dc2626; --guest:#b45309; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: -apple-system, "PingFang TC", "Noto Sans TC", sans-serif;
+         background:var(--bg); color:var(--text); font-size:14px; }
+  header { background:var(--card); border-bottom:1px solid var(--line); padding:14px 24px;
+           display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
+  header h1 { font-size:16px; margin:0; }
+  #status { margin-left:auto; display:flex; align-items:center; gap:8px; }
+  .badge { padding:3px 10px; border-radius:999px; font-size:12px; font-weight:600; background:#eef0f3; color:var(--muted); }
+  .badge.user { background:#e0ecff; color:var(--pri); }
+  .badge.guest { background:#fdf0dc; color:var(--guest); }
+  main { display:grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap:16px; padding:20px 24px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px 18px; }
+  .card h2 { font-size:15px; margin:0 0 4px; }
+  .card p.hint { color:var(--muted); margin:0 0 12px; font-size:12.5px; line-height:1.5; }
+  label { display:block; font-size:12px; color:var(--muted); margin:10px 0 4px; }
+  input { width:100%; padding:8px 10px; border:1px solid var(--line); border-radius:6px; font-size:14px; }
+  input:focus { outline:2px solid #c7d8fb; border-color:var(--pri); }
+  button { padding:8px 14px; border-radius:6px; border:1px solid var(--line); background:#fff;
+           font-size:13px; cursor:pointer; margin-top:12px; }
+  button.pri { background:var(--pri); color:#fff; border-color:var(--pri); }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; }
+  .notice { background:#fff7e6; border:1px solid #f5d9a8; color:#8a5a00; padding:8px 10px; border-radius:6px; font-size:12.5px; margin-bottom:10px; }
+  .gstate { font-size:12.5px; margin-top:10px; color:var(--muted); word-break:break-all; }
+  .notice code, .gcheck code { background:rgba(0,0,0,.05); padding:1px 4px; border-radius:4px; font-size:12px; }
+  .gcheck { margin-top:12px; font-size:12.5px; color:var(--muted); }
+  .gcheck summary { cursor:pointer; }
+  .gcheck ul { margin:6px 0 0; padding-left:18px; line-height:1.7; }
+  #regForm { display:none; border-top:1px dashed var(--line); margin-top:12px; padding-top:4px; }
+  .full { grid-column: 1 / -1; }
+  #log { font-family: ui-monospace, Menlo, monospace; font-size:12px; max-height:340px; overflow:auto;
+         background:#0f1420; color:#d6dbe6; border-radius:8px; padding:10px 12px; margin:0; white-space:pre-wrap; word-break:break-all; }
+  #log .ok { color:#6ee7a0; } #log .err { color:#fca5a5; } #log .req { color:#93c5fd; }
+  pre.me { background:#f8f9fb; border:1px solid var(--line); border-radius:6px; padding:8px 10px; font-size:12px; margin:10px 0 0; white-space:pre-wrap; }
+</style>
+</head>
+<body>
+<header>
+  <h1>帳號系統測試</h1>
+  <span style="color:var(--muted);font-size:12px">只供開發測試使用</span>
+  <div id="status"><span class="badge" id="who">未登入</span></div>
+</header>
+
+<main>
+  <!-- 1. Google 註冊 / 登入 -->
+  <section class="card">
+    <h2>1. Google 註冊 / 登入</h2>
+    <p class="hint">按 Google 按鈕後會先嘗試登入；尚未註冊時會出現設定帳密的表單。目前是訪客時，註冊會把訪客升級成正式帳號。</p>
+    <div id="gNotice" class="notice" style="display:none"></div>
+    <div id="gBtn"></div>
+    <div class="gstate" id="gState"></div>
+    <details class="gcheck">
+      <summary>按鈕沒反應或跳出錯誤？</summary>
+      <ul>
+        <li>Client ID：<code id="gClient">—</code></li>
+        <li>Google Cloud Console 的「已授權的 JavaScript 來源」要有 <code id="gOrigin"></code> 和 <code>http://localhost</code>，存檔後等幾分鐘才生效。</li>
+        <li>用 <code>127.0.0.1</code> 開頁面時，來源也要另外加 <code>http://127.0.0.1:8000</code>。</li>
+        <li>OAuth 還在「測試中」時，只有測試使用者名單裡的 Google 帳號能登入。</li>
+      </ul>
+    </details>
+    <form id="regForm">
+      <label>使用者名稱（3–20 字，英數或底線）</label>
+      <input id="regUser" required pattern="[A-Za-z0-9_]{3,20}" autocomplete="username">
+      <label>密碼（至少 8 字）</label>
+      <input id="regPass" type="password" required minlength="8" autocomplete="new-password">
+      <label>顯示名稱（可留空，預設用 Google 名字）</label>
+      <input id="regName" maxlength="64">
+      <button class="pri" type="submit" id="regBtn">完成註冊</button>
+    </form>
+  </section>
+
+  <!-- 2. 帳密登入 -->
+  <section class="card">
+    <h2>2. 使用者名稱 + 密碼登入</h2>
+    <p class="hint">連續錯誤 5 次會鎖定 15 分鐘。</p>
+    <form id="loginForm">
+      <label>使用者名稱</label>
+      <input id="loginUser" required autocomplete="username">
+      <label>密碼</label>
+      <input id="loginPass" type="password" required autocomplete="current-password">
+      <button class="pri" type="submit">登入</button>
+    </form>
+  </section>
+
+  <!-- 3. 訪客 -->
+  <section class="card">
+    <h2>3. 訪客登入</h2>
+    <p class="hint">建立一個 guest_ 開頭的臨時帳號。同一 IP 每小時最多 10 個。</p>
+    <button class="pri" id="guestBtn">以訪客身分進入</button>
+  </section>
+
+  <!-- Token 操作 -->
+  <section class="card">
+    <h2>目前登入狀態</h2>
+    <p class="hint">Token 存在瀏覽器 localStorage，重新整理頁面仍會保留。</p>
+    <div class="row">
+      <button id="meBtn">GET /auth/me</button>
+      <button id="refreshBtn">更新 Token</button>
+      <button id="logoutBtn">登出</button>
+    </div>
+    <pre class="me" id="meBox">尚未登入</pre>
+  </section>
+
+  <section class="card full">
+    <div class="row" style="align-items:center;justify-content:space-between">
+      <h2 style="margin:0">API 紀錄</h2>
+      <button id="clearLog" style="margin:0">清除</button>
+    </div>
+    <pre id="log"></pre>
+  </section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const store = {
+  get access() { return localStorage.getItem("access_token"); },
+  get refresh() { return localStorage.getItem("refresh_token"); },
+  save(t) { localStorage.setItem("access_token", t.access_token); localStorage.setItem("refresh_token", t.refresh_token); },
+  clear() { localStorage.removeItem("access_token"); localStorage.removeItem("refresh_token"); },
+};
+let googleCredential = null;
+
+function esc(s) { return String(s).replace(/[&<>]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;" }[c])); }
+function log(cls, text) {
+  const t = new Date().toLocaleTimeString("zh-TW", { hour12:false });
+  $("log").insertAdjacentHTML("afterbegin", `<div class="${cls}">[${t}] ${esc(text)}</div>`);
+}
+
+async function api(method, path, body, { auth = false } = {}) {
+  const headers = { "Content-Type": "application/json" };
+  if (auth && store.access) headers.Authorization = `Bearer ${store.access}`;
+  log("req", `→ ${method} ${path}${body ? " " + JSON.stringify(redact(body)) : ""}`);
+  const res = await fetch(path, { method, headers, body: body ? JSON.stringify(body) : undefined });
+  const data = res.status === 204 ? null : await res.json().catch(() => null);
+  log(res.ok ? "ok" : "err", `← ${res.status} ${data ? JSON.stringify(redact(data)) : ""}`);
+  return { ok: res.ok, status: res.status, data };
+}
+function redact(o) {  // 紀錄裡把密碼和 token 縮短，避免整串印出來
+  const c = { ...o };
+  for (const k of ["password", "id_token", "access_token", "refresh_token"])
+    if (c[k]) c[k] = k === "password" ? "••••" : c[k].slice(0, 12) + "…";
+  return c;
+}
+
+function setUser(user) {
+  const who = $("who");
+  if (!user) { who.className = "badge"; who.textContent = "未登入"; $("meBox").textContent = "尚未登入"; return; }
+  who.className = "badge " + (user.is_guest ? "guest" : "user");
+  who.textContent = user.is_guest ? `訪客：${user.display_name}` : `已登入：${user.username}`;
+  $("meBox").textContent = JSON.stringify(user, null, 2);
+}
+
+function onTokens(r) {
+  if (r.ok && r.data?.access_token) { store.save(r.data); setUser(r.data.user); }
+  return r;
+}
+
+async function loadMe() {
+  if (!store.access) return setUser(null);
+  const r = await api("GET", "/auth/me", null, { auth: true });
+  if (r.ok) return setUser(r.data);
+  if (r.status === 401 && store.refresh) {   // access token 過期 → 自動用 refresh 換新
+    const rr = onTokens(await api("POST", "/auth/refresh", { refresh_token: store.refresh }));
+    if (rr.ok) return;
+  }
+  store.clear(); setUser(null);
+}
+
+// ---------- 1. Google ----------
+async function onGoogleCredential(resp) {
+  googleCredential = resp.credential;
+  const payload = JSON.parse(atob(googleCredential.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+  $("gState").textContent = `已取得 Google 身分：${payload.email}`;
+  const r = await api("POST", "/auth/login/google", { id_token: googleCredential });
+  if (r.ok) { onTokens(r); $("regForm").style.display = "none"; $("gState").textContent += "（已登入）"; return; }
+  if (r.status === 404) {
+    $("gState").textContent += "（尚未註冊，請設定帳密）";
+    $("regName").placeholder = payload.name || "";
+    $("regForm").style.display = "block";
+    $("regUser").focus();
+  }
+}
+
+$("regForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  if (!googleCredential) return log("err", "請先按 Google 按鈕取得身分");
+  const body = { id_token: googleCredential, username: $("regUser").value, password: $("regPass").value };
+  if ($("regName").value) body.display_name = $("regName").value;
+  const r = onTokens(await api("POST", "/auth/register/google", body, { auth: true }));  // 帶 token：訪客會被升級
+  if (r.ok) { $("regForm").reset(); $("regForm").style.display = "none"; $("gState").textContent += " → 註冊完成"; }
+  else if (r.status === 401) { googleCredential = null; $("gState").textContent = "Google 憑證已過期，請重新按 Google 按鈕"; }
+});
+
+function gNotice(html) { $("gNotice").style.display = "block"; $("gNotice").innerHTML = html; }
+
+async function initGoogle() {
+  $("gOrigin").textContent = location.origin;
+  let cfg;
+  try { cfg = await (await fetch("/auth/config")).json(); }
+  catch { return gNotice("無法連到後端 <code>/auth/config</code>，請確認伺服器有在跑。"); }
+  if (!cfg.google_client_id) {
+    return gNotice("後端讀不到 <b>GOOGLE_CLIENT_ID</b>。請確認已填在 <code>backend/.env</code>，然後<b>重新啟動</b>伺服器（改 .env 不會自動重新載入）。");
+  }
+  $("gClient").textContent = cfg.google_client_id.slice(0, 16) + "…";
+  // 等 Google 的 script 載入，最多 8 秒
+  const loaded = await new Promise(r => {
+    const start = Date.now();
+    const t = setInterval(() => {
+      if (window.google?.accounts?.id) { clearInterval(t); r(true); }
+      else if (Date.now() - start > 8000) { clearInterval(t); r(false); }
+    }, 100);
+  });
+  if (!loaded) return gNotice("Google 登入元件載入失敗，請檢查網路，或關掉會擋 <code>accounts.google.com</code> 的擴充功能後重新整理。");
+  google.accounts.id.initialize({ client_id: cfg.google_client_id, callback: onGoogleCredential });
+  google.accounts.id.renderButton($("gBtn"), { theme: "outline", size: "large", text: "continue_with", locale: "zh-TW", width: 260 });
+}
+
+// ---------- 2. 帳密 ----------
+$("loginForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const r = onTokens(await api("POST", "/auth/login", { username: $("loginUser").value, password: $("loginPass").value }));
+  if (r.ok) $("loginPass").value = "";
+});
+
+// ---------- 3. 訪客 ----------
+$("guestBtn").addEventListener("click", async () => onTokens(await api("POST", "/auth/guest")));
+
+// ---------- Token ----------
+$("meBtn").addEventListener("click", loadMe);
+$("refreshBtn").addEventListener("click", async () => {
+  if (!store.refresh) return log("err", "沒有 refresh token，請先登入");
+  const r = onTokens(await api("POST", "/auth/refresh", { refresh_token: store.refresh }));
+  if (!r.ok) { store.clear(); setUser(null); }
+});
+$("logoutBtn").addEventListener("click", async () => {
+  if (store.refresh) await api("POST", "/auth/logout", { refresh_token: store.refresh });
+  store.clear(); setUser(null); googleCredential = null;
+  window.google?.accounts?.id?.disableAutoSelect();
+});
+$("clearLog").addEventListener("click", () => { $("log").innerHTML = ""; });
+
+initGoogle();
+loadMe();
+</script>
+</body>
+</html>

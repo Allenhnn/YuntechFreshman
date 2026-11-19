@@ -5,17 +5,21 @@ dist
 .env*
 
 # 總務處 floor-plan scans: reference only, not redistributed
-assets-src/floorplans/**/*.jpg
-assets-src/floorplans/**/*.jpeg
-assets-src/floorplans/**/*.png
+**/assets-src/floorplans/**/*.jpg
+**/assets-src/floorplans/**/*.jpeg
+**/assets-src/floorplans/**/*.png
 
 # own campus photos (large originals; only processed textures are committed)
-assets-src/photos/**/originals/
+**/assets-src/photos/**/originals/
 
 # derived OCR / tracing caches next to the scans
-assets-src/floorplans/**/.ocr/
-scripts/floorplan/.ocr
+**/assets-src/floorplans/**/.ocr/
+**/scripts/floorplan/.ocr
 
 # Reference plans and photos supplied by the user (not redistributed)
-assets-src/reference/
+**/assets-src/reference/
 __pycache__/
+
+# own campus photos and reference material stay local
+**/assets-src/photos/
+.venv/

@@ -1,0 +1,18 @@
+[project]
+name = "backend"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi[standard]>=0.163.2",
+    "uvicorn[standard]>=0.32",
+    "sqlalchemy[asyncio]>=2.0",
+    "asyncpg>=0.30",
+    "redis>=5.2",
+    "pydantic-settings>=2.6",
+    "pwdlib[argon2]>=0.2",
+    "pyjwt>=2.9",
+    "google-auth>=2.35",
+    "requests>=2.32",
+]
