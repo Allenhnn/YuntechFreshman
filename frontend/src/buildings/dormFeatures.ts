@@ -37,8 +37,10 @@ import { campusTreeGeometry } from '../campus/campusWorld';
  *    深色窗的實牆段；店面上方深灰招牌（藍色 C、金字「國立雲林科技大學 學生宿舍服務中心」、右側紅色 LED 板），
  *    招牌下白色出挑簷口。前面整排前廊、幾乎全寬的三階台階；西段前方是與立面平行、往東上升的無障礙坡道，
  *    外側整面混凝土矮牆（藍色指標牌）與扶手。前廊與廣場上多盆紅色花盆，坡道口一支黑色雙燈頭燈柱。
- *  - 學生宿舍D：東北向斜牆凹處的入口：雨遮（D 字樣）與兩根柱、深色玻璃門、抬高平台與四階台階、
- *    藍色扶手、北翼牆前的矮花台綠籬、台階旁黑色雙燈頭燈柱、廣場上一盆紅色花盆。
+ *  - 學生宿舍D（入口正面照）：東北向的凹角整個做成門廊，寬度從東翼北面到北翼東面（約 11 m）：
+ *    門廊頂板與前緣厚混凝土帶（藍色 D）、下方方柱、兩樘門（斜牆一樘、北翼東面一樘）之間一長條綠籬花台、
+ *    全寬平台與四階台階、左側藍色扶手與白色告示牌；前方灰色連鎖磚夾紅磚帶的廣場、三個方形樹穴、紅色花盆、
+ *    兩側各一支黑色雙燈頭燈柱；北翼東面門廊外一段矮花台綠籬。
  * 每個設施都掛在一面 OSM 外牆上（建築 id ＋ 邊編號，端點對不上就略過）：局部 +x 沿牆、+z 朝外、
  * 原點在牆的終點（外環為逆時針，這樣 +z 才會朝外）。
  *
@@ -80,8 +82,10 @@ const RAMP = { x0: 0.35, x1: 6.2, z0: PORCH.z1, z1: PORCH.z1 + 1.4, wall: 0.15, 
  * 多邊形 = 正面西端 → 正面東端 → 沿北棟南面延伸到南北向路邊 → 沿兩條路邊（路口處切角）→ 南翼東南角；離路緣約 0.4 m。
  */
 const PLAZA = { east: 13.6, eastSouth: 12.5, southEast: 10.5, south: 15.0, band: 4 };
+/** A square tree pit (frame coords), the tree's scale and an optional extra vertical stretch. */
+type Pit = { x: number; z: number; size: number; scale: number; lift?: number };
 /** 樹穴（正面座標）：混凝土框、土面，各種一棵校園樹。 */
-const PITS: readonly { x: number; z: number; size: number; scale: number }[] = [
+const PITS: readonly Pit[] = [
   { x: 8.4, z: SVC.depth + 6.3, size: 2.0, scale: 1.0 },
   { x: 2.0, z: SVC.depth + 6.6, size: 1.8, scale: 0.9 },
 ];
@@ -104,7 +108,35 @@ function plazaOutline(): [number, number][] {
 }
 
 /** 學生宿舍D 入口：雨遮、平台、台階。 */
-const D_ENTRY = { canopy: { x0: 0.3, x1: 4.7, depth: 2.8, y: 3.2 }, deck: { x0: 0.2, x1: 4.8, depth: 3.0, top: 0.6 }, steps: { x0: -0.6, x1: 5.3 } };
+/**
+ * 學生宿舍D 入口（D_RECESS 牆面座標：x 沿斜牆從東翼端往北翼端，z 朝東北外）。凹角的兩面翼牆（OSM 外環）：
+ * 東翼北面 (0,0)–(−4.94,6.95)、北翼東面 (5.04,0)–(11.6,5.15)；門廊前緣在 z = depth，左右各切到翼牆為止。
+ */
+const D_CORNER = { right: [[0, 0], [-4.94, 6.95]] as const, left: [[5.04, 0], [11.6, 5.15]] as const };
+const D_PORCH = { depth: 3.0, top: 0.6, roof: 3.35, band: 0.95, letterX: 0.42 };
+/** 方柱（門廊前緣內側），兩樘門：斜牆上一樘（x 範圍）、北翼東面一樘（D_WING x 範圍）。 */
+const D_COLUMNS: readonly number[] = [-1.3, 2.2, 5.6];
+const D_DOORS = { recess: [0.5, 2.3] as const, wing: [1.2, 2.8] as const };
+/** 台階：門廊前緣往外四階，左右範圍；扶手在左端。 */
+const D_STEPS = { x0: -1.8, x1: 8.6 };
+/** 廣場（D_RECESS 座標）：沿兩面翼牆到翼角，再往外到這兩點；樹穴三個。 */
+const D_PLAZA: readonly [number, number][] = [[10, 12], [-6, 12]];
+/** 照片裡這三棵是細高的樹、樹冠在二樓以上（門廊不被擋住）：同一個校園樹模型，縮窄並拉高（lift）。 */
+const D_PITS: readonly Pit[] = [
+  { x: -0.2, z: 7.4, size: 1.6, scale: 0.7, lift: 1.6 },
+  { x: 3.6, z: 8.6, size: 1.6, scale: 0.65, lift: 1.7 },
+  { x: 7.2, z: 7.2, size: 1.6, scale: 0.72, lift: 1.55 },
+];
+
+/** x of a wing face at depth z (the line through `pts`). */
+const faceX = (pts: readonly (readonly [number, number])[], z: number): number => {
+  const [[ax, az], [bx, bz]] = pts as [[number, number], [number, number]];
+  return ax + ((bx - ax) * (z - az)) / (bz - az);
+};
+/** D's plaza / tree-free outline in D_RECESS coordinates: the recess, out along both wing faces, then to the road side. */
+function dPlazaOutline(): [number, number][] {
+  return [[0, 0], [5.04, 0], [D_CORNER.left[1][0], D_CORNER.left[1][1]], ...D_PLAZA.map(([x, z]) => [x, z] as [number, number]), [D_CORNER.right[1][0], D_CORNER.right[1][1]]];
+}
 
 // ---------------------------------------------------------------- colours
 const CONCRETE = 0xb4b2ac;
@@ -240,15 +272,29 @@ function plazaPaving(g: CanvasRenderingContext2D): void {
   }
 }
 
-/** Canopy fascia of 學生宿舍D's entrance: white band with a blue "D". */
+/** 學生宿舍D 門廊前緣的混凝土帶：灰白底、細的上下分縫，藍色 D 在 letterX（0..1）處。 */
 function dBand(g: CanvasRenderingContext2D): void {
-  g.fillStyle = '#e6e6e0';
-  g.fillRect(0, 0, 512, 64);
+  const W = 1024, H = 96;
+  g.fillStyle = '#d9d8d2';
+  g.fillRect(0, 0, W, H);
+  g.fillStyle = '#c4c3bd';
+  g.fillRect(0, 0, W, 6);
+  g.fillRect(0, H - 8, W, 8);
   g.fillStyle = '#2a6fb0';
-  g.font = '900 54px system-ui, sans-serif';
+  g.font = '800 70px system-ui, sans-serif';
   g.textAlign = 'center';
   g.textBaseline = 'middle';
-  g.fillText('D', 256, 34);
+  g.fillText('D', W * D_PORCH.letterX, H / 2 + 2);
+}
+
+/** 白色告示牌（門口旁的立牌）。 */
+function noticeBoard(g: CanvasRenderingContext2D): void {
+  g.fillStyle = '#f4f4f0';
+  g.fillRect(0, 0, 128, 160);
+  g.fillStyle = '#2f5d8a';
+  g.fillRect(10, 10, 108, 22);
+  g.fillStyle = '#8a8a86';
+  for (let k = 0; k < 6; k++) g.fillRect(14, 46 + k * 18, 100 - (k % 3) * 18, 7);
 }
 
 // ---------------------------------------------------------------- geometry helpers
@@ -485,16 +531,16 @@ function addServiceCentre(ctx: Ctx, c: Frame): Frame {
 
 /** 宿舍服務中心前的廣場鋪面與樹穴（樹用校園樹的幾何與材質，沒有碰撞，同校園其他樹）。 */
 function addPlaza(ctx: Ctx, c: Frame, f: Frame, trees: Pick<CampusMaterials, 'trunk' | 'canopy'> | undefined): void {
-  const tex = canvasTexture(512, 512, plazaPaving, ctx.tracker);
-  tex.wrapS = tex.wrapT = RepeatWrapping;
-  tex.repeat.set(1 / PLAZA.band, 1 / PLAZA.band); // ShapeGeometry UVs are in metres
-  const paving = ctx.tracker.material(new MeshStandardMaterial({ map: tex, roughness: 0.92, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -8 }));
-  const outline = new Shape(plazaOutline().map(([x, z]) => new Vector2(x, -z)));
-  c.add(new ShapeGeometry(outline).rotateX(-Math.PI / 2).translate(0, 0.025, 0), paving, false);
+  addPaving(ctx, c, plazaOutline());
+  addTreePits(ctx, f, PITS, trees);
+}
 
+
+/** Square tree pits (concrete curb, soil) with a campus tree in each, instanced and tinted like the chunk trees (campusWorld.ts). */
+function addTreePits(ctx: Ctx, f: Frame, pits: readonly Pit[], trees: Pick<CampusMaterials, 'trunk' | 'canopy'> | undefined): void {
   const curb = ctx.mat(0xa9a7a0, { roughness: 0.9 });
   const soil = ctx.mat(0x6b5a45, { roughness: 1, polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -12 });
-  for (const p of PITS) {
+  for (const p of pits) {
     const h = p.size / 2, t = 0.14;
     for (const [ax0, ax1, az0, az1] of [[-h, h, -h, -h + t], [-h, h, h - t, h], [-h, -h + t, -h + t, h - t], [h - t, h, -h + t, h - t]] as const) {
       f.add(span(p.x + ax0, p.x + ax1, 0, 0.12, p.z + az0, p.z + az1), curb);
@@ -502,16 +548,15 @@ function addPlaza(ctx: Ctx, c: Frame, f: Frame, trees: Pick<CampusMaterials, 'tr
     f.add(new PlaneGeometry(p.size - 2 * t, p.size - 2 * t).rotateX(-Math.PI / 2).translate(p.x, 0.06, p.z), soil, false);
   }
   if (!trees) return;
-  // Instanced like the chunk trees, with the same per-instance canopy tint (campusWorld.ts).
   const { trunk, canopy } = campusTreeGeometry();
-  const trunks = new InstancedMesh(ctx.tracker.geometry(trunk), trees.trunk, PITS.length);
-  const canopies = new InstancedMesh(ctx.tracker.geometry(canopy), trees.canopy, PITS.length);
+  const trunks = new InstancedMesh(ctx.tracker.geometry(trunk), trees.trunk, pits.length);
+  const canopies = new InstancedMesh(ctx.tracker.geometry(canopy), trees.canopy, pits.length);
   const m = new Matrix4(), q = new Quaternion(), up = new Vector3(0, 1, 0), tint = new Color();
-  PITS.forEach((p, i) => {
-    m.compose(new Vector3(p.x, 0, p.z), q.setFromAxisAngle(up, p.x), new Vector3(p.scale, p.scale, p.scale));
+  pits.forEach((p, i) => {
+    m.compose(new Vector3(p.x, 0, p.z), q.setFromAxisAngle(up, p.x), new Vector3(p.scale, p.scale * (p.lift ?? 1), p.scale));
     trunks.setMatrixAt(i, m);
     canopies.setMatrixAt(i, m);
-    const shift = (i + 1) / (PITS.length + 1);
+    const shift = (i + 1) / (pits.length + 1);
     canopies.setColorAt(i, tint.setRGB(0.16 + shift * 0.08, 0.3 + shift * 0.12, 0.1 + shift * 0.05));
   });
   for (const mesh of [trunks, canopies]) {
@@ -522,48 +567,94 @@ function addPlaza(ctx: Ctx, c: Frame, f: Frame, trees: Pick<CampusMaterials, 'tr
   }
 }
 
-/** 學生宿舍D：入口雨遮、門、平台與台階、藍色扶手。 */
-function addDormDEntrance(ctx: Ctx, f: Frame): void {
-  const trim = ctx.mat(0xe6e6e0, { roughness: 0.8 });
-  const concrete = ctx.mat(CONCRETE, { roughness: 0.9 });
-  const { canopy: C, deck, steps } = D_ENTRY;
-
-  // Canopy slab on two square columns, the fascia with a blue "D".
-  f.add(span(C.x0, C.x1, C.y, C.y + 0.3, 0, C.depth), trim);
-  for (const x of [C.x0 + 0.2, C.x1 - 0.2]) {
-    f.add(span(x - 0.15, x + 0.15, deck.top, C.y, C.depth - 0.35, C.depth - 0.05), trim);
-    f.solid(x, (deck.top + C.y) / 2, C.depth - 0.2, 0.15, (C.y - deck.top) / 2, 0.15);
-  }
-  const face = ctx.tracker.material(new MeshStandardMaterial({ map: canvasTexture(512, 64, dBand, ctx.tracker), roughness: 0.7 }));
-  const fascia = f.add(new PlaneGeometry(C.x1 - C.x0, 0.3), face, false);
-  fascia.position.set((C.x0 + C.x1) / 2, C.y + 0.15, C.depth + 0.006);
-
-  // Dark glass double door in a grey frame on the wall.
-  const mid = (C.x0 + C.x1) / 2;
-  f.add(span(mid - 1.15, mid + 1.15, deck.top, deck.top + 2.7, 0.0, 0.08), ctx.mat(0x5c6166, { metalness: 0.4 }));
-  f.add(span(mid - 1.0, mid + 1.0, deck.top + 0.05, deck.top + 2.55, 0.08, 0.1), ctx.mat(0x232b31, { roughness: 0.15, metalness: 0.4 }), false);
-
-  // Raised deck under the canopy and four steps fanning out to the plaza.
-  f.add(span(deck.x0, deck.x1, 0, deck.top, 0, deck.depth), concrete);
-  f.solid((deck.x0 + deck.x1) / 2, deck.top / 2, deck.depth / 2, (deck.x1 - deck.x0) / 2, deck.top / 2, deck.depth / 2);
-  const end = addSteps(f, steps.x0, steps.x1, deck.depth, deck.top, concrete);
-
-  // Blue handrail down the left of the flight (photo), posts at the top and bottom.
-  const blue = ctx.mat(RAIL_BLUE, { metalness: 0.4, roughness: 0.4 });
-  const rx = steps.x0 + 0.25, z0 = deck.depth - 0.6, z1 = end + TREAD;
-  const len = z1 - z0, hyp = Math.hypot(len, deck.top - RISE);
-  const rail = f.add(new CylinderGeometry(0.03, 0.03, hyp, 8).rotateX(Math.PI / 2), blue);
-  rail.position.set(rx, (deck.top + RISE) / 2 + 0.9, (z0 + z1) / 2);
-  rail.rotation.x = Math.atan2(deck.top - RISE, len);
-  f.add(span(rx - 0.03, rx + 0.03, 0, deck.top + 0.95, z0 - 0.03, z0 + 0.03), blue);
-  f.add(span(rx - 0.03, rx + 0.03, 0, RISE + 0.95, z1 - 0.03, z1 + 0.03), blue);
-  f.solid(rx, 0.6, (z0 + z1) / 2, 0.05, 0.6, len / 2);
+/** Paving laid over an outline given in frame `f`'s coordinates (UVs in metres, 4 m pattern). */
+function addPaving(ctx: Ctx, f: Frame, outline: readonly (readonly [number, number])[]): void {
+  const tex = canvasTexture(512, 512, plazaPaving, ctx.tracker);
+  tex.wrapS = tex.wrapT = RepeatWrapping;
+  tex.repeat.set(1 / PLAZA.band, 1 / PLAZA.band);
+  const paving = ctx.tracker.material(new MeshStandardMaterial({ map: tex, roughness: 0.92, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -8 }));
+  const shape = new Shape(outline.map(([x, z]) => new Vector2(x, -z)));
+  f.add(new ShapeGeometry(shape).rotateX(-Math.PI / 2).translate(0, 0.025, 0), paving, false);
 }
 
-/** 學生宿舍D 北翼牆前：矮混凝土花台與修剪綠籬。 */
+/** 學生宿舍D：凹角門廊（頂板、D 字混凝土帶、方柱、門、綠籬花台）、全寬平台與台階、藍色扶手、告示牌、廣場。 */
+function addDormDEntrance(ctx: Ctx, f: Frame, wing: Frame | null, trees: Pick<CampusMaterials, 'trunk' | 'canopy'> | undefined): void {
+  const band = ctx.mat(0xd9d8d2, { roughness: 0.85 });
+  const concrete = ctx.mat(CONCRETE, { roughness: 0.9 });
+  const { depth: PD, top, roof, band: bh } = D_PORCH;
+  const xr = faceX(D_CORNER.right, PD), xl = faceX(D_CORNER.left, PD); // portico front ends on the wing faces
+  // Recess polygon (deck and portico roof): diagonal wall, out along both wing faces to the front line.
+  const recess: [number, number][] = [[0, 0], [5.04, 0], [xl, PD], [xr, PD]];
+  const extrude = (pts: readonly [number, number][], h: number, y: number): BufferGeometry =>
+    new ExtrudeGeometry(new Shape(pts.map(([x, z]) => new Vector2(x, -z))), { depth: h, bevelEnabled: false }).rotateX(-Math.PI / 2).translate(0, y, 0);
+  const hull = (pts: readonly [number, number][], y0: number, y1: number): void => {
+    const v: number[] = [];
+    for (const [x, z] of pts) { const [wx, wz] = f.world(x, z); v.push(wx, y0, wz, wx, y1, wz); }
+    const d = RAPIER.ColliderDesc.convexHull(new Float32Array(v));
+    if (d) ctx.colliders.push(ctx.tracker.collider(ctx.physics.createCollider(d)));
+  };
+
+  // Deck (the floor of the portico) and the roof slab over it; the front band with the blue D.
+  f.add(extrude(recess, top, 0), concrete);
+  hull(recess, 0, top);
+  f.add(extrude(recess, 0.3, roof), band);
+  const face = ctx.tracker.material(new MeshStandardMaterial({ map: canvasTexture(1024, 96, dBand, ctx.tracker), roughness: 0.8 }));
+  const front = f.add(new BoxGeometry(xl - xr + 0.3, bh, 0.3), [band, band, band, band, face, band]);
+  front.position.set((xl + xr) / 2, roof + bh / 2 - 0.05, PD - 0.15);
+
+  // Square columns just inside the front line.
+  for (const x of D_COLUMNS) {
+    f.add(span(x - 0.22, x + 0.22, top, roof, PD - 0.6, PD - 0.16), band);
+    f.solid(x, (top + roof) / 2, PD - 0.38, 0.22, (roof - top) / 2, 0.22);
+  }
+
+  // Doors: dark glass in grey frames, one on the diagonal wall and one on the north wing's face;
+  // a long clipped-hedge planter on the diagonal between them.
+  const frame = ctx.mat(0x5c6166, { metalness: 0.4 }), glass = ctx.mat(0x232b31, { roughness: 0.15, metalness: 0.4 });
+  const door = (fr: Frame, x0: number, x1: number, y: number): void => {
+    fr.add(span(x0, x1, y, y + 2.6, 0, 0.08), frame);
+    fr.add(span(x0 + 0.12, x1 - 0.12, y + 0.05, y + 2.45, 0.08, 0.1), glass, false);
+    fr.add(span((x0 + x1) / 2 - 0.02, (x0 + x1) / 2 + 0.02, y + 0.05, y + 2.45, 0.1, 0.12), frame, false);
+  };
+  door(f, D_DOORS.recess[0], D_DOORS.recess[1], top);
+  if (wing) door(wing, D_DOORS.wing[0], D_DOORS.wing[1], top);
+  f.add(span(2.6, 4.9, top, top + 0.45, 0.1, 0.9), concrete);
+  f.add(span(2.68, 4.82, top + 0.45, top + 0.95, 0.18, 0.82), ctx.mat(0x3e6f2e, { roughness: 0.95 }));
+  f.solid(3.75, top + 0.475, 0.5, 1.15, 0.475, 0.4);
+
+  // Full-width steps down from the front line, the blue handrail down their left end.
+  const end = addSteps(f, D_STEPS.x0, D_STEPS.x1, PD, top, concrete);
+  const blue = ctx.mat(RAIL_BLUE, { metalness: 0.4, roughness: 0.4 });
+  const rx = D_STEPS.x0 + 0.25, z0 = PD - 0.5, z1 = end + TREAD;
+  const len = z1 - z0, hyp = Math.hypot(len, top - RISE);
+  const rail = f.add(new CylinderGeometry(0.03, 0.03, hyp, 8).rotateX(Math.PI / 2), blue);
+  rail.position.set(rx, (top + RISE) / 2 + 0.9, (z0 + z1) / 2);
+  rail.rotation.x = Math.atan2(top - RISE, len);
+  const lower = f.add(new CylinderGeometry(0.03, 0.03, hyp, 8).rotateX(Math.PI / 2), blue);
+  lower.position.set(rx, (top + RISE) / 2 + 0.45, (z0 + z1) / 2);
+  lower.rotation.x = rail.rotation.x;
+  for (const z of [z0, z1]) {
+    const h = z === z0 ? top : RISE;
+    f.add(span(rx - 0.03, rx + 0.03, 0, h + 0.95, z - 0.03, z + 0.03), blue);
+  }
+  f.solid(rx, 0.6, (z0 + z1) / 2, 0.05, 0.6, len / 2);
+  // White notice board on a post, on the deck by the left column.
+  const board = ctx.tracker.material(new MeshStandardMaterial({ map: canvasTexture(128, 160, noticeBoard, ctx.tracker), roughness: 0.6 }));
+  const nb = f.add(new BoxGeometry(0.6, 0.75, 0.05), [frame, frame, frame, frame, board, frame]);
+  nb.position.set(-0.6, top + 1.25, PD - 1.0);
+  f.add(span(-0.62, -0.58, top, top + 0.9, PD - 1.02, PD - 0.98), frame);
+
+  // Plaza: paving out to the road side, three tree pits, a pot, the two lanterns.
+  addPaving(ctx, f, dPlazaOutline());
+  addTreePits(ctx, f, D_PITS, trees);
+  addPots(ctx, f, [[5.4, 6.4]]);
+  addLanterns(ctx, f, [[-5.6, 8.2], [9.6, 6.6]]);
+}
+
+/** 學生宿舍D 北翼東面、門廊外：矮混凝土花台與修剪綠籬（D_WING 座標）。 */
 function addDormDPlanter(ctx: Ctx, f: Frame): void {
   const concrete = ctx.mat(CONCRETE, { roughness: 0.9 });
-  const x0 = 0.8, x1 = 6.6, z0 = 0.15, z1 = 1.15, h = 0.45;
+  const x0 = 5.6, x1 = 8.1, z0 = 0.15, z1 = 1.15, h = 0.45;
   f.add(span(x0, x1, 0, h, z0, z1), concrete);
   f.add(span(x0 + 0.08, x1 - 0.08, h, h + 0.5, z0 + 0.08, z1 - 0.08), ctx.mat(0x3e6f2e, { roughness: 0.95 }));
   f.solid((x0 + x1) / 2, (h + 0.5) / 2, (z0 + z1) / 2, (x1 - x0) / 2, (h + 0.5) / 2, (z1 - z0) / 2);
@@ -587,8 +678,8 @@ export function dormTreeFree(): number[][] {
   const svc: [number, number][] = [[0, 0], [east[0], 0], ...plazaOutline().slice(2), [CORNER.diag[1][0], CORNER.diag[1][1]]];
   return [
     svc.flatMap(([x, z]) => c(x, z)),
-    rect(D_RECESS, -1.5, 7.5, 0, D_ENTRY.deck.depth + 2.5),
-    rect(D_WING, 0, 7.5, 0, 3.5),
+    dPlazaOutline().flatMap(([x, z]) => toWorld(D_RECESS)(x, z)),
+    rect(D_WING, 5.0, 8.4, 0, 3.0),
   ];
 }
 
@@ -602,13 +693,9 @@ export function createDormFeatures(scene: Scene, physics: RAPIER.World, campus: 
     const front = addServiceCentre(ctx, c);
     addPlaza(ctx, c, front, trees);
   }
+  const wing = wallFrame(ctx, campus, D_WING, '學生宿舍D 北翼');
   const d = wallFrame(ctx, campus, D_RECESS, '學生宿舍D 入口');
-  if (d) {
-    addDormDEntrance(ctx, d);
-    addPots(ctx, d, [[-2.5, 5.5]]);
-    addLanterns(ctx, d, [[6.4, 4.0]]);
-  }
-  const wing = wallFrame(ctx, campus, D_WING, '學生宿舍D 花台');
+  if (d) addDormDEntrance(ctx, d, wing, trees);
   if (wing) addDormDPlanter(ctx, wing);
   return {
     dispose() {
