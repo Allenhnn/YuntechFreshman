@@ -256,8 +256,9 @@ export function createCampusWorld(
   };
 
   // --- Shared tree geometry --------------------------------------------------------------------
-  const trunkGeo = tracker.geometry(new CylinderGeometry(0.16, 0.28, 3.2, 7).translate(0, 1.6, 0));
-  const canopyGeo = tracker.geometry(buildCanopyGeometry());
+  const { trunk: trunkSrc, canopy: canopySrc } = campusTreeGeometry();
+  const trunkGeo = tracker.geometry(trunkSrc);
+  const canopyGeo = tracker.geometry(canopySrc);
   const canopyFarGeo = tracker.geometry(new IcosahedronGeometry(2.1, 0).scale(1, 0.85, 1).translate(0, 4.1, 0));
 
   // --- Worker ----------------------------------------------------------------------------------
@@ -539,6 +540,11 @@ export function toGeometry(b: MeshBuffers): BufferGeometry {
   g.setIndex(new BufferAttribute(b.index, 1));
   g.computeBoundingSphere();
   return g;
+}
+
+/** The campus tree (ground at y = 0): trunk and canopy, for anything that plants its own (dorm plaza pits). */
+export function campusTreeGeometry(): { trunk: BufferGeometry; canopy: BufferGeometry } {
+  return { trunk: new CylinderGeometry(0.16, 0.28, 3.2, 7).translate(0, 1.6, 0), canopy: buildCanopyGeometry() };
 }
 
 /** Clustered, slightly lumpy canopy so instanced trees don't read as perfect spheres. */

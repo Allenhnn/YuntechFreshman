@@ -219,7 +219,7 @@ async function boot(): Promise<void> {
   const skyBridge = ma && mb ? createSkyBridge(scene, physics, sceneResources, { building: mb, at: [50.95, -2.3] }, { building: ma, at: [76.5, 12.75] }, 3.6) : null;
   const mgmtFeatures = createMgmtFeatures(scene, physics, sceneResources, ma);
   const yuntayExterior = createYuntayExterior(scene, physics, sceneResources);
-  const dormFeatures = createDormFeatures(scene, physics, campus, sceneResources);
+  const dormFeatures = createDormFeatures(scene, physics, campus, sceneResources, env.materials);
   const mgmtCourtyard = mb ? createMgmtCourtyard(scene, physics, sceneResources, mb) : null;
   const mbLobby = mb ? createMbLobby(scene, physics, sceneResources, mb) : null;
 

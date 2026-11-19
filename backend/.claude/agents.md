@@ -164,6 +164,14 @@ docker compose down             # 停止（加 -v 會連資料一起刪除）
 | `.env.example` 沒被 commit | 根目錄 `.gitignore` 有 `.env*`；需要時用 `git add -f backend/.env.example` |
 
 ## 變更紀錄
+### 2026-11-19（前端：宿舍服務中心依正面照重新建模）— 分支 `feat/dorm-c-d-exterior`
+- 需求：使用者提供宿舍服務中心正面照，要求仔細觀察後重新建模
+- `frontend/src/buildings/dormFeatures.ts`：服務中心量體改為填滿學生宿舍C L 形轉角（ExtrudeGeometry 沿北棟、斜牆、南翼）；正面三段（♿ 實牆段、玻璃店面含下排「宿舍服…務中心」字貼、深色窗段）、深灰招牌（藍色 C、金字校名、LED 板）與白色簷口；全寬前廊與台階；坡道改為與立面平行、往東上升，外側混凝土矮牆與藍色指標牌；新增廣場鋪面（灰色連鎖磚夾紅磚帶）與兩個方形樹穴（種校園樹）
+- `frontend/src/campus/campusWorld.ts`：匯出 `campusTreeGeometry()`（原本內部的樹幹 / 樹冠幾何），讓其他模組種出一樣的樹
+- `frontend/src/main.ts`：`createDormFeatures` 多傳 `env.materials`（樹的材質）
+- 文件：`frontend/docs/streetscape-remodel.md` 該列更新
+- 測試：`tsc --noEmit` 通過、`vite build` 成功；headless Chrome 在廣場上對著店面截圖，與正面照比對
+
 ### 2026-11-19（前端：學生宿舍C 宿舍服務中心、學生宿舍D 入口小物件）— 分支 `feat/dorm-c-d-exterior`
 - 需求：依使用者在遊戲截圖標記的兩處與實拍照片，在學生宿舍C 外加「宿舍服務中心」、學生宿舍D 外加入口周邊小物件（先前誤做成腳踏車，已撤回、未保留）
 - 新增 `frontend/src/buildings/dormFeatures.ts`（比照 `mgmtFeatures.ts` / `yuntayExterior.ts` 的結構）：C 棟 L 形轉角內的單層玻璃店面（招牌帶、前廊、台階、坡道與扶手、花盆、雙燈頭燈柱）；D 棟東北向入口凹處的雨遮、門、平台與台階、藍色扶手、花台綠籬、燈柱、花盆；全部含碰撞
