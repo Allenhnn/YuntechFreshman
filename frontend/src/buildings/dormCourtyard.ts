@@ -24,12 +24,13 @@ import { Soup, canvasTex, speckle } from './mgmtCourtyard';
 /**
  * 學生宿舍 C / D 之間的下沉中庭（使用者 Street View 實拍，2026-11-20；以紅色箭頭為準：
  * 從宿舍服務路的路尾往西看、以及從中庭往東看回路尾）：
- *  - 路尾一小片紅磚鋪面與三支混凝土圓柱車阻，正中一座往西下降的混凝土台階（兩側擋牆），
- *    下到約一層樓深（3 m）的中庭；
+ *  - 路尾一小片紅磚鋪面與三支混凝土圓柱車阻；往西下到約一層樓深（3 m）的中庭：
+ *    南側（D 棟側）是迴旋無障礙坡道——外道從路尾地面往西下到半圓平台、內道折返往東下到
+ *    第一根柱子旁的中庭地坪；坡道隔牆以北到 C 側牆整面是台階（使用者手繪，2026-11-20）；
  *  - 中庭地坪是深灰方磚，兩排米色磚砌花台（草＋小棕櫚）沿中線錯開排列；
  *  - 南北兩側沿 C、D 棟各留一條地面層走廊（3 m 寬，原地坪），走廊邊是紅色鏤空花磚欄杆，
  *    欄杆下方就是中庭這一層的柱廊：北側（C 棟）白色鐵捲門、南側（D 棟）深色門洞；
- *  - 中庭東南角一段弧形混凝土矮牆，D 棟側柱廊前散置石頭與石桌；
+ *  - 石桌與石頭在坡道半圓平台的斜前方；
  *  - 西端一整面寬台階往上回到地面（上方是草地與高大的樹）。
  * 座標系：原點在兩棟之間的中線（x = 0 處），s 沿兩棟牆面往西（約 WNW→WSW 的紅色箭頭方向），
  * w 往北（C 棟側）。地面在中庭範圍開洞（dormCourtPit），地面碰撞體在洞內不作用。
@@ -38,11 +39,18 @@ const ORIGIN: readonly [number, number] = [0, 365.7];
 const U: readonly [number, number] = [-0.98698, 0.16085]; // +s (west, along the C / D faces)
 const D = -3; // courtyard floor
 const PIT = { s0: 3.5, s1: 35, wS: -10.0, wN: 9.9 };
-/** East stair down from the road end (centred), west stair back up (full width). */
-const EAST = { w: 4, run: 6, n: 20 };
+/** East stair down from the road end (from the ramp divider to the C wall), west stair back up (full width). */
+const EAST = { run: 6, n: 20 };
 const WEST = { run: 7, n: 20 };
 const FLOOR_S0 = PIT.s0 + EAST.run, FLOOR_S1 = PIT.s1 - WEST.run;
 const WALL = 0.3;
+/**
+ * Switchback ramp along the D side (user sketch 2026-11-20): the outer lane leaves the road end at
+ * ground level and runs west down to a half-round landing, the inner lane comes back east down to the
+ * courtyard floor beside the first column, where its inner wall stops short so it opens onto the floor.
+ * w bands: outer wall | outer lane | divider | inner lane | inner wall.
+ */
+const RAMP = { wOut: -7.8, wDiv0: -5.95, wDiv1: -5.75, wIn: -3.9, t: 0.2, sTurn: 21.5, sEnd: FLOOR_S0 + 0.5, innerWall0: FLOOR_S0 + 2, rail: 1.0 };
 /** Ground-level corridors along the buildings, and the brick apron at the road end. */
 const CORR = { n: 13.0, s: -13.15 };
 const APRON_S0 = -4;
@@ -245,22 +253,77 @@ export function createDormCourtyard(scene: Scene, physics: RAPIER.World, tracker
     box(concrete, PIT.s0, PIT.s1, 0.92, 1.02, w0 - 0.02, w1 + 0.02);
     solid(PIT.s0, PIT.s1, 0, 1.02, w0, w1);
   }
-  // East wall either side of the stair, concrete parapet.
-  for (const [w0, w1] of [[PIT.wS + WALL, -EAST.w - 0.25], [EAST.w + 0.25, PIT.wN - WALL]] as const) {
-    box(concrete, PIT.s0, PIT.s0 + WALL, D, 0.95, w0, w1, true);
-  }
-  // East stair: twenty risers down to the floor between two cheek walls.
+  // East stair: twenty risers down to the floor, from the ramp divider across to the C-side wall.
   const stairs = new Soup();
+  const ew0 = RAMP.wDiv1, ew1 = PIT.wN - WALL;
   const riseE = -D / EAST.n, treadE = EAST.run / EAST.n;
   for (let i = 0; i < EAST.n; i++) {
     const sa = PIT.s0 + i * treadE, sb = sa + treadE, h = -(i + 1) * riseE;
-    if (h > D + 1e-6) box(concrete, sa, sb, D, h, -EAST.w, EAST.w);
-    stairs.quad([sa, h + riseE, -EAST.w], [sa, h + riseE, EAST.w], [sa, h, EAST.w], [sa, h, -EAST.w]);
-    stairs.quad([sa, h, -EAST.w], [sa, h, EAST.w], [sb, h, EAST.w], [sb, h, -EAST.w]);
+    if (h > D + 1e-6) box(concrete, sa, sb, D, h, ew0, ew1);
+    stairs.quad([sa, h + riseE, ew0], [sa, h + riseE, ew1], [sa, h, ew1], [sa, h, ew0]);
+    stairs.quad([sa, h, ew0], [sa, h, ew1], [sb, h, ew1], [sb, h, ew0]);
   }
-  for (const [w0, w1] of [[-EAST.w - 0.25, -EAST.w], [EAST.w, EAST.w + 0.25]] as const) {
-    box(concrete, PIT.s0, PIT.s0 + EAST.run, D, 0.95, w0, w1, true);
+
+  // --- Switchback ramp ---------------------------------------------------------------------------
+  const runOut = RAMP.sTurn - PIT.s0, runIn = RAMP.sTurn - RAMP.sEnd;
+  const grade = -D / (runOut + runIn);
+  const hMid = -runOut * grade;
+  const outerH = (s: number): number => -(s - PIT.s0) * grade;
+  const innerH = (s: number): number => hMid - (RAMP.sTurn - s) * grade;
+  const rampSoup = new Soup();
+  /** Solid from the floor up to a top that slopes linearly along s; drawn and given a convex collider. */
+  const sloped = (s0: number, s1: number, w0: number, w1: number, top: (s: number) => number): void => {
+    const t0 = top(s0), t1 = top(s1);
+    const v = (s: number, h: number, w: number): number[] => [s, h, w];
+    rampSoup.quad(v(s0, t0, w0), v(s0, t0, w1), v(s1, t1, w1), v(s1, t1, w0)); // top
+    rampSoup.quad(v(s0, D, w0), v(s1, D, w0), v(s1, t1, w0), v(s0, t0, w0)); // sides
+    rampSoup.quad(v(s0, D, w1), v(s0, t0, w1), v(s1, t1, w1), v(s1, D, w1));
+    rampSoup.quad(v(s0, D, w0), v(s0, t0, w0), v(s0, t0, w1), v(s0, D, w1)); // ends
+    rampSoup.quad(v(s1, D, w0), v(s1, D, w1), v(s1, t1, w1), v(s1, t1, w0));
+    const pts: number[] = [];
+    for (const [s, h] of [[s0, D], [s0, t0], [s1, D], [s1, t1]] as const) {
+      for (const w of [w0, w1]) {
+        const [x, z] = toWorld(s, w);
+        pts.push(x, h, z);
+      }
+    }
+    const desc = RAPIER.ColliderDesc.convexHull(new Float32Array(pts));
+    if (desc) colliders.push(tracker.collider(physics.createCollider(desc)));
+  };
+  const { wOut, wDiv0, wDiv1, wIn, t, sTurn, sEnd, innerWall0, rail } = RAMP;
+  sloped(PIT.s0, sTurn, wOut + t, wDiv0, outerH); // outer lane: road end → landing
+  sloped(sEnd, sTurn, wDiv1, wIn - t, innerH); // inner lane: landing → courtyard floor
+  sloped(PIT.s0, sTurn, wOut, wOut + t, (s) => outerH(s) + rail); // outer wall
+  sloped(PIT.s0, sTurn, wDiv0, wDiv1, (s) => outerH(s) + rail); // divider (also the stair's south cheek)
+  sloped(innerWall0, sTurn, wIn - t, wIn, (s) => innerH(s) + rail); // inner wall, open at its east end
+  // Between the ramp and the D colonnade, under the upper lane's start: solid to ground level.
+  box(concrete, PIT.s0, FLOOR_S0, D, 0, PIT.wS + WALL, wOut, true);
+  add(rampSoup.geometry(1), concrete);
+  // Half-round landing and its curved parapet (the round drum in the Street View photo).
+  const wc = (wOut + wIn) / 2, R = (wIn - wOut) / 2, ARC = 16;
+  add(new CylinderGeometry(R - t, R - t, hMid - D, ARC, 1, false, 0, Math.PI).translate(sTurn, (D + hMid) / 2, wc), concrete);
+  const land: number[] = [];
+  for (let i = 0; i <= ARC; i++) {
+    const a = (i / ARC) * Math.PI, [x, z] = toWorld(sTurn + (R - t) * Math.sin(a), wc + (R - t) * Math.cos(a));
+    land.push(x, D, z, x, hMid, z);
   }
+  const landDesc = RAPIER.ColliderDesc.convexHull(new Float32Array(land));
+  if (landDesc) colliders.push(tracker.collider(physics.createCollider(landDesc)));
+  const curve = new Soup();
+  const top = hMid + rail;
+  const cp = (r: number, a: number, h: number): number[] => [sTurn + r * Math.sin(a), h, wc + r * Math.cos(a)];
+  for (let i = 0; i < ARC; i++) {
+    const a = (i / ARC) * Math.PI, b = ((i + 1) / ARC) * Math.PI, ro = R, ri = R - t;
+    curve.quad(cp(ro, a, D), cp(ro, a, top), cp(ro, b, top), cp(ro, b, D));
+    curve.quad(cp(ri, a, D), cp(ri, b, D), cp(ri, b, top), cp(ri, a, top));
+    curve.quad(cp(ri, a, top), cp(ri, b, top), cp(ro, b, top), cp(ro, a, top));
+    const m = (a + b) / 2, [cx, cz] = toWorld(sTurn + (ro - t / 2) * Math.sin(m), wc + (ro - t / 2) * Math.cos(m));
+    colliders.push(tracker.collider(physics.createCollider(
+      RAPIER.ColliderDesc.cuboid(t / 2, (top - D) / 2, (ro * (b - a)) / 2 + 0.02).setTranslation(cx, (D + top) / 2, cz)
+        .setRotation(quat(m - Math.PI / 2)),
+    )));
+  }
+  add(curve.geometry(1), concrete);
   // West stair: full width, back up to the lawn under the tall trees.
   const riseW = -D / WEST.n, treadW = WEST.run / WEST.n;
   const ww0 = PIT.wS + WALL, ww1 = PIT.wN - WALL;
@@ -322,34 +385,17 @@ export function createDormCourtyard(scene: Scene, physics: RAPIER.World, tracker
   }
   add(mergeGeometries(trunks)!, bark);
   add(mergeGeometries(leaves)!, frond);
-  // Curved concrete wall near the foot of the east stair on the D side (Street View: a round drum).
-  const curve = new Soup();
-  const CW = { s: FLOOR_S0 + 1.8, w: -7.0, r: 2.0, t: 0.22, h: 1.3, a0: -Math.PI / 2, a1: Math.PI / 2, n: 14 };
-  const cp = (r: number, a: number, h: number): number[] => [CW.s + r * Math.cos(a), h, CW.w + r * Math.sin(a)];
-  for (let i = 0; i < CW.n; i++) {
-    const a = CW.a0 + ((CW.a1 - CW.a0) * i) / CW.n, b = CW.a0 + ((CW.a1 - CW.a0) * (i + 1)) / CW.n;
-    const ro = CW.r, ri = CW.r - CW.t, top = D + CW.h;
-    curve.quad(cp(ro, a, D), cp(ro, b, D), cp(ro, b, top), cp(ro, a, top));
-    curve.quad(cp(ri, a, D), cp(ri, a, top), cp(ri, b, top), cp(ri, b, D));
-    curve.quad(cp(ri, a, top), cp(ro, a, top), cp(ro, b, top), cp(ri, b, top));
-    const m = (a + b) / 2, [cx, cz] = toWorld(CW.s + (ro - CW.t / 2) * Math.cos(m), CW.w + (ro - CW.t / 2) * Math.sin(m));
-    const segLen = (ro * (b - a)) / 2 + 0.02;
-    colliders.push(tracker.collider(physics.createCollider(
-      RAPIER.ColliderDesc.cuboid(CW.t / 2, CW.h / 2, segLen).setTranslation(cx, D + CW.h / 2, cz).setRotation(quat(-m)),
-    )));
-  }
-  curve.quad(cp(CW.r - CW.t, CW.a0, D), cp(CW.r, CW.a0, D), cp(CW.r, CW.a0, D + CW.h), cp(CW.r - CW.t, CW.a0, D + CW.h));
-  curve.quad(cp(CW.r - CW.t, CW.a1, D), cp(CW.r - CW.t, CW.a1, D + CW.h), cp(CW.r, CW.a1, D + CW.h), cp(CW.r, CW.a1, D));
-  add(curve.geometry(1), concrete);
-  // Stones and a stone table in front of the D colonnade.
+  // Stone table with stones round it, diagonally in front of the ramp's landing (user sketch).
   const rocks: BufferGeometry[] = [];
-  for (const [s, w, sc] of [[FLOOR_S0 + 6.2, -7.6, 0.45], [FLOOR_S0 + 7.4, -8.2, 0.38], [FLOOR_S0 + 9.6, -7.9, 0.42], [FLOOR_S0 + 8.4, -6.6, 0.35]] as const) {
+  const TS = RAMP.sTurn + 2.6, TW = -1.0;
+  for (const [ds, dw, sc] of [[-1.0, 0.5, 0.36], [0.9, 0.7, 0.34], [-0.4, -1.0, 0.38], [1.0, -0.6, 0.32]] as const) {
+    const s = TS + ds, w = TW + dw;
     rocks.push(new IcosahedronGeometry(sc, 0).scale(1.2, 0.75, 1).translate(s, D + sc * 0.6, w));
     solid(s - sc, s + sc, D, D + sc * 1.2, w - sc, w + sc);
   }
-  rocks.push(new IcosahedronGeometry(0.4, 0).scale(1, 0.9, 1).translate(FLOOR_S0 + 8.0, D + 0.32, -7.4));
-  rocks.push(new CylinderGeometry(0.75, 0.7, 0.14, 9).translate(FLOOR_S0 + 8.0, D + 0.72, -7.4));
-  solid(FLOOR_S0 + 7.3, FLOOR_S0 + 8.7, D, D + 0.79, -8.1, -6.7);
+  rocks.push(new IcosahedronGeometry(0.4, 0).scale(1, 0.9, 1).translate(TS, D + 0.32, TW));
+  rocks.push(new CylinderGeometry(0.75, 0.7, 0.14, 9).translate(TS, D + 0.72, TW));
+  solid(TS - 0.7, TS + 0.7, D, D + 0.79, TW - 0.7, TW + 0.7);
   add(mergeGeometries(rocks.map((r) => r.toNonIndexed()))!, stone);
 
   for (const [m, list] of boxes) add(mergeGeometries(list) ?? list[0]!, m);

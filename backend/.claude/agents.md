@@ -164,6 +164,16 @@ docker compose down             # 停止（加 -v 會連資料一起刪除）
 | `.env.example` 沒被 commit | 根目錄 `.gitignore` 有 `.env*`；需要時用 `git add -f backend/.env.example` |
 
 ## 變更紀錄
+### 2026-11-20（前端：C、D 下沉中庭的迴旋無障礙坡道與東側台階修正）— 分支 `feat/dorm-c-d-exterior`
+- 需求（使用者手繪）：紅框為迴旋無障礙坡道，長度加到第一根柱子旁；石桌放在斜前方；藍線處為台階；只改坡道與台階
+- `frontend/src/buildings/dormCourtyard.ts`：新增 `RAMP`——D 側一座 U 形迴旋坡道
+  - 外道從路尾地面往西下到 s 21.5 的半圓平台（弧形矮牆就是平台外緣）
+  - 內道折返往東，下到第一根柱子旁（s ≈ 10）的中庭地坪；內側牆在東端留 1.5 m 開口
+  - 坡度約 1:10；坡道與牆用斜頂實體＋convexHull 碰撞
+  - 東側台階改為從坡道隔牆一路到 C 側牆，取消原本置中的 8 m 台階與兩側擋牆、東端矮牆
+  - 原本的弧形矮牆併入坡道平台；石桌與石頭移到平台斜前方
+- 測試：`tsc --noEmit`、`vite build` 通過；headless Chrome 從路尾往西、中庭往東看確認
+
 ### 2026-11-20（前端：學生宿舍C、D 之間的下沉中庭）— 分支 `feat/dorm-c-d-exterior`
 - 需求：依兩個視角的 Street View 照片（以紅色箭頭為方向：從宿舍服務路路尾往西、從中庭往東）重新建模 C 棟（296668592）與 D 棟（296668593）之間
 - 新增 `frontend/src/buildings/dormCourtyard.ts`（沿用 `mgmtCourtyard.ts` 的下沉庭園做法）：沿兩棟牆面的局部座標（s 往西、w 往北），地坪下沉 3 m（s 3.5–35、w −10–9.9）
