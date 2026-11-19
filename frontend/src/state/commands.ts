@@ -14,7 +14,7 @@ export type GameCommand =
   /** Abandon the track time trial in progress. */
   | { type: 'leaveRace' }
   /** Start navigating to a map place (x, z in campus metres). */
-  | { type: 'navigate'; x: number; z: number; name: string }
+  | { type: 'navigate'; x: number; z: number; name: string; quiet?: boolean }
   | { type: 'stopNav' }
   | { type: 'useItem'; slot: number }
   | { type: 'interact' }
@@ -25,7 +25,12 @@ export type GameCommand =
   | { type: 'photo' }
   /** Quit the ball game in progress. */
   | { type: 'leaveSport' }
-  | { type: 'cameraLook'; dx: number; dy: number };
+  | { type: 'cameraLook'; dx: number; dy: number }
+  /** Navigate to the current story objective (G). */
+  | { type: 'storyGuide' }
+  /** 管理員模式 story controls. */
+  | { type: 'storyAdmin'; op: 'jump'; day: number; step: number }
+  | { type: 'storyAdmin'; op: 'complete' | 'reset' };
 
 const queue: GameCommand[] = [];
 

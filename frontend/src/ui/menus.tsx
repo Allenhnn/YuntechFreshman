@@ -3,6 +3,9 @@ import { SETTINGS_LIMITS, type Settings } from '../state/settings';
 import { TESTER_AVAILABLE, useGame, actions } from '../state/store';
 import { useApi } from './api';
 import { auth, useAuth } from '../state/auth';
+import { storyActions, useStory } from '../state/story';
+import { dispatch } from '../state/commands';
+import { StoryAdmin } from './story';
 
 export function Brand(): ReactNode {
   return (
@@ -220,6 +223,8 @@ export function SettingsPanel(): ReactNode {
   const s = useGame((st) => st.settings);
   const tester = useGame((st) => st.tester);
   const ambient = useGame((st) => st.ambient);
+  const storyOn = useStory((st) => st.enabled);
+  const achievementsOn = useStory((st) => st.achievementsOn);
   const update = (patch: Partial<Settings>): void => api.updateSettings(patch);
   const pct = (v: number): string => `${Math.round(v * 100)}%`;
   return (
@@ -247,6 +252,13 @@ export function SettingsPanel(): ReactNode {
         <div className="admin-group">
           <Toggle label="校園行人、腳踏車" value={ambient.people} onChange={(v) => actions.setAmbient({ people: v })} />
           <Toggle label="道路機車、汽車" value={ambient.vehicles} onChange={(v) => actions.setAmbient({ vehicles: v })} />
+          <Toggle label="劇情（主線、支線）" value={storyOn} onChange={(v) => storyActions.setConfig({ enabled: v })} />
+          <Toggle label="成就" value={achievementsOn} onChange={(v) => storyActions.setConfig({ achievementsOn: v })} />
+          <StoryAdmin
+            onJump={(day, step) => { api.click(); dispatch({ type: 'storyAdmin', op: 'jump', day, step }); }}
+            onComplete={() => { api.click(); dispatch({ type: 'storyAdmin', op: 'complete' }); }}
+            onReset={() => { api.click(); dispatch({ type: 'storyAdmin', op: 'reset' }); }}
+          />
         </div>
       )}
     </div>

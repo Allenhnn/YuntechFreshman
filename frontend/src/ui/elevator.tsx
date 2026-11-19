@@ -1,3 +1,4 @@
+import { storyEvents } from '../story/storyRuntime';
 import type { ReactNode } from 'react';
 import { ITEMS } from '../state/items';
 import { useGame } from '../state/store';
@@ -55,6 +56,13 @@ export function ShopModal(): ReactNode {
             </button>
           ))}
         </div>
+        {shop.menu === 'hilife' && (
+          <div className="steal-row">
+            {shop.items.map(({ id }) => (
+              <button key={id} className="btn link" onClick={() => storyEvents.steal(id)}>🫣 偷偷拿走{ITEMS[id].name}</button>
+            ))}
+          </div>
+        )}
         <p className="footer">你有 NT$ {coins} · <kbd>Esc</kbd> 關閉</p>
       </div>
     </div>

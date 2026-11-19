@@ -192,6 +192,7 @@ export function Hud(): ReactNode {
         <span><kbd>Tab</kbd>背包</span>
         <span><kbd>P</kbd>手機</span>
         <span><kbd>M</kbd>地圖</span>
+        <span><kbd>J</kbd>任務</span>
         <span><kbd>Enter</kbd>對話</span>
       </div>
       <ChatLog />

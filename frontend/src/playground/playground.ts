@@ -39,6 +39,9 @@ const FINISH_REWARD = 20;
 const RECORD_REWARD = 30;
 const CHECK_HEIGHT = 4.4;
 
+/** Told when a counted track time trial finishes (story side quests). */
+export const trackFinished = new Set<(seconds: number) => void>();
+
 export interface Playground {
   /** Player stands at the start line and no run is in progress. */
   canStart(x: number, z: number): boolean;
@@ -408,6 +411,7 @@ export function createPlayground(scene: Scene, physics: RAPIER.World, campus: Ca
           actions.toast(`完賽 ${t.toFixed(2)} 秒（測試員模式不計成績）`);
           return 0;
         }
+        for (const fn of trackFinished) fn(t);
         const best = gameStore.getState().raceBest;
         const record = best === null || t < best;
         if (record) actions.setRaceBest(t);

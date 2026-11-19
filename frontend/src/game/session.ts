@@ -4,6 +4,7 @@ import { dispatch } from '../state/commands';
 import { actions, gameStore, type Modal } from '../state/store';
 import type { Settings } from '../state/settings';
 import { ITEMS, type ItemId } from '../state/items';
+import { storyEvents } from '../story/storyRuntime';
 
 /**
  * Everything the React UI is allowed to do. Methods that need a user gesture (pointer lock,
@@ -144,7 +145,7 @@ export function createSession(lock: PointerLock, audio: AudioBus): GameApi {
       dispatch({ type: 'toStart' });
     },
     toggleModal(modal) {
-      if (get().phase !== 'playing') return;
+      if (get().phase !== 'playing' || get().modal === 'story') return; // a story scene must be finished
       if (get().modal === modal) {
         closeModal();
         return;
@@ -231,6 +232,7 @@ export function createSession(lock: PointerLock, audio: AudioBus): GameApi {
       } else {
         actions.toast(`買了 ${ITEMS[id].name}，放進背包了`);
         audio.play('coin');
+        storyEvents.buy(get().shop?.menu);
       }
     },
     navigateTo(x, z, name) {

@@ -12,6 +12,7 @@ import { PhoneDrawer } from './phone';
 import { ElevatorModal, Fade, InteractPrompt, ShopModal } from './elevator';
 import { ChatBox } from './chat';
 import { CameraOverlay } from './camera';
+import { AchievementPopup, QuestLog, QuestTracker, StoryModal } from './story';
 import './ui.css';
 
 function App(): ReactNode {
@@ -27,6 +28,10 @@ function App(): ReactNode {
       {phase === 'playing' && modal === 'elevator' && <ElevatorModal />}
       {phase === 'playing' && modal === 'shop' && <ShopModal />}
       {phase === 'playing' && modal === 'chat' && <ChatBox />}
+      {phase === 'playing' && modal !== 'camera' && <QuestTracker />}
+      {phase === 'playing' && modal === 'story' && <StoryModal />}
+      {phase === 'playing' && modal === 'quests' && <QuestLog />}
+      {phase === 'playing' && <AchievementPopup />}
       {phase === 'playing' && <InteractPrompt />}
       <Fade />
       {phase === 'loading' && <LoadingScreen />}

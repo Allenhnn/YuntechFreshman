@@ -16,7 +16,7 @@ import { clearProgress, loadProgress, notifySaveChanged, type SaveData } from '.
  */
 export type GamePhase = 'loading' | 'menu' | 'playing' | 'paused';
 export type MenuPanel = 'root' | 'controls' | 'settings';
-export type Modal = 'none' | 'inventory' | 'phone' | 'elevator' | 'shop' | 'chat' | 'camera';
+export type Modal = 'none' | 'inventory' | 'phone' | 'elevator' | 'shop' | 'chat' | 'camera' | 'story' | 'quests';
 export type PhonePage = 'home' | 'settings' | 'album';
 export type MapMode = 'mini' | 'full';
 export type LookMode = 'pointerLock' | 'drag';
@@ -90,6 +90,8 @@ export interface RaceState {
 export interface ShopMenu {
   title: string;
   items: readonly { id: ItemId; price: number }[];
+  /** Stall menu id (cafeteria stalls, 'hilife'): quests track where things were bought. */
+  menu?: string;
 }
 
 /** Navigation in progress: goal, route (flat x, z) and metres left along it. */
@@ -298,6 +300,20 @@ export const actions = {
     next[slot] = { id, count: (next[slot]?.count ?? 0) + 1 };
     set({ inventory: next, coins: coins - price });
     return null;
+  },
+  /** Adds an item for free (quest items); returns false when the bag is full. */
+  giveItem(id: ItemId): boolean {
+    return actions.buy(id, 0) === null;
+  },
+  /** Removes one of `id` from the bag; false when there is none. */
+  takeItem(id: ItemId): boolean {
+    const slot = get().inventory.findIndex((s) => s?.id === id);
+    if (slot < 0) return false;
+    actions.consumeItem(slot);
+    return true;
+  },
+  hasItem(id: ItemId): boolean {
+    return get().inventory.some((s) => s?.id === id);
   },
   setLoadProgress(p: number): void {
     set({ loadProgress: p });

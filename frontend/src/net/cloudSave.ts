@@ -2,6 +2,7 @@ import * as api from './authApi';
 import type { AuthUser } from './authApi';
 import { loadProgress, replaceProgress, saveListeners, type SaveData } from '../state/saveGame';
 import { actions, gameStore, type SpawnPoint } from '../state/store';
+import { storyActions, storyStore, type StoryProgress } from '../state/story';
 
 /**
  * Keeps the signed-in account's progress on the server (backend/app/api/save.py).
@@ -21,6 +22,8 @@ interface Payload {
   progress: SaveData | null;
   raceBest: number | null;
   customSpawn: SpawnPoint | null;
+  /** Main story, side quests, achievements (state/story.ts). */
+  story?: StoryProgress;
 }
 
 interface Meta {
@@ -53,7 +56,7 @@ let lastUpload = 0;
 
 function snapshot(): Payload {
   const st = gameStore.getState();
-  return { v: 1, savedAt: readMeta().savedAt || Date.now(), progress: loadProgress(), raceBest: st.raceBest, customSpawn: st.customSpawn };
+  return { v: 1, savedAt: readMeta().savedAt || Date.now(), progress: loadProgress(), raceBest: st.raceBest, customSpawn: st.customSpawn, story: storyStore.getState().progress };
 }
 
 const hasAnything = (p: Payload): boolean => p.progress !== null || p.raceBest !== null || p.customSpawn !== null;
@@ -68,12 +71,14 @@ function parse(data: Record<string, unknown>): Payload | null {
     progress: (data.progress as SaveData | null) ?? null,
     raceBest: finite(data.raceBest) ? data.raceBest : null,
     customSpawn: spawn && finite(spawn.x) && finite(spawn.z) && finite(spawn.facing) ? spawn : null,
+    story: (data.story as StoryProgress | undefined) ?? undefined,
   };
 }
 
 /** Write the account's copy into this browser and the store. */
 function applyLocally(p: Payload, owner: string): void {
   replaceProgress(p.progress);
+  storyActions.replace(p.story ?? null);
   // loadProgress() validates what was written; a malformed server copy reads back as "no save".
   actions.applyAccountSave(p.raceBest, p.customSpawn);
   writeMeta({ owner, savedAt: p.savedAt });

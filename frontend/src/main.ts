@@ -42,6 +42,10 @@ import { bodies, colliders, objects } from './ecs/registry';
 import { CAPSULE_CENTER_OFFSET, createCharacterControllerSystem, type MoveModifiers } from './ecs/systems/characterController';
 import { createBikeSystem } from './bikes/bikeSystem';
 import { createTraffic } from './ambient/traffic';
+import { createStoryRuntime, storyEvents, type StoryFrame } from './story/storyRuntime';
+import { storyStore } from './state/story';
+import { sportFinished } from './minigames/sportsGames';
+import { trackFinished } from './playground/playground';
 import { createPlayground } from './playground/playground';
 import { createCourts } from './minigames/sportsCourts';
 import { createSportsGames } from './minigames/sportsGames';
@@ -97,7 +101,7 @@ function onlyTraced(t: TracedIndex, ids: readonly string[]): TracedIndex {
   return { buildings, entrances: Object.fromEntries(Object.entries(t.entrances).filter(([id]) => osm.has(id))) };
 }
 
-const FOOD: ReadonlySet<ItemId> = new Set<ItemId>(['bread', 'bento', 'buffet', 'beefNoodles', 'plainNoodles', 'bubbleTea', 'soyMilk']);
+const FOOD: ReadonlySet<ItemId> = new Set<ItemId>(['bread', 'bento', 'buffet', 'beefNoodles', 'plainNoodles', 'bubbleTea', 'soyMilk', 'onigiri', 'teaEgg', 'sportsDrink', 'cupNoodles']);
 
 const ITEM_MESSAGES: Readonly<Record<ItemId, string>> = {
   bento: '排骨便當好吃！',
@@ -111,6 +115,13 @@ const ITEM_MESSAGES: Readonly<Record<ItemId, string>> = {
   bread: '吃了一個菠蘿麵包，元氣滿滿！',
   notebook: '今日待辦：探索校園、收集金幣、找到圖書館',
   campusMap: '',
+  onigiri: '鮪魚飯糰，好吃！',
+  teaEgg: '茶葉蛋香噴噴。',
+  sportsDrink: '咕嚕咕嚕… 電解質補滿！',
+  cupNoodles: '呼～宿舍泡麵的味道。',
+  healthForm: '📋 新生健康資料表：記得交到健康中心',
+  raceBib: '🎽 雲科路跑 參賽號碼布',
+  lostCard: '🪪 別人的學生證，送到行政大樓或警衛室',
 };
 
 /** Gameplay effect of using an inventory item (runs inside the fixed step via the command queue). */
@@ -299,6 +310,40 @@ async function boot(): Promise<void> {
     traffic.setEnabled('vehicles', a.vehicles);
   };
   applyAmbient(gameStore.getState().ambient);
+  const centreOf = (name: string): { x: number; z: number } | null => {
+    const b = campus.buildings.find((q) => q.name === name);
+    if (!b) return null;
+    let x = 0, z = 0;
+    const n = b.outer.length / 2;
+    for (let i = 0; i < n; i++) { x += b.outer[i * 2]!; z += b.outer[i * 2 + 1]!; }
+    return { x: x / n, z: z / n };
+  };
+  const story = createStoryRuntime({
+    scene, tracker: sceneResources, campus,
+    placeOf: (name) => {
+      if (name === '籃球場') { const h = courts.hoops[0]; return h ? { x: h.x, z: h.z } : null; }
+      if (name === '路跑起點' || name === '操場') return playground ? { ...playground.startSpot } : null;
+      if (name === '大門') return centreOf('警衛室');
+      return centreOf(name);
+    },
+    route: (ax, az, bx, bz) => navGraph.route(ax, az, bx, bz),
+    setClock: (m) => { clockSeconds = m - START_MINUTES; actions.setGameMinutes(m); },
+    fade: (mid) => {
+      actions.setFading(true);
+      window.setTimeout(() => { mid(); actions.setFading(false); }, 600);
+    },
+    navigate: (x, z, name, quiet) => dispatch({ type: 'navigate', x, z, name, quiet }),
+    openStoryModal: () => api.openModal('story'),
+    closeStoryModal: () => api.closeModal(),
+    sound: (n) => audio.play(n),
+    bikeStations,
+  });
+  const onSport = (kind: 'basketball' | 'volleyball' | 'soccer', score: number): void => storyEvents.sport(kind, score);
+  const onTrack = (t: number): void => storyEvents.track(t);
+  sportFinished.add(onSport);
+  trackFinished.add(onTrack);
+  let wasRiding = false;
+  const storyFrame: StoryFrame = { x: 0, z: 0, area: null, minutes: 0, riding: false, sprinting: false, playing: false, viewYaw: 0 };
   const insideBuilding = createBuildingTest(campus);
   const moveMods: MoveModifiers = { fly: false, noclip: false, speed: 1, bike: false, blocked: null };
   const joints = findMascotJoints(model.root);
@@ -484,7 +529,7 @@ async function boot(): Promise<void> {
         actions.setNav({ name: cmd.name, x: cmd.x, z: cmd.z, path, remaining: progressOn(path, px, pz).remaining });
         navLine.set(path);
         lastReroute = time;
-        actions.toast(`開始導航：${cmd.name}`);
+        if (!cmd.quiet) actions.toast(`開始導航：${cmd.name}`);
         return;
       }
       case 'stopNav':
@@ -509,6 +554,7 @@ async function boot(): Promise<void> {
         teleport(spawn.x, spawn.y, spawn.z, spawn.facing);
         renderSyncSystem(world, 1);
         rig.snap(readFocus(), spawn.facing + Math.PI);
+        story.restart();
         return;
       case 'toStart':
       case 'respawn': {
@@ -542,6 +588,7 @@ async function boot(): Promise<void> {
           await addPhoto(blob, label);
           actions.bumpAlbum();
           actions.toast('已存到相簿');
+          storyEvents.photo(areaAt(obj.position.x, obj.position.y, obj.position.z)?.title ?? null);
         });
         return;
       }
@@ -566,8 +613,20 @@ async function boot(): Promise<void> {
         });
         return;
       }
-      case 'useItem':
+      case 'useItem': {
+        const item = gameStore.getState().inventory[cmd.slot]?.id;
         useItem(cmd.slot, api);
+        if (item && FOOD.has(item)) storyEvents.eat(item);
+        if (item === 'studentCard') actions.toast(`🪪 國立雲林科技大學・新鮮人　學號末三碼 ${storyStore.getState().progress.studentNo}`);
+        return;
+      }
+      case 'storyGuide':
+        story.guide();
+        return;
+      case 'storyAdmin':
+        if (cmd.op === 'jump') story.jump(cmd.day, cmd.step);
+        else if (cmd.op === 'complete') story.completeStep();
+        else story.restart();
         return;
       case 'interact': {
         if (bikes.ridden >= 0) {
@@ -579,7 +638,7 @@ async function boot(): Promise<void> {
           const [buildingId, , levelId, index] = target.id.split(':');
           const stall = buildingById(buildingId ?? '')?.source.floors[levelId ?? '']?.stalls?.[Number(index)];
           if (stall?.menu) {
-            actions.setShop({ title: stall.name, items: STALL_MENUS[stall.menu] });
+            actions.setShop({ title: stall.name, items: STALL_MENUS[stall.menu], menu: stall.menu });
             api.openModal('shop');
           }
           return;
@@ -611,6 +670,15 @@ async function boot(): Promise<void> {
           }, 350);
           return;
         }
+        if (!target && !sports.active && bikes.ridden < 0) {
+          const used = story.interact(storyFrame);
+          if (used === 'done') return;
+          if (used === 'hilife') {
+            actions.setShop({ title: '萊爾富 Hi-Life', items: STALL_MENUS.hilife, menu: 'hilife' });
+            api.openModal('shop');
+            return;
+          }
+        }
         if (!target && !sports.active && sports.prompt(Transform.x[eid]!, Transform.y[eid]!, Transform.z[eid]!)) {
           const p = sports.start(Transform.x[eid]!, Transform.y[eid]!, Transform.z[eid]!);
           if (p) {
@@ -635,6 +703,7 @@ async function boot(): Promise<void> {
             const b = bikes.pose(bike);
             teleport(b.x, Transform.y[eid]!, b.z, b.yaw);
             bikes.mount(bike);
+            storyEvents.mount();
           }
           return;
         }
@@ -839,7 +908,7 @@ async function boot(): Promise<void> {
       const riding = bikes.ridden >= 0;
       moveMods.fly = ui.tester.fly && !riding;
       moveMods.noclip = ui.tester.noclip && !riding;
-      moveMods.speed = playground?.frozen || sports.frozen ? 0 : ui.tester.speed;
+      moveMods.speed = playground?.frozen || sports.frozen ? 0 : ui.tester.speed * story.speedFactor;
       moveMods.noJump = sports.active;
       moveMods.bike = riding;
       moveMods.blocked = riding ? insideBuilding : null;
@@ -889,6 +958,26 @@ async function boot(): Promise<void> {
     }
     coins.render(world, time);
     traffic.update(dt, Transform.x[eid]!, Transform.z[eid]!);
+    {
+      const riding = bikes.ridden >= 0;
+      const px = Transform.x[eid]!, pz = Transform.z[eid]!;
+      if (riding && playing) {
+        const moved = Math.hypot(px - storyFrame.x, pz - storyFrame.z);
+        if (moved < 5) storyEvents.bikeMoved(moved);
+        if (Math.hypot(Velocity.x[eid]!, Velocity.z[eid]!) > 2.5 && traffic.hit(px, pz, 0.9)) storyEvents.bikeHit();
+      }
+      if (wasRiding && !riding) storyEvents.dismount(px, pz);
+      wasRiding = riding;
+      storyFrame.x = px;
+      storyFrame.z = pz;
+      storyFrame.area = areaAt(px, Transform.y[eid]!, pz)?.title ?? null;
+      storyFrame.minutes = ui.gameMinutes;
+      storyFrame.riding = riding;
+      storyFrame.sprinting = focus.sprinting;
+      storyFrame.playing = playing && ui.modal !== 'story';
+      storyFrame.viewYaw = rig.yaw;
+      story.update(dt, storyFrame);
+    }
     const f = readFocus();
     rig.update(dt, f, colliders[eid], cameraFilter);
     // In a tight spot the camera sits right behind the character: hide it rather than fill the view.
@@ -928,6 +1017,7 @@ async function boot(): Promise<void> {
       !playing || playground?.racing ? null
         : bikes.ridden >= 0 ? '按 E 下車'
           : nearestInteractable()?.prompt
+            ?? (sports.active ? null : story.prompt(storyFrame))
             ?? (sports.prompt(f.x, f.y, f.z)) ?? (playground?.canStart(f.x, f.z) ? '按 E 開始跑道計時賽' : bikes.nearest(f.x, f.y, f.z) >= 0 ? '按 E 騎腳踏車' : null),
     );
 
@@ -982,6 +1072,9 @@ async function boot(): Promise<void> {
     interiors.dispose();
     bikes.dispose();
     traffic.dispose();
+    story.dispose();
+    sportFinished.delete(onSport);
+    trackFinished.delete(onTrack);
     playground?.dispose();
     sports.dispose();
     courts.dispose();

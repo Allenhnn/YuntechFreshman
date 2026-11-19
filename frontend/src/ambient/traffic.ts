@@ -29,6 +29,8 @@ import type { ResourceTracker } from '../core/resources';
  */
 export interface Traffic {
   setEnabled(kind: 'people' | 'vehicles', on: boolean): void;
+  /** A walker within `r` of (x, z) is knocked over; true when someone was hit. */
+  hit(x: number, z: number, r: number): boolean;
   update(dt: number, px: number, pz: number): void;
   dispose(): void;
 }
@@ -81,6 +83,8 @@ interface Agent {
   cur: number;
   /** Instances currently collapsed to nothing (kind switched off). */
   hidden: boolean;
+  /** Seconds left lying on the ground after being hit by a bike (walkers). */
+  fall: number;
 }
 
 const RANGE = 175; // m: fog is opaque from 190 m
@@ -237,7 +241,7 @@ export function createTraffic(scene: Scene, campus: CampusData, tracker: Resourc
     for (let i = 0; i < COUNTS[kind]; i++) {
       const person = kind === 'car' ? -1 : personNext++;
       const vehicle = kind === 'walker' ? -1 : vehicleNext[kind]++;
-      agents.push({ kind, net: netOf[kind], edge: -1, forward: true, s: 0, speed: 0, side: 0, phase: Math.random() * 10, x: 0, z: 0, yaw: 0, person, vehicle, cur: 0, hidden: false });
+      agents.push({ kind, net: netOf[kind], edge: -1, forward: true, s: 0, speed: 0, side: 0, phase: Math.random() * 10, x: 0, z: 0, yaw: 0, person, vehicle, cur: 0, hidden: false, fall: 0 });
       if (person >= 0) {
         const shirt = kind === 'scooter' && Math.random() < 0.4 ? new Color(0x2a2f35) : pick(SHIRT);
         torsoM.setColorAt(person, shirt);
@@ -330,6 +334,17 @@ export function createTraffic(scene: Scene, campus: CampusData, tracker: Resourc
     setEnabled(kind, on) {
       enabled = { ...enabled, [kind]: on };
     },
+    hit(x, z, r) {
+      if (!enabled.people) return false;
+      for (const a of agents) {
+        if (a.kind !== 'walker' || a.hidden || a.edge < 0 || a.fall > 0) continue;
+        if (Math.hypot(a.x - x, a.z - z) < r) {
+          a.fall = 2.2;
+          return true;
+        }
+      }
+      return false;
+    },
     update(dt, px, pz) {
       const jumped = !(Math.hypot(px - lastPx, pz - lastPz) < 60); // first frame or a teleport
       lastPx = px;
@@ -353,7 +368,7 @@ export function createTraffic(scene: Scene, campus: CampusData, tracker: Resourc
         const ox = px - a.x, oz = pz - a.z;
         const ahead = ox * dx + oz * dz, across = Math.abs(ox * dz - oz * dx);
         const look = a.kind === 'car' ? 7 : a.kind === 'scooter' ? 5 : 2;
-        const want = ahead > 0 && ahead < look && across < (a.kind === 'car' ? 1.6 : 0.9) ? 0 : a.speed;
+        const want = a.fall > 0 || (ahead > 0 && ahead < look && across < (a.kind === 'car' ? 1.6 : 0.9)) ? 0 : a.speed;
         a.cur += (want - a.cur) * Math.min(1, dt * (want < a.cur ? 6 : 1.5));
         a.s += a.cur * dt;
         let guard = 0;
@@ -380,7 +395,14 @@ export function createTraffic(scene: Scene, campus: CampusData, tracker: Resourc
 
         base.compose(pos.set(a.x, 0, a.z), q.setFromAxisAngle(yAxis, a.yaw), one);
         a.phase += a.cur * dt;
-        if (a.kind === 'walker') {
+        if (a.kind === 'walker' && a.fall > 0) {
+          // Knocked over: tip backwards, lie there, get up.
+          a.fall -= dt;
+          const t = 2.2 - a.fall;
+          const tilt = t < 0.3 ? (t / 0.3) * 1.45 : a.fall < 0.4 ? (a.fall / 0.4) * 1.45 : 1.45;
+          base.multiply(part.makeRotationX(-tilt));
+          drawPerson(a.person, base, LEG + 0.02, 0, 0.3, -0.2, -1.2, -1.0);
+        } else if (a.kind === 'walker') {
           const w = a.phase * 4.2, swing = Math.sin(w) * 0.5 * Math.min(1, a.cur);
           base.multiply(part.makeTranslation(0, Math.abs(Math.cos(w)) * 0.03, 0));
           drawPerson(a.person, base, LEG + 0.02, 0.04, swing, -swing, -swing * 0.8, swing * 0.8);

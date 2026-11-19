@@ -46,6 +46,9 @@ export interface SportsGames {
   dispose(): void;
 }
 
+/** Told when a ball game ends (story quests, achievements). */
+export const sportFinished = new Set<(kind: 'basketball' | 'volleyball' | 'soccer', score: number) => void>();
+
 const G = 9.8;
 const BALL_R = 0.12;
 const BEST_KEY = 'yfm.sportBest.v1';
@@ -187,6 +190,7 @@ export function createSportsGames(scene: Scene, tracker: ResourceTracker, courts
     const coins = k === 'basketball' ? score : k === 'volleyball' ? score * 2 : score * 10;
     const record = score > best[k];
     if (record) { best[k] = score; saveBest(best); }
+    for (const fn of sportFinished) fn(k, score);
     actions.toast(`${TITLES[k]} 結束：${k === 'soccer' ? `進 ${score} 球` : `${score} 分`}${record ? '（新紀錄！）' : ''}　+NT$ ${coins}`);
     cleanup();
     return coins;

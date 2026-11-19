@@ -1,3 +1,4 @@
+import { dispatch } from '../state/commands';
 import { HOTBAR_SIZE } from '../state/items';
 import { TESTER_AVAILABLE, TESTER_SPEEDS, actions, gameStore } from '../state/store';
 import type { GameApi } from './session';
@@ -66,6 +67,12 @@ export function installHotkeys(api: GameApi, lock: PointerLock): () => void {
       case 'KeyM':
         api.toggleMap();
         return;
+      case 'KeyJ':
+        api.toggleModal('quests');
+        return;
+      case 'KeyG':
+        if (s.modal === 'none') dispatch({ type: 'storyGuide' });
+        return;
       case 'KeyX':
         if (s.nav && s.modal === 'none' && s.mapMode === 'mini') api.stopNav();
         return;
@@ -77,6 +84,7 @@ export function installHotkeys(api: GameApi, lock: PointerLock): () => void {
         api.interact();
         return;
       case 'Escape':
+        if (s.modal === 'story') return; // finish the scene with its buttons
         if (s.modal !== 'none') api.closeModal();
         else if (s.mapMode === 'full') api.toggleMap();
         else if (!lock.isLocked()) api.pause();
