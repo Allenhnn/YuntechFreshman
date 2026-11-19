@@ -164,6 +164,17 @@ docker compose down             # 停止（加 -v 會連資料一起刪除）
 | `.env.example` 沒被 commit | 根目錄 `.gitignore` 有 `.env*`；需要時用 `git add -f backend/.env.example` |
 
 ## 變更紀錄
+### 2026-11-20（前端：學生宿舍C、D 之間的下沉中庭）— 分支 `feat/dorm-c-d-exterior`
+- 需求：依兩個視角的 Street View 照片（以紅色箭頭為方向：從宿舍服務路路尾往西、從中庭往東）重新建模 C 棟（296668592）與 D 棟（296668593）之間
+- 新增 `frontend/src/buildings/dormCourtyard.ts`（沿用 `mgmtCourtyard.ts` 的下沉庭園做法）：沿兩棟牆面的局部座標（s 往西、w 往北），地坪下沉 3 m（s 3.5–35、w −10–9.9）
+  - 路尾紅磚鋪面＋三支混凝土車阻；正中 8 m 寬、20 階往西下的台階，兩側擋牆
+  - 中庭深灰方磚、兩排米色磚砌花台（草＋小棕櫚叢）錯開排列；東南角弧形混凝土矮牆；D 側石頭與石桌
+  - 南北各留 3 m 地面層走廊（C、D 的門都在這面牆上，維持 y = 0 可進入），走廊邊紅色鏤空花磚欄杆；欄杆下是中庭層柱廊：C 側白色鐵捲門、D 側深色門洞
+  - 西端整面 20 階寬台階往上回到草地
+- `main.ts`：`dormCourtPit()` 的洞加入 `groundHoles`、地面碰撞體在洞內忽略（兩處 filter）、`treeFree` 加入 keepClear；`createDormCourtyard` 建立與 dispose
+- `mgmtCourtyard.ts`：匯出 `Soup`、`canvasTex`、`speckle` 供共用
+- 測試：`tsc --noEmit` 通過、`vite build` 成功；headless Chrome 從路尾往西、中庭往東、中庭往西三個視角確認與照片對應，角色在洞內正確落到中庭地坪
+
 ### 2026-11-20（前端：學生宿舍D 入口改成與服務中心相同的雨遮＋台階＋坡道）— 分支 `feat/dorm-c-d-exterior`
 - 需求：D 棟上方屋簷與下方階梯、無障礙坡道的範圍與角度都跟宿舍服務中心一樣
 - `frontend/src/buildings/dormFeatures.ts`：重構為「角落座標系」——每處入口只描述兩面牆（`C_CORNER`：北棟南面＋南翼東面；`D_CORNER`：北翼東面＋東翼北面），原點為兩牆延長線交點；共用尺寸 `ENTRY`（前緣 x + z = 8.76、短段 1 m、台階東段 x = 10.65、坡道頂 z = 10.8、內緣短段 0.81 m）與 `RAMP`；共用 `addEntryGround`（平台、三階台階、坡道與矮牆）、`addEntryPlaza`（鋪面、樹穴、花盆、燈柱）；C 的服務中心量體不變（數值換算後與上一版相同），D 改為同輪廓的雨遮（頂板、前緣 D 字混凝土帶、短段混凝土帶、三根方柱）、兩樘門、綠籬花台、告示牌；移除舊 D 門廊 / 平台 / 台階 / 北翼花台
