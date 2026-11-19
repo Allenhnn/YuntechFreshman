@@ -543,4 +543,4 @@ kbd {
 .sport-msg { font-size: 22px; font-weight: 800; color: var(--orange); animation: pop-in 0.2s ease; }
 .sport-hint { font-size: 11px; color: var(--ink-soft); margin-top: 2px; }
 .title-screen .title-credit { left: min(430px, 100%); }
-@media (max-width: 760px) { .title-screen .title-credit { display: none; } }
+@media (max-width: 760px) { .title-screen .title-credit, .login-screen .title-credit { display: none; } }
