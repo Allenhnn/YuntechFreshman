@@ -30,7 +30,8 @@ import { Soup, canvasTex, speckle } from './mgmtCourtyard';
  *  - 中庭地坪是深灰方磚，兩排米色磚砌花台（草＋小棕櫚）沿中線錯開排列；
  *  - 南北兩側沿 C、D 棟各留一條地面層走廊（3 m 寬，原地坪），走廊邊是紅色鏤空花磚欄杆，
  *    欄杆下方就是中庭這一層的柱廊：北側（C 棟）白色鐵捲門、南側（D 棟）深色門洞；
- *  - 石桌與石頭在坡道半圓平台的斜前方；
+ *  - 石桌與石頭在迴旋坡道轉彎平台正前方；兩排花台左右對齊；
+ *  - C 側柱廊依實拍改成有深度的騎樓：池邊方柱、深梁、後牆玻璃店面＋木門、最西一跨白色鐵捲門、冷氣與紅色水管；
  *  - 西端一整面寬台階往上回到地面（上方是草地與高大的樹）。
  * 座標系：原點在兩棟之間的中線（x = 0 處），s 沿兩棟牆面往西（約 WNW→WSW 的紅色箭頭方向），
  * w 往北（C 棟側）。地面在中庭範圍開洞（dormCourtPit），地面碰撞體在洞內不作用。
@@ -39,6 +40,8 @@ const ORIGIN: readonly [number, number] = [0, 365.7];
 const U: readonly [number, number] = [-0.98698, 0.16085]; // +s (west, along the C / D faces)
 const D = -3; // courtyard floor
 const PIT = { s0: 3.5, s1: 35, wS: -10.0, wN: 9.9 };
+/** The C-side colonnade is a real arcade: the opening runs on under the corridor to its back wall. */
+const ARCADE_BACK = 12.9;
 /** East stair down from the road end (from the ramp divider to the C wall), west stair back up (full width). */
 const EAST = { run: 6, n: 20 };
 const WEST = { run: 7, n: 20 };
@@ -69,10 +72,10 @@ function rectRing(s0: number, s1: number, w0: number, w1: number): Ring {
 /** Ground opening, point test for the ground collider, and the no-tree / no-lamp ring. */
 export function dormCourtPit(): { ring: Ring; contains(x: number, z: number): boolean; treeFree: Ring } {
   return {
-    ring: rectRing(PIT.s0, PIT.s1, PIT.wS, PIT.wN),
+    ring: rectRing(PIT.s0, PIT.s1, PIT.wS, ARCADE_BACK),
     contains(x, z) {
       const [s, w] = toLocal(x, z);
-      return s >= PIT.s0 && s <= PIT.s1 && w >= PIT.wS && w <= PIT.wN;
+      return s >= PIT.s0 && s <= PIT.s1 && w >= PIT.wS && w <= ARCADE_BACK;
     },
     treeFree: rectRing(APRON_S0 - 1, PIT.s1 + 0.5, CORR.s - 0.3, CORR.n + 0.3),
   };
@@ -175,6 +178,10 @@ export function createDormCourtyard(scene: Scene, physics: RAPIER.World, tracker
   });
   shutterTex.repeat.set(1, 1 / 0.8);
   const shutter = std({ map: shutterTex, roughness: 0.6 });
+  const glass = std({ color: 0x2c3438, roughness: 0.15, metalness: 0.4 });
+  const timber = std({ color: 0x5a3b28, roughness: 0.8 });
+  const acUnit = std({ color: 0xd9d8d2, roughness: 0.7 });
+  const redPipe = std({ color: 0xb3261e, roughness: 0.6 });
   const beigeTex = canvasTex(tracker, 64, 64, (c) => {
     c.fillStyle = '#c8b79a';
     c.fillRect(0, 0, 64, 64);
@@ -247,7 +254,7 @@ export function createDormCourtyard(scene: Scene, physics: RAPIER.World, tracker
   slab(rect(PIT.s0, PIT.s1, PIT.wS, PIT.wN), D + 0.01, slate);
   // Long walls (the corridor edges) with the red lattice balustrade on top.
   for (const [w0, w1] of [[PIT.wN - WALL, PIT.wN], [PIT.wS, PIT.wS + WALL]] as const) {
-    box(concrete, PIT.s0, PIT.s1, D, 0, w0, w1, true);
+    if (w0 < 0) box(concrete, PIT.s0, PIT.s1, D, 0, w0, w1, true); // C side: arcade below (see colonnades)
     box(concrete, PIT.s0, PIT.s1, 0, 0.15, w0, w1);
     box(lattice, PIT.s0, PIT.s1, 0.15, 0.92, w0 + 0.08, w1 - 0.08);
     box(concrete, PIT.s0, PIT.s1, 0.92, 1.02, w0 - 0.02, w1 + 0.02);
@@ -338,7 +345,7 @@ export function createDormCourtyard(scene: Scene, physics: RAPIER.World, tracker
   // --- Colonnades under the corridors: columns, edge beam, doors ----------------------------------
   const BAYS = 4;
   const bay = (FLOOR_S1 - FLOOR_S0) / BAYS;
-  for (const side of [1, -1] as const) {
+  for (const side of [-1] as const) {
     const face = side > 0 ? PIT.wN - WALL : PIT.wS + WALL; // wall face towards the courtyard
     const into = -side; // from the face into the courtyard
     const span = (a: number, b: number): [number, number] => (a < b ? [a, b] : [b, a]);
@@ -358,10 +365,56 @@ export function createDormCourtyard(scene: Scene, physics: RAPIER.World, tracker
     }
   }
 
+  // C side (Street View, facing north from the courtyard): a deep arcade under the corridor — square
+  // columns on the pit edge, a deep edge beam, and a back wall with glazed shopfronts and timber doors,
+  // a white roller shutter in the westmost bay, air-conditioner units and a red pipe at the east end.
+  {
+    const f0 = PIT.wN - WALL, back = ARCADE_BACK - 0.2, CB = 5;
+    const cbay = (FLOOR_S1 - FLOOR_S0) / CB;
+    box(concrete, PIT.s0, PIT.s1, -0.35, 0, f0, ARCADE_BACK + 0.1, true); // corridor slab
+    box(concrete, FLOOR_S0 - 0.25, FLOOR_S1 + 0.25, -0.75, -0.35, f0, f0 + 0.35); // edge beam
+    for (const [a, b] of [[PIT.s0, FLOOR_S0 - 0.25], [FLOOR_S1 + 0.25, PIT.s1]] as const) box(concrete, a, b, D, -0.35, f0, ARCADE_BACK, true);
+    box(concrete, FLOOR_S0, FLOOR_S1, D - 0.3, D, PIT.wN, ARCADE_BACK, true); // arcade floor
+    slab(rect(FLOOR_S0, FLOOR_S1, PIT.wN, ARCADE_BACK), D + 0.01, slate);
+    box(concrete, FLOOR_S0 - 0.25, FLOOR_S1 + 0.25, D, -0.35, back, ARCADE_BACK, true); // back wall
+    for (let k = 0; k <= CB; k++) {
+      const sc = FLOOR_S0 + k * cbay;
+      box(concrete, sc - 0.25, sc + 0.25, D, -0.35, f0, f0 + 0.5, true);
+      box(concrete, sc - 0.2, sc + 0.2, D, -0.35, back - 0.25, back); // pilaster on the back wall
+    }
+    for (let k = 0; k < CB; k++) {
+      const s0 = FLOOR_S0 + k * cbay + 0.45, s1 = s0 + cbay - 0.9;
+      if (k === CB - 1) {
+        box(shutter, s0, s1, D, D + 2.35, back - 0.03, back); // white roller shutter (west end)
+        box(frame, s0 - 0.06, s1 + 0.06, D + 2.35, D + 2.5, back - 0.06, back);
+        continue;
+      }
+      // Glazed shopfront: dark glass in a grey frame with mullions, a timber door at one end.
+      const door = k % 2 === 0 ? s1 - 1.0 : s0;
+      const g0 = k % 2 === 0 ? s0 : s0 + 1.1, g1 = k % 2 === 0 ? s1 - 1.1 : s1;
+      box(glass, g0, g1, D + 0.4, D + 2.4, back - 0.03, back);
+      box(frame, g0, g1, D, D + 0.4, back - 0.05, back);
+      box(frame, g0 - 0.05, g1 + 0.05, D + 2.4, D + 2.5, back - 0.06, back);
+      const nm = Math.max(1, Math.round((g1 - g0) / 0.9));
+      for (let i = 0; i <= nm; i++) {
+        const x = g0 + ((g1 - g0) * i) / nm;
+        box(frame, x - 0.03, x + 0.03, D + 0.4, D + 2.4, back - 0.06, back);
+      }
+      box(timber, door, door + 1.0, D, D + 2.2, back - 0.04, back);
+      box(frame, door - 0.05, door + 1.05, D + 2.2, D + 2.28, back - 0.06, back);
+    }
+    // East end: air conditioners and a red pipe down the column.
+    for (const [sa, h] of [[FLOOR_S0 + 0.6, D + 1.6], [FLOOR_S0 + 1.6, D + 1.6], [FLOOR_S0 + 0.9, D + 0.5]] as const) {
+      box(acUnit, sa, sa + 0.8, h, h + 0.55, back - 0.3, back);
+    }
+    box(redPipe, FLOOR_S0 + 2.9, FLOOR_S0 + 3.0, D, -0.35, back - 0.15, back - 0.05);
+  }
+
   // --- Courtyard furniture: planters with palms, curved wall, stones -------------------------------
   const planters: [number, number, boolean][] = [
     [FLOOR_S0 + 3, 3.0, true], [FLOOR_S0 + 8.5, 3.0, false], [FLOOR_S0 + 14, 3.0, true],
-    [FLOOR_S0 + 5.5, -3.0, true], [FLOOR_S0 + 11, -3.0, true], [FLOOR_S0 + 16.5, -3.0, false],
+    // The ramp-side row lines up with the C-side row (user, 2026-11-20).
+    [FLOOR_S0 + 3, -3.0, true], [FLOOR_S0 + 8.5, -3.0, true], [FLOOR_S0 + 14, -3.0, false],
   ];
   const trunks: BufferGeometry[] = [];
   const leaves: BufferGeometry[] = [];
@@ -385,9 +438,10 @@ export function createDormCourtyard(scene: Scene, physics: RAPIER.World, tracker
   }
   add(mergeGeometries(trunks)!, bark);
   add(mergeGeometries(leaves)!, frond);
-  // Stone table with stones round it, diagonally in front of the ramp's landing (user sketch).
+  // Stone table with stones round it, in front of the ramp's turn (user, 2026-11-20).
   const rocks: BufferGeometry[] = [];
-  const TS = RAMP.sTurn + 2.6, TW = -1.0;
+  // In front of the ramp's half-round landing, on its centre line.
+  const TS = RAMP.sTurn + (RAMP.wIn - RAMP.wOut) / 2 + 1.9, TW = (RAMP.wOut + RAMP.wIn) / 2;
   for (const [ds, dw, sc] of [[-1.0, 0.5, 0.36], [0.9, 0.7, 0.34], [-0.4, -1.0, 0.38], [1.0, -0.6, 0.32]] as const) {
     const s = TS + ds, w = TW + dw;
     rocks.push(new IcosahedronGeometry(sc, 0).scale(1.2, 0.75, 1).translate(s, D + sc * 0.6, w));

@@ -164,6 +164,16 @@ docker compose down             # 停止（加 -v 會連資料一起刪除）
 | `.env.example` 沒被 commit | 根目錄 `.gitignore` 有 `.env*`；需要時用 `git add -f backend/.env.example` |
 
 ## 變更紀錄
+### 2026-11-20（前端：C、D 下沉中庭——花台對齊、石桌移到坡道前、C 側騎樓依實拍重做）— 分支 `feat/dorm-c-d-exterior`
+- 需求：坡道那側的花台（樹）跟對面一排水平對齊；石桌放到迴旋坡道前方；依 Street View 照片修正坡道對面（C 側）的建模
+- `frontend/src/buildings/dormCourtyard.ts`：
+  - 南排花台改到與北排相同的 s（FLOOR_S0 + 3 / 8.5 / 14），左右成對
+  - 石桌＋石頭移到坡道半圓平台正前方（坡道中線上）
+  - C 側改成有深度的騎樓：地面開洞延伸到 `ARCADE_BACK`（w 12.9），走廊改由 0.35 m 樓板（含碰撞）承托，原本的北側擋牆拿掉
+  - 騎樓內容：池邊 6 根方柱＋深梁；後牆是玻璃店面（直框）配木門，最西一跨白色鐵捲門，東端冷氣與紅色水管
+  - 兩端台階段在樓板下填實
+- 測試：`tsc --noEmit`、`vite build` 通過；headless Chrome 從中庭朝北、朝東兩個視角確認
+
 ### 2026-11-20（前端：C、D 下沉中庭的迴旋無障礙坡道與東側台階修正）— 分支 `feat/dorm-c-d-exterior`
 - 需求（使用者手繪）：紅框為迴旋無障礙坡道，長度加到第一根柱子旁；石桌放在斜前方；藍線處為台階；只改坡道與台階
 - `frontend/src/buildings/dormCourtyard.ts`：新增 `RAMP`——D 側一座 U 形迴旋坡道
