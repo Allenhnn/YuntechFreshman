@@ -164,6 +164,14 @@ docker compose down             # 停止（加 -v 會連資料一起刪除）
 | `.env.example` 沒被 commit | 根目錄 `.gitignore` 有 `.env*`；需要時用 `git add -f backend/.env.example` |
 
 ## 變更紀錄
+### 2026-11-19（前端：學生宿舍C 宿舍服務中心、學生宿舍D 入口小物件）— 分支 `feat/dorm-c-d-exterior`
+- 需求：依使用者在遊戲截圖標記的兩處與實拍照片，在學生宿舍C 外加「宿舍服務中心」、學生宿舍D 外加入口周邊小物件（先前誤做成腳踏車，已撤回、未保留）
+- 新增 `frontend/src/buildings/dormFeatures.ts`（比照 `mgmtFeatures.ts` / `yuntayExterior.ts` 的結構）：C 棟 L 形轉角內的單層玻璃店面（招牌帶、前廊、台階、坡道與扶手、花盆、雙燈頭燈柱）；D 棟東北向入口凹處的雨遮、門、平台與台階、藍色扶手、花台綠籬、燈柱、花盆；全部含碰撞
+- `frontend/src/main.ts`：建立 / 釋放 `createDormFeatures`，`dormTreeFree()` 加入 `keepClear`（樹不會長在設施上）
+- 文件：`frontend/docs/streetscape-remodel.md`「使用者實拍對照」新增一列
+- 測試：`tsc --noEmit` 通過、`vite build` 成功；headless Chrome 在截圖位置與 C、D 前方實際截圖確認
+- 待確認：遊戲中 D 棟真正可進入的門（描圖資料）在東面，入口裝飾依照片放在斜牆凹處
+
 ### 2026-11-19（帳密註冊、Google 自動註冊、改名、雲端存檔）
 - 新增 `POST /auth/register`：沒有或不想用 Google 帳號時，直接用使用者名稱 + 密碼註冊（可升級訪客）
 - `POST /auth/login/google` 改為第一次使用就自動註冊並登入（不再回 404 要求另填帳密）；自動產生使用者名稱，之後可在設定修改

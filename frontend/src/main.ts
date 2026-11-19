@@ -51,6 +51,7 @@ import { DOOR_HEIGHT, DOOR_WIDTH, buildingEntrance, hasInterior } from './campus
 import { SHELL_WALL } from './interiors/generateInterior';
 import { createMgmtFeatures } from './buildings/mgmtFeatures';
 import { createYuntayExterior, yuntayTreeFree } from './buildings/yuntayExterior';
+import { createDormFeatures, dormTreeFree } from './buildings/dormFeatures';
 import { courtPit, createMgmtCourtyard } from './buildings/mgmtCourtyard';
 import { createMbLobby } from './buildings/mbLobby';
 import { MAIN_GATE_GUARDHOUSE, createMainGate, gateTreeExclusions, inGateZone } from './campus/mainGate';
@@ -192,7 +193,7 @@ async function boot(): Promise<void> {
     : undefined;
   const bikeStations = placeBikeStations(campus);
   actions.setBikeStations(bikeStations);
-  const keepClear = [...buildingFootprintRings(librarySrc), ...handBuiltSrcs.flatMap(buildingFootprintRings), ...stationClearings(bikeStations), ...gateTreeExclusions(), ...SCOOTER_LOTS.map((l) => l.ring), ...(court ? [court.treeFree] : []), ...yuntayTreeFree()];
+  const keepClear = [...buildingFootprintRings(librarySrc), ...handBuiltSrcs.flatMap(buildingFootprintRings), ...stationClearings(bikeStations), ...gateTreeExclusions(), ...SCOOTER_LOTS.map((l) => l.ring), ...(court ? [court.treeFree] : []), ...yuntayTreeFree(), ...dormTreeFree()];
   const env = createCampusWorld(scene, physics, renderer, campus, sceneResources, {
     treeExclusions: keepClear,
     groundHoles: [...buildingGroundHoles(librarySrc), ...(court?.rings ?? [])],
@@ -218,6 +219,7 @@ async function boot(): Promise<void> {
   const skyBridge = ma && mb ? createSkyBridge(scene, physics, sceneResources, { building: mb, at: [50.95, -2.3] }, { building: ma, at: [76.5, 12.75] }, 3.6) : null;
   const mgmtFeatures = createMgmtFeatures(scene, physics, sceneResources, ma);
   const yuntayExterior = createYuntayExterior(scene, physics, sceneResources);
+  const dormFeatures = createDormFeatures(scene, physics, campus, sceneResources);
   const mgmtCourtyard = mb ? createMgmtCourtyard(scene, physics, sceneResources, mb) : null;
   const mbLobby = mb ? createMbLobby(scene, physics, sceneResources, mb) : null;
 
@@ -971,6 +973,7 @@ async function boot(): Promise<void> {
     autoDoors.dispose();
     mgmtFeatures.dispose();
     yuntayExterior.dispose();
+    dormFeatures.dispose();
     mgmtCourtyard?.dispose();
     mbLobby?.dispose();
     interiors.dispose();
