@@ -31,7 +31,8 @@ import { Soup, canvasTex, speckle } from './mgmtCourtyard';
  *  - 南北兩側沿 C、D 棟各留一條地面層走廊（3 m 寬，原地坪），走廊邊是紅色鏤空花磚欄杆，
  *    欄杆下方就是中庭這一層的柱廊：北側（C 棟）白色鐵捲門、南側（D 棟）深色門洞；
  *  - 石桌與石頭在迴旋坡道轉彎平台正前方；兩排花台左右對齊；
- *  - C 側柱廊依實拍改成有深度的騎樓：池邊方柱、深梁、後牆玻璃店面＋木門、最西一跨白色鐵捲門、冷氣與紅色水管；
+ *  - C、D 兩側柱廊依實拍都是有深度的騎樓：池邊方柱、深梁、後牆玻璃店面＋木門、一端白色鐵捲門、另一端冷氣與紅色水管；
+ *  - 迴旋坡道上層坡道下方開一個穿越洞口，從中庭通到 D 側騎樓；
  *  - 西端一整面寬台階往上回到地面（上方是草地與高大的樹）。
  * 座標系：原點在兩棟之間的中線（x = 0 處），s 沿兩棟牆面往西（約 WNW→WSW 的紅色箭頭方向），
  * w 往北（C 棟側）。地面在中庭範圍開洞（dormCourtPit），地面碰撞體在洞內不作用。
@@ -40,7 +41,7 @@ const ORIGIN: readonly [number, number] = [0, 365.7];
 const U: readonly [number, number] = [-0.98698, 0.16085]; // +s (west, along the C / D faces)
 const D = -3; // courtyard floor
 const PIT = { s0: 3.5, s1: 35, wS: -10.0, wN: 9.9 };
-/** The C-side colonnade is a real arcade: the opening runs on under the corridor to its back wall. */
+/** Both colonnades are real arcades: the opening runs on under each corridor to its back wall (|w|). */
 const ARCADE_BACK = 12.9;
 /** East stair down from the road end (from the ramp divider to the C wall), west stair back up (full width). */
 const EAST = { run: 6, n: 20 };
@@ -53,6 +54,8 @@ const WALL = 0.3;
  * courtyard floor beside the first column, where its inner wall stops short so it opens onto the floor.
  * w bands: outer wall | outer lane | divider | inner lane | inner wall.
  */
+/** Passage under the ramp's upper lane, through to the D arcade (Street View: a doorway in the ramp wall). */
+const TUNNEL = { s0: FLOOR_S0 + 0.1, s1: FLOOR_S0 + 1.7, slab: 0.25 };
 const RAMP = { wOut: -7.8, wDiv0: -5.95, wDiv1: -5.75, wIn: -3.9, t: 0.2, sTurn: 21.5, sEnd: FLOOR_S0 + 0.5, innerWall0: FLOOR_S0 + 2, rail: 1.0 };
 /** Ground-level corridors along the buildings, and the brick apron at the road end. */
 const CORR = { n: 13.0, s: -13.15 };
@@ -72,10 +75,10 @@ function rectRing(s0: number, s1: number, w0: number, w1: number): Ring {
 /** Ground opening, point test for the ground collider, and the no-tree / no-lamp ring. */
 export function dormCourtPit(): { ring: Ring; contains(x: number, z: number): boolean; treeFree: Ring } {
   return {
-    ring: rectRing(PIT.s0, PIT.s1, PIT.wS, ARCADE_BACK),
+    ring: rectRing(PIT.s0, PIT.s1, -ARCADE_BACK, ARCADE_BACK),
     contains(x, z) {
       const [s, w] = toLocal(x, z);
-      return s >= PIT.s0 && s <= PIT.s1 && w >= PIT.wS && w <= ARCADE_BACK;
+      return s >= PIT.s0 && s <= PIT.s1 && w >= -ARCADE_BACK && w <= ARCADE_BACK;
     },
     treeFree: rectRing(APRON_S0 - 1, PIT.s1 + 0.5, CORR.s - 0.3, CORR.n + 0.3),
   };
@@ -198,7 +201,6 @@ export function createDormCourtyard(scene: Scene, physics: RAPIER.World, tracker
   });
   grassTex.repeat.set(1 / 2, 1 / 2);
   const grass = std({ map: grassTex, roughness: 1 });
-  const dark = std({ color: 0x1d1f22, roughness: 0.9 });
   const frame = std({ color: 0x8e8b84, roughness: 0.8 });
   const stone = std({ color: 0x5f5d59, roughness: 0.95, flatShading: true });
   const frond = std({ color: 0x8fae3a, roughness: 0.8 });
@@ -254,7 +256,6 @@ export function createDormCourtyard(scene: Scene, physics: RAPIER.World, tracker
   slab(rect(PIT.s0, PIT.s1, PIT.wS, PIT.wN), D + 0.01, slate);
   // Long walls (the corridor edges) with the red lattice balustrade on top.
   for (const [w0, w1] of [[PIT.wN - WALL, PIT.wN], [PIT.wS, PIT.wS + WALL]] as const) {
-    if (w0 < 0) box(concrete, PIT.s0, PIT.s1, D, 0, w0, w1, true); // C side: arcade below (see colonnades)
     box(concrete, PIT.s0, PIT.s1, 0, 0.15, w0, w1);
     box(lattice, PIT.s0, PIT.s1, 0.15, 0.92, w0 + 0.08, w1 - 0.08);
     box(concrete, PIT.s0, PIT.s1, 0.92, 1.02, w0 - 0.02, w1 + 0.02);
@@ -279,16 +280,16 @@ export function createDormCourtyard(scene: Scene, physics: RAPIER.World, tracker
   const innerH = (s: number): number => hMid - (RAMP.sTurn - s) * grade;
   const rampSoup = new Soup();
   /** Solid from the floor up to a top that slopes linearly along s; drawn and given a convex collider. */
-  const sloped = (s0: number, s1: number, w0: number, w1: number, top: (s: number) => number): void => {
-    const t0 = top(s0), t1 = top(s1);
+  const sloped = (s0: number, s1: number, w0: number, w1: number, top: (s: number) => number, bottom: (s: number) => number = () => D): void => {
+    const t0 = top(s0), t1 = top(s1), b0 = bottom(s0), b1 = bottom(s1);
     const v = (s: number, h: number, w: number): number[] => [s, h, w];
     rampSoup.quad(v(s0, t0, w0), v(s0, t0, w1), v(s1, t1, w1), v(s1, t1, w0)); // top
-    rampSoup.quad(v(s0, D, w0), v(s1, D, w0), v(s1, t1, w0), v(s0, t0, w0)); // sides
-    rampSoup.quad(v(s0, D, w1), v(s0, t0, w1), v(s1, t1, w1), v(s1, D, w1));
-    rampSoup.quad(v(s0, D, w0), v(s0, t0, w0), v(s0, t0, w1), v(s0, D, w1)); // ends
-    rampSoup.quad(v(s1, D, w0), v(s1, D, w1), v(s1, t1, w1), v(s1, t1, w0));
+    rampSoup.quad(v(s0, b0, w0), v(s1, b1, w0), v(s1, t1, w0), v(s0, t0, w0)); // sides
+    rampSoup.quad(v(s0, b0, w1), v(s0, t0, w1), v(s1, t1, w1), v(s1, b1, w1));
+    rampSoup.quad(v(s0, b0, w0), v(s0, t0, w0), v(s0, t0, w1), v(s0, b0, w1)); // ends
+    rampSoup.quad(v(s1, b1, w0), v(s1, b1, w1), v(s1, t1, w1), v(s1, t1, w0));
     const pts: number[] = [];
-    for (const [s, h] of [[s0, D], [s0, t0], [s1, D], [s1, t1]] as const) {
+    for (const [s, h] of [[s0, b0], [s0, t0], [s1, b1], [s1, t1]] as const) {
       for (const w of [w0, w1]) {
         const [x, z] = toWorld(s, w);
         pts.push(x, h, z);
@@ -298,10 +299,18 @@ export function createDormCourtyard(scene: Scene, physics: RAPIER.World, tracker
     if (desc) colliders.push(tracker.collider(physics.createCollider(desc)));
   };
   const { wOut, wDiv0, wDiv1, wIn, t, sTurn, sEnd, innerWall0, rail } = RAMP;
-  sloped(PIT.s0, sTurn, wOut + t, wDiv0, outerH); // outer lane: road end → landing
+  // Upper lane, its outer wall and the divider, each split round the passage under the lane.
+  const under = (s: number): number => outerH(s) - TUNNEL.slab;
+  for (const [w0, w1, top] of [
+    [wOut + t, wDiv0, outerH], // outer lane: road end → landing
+    [wOut, wOut + t, (s: number) => outerH(s) + rail], // outer wall
+    [wDiv0, wDiv1, (s: number) => outerH(s) + rail], // divider (also the stair's south cheek)
+  ] as const) {
+    sloped(PIT.s0, TUNNEL.s0, w0, w1, top);
+    sloped(TUNNEL.s0, TUNNEL.s1, w0, w1, top, under);
+    sloped(TUNNEL.s1, sTurn, w0, w1, top);
+  }
   sloped(sEnd, sTurn, wDiv1, wIn - t, innerH); // inner lane: landing → courtyard floor
-  sloped(PIT.s0, sTurn, wOut, wOut + t, (s) => outerH(s) + rail); // outer wall
-  sloped(PIT.s0, sTurn, wDiv0, wDiv1, (s) => outerH(s) + rail); // divider (also the stair's south cheek)
   sloped(innerWall0, sTurn, wIn - t, wIn, (s) => innerH(s) + rail); // inner wall, open at its east end
   // Between the ramp and the D colonnade, under the upper lane's start: solid to ground level.
   box(concrete, PIT.s0, FLOOR_S0, D, 0, PIT.wS + WALL, wOut, true);
@@ -342,72 +351,54 @@ export function createDormCourtyard(scene: Scene, physics: RAPIER.World, tracker
   }
   trimesh(stairs);
 
-  // --- Colonnades under the corridors: columns, edge beam, doors ----------------------------------
-  const BAYS = 4;
-  const bay = (FLOOR_S1 - FLOOR_S0) / BAYS;
-  for (const side of [-1] as const) {
-    const face = side > 0 ? PIT.wN - WALL : PIT.wS + WALL; // wall face towards the courtyard
-    const into = -side; // from the face into the courtyard
-    const span = (a: number, b: number): [number, number] => (a < b ? [a, b] : [b, a]);
-    for (let k = 0; k <= BAYS; k++) {
-      const s = FLOOR_S0 + k * bay;
-      box(concrete, s - 0.25, s + 0.25, D, 0, ...span(face, face + into * 0.4), true);
-    }
-    box(concrete, FLOOR_S0 - 0.25, FLOOR_S1 + 0.25, -0.45, 0, ...span(face, face + into * 0.45));
-    for (let k = 0; k < BAYS; k++) {
-      const s0 = FLOOR_S0 + k * bay + 0.25, s1 = s0 + bay - 0.5;
-      // Two openings per bay: C side white roller shutters / dark doorways, D side dark doors in frames.
-      for (const [a, b] of [[s0 + 0.3, (s0 + s1) / 2 - 0.15], [(s0 + s1) / 2 + 0.15, s1 - 0.3]] as const) {
-        const m = side > 0 && (k + (a > (s0 + s1) / 2 ? 1 : 0)) % 2 === 0 ? shutter : dark;
-        box(m, a, b, D, D + 2.3, ...span(face, face + into * 0.02));
-        box(frame, a - 0.08, b + 0.08, D + 2.3, D + 2.4, ...span(face, face + into * 0.04));
-      }
-    }
-  }
-
-  // C side (Street View, facing north from the courtyard): a deep arcade under the corridor — square
-  // columns on the pit edge, a deep edge beam, and a back wall with glazed shopfronts and timber doors,
-  // a white roller shutter in the westmost bay, air-conditioner units and a red pipe at the east end.
-  {
-    const f0 = PIT.wN - WALL, back = ARCADE_BACK - 0.2, CB = 5;
+  // --- Arcades under both corridors (Street View of the C side, the D side built the same way):
+  // square columns on the pit edge, a deep edge beam, and a back wall with glazed shopfronts and timber
+  // doors, a white roller shutter in one end bay, air-conditioner units and a red pipe at the other.
+  // Distances below are |w| from the centre line; W() puts them on the C (+w) or D (−w) side.
+  for (const side of [1, -1] as const) {
+    const W = (d: number): number => side * d;
+    const span = (a: number, b: number): [number, number] => (W(a) < W(b) ? [W(a), W(b)] : [W(b), W(a)]);
+    const f0 = side > 0 ? PIT.wN - WALL : -(PIT.wS + WALL), back = ARCADE_BACK - 0.2, CB = 5;
+    const shutterBay = side > 0 ? CB - 1 : 0;
+    const acS = side > 0 ? FLOOR_S0 + 0.6 : FLOOR_S1 - 2.6;
     const cbay = (FLOOR_S1 - FLOOR_S0) / CB;
-    box(concrete, PIT.s0, PIT.s1, -0.35, 0, f0, ARCADE_BACK + 0.1, true); // corridor slab
-    box(concrete, FLOOR_S0 - 0.25, FLOOR_S1 + 0.25, -0.75, -0.35, f0, f0 + 0.35); // edge beam
-    for (const [a, b] of [[PIT.s0, FLOOR_S0 - 0.25], [FLOOR_S1 + 0.25, PIT.s1]] as const) box(concrete, a, b, D, -0.35, f0, ARCADE_BACK, true);
-    box(concrete, FLOOR_S0, FLOOR_S1, D - 0.3, D, PIT.wN, ARCADE_BACK, true); // arcade floor
-    slab(rect(FLOOR_S0, FLOOR_S1, PIT.wN, ARCADE_BACK), D + 0.01, slate);
-    box(concrete, FLOOR_S0 - 0.25, FLOOR_S1 + 0.25, D, -0.35, back, ARCADE_BACK, true); // back wall
+    box(concrete, PIT.s0, PIT.s1, -0.35, 0, ...span(f0, ARCADE_BACK + 0.1), true); // corridor slab
+    box(concrete, FLOOR_S0 - 0.25, FLOOR_S1 + 0.25, -0.75, -0.35, ...span(f0, f0 + 0.35)); // edge beam
+    for (const [a, b] of [[PIT.s0, FLOOR_S0 - 0.25], [FLOOR_S1 + 0.25, PIT.s1]] as const) box(concrete, a, b, D, -0.35, ...span(f0, ARCADE_BACK), true);
+    box(concrete, FLOOR_S0, FLOOR_S1, D - 0.3, D, ...span(f0, ARCADE_BACK), true); // arcade floor
+    slab(rect(FLOOR_S0, FLOOR_S1, ...span(f0, ARCADE_BACK)), D + 0.01, slate);
+    box(concrete, FLOOR_S0 - 0.25, FLOOR_S1 + 0.25, D, -0.35, ...span(back, ARCADE_BACK), true); // back wall
     for (let k = 0; k <= CB; k++) {
       const sc = FLOOR_S0 + k * cbay;
-      box(concrete, sc - 0.25, sc + 0.25, D, -0.35, f0, f0 + 0.5, true);
-      box(concrete, sc - 0.2, sc + 0.2, D, -0.35, back - 0.25, back); // pilaster on the back wall
+      box(concrete, sc - 0.25, sc + 0.25, D, -0.35, ...span(f0, f0 + 0.5), true);
+      box(concrete, sc - 0.2, sc + 0.2, D, -0.35, ...span(back - 0.25, back)); // pilaster on the back wall
     }
     for (let k = 0; k < CB; k++) {
       const s0 = FLOOR_S0 + k * cbay + 0.45, s1 = s0 + cbay - 0.9;
-      if (k === CB - 1) {
-        box(shutter, s0, s1, D, D + 2.35, back - 0.03, back); // white roller shutter (west end)
-        box(frame, s0 - 0.06, s1 + 0.06, D + 2.35, D + 2.5, back - 0.06, back);
+      if (k === shutterBay) {
+        box(shutter, s0, s1, D, D + 2.35, ...span(back - 0.03, back)); // white roller shutter (west end)
+        box(frame, s0 - 0.06, s1 + 0.06, D + 2.35, D + 2.5, ...span(back - 0.06, back));
         continue;
       }
       // Glazed shopfront: dark glass in a grey frame with mullions, a timber door at one end.
       const door = k % 2 === 0 ? s1 - 1.0 : s0;
       const g0 = k % 2 === 0 ? s0 : s0 + 1.1, g1 = k % 2 === 0 ? s1 - 1.1 : s1;
-      box(glass, g0, g1, D + 0.4, D + 2.4, back - 0.03, back);
-      box(frame, g0, g1, D, D + 0.4, back - 0.05, back);
-      box(frame, g0 - 0.05, g1 + 0.05, D + 2.4, D + 2.5, back - 0.06, back);
+      box(glass, g0, g1, D + 0.4, D + 2.4, ...span(back - 0.03, back));
+      box(frame, g0, g1, D, D + 0.4, ...span(back - 0.05, back));
+      box(frame, g0 - 0.05, g1 + 0.05, D + 2.4, D + 2.5, ...span(back - 0.06, back));
       const nm = Math.max(1, Math.round((g1 - g0) / 0.9));
       for (let i = 0; i <= nm; i++) {
         const x = g0 + ((g1 - g0) * i) / nm;
-        box(frame, x - 0.03, x + 0.03, D + 0.4, D + 2.4, back - 0.06, back);
+        box(frame, x - 0.03, x + 0.03, D + 0.4, D + 2.4, ...span(back - 0.06, back));
       }
-      box(timber, door, door + 1.0, D, D + 2.2, back - 0.04, back);
-      box(frame, door - 0.05, door + 1.05, D + 2.2, D + 2.28, back - 0.06, back);
+      box(timber, door, door + 1.0, D, D + 2.2, ...span(back - 0.04, back));
+      box(frame, door - 0.05, door + 1.05, D + 2.2, D + 2.28, ...span(back - 0.06, back));
     }
-    // East end: air conditioners and a red pipe down the column.
-    for (const [sa, h] of [[FLOOR_S0 + 0.6, D + 1.6], [FLOOR_S0 + 1.6, D + 1.6], [FLOOR_S0 + 0.9, D + 0.5]] as const) {
-      box(acUnit, sa, sa + 0.8, h, h + 0.55, back - 0.3, back);
+    // Air conditioners and a red pipe at the end away from the shutter.
+    for (const [sa, h] of [[acS, D + 1.6], [acS + 1.0, D + 1.6], [acS + 0.3, D + 0.5]] as const) {
+      box(acUnit, sa, sa + 0.8, h, h + 0.55, ...span(back - 0.3, back));
     }
-    box(redPipe, FLOOR_S0 + 2.9, FLOOR_S0 + 3.0, D, -0.35, back - 0.15, back - 0.05);
+    box(redPipe, acS + 2.3, acS + 2.4, D, -0.35, ...span(back - 0.15, back - 0.05));
   }
 
   // --- Courtyard furniture: planters with palms, curved wall, stones -------------------------------

@@ -164,6 +164,15 @@ docker compose down             # 停止（加 -v 會連資料一起刪除）
 | `.env.example` 沒被 commit | 根目錄 `.gitignore` 有 `.env*`；需要時用 `git add -f backend/.env.example` |
 
 ## 變更紀錄
+### 2026-11-20（前端：迴旋坡道下方開洞、D 側柱廊改成與 C 側相同的騎樓）— 分支 `feat/dorm-c-d-exterior`
+- 需求：依 Street View 照片在迴旋坡道下方開一個洞；坡道另一側（D 側）也照 C 側騎樓照片的做法
+- `frontend/src/buildings/dormCourtyard.ts`：
+  - 新增 `TUNNEL`（s ≈ FLOOR_S0+0.1 – +1.7，第一根柱子旁）：上層坡道、外牆、隔牆在這段改成只有 0.25 m 的板，下方淨高約 2 m；`sloped()` 加上可選的底面函式
+  - 洞口從中庭穿過坡道，通到 D 側騎樓
+  - 騎樓改用 `for side of [1, -1]` 兩側共用：地面開洞擴到 |w| ≤ `ARCADE_BACK`（12.9），兩側走廊都改由樓板承托
+  - 鐵捲門 C 在西端、D 在東端；冷氣與紅色水管放在另一端；移除舊的 D 側平面門片柱廊
+- 測試：`tsc --noEmit`、`vite build` 通過；headless Chrome 從中庭朝 D 側看，確認坡道下洞口可看穿到 D 騎樓
+
 ### 2026-11-20（前端：C、D 下沉中庭——花台對齊、石桌移到坡道前、C 側騎樓依實拍重做）— 分支 `feat/dorm-c-d-exterior`
 - 需求：坡道那側的花台（樹）跟對面一排水平對齊；石桌放到迴旋坡道前方；依 Street View 照片修正坡道對面（C 側）的建模
 - `frontend/src/buildings/dormCourtyard.ts`：
