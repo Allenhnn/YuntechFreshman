@@ -37,7 +37,7 @@ import { campusTreeGeometry } from '../campus/campusWorld';
  *    深色窗的實牆段；店面上方深灰招牌（藍色 C、金字「國立雲林科技大學 學生宿舍服務中心」、右側紅色 LED 板），
  *    招牌下白色出挑簷口。前面整排前廊、幾乎全寬的三階台階；西段前方是與立面平行、往東上升的無障礙坡道，
  *    外側整面混凝土矮牆（藍色指標牌）與扶手。前廊與廣場上多盆紅色花盆，坡道口一支黑色雙燈頭燈柱。
- *  - 學生宿舍D（入口正面照）：東北向的凹角整個做成門廊，寬度從東翼北面到北翼東面（約 11 m）：
+ *  - 學生宿舍D（入口正面照）：東北向的凹角整個做成門廊，寬度從東翼北面到北翼東面（約 12.4 m、深 3.6 m）：
  *    門廊頂板與前緣厚混凝土帶（藍色 D）、下方方柱、兩樘門（斜牆一樘、北翼東面一樘）之間一長條綠籬花台、
  *    全寬平台與四階台階、左側藍色扶手與白色告示牌；前方灰色連鎖磚夾紅磚帶的廣場、三個方形樹穴、紅色花盆、
  *    兩側各一支黑色雙燈頭燈柱；北翼東面門廊外一段矮花台綠籬。
@@ -64,19 +64,19 @@ const D_WING: WallAnchor = { id: 296668594, edge: 0, a: [20.6, 372.3], b: [22.0,
  * 從南翼牆面切到北棟牆面。其餘部件都在「正面座標系」裡：x 沿正面由西（南翼端）往東（北棟端）、
  * z 朝外（東南），正面在 z = depth。
  */
-const CORNER = { frontK: 6.15, diag: [[0, 0], [-3.64, 3.19]] as const, wing: [[-3.64, 3.19], [-4.22, 13.45]] as const };
+const CORNER = { frontK: 7.3, diag: [[0, 0], [-3.64, 3.19]] as const, wing: [[-3.64, 3.19], [-4.22, 13.45]] as const };
 const SVC = { depth: 4.7, roof: 3.4 };
 /** 正面分段（正面座標 x）：西實牆段 | 玻璃店面 | 東深色窗段（東段到正面全長 len）。 */
-const SHOP = { x0: 4.2, x1: 11.0 };
+const SHOP = { x0: 5.0, x1: 12.2 };
 /** 店面上方的招牌與白色簷口（向外出挑 `out`）。 */
-const FASCIA = { x0: 4.0, x1: 11.2, y0: 3.12, y1: 4.0, out: 1.0, soffit: 0.12 };
+const FASCIA = { x0: 4.8, x1: 12.4, y0: 3.12, y1: 4.0, out: 1.0, soffit: 0.12 };
 const RISE = 0.15;
 const TREAD = 0.35;
 const PORCH = { z0: SVC.depth, z1: SVC.depth + 1.6, top: 0.6 };
 /** 台階從 x0 到正面東端（店面與東段前方）。 */
-const STEPS = { x0: 6.4 };
+const STEPS = { x0: 7.3 };
 /** 坡道：前廊前方、與立面平行，西端（x0）著地、東端（x1）接前廊；外側矮牆從 wallFrom 開始，西端留入口。 */
-const RAMP = { x0: 0.35, x1: 6.2, z0: PORCH.z1, z1: PORCH.z1 + 1.4, wall: 0.15, wallFrom: 1.6, wallTop: 1.15 };
+const RAMP = { x0: 1.2, x1: 7.1, z0: PORCH.z1, z1: PORCH.z1 + 1.4, wall: 0.15, wallFrom: 2.45, wallTop: 1.15 };
 /**
  * 前方廣場（C_SOUTH 牆面座標）：灰色連鎖磚夾紅磚帶（照片），從正面鋪到兩條路邊；
  * 多邊形 = 正面西端 → 正面東端 → 沿北棟南面延伸到南北向路邊 → 沿兩條路邊（路口處切角）→ 南翼東南角；離路緣約 0.4 m。
@@ -86,8 +86,8 @@ const PLAZA = { east: 13.6, eastSouth: 12.5, southEast: 10.5, south: 15.0, band:
 type Pit = { x: number; z: number; size: number; scale: number; lift?: number };
 /** 樹穴（正面座標）：混凝土框、土面，各種一棵校園樹。 */
 const PITS: readonly Pit[] = [
-  { x: 8.4, z: SVC.depth + 6.3, size: 2.0, scale: 1.0 },
-  { x: 2.0, z: SVC.depth + 6.6, size: 1.8, scale: 0.9 },
+  { x: 9.3, z: SVC.depth + 6.3, size: 2.0, scale: 1.0 },
+  { x: 2.85, z: SVC.depth + 6.6, size: 1.8, scale: 0.9 },
 ];
 
 /** 正面兩端（C_SOUTH 牆面座標）：西端 = 正面線與南翼牆面的交點，東端 = 與北棟南面（z = 0）的交點。 */
@@ -113,19 +113,19 @@ function plazaOutline(): [number, number][] {
  * 東翼北面 (0,0)–(−4.94,6.95)、北翼東面 (5.04,0)–(11.6,5.15)；門廊前緣在 z = depth，左右各切到翼牆為止。
  */
 const D_CORNER = { right: [[0, 0], [-4.94, 6.95]] as const, left: [[5.04, 0], [11.6, 5.15]] as const };
-const D_PORCH = { depth: 3.0, top: 0.6, roof: 3.35, band: 0.95, letterX: 0.42 };
+const D_PORCH = { depth: 3.6, top: 0.6, roof: 3.35, band: 0.95, letterX: 0.42 };
 /** 方柱（門廊前緣內側），兩樘門：斜牆上一樘（x 範圍）、北翼東面一樘（D_WING x 範圍）。 */
 const D_COLUMNS: readonly number[] = [-1.3, 2.2, 5.6];
 const D_DOORS = { recess: [0.5, 2.3] as const, wing: [1.2, 2.8] as const };
 /** 台階：門廊前緣往外四階，左右範圍；扶手在左端。 */
-const D_STEPS = { x0: -1.8, x1: 8.6 };
+const D_STEPS = { x0: -2.2, x1: 9.4 };
 /** 廣場（D_RECESS 座標）：沿兩面翼牆到翼角，再往外到這兩點；樹穴三個。 */
-const D_PLAZA: readonly [number, number][] = [[10, 12], [-6, 12]];
+const D_PLAZA: readonly [number, number][] = [[11, 13.5], [-6.5, 13]];
 /** 照片裡這三棵是細高的樹、樹冠在二樓以上（門廊不被擋住）：同一個校園樹模型，縮窄並拉高（lift）。 */
 const D_PITS: readonly Pit[] = [
-  { x: -0.2, z: 7.4, size: 1.6, scale: 0.7, lift: 1.6 },
-  { x: 3.6, z: 8.6, size: 1.6, scale: 0.65, lift: 1.7 },
-  { x: 7.2, z: 7.2, size: 1.6, scale: 0.72, lift: 1.55 },
+  { x: -0.2, z: 8.0, size: 1.6, scale: 0.7, lift: 1.6 },
+  { x: 3.6, z: 9.2, size: 1.6, scale: 0.65, lift: 1.7 },
+  { x: 7.2, z: 7.8, size: 1.6, scale: 0.72, lift: 1.55 },
 ];
 
 /** x of a wing face at depth z (the line through `pts`). */
@@ -522,10 +522,10 @@ function addServiceCentre(ctx: Ctx, c: Frame): Frame {
 
   // Pots along the porch edge and on the plaza, the lantern by the ramp's low end.
   addPots(ctx, f, [
-    [3.0, PORCH.z1 - 0.4, top], [4.8, PORCH.z1 - 0.4, top], [11.6, PORCH.z0 + 0.4, top], [12.4, PORCH.z0 + 0.4, top],
-    [7.0, D + 4.6], [5.8, D + 4.9], [13.4, D + 3.9], [2.6, D + 3.9], [4.4, D + 4.1],
+    [3.85, PORCH.z1 - 0.4, top], [5.65, PORCH.z1 - 0.4, top], [12.8, PORCH.z0 + 0.4, top], [13.6, PORCH.z0 + 0.4, top],
+    [7.85, D + 4.6], [6.65, D + 4.9], [14.25, D + 3.9], [3.45, D + 3.9], [5.25, D + 4.1],
   ]);
-  addLanterns(ctx, f, [[1.0, D + 5.2]]);
+  addLanterns(ctx, f, [[1.85, D + 5.2]]);
   return f;
 }
 
@@ -647,14 +647,14 @@ function addDormDEntrance(ctx: Ctx, f: Frame, wing: Frame | null, trees: Pick<Ca
   // Plaza: paving out to the road side, three tree pits, a pot, the two lanterns.
   addPaving(ctx, f, dPlazaOutline());
   addTreePits(ctx, f, D_PITS, trees);
-  addPots(ctx, f, [[5.4, 6.4]]);
-  addLanterns(ctx, f, [[-5.6, 8.2], [9.6, 6.6]]);
+  addPots(ctx, f, [[5.4, 7.0]]);
+  addLanterns(ctx, f, [[-6.2, 8.8], [10.2, 7.2]]);
 }
 
 /** 學生宿舍D 北翼東面、門廊外：矮混凝土花台與修剪綠籬（D_WING 座標）。 */
 function addDormDPlanter(ctx: Ctx, f: Frame): void {
   const concrete = ctx.mat(CONCRETE, { roughness: 0.9 });
-  const x0 = 5.6, x1 = 8.1, z0 = 0.15, z1 = 1.15, h = 0.45;
+  const x0 = 6.2, x1 = 8.2, z0 = 0.15, z1 = 1.15, h = 0.45;
   f.add(span(x0, x1, 0, h, z0, z1), concrete);
   f.add(span(x0 + 0.08, x1 - 0.08, h, h + 0.5, z0 + 0.08, z1 - 0.08), ctx.mat(0x3e6f2e, { roughness: 0.95 }));
   f.solid((x0 + x1) / 2, (h + 0.5) / 2, (z0 + z1) / 2, (x1 - x0) / 2, (h + 0.5) / 2, (z1 - z0) / 2);
@@ -679,7 +679,7 @@ export function dormTreeFree(): number[][] {
   return [
     svc.flatMap(([x, z]) => c(x, z)),
     dPlazaOutline().flatMap(([x, z]) => toWorld(D_RECESS)(x, z)),
-    rect(D_WING, 5.0, 8.4, 0, 3.0),
+    rect(D_WING, 6.0, 8.5, 0, 3.0),
   ];
 }
 

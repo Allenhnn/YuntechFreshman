@@ -164,6 +164,12 @@ docker compose down             # 停止（加 -v 會連資料一起刪除）
 | `.env.example` 沒被 commit | 根目錄 `.gitignore` 有 `.env*`；需要時用 `git add -f backend/.env.example` |
 
 ## 變更紀錄
+### 2026-11-19（前端：宿舍服務中心與學生宿舍D 入口範圍擴大）— 分支 `feat/dorm-c-d-exterior`
+- 需求：D 棟入口與宿舍服務中心的範圍再擴大一點，並以網頁呈現結果
+- `frontend/src/buildings/dormFeatures.ts`：服務中心正面往外移約 0.8 m（`CORNER.frontK` 6.15 → 7.3，正面長 14.4 → 16.1 m、量體加深），店面、招牌、台階、坡道、花盆、燈柱、樹穴同步右移；D 棟門廊加深到 3.6 m（寬約 12.4 m）、台階加寬、廣場往外延伸，樹穴、花盆、燈柱往外移，北翼牆外花台改到 6.2–8.2 m
+- 呈現：打包後發佈為 claude.ai 網頁（artifact「雲寶寶上學趣」，mascot.glb 內嵌，因發佈服務不收 .glb）
+- 測試：`tsc --noEmit` 通過、`vite build` 成功；用實際校園資料檢查不壓道路與建築（最近離路緣 0.6 m）；headless Chrome 截圖確認
+
 ### 2026-11-19（前端：學生宿舍D 入口依正面照重修）— 分支 `feat/dorm-c-d-exterior`
 - 需求：使用者提供 D 棟入口正面照，要求修正 D 棟前面
 - `frontend/src/buildings/dormFeatures.ts`：原本的小雨遮改為整個凹角的門廊（左右切到兩面翼牆，約 11 m 寬）：頂板、前緣混凝土帶（藍色 D）、三根方柱；斜牆與北翼東面各一樘深色玻璃門（裝飾），中間綠籬花台；全寬平台與四階台階、左端藍色雙管扶手、白色告示牌；前方廣場鋪面、三個方形樹穴（樹縮窄拉高，樹冠在二樓以上）、紅色花盆、兩側黑色雙燈頭燈柱；北翼牆外的花台移到門廊外
