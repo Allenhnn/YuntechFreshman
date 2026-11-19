@@ -2,8 +2,9 @@ import { useState, type ReactNode } from 'react';
 import { SETTINGS_LIMITS, type Settings } from '../state/settings';
 import { TESTER_AVAILABLE, useGame, actions } from '../state/store';
 import { useApi } from './api';
+import { auth, useAuth } from '../state/auth';
 
-function Brand(): ReactNode {
+export function Brand(): ReactNode {
   return (
     <>
       <div className="leaf-row" aria-hidden>
@@ -71,30 +72,33 @@ export function MenuScreen({ paused }: { paused: boolean }): ReactNode {
   if (!paused) {
     return (
       <div className="title-screen">
-        <aside className="title-panel">
+        <aside className="title-side">
           <Brand />
           <p className="tagline">走進校園，開始你的大學第一天</p>
-          <div className="title-actions">
+          <nav className="title-menu">
             {confirmingNew ? (
-              <>
-                <p className="confirm-new">確定要開始新遊戲嗎？目前的進度會被清除，無法復原。</p>
-                <button className="btn primary" onClick={api.startGame}>清除進度並開始</button>
-                <button className="btn" onClick={() => setConfirmingNew(false)}>取消</button>
-              </>
+              <div className="confirm-box">
+                <p>確定要開始新遊戲嗎？目前的進度會被清除，無法復原。</p>
+                <div>
+                  <button className="btn primary" onClick={api.startGame}>清除進度並開始</button>
+                  <button className="btn" onClick={() => setConfirmingNew(false)}>取消</button>
+                </div>
+              </div>
             ) : (
               <>
                 {hasSave
-                  ? <button className="btn primary" onClick={api.continueGame}>繼續遊戲</button>
-                  : <button className="btn primary" onClick={api.startGame}>開始遊戲</button>}
-                {hasSave && <button className="btn" onClick={() => { api.click(); setConfirmingNew(true); }}>新遊戲</button>}
-                <button className="btn" onClick={() => open('controls')}>操作介紹</button>
-                <button className="btn" onClick={() => open('settings')}>設定</button>
+                  ? <MenuItem primary icon="▶" label="繼續遊戲" sub="回到上次離開的地方" onClick={api.continueGame} />
+                  : <MenuItem primary icon="▶" label="開始遊戲" sub="從學生宿舍C 中庭出發" onClick={api.startGame} />}
+                {hasSave && <MenuItem icon="✦" label="新遊戲" sub="清除進度重新開始" onClick={() => { api.click(); setConfirmingNew(true); }} />}
+                <MenuItem icon="⌨" label="操作介紹" sub="移動、互動與快捷鍵" onClick={() => open('controls')} />
+                <MenuItem icon="⚙" label="設定" sub="畫質、音量、滑鼠" onClick={() => open('settings')} />
               </>
             )}
-          </div>
+          </nav>
           <p className="hint">{hint}</p>
           <p className="start-point">{hasSave ? '💾 進度已儲存在這個瀏覽器' : '📍 起點：學生宿舍C 中庭'}</p>
         </aside>
+        <PlayerCard />
         <p className="title-credit">核心原型 v0.7 · 國立雲林科技大學校園 · 地圖資料 © OpenStreetMap contributors</p>
       </div>
     );
@@ -110,6 +114,54 @@ export function MenuScreen({ paused }: { paused: boolean }): ReactNode {
           <button className="btn" onClick={api.quitToMenu}>回主選單</button>
         </div>
         <p className="hint">{hint}</p>
+      </div>
+    </div>
+  );
+}
+
+function MenuItem({ icon, label, sub, primary, onClick }: { icon: string; label: string; sub: string; primary?: boolean; onClick: () => void }): ReactNode {
+  return (
+    <button className={`menu-item${primary ? ' primary' : ''}`} onClick={onClick}>
+      <i aria-hidden>{icon}</i>
+      <span>
+        <b>{label}</b>
+        <small>{sub}</small>
+      </span>
+      <em aria-hidden>›</em>
+    </button>
+  );
+}
+
+/** Top-right account card on the title screen: who is playing, guest upgrade, sign out. */
+function PlayerCard(): ReactNode {
+  const api = useApi();
+  const { status, user } = useAuth((s) => s);
+  if (status === 'offline') {
+    return (
+      <div className="player-card">
+        <div className="avatar">☁</div>
+        <div className="who">
+          <b>離線遊玩</b>
+          <small>進度只存在這個瀏覽器</small>
+        </div>
+        <button className="btn small" onClick={() => { api.click(); auth.backToLogin(); }}>登入</button>
+      </div>
+    );
+  }
+  if (!user) return null;
+  const initial = [...(user.display_name || user.username)][0] ?? '?';
+  return (
+    <div className="player-card">
+      {user.avatar_url
+        ? <img className="avatar" src={user.avatar_url} alt="" referrerPolicy="no-referrer" />
+        : <div className="avatar">{initial}</div>}
+      <div className="who">
+        <b>{user.display_name}</b>
+        <small>{user.is_guest ? '訪客帳號' : `@${user.username}`}</small>
+      </div>
+      <div className="player-actions">
+        {user.is_guest && <button className="btn small primary" onClick={() => { api.click(); auth.startUpgrade(); }}>綁定帳號</button>}
+        <button className="btn small" onClick={() => { api.click(); void auth.logout(); }}>登出</button>
       </div>
     </div>
   );

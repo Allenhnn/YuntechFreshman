@@ -6,6 +6,8 @@ import { ApiContext } from './api';
 import { Hud } from './hud';
 import { InventoryModal } from './inventory';
 import { LoadingScreen, MenuScreen } from './menus';
+import { LoginScreen } from './login';
+import { auth, useAuth } from '../state/auth';
 import { PhoneDrawer } from './phone';
 import { ElevatorModal, Fade, InteractPrompt, ShopModal } from './elevator';
 import { ChatBox } from './chat';
@@ -15,6 +17,7 @@ import './ui.css';
 function App(): ReactNode {
   const phase = useGame((s) => s.phase);
   const modal = useGame((s) => s.modal);
+  const account = useAuth((s) => s.status);
   return (
     <>
       {phase === 'playing' && modal !== 'camera' && <Hud />}
@@ -27,7 +30,9 @@ function App(): ReactNode {
       {phase === 'playing' && <InteractPrompt />}
       <Fade />
       {phase === 'loading' && <LoadingScreen />}
-      {phase === 'menu' && <MenuScreen paused={false} />}
+      {phase === 'menu' && account === 'checking' && <LoadingScreen />}
+      {phase === 'menu' && account === 'signedOut' && <LoginScreen />}
+      {phase === 'menu' && (account === 'signedIn' || account === 'offline') && <MenuScreen paused={false} />}
       {phase === 'paused' && <MenuScreen paused />}
     </>
   );
@@ -35,6 +40,7 @@ function App(): ReactNode {
 
 /** Mounts the DOM UI layer above the canvas. The UI only talks to the game through `api` and the store. */
 export function mountUI(container: HTMLElement, api: GameApi): Root {
+  void auth.init();
   const root = createRoot(container);
   root.render(
     <StrictMode>

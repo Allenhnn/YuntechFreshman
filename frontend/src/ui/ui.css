@@ -59,18 +59,114 @@
 .progress { height: 10px; margin-top: 22px; border-radius: 6px; background: var(--green-soft); overflow: hidden; }
 .progress > div { height: 100%; background: linear-gradient(90deg, var(--green), #4cc27a); transition: width 0.2s ease; }
 
+/* Title screen: a cream column on the left fading into the live campus, account card top-right. */
 .title-screen {
-  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 16px; pointer-events: auto; animation: fade-in 0.35s ease;
-  background: radial-gradient(ellipse at center, rgba(16, 48, 30, 0.34), rgba(16, 48, 30, 0.08) 62%, rgba(16, 48, 30, 0.26));
+  position: absolute; inset: 0; pointer-events: auto; animation: fade-in 0.35s ease;
+  background: linear-gradient(90deg, rgba(16, 48, 30, 0.42), rgba(16, 48, 30, 0.12) 46%, rgba(16, 48, 30, 0) 70%),
+    linear-gradient(0deg, rgba(16, 48, 30, 0.35), rgba(16, 48, 30, 0) 30%);
 }
-.title-panel {
-  width: min(440px, 100%); padding: 34px 36px 26px; border-radius: 26px; text-align: center;
-  background: var(--cream); box-shadow: 0 18px 50px rgba(10, 40, 25, 0.34); animation: pop-in 0.3s ease;
+.title-side {
+  position: absolute; top: 0; bottom: 0; left: 0; width: min(430px, 100%); padding: 56px 40px 60px;
+  display: flex; flex-direction: column; justify-content: center;
+  background: linear-gradient(90deg, rgba(255, 253, 246, 0.97) 70%, rgba(255, 253, 246, 0.88));
+  box-shadow: 18px 0 50px rgba(10, 40, 25, 0.25); animation: slide-right 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
-.title-panel .title { font-size: 42px; }
-.tagline { margin: 12px 0 0; font-size: 15px; color: var(--ink-soft); }
-.title-actions { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 26px; }
-.title-actions .primary { grid-column: 1 / -1; padding: 15px 16px; font-size: 18px; }
+.title-side .leaf-row { justify-content: flex-start; }
+.title-side .title { text-align: left; font-size: 44px; }
+.title-side .tagline { text-align: left; }
+.title-menu { display: flex; flex-direction: column; gap: 10px; margin: 30px 0 4px; }
+.menu-item {
+  display: flex; align-items: center; gap: 14px; width: 100%; padding: 12px 16px 12px 12px; border: 0; border-radius: 16px;
+  background: #fff; box-shadow: 0 2px 0 var(--line), 0 6px 18px rgba(10, 40, 25, 0.06); cursor: pointer; text-align: left;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
+}
+.menu-item i {
+  flex: none; width: 42px; height: 42px; border-radius: 12px; display: flex; align-items: center; justify-content: center;
+  background: var(--green-soft); color: var(--green-dark); font-style: normal; font-size: 20px;
+}
+.menu-item span { flex: 1; display: flex; flex-direction: column; gap: 3px; }
+.menu-item b { font-size: 18px; font-weight: 400; }
+.menu-item small { font-size: 12px; color: var(--ink-soft); }
+.menu-item em { font-style: normal; font-size: 24px; color: #b5c7ba; transition: transform 0.12s ease; }
+.menu-item:hover { transform: translateX(4px); box-shadow: 0 2px 0 var(--line), 0 10px 24px rgba(10, 40, 25, 0.12); }
+.menu-item:hover em { transform: translateX(3px); color: var(--green); }
+.menu-item:active { transform: translateX(4px) translateY(1px); }
+.menu-item.primary { background: var(--green); color: #fff !important; box-shadow: 0 3px 0 var(--green-dark), 0 10px 24px rgba(20, 107, 55, 0.3); padding-block: 15px; }
+.menu-item.primary i { background: rgba(255, 255, 255, 0.18); color: #fff; }
+.menu-item.primary small { color: rgba(255, 255, 255, 0.82); }
+.menu-item.primary em { color: rgba(255, 255, 255, 0.7); }
+.confirm-box { padding: 16px; border-radius: 16px; background: #fff4e8; box-shadow: 0 2px 0 #f3d7b8; }
+.confirm-box p { margin: 0 0 12px; font-size: 14px; line-height: 1.6; }
+.confirm-box div { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+.title-side .hint { text-align: left; }
+.title-side .start-point { align-self: flex-start; }
+.player-card {
+  position: absolute; top: 18px; right: 18px; display: flex; align-items: center; gap: 12px; padding: 10px 12px 10px 10px;
+  border-radius: 20px; background: var(--glass); box-shadow: var(--shadow); backdrop-filter: blur(8px); animation: pop-in 0.3s ease;
+}
+.player-card .avatar {
+  width: 44px; height: 44px; border-radius: 50%; object-fit: cover; display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, #4cc27a, var(--green)); color: #fff; font-size: 20px; box-shadow: 0 0 0 3px #fff;
+}
+.player-card .who { display: flex; flex-direction: column; gap: 2px; min-width: 90px; max-width: 180px; }
+.player-card .who b { font-weight: 400; font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.player-card .who small { font-size: 12px; color: var(--ink-soft); }
+.player-actions { display: flex; gap: 6px; }
+@keyframes slide-right { from { opacity: 0; transform: translateX(-40px); } }
+
+/* Login screen: two-panel card over the campus. */
+.login-screen {
+  position: absolute; inset: 0; display: flex; padding: 16px 16px 40px; pointer-events: auto;
+  background: radial-gradient(ellipse at center, rgba(16, 48, 30, 0.3), rgba(16, 48, 30, 0.6)); backdrop-filter: blur(2px);
+  animation: fade-in 0.3s ease; overflow-y: auto;
+}
+.login-card {
+  display: grid; grid-template-columns: 1fr 1fr; width: min(820px, 100%); margin: auto; border-radius: 28px; overflow: hidden;
+  background: var(--cream); box-shadow: 0 24px 60px rgba(10, 40, 25, 0.4); animation: pop-in 0.3s ease;
+}
+.login-hero {
+  padding: 40px 36px; display: flex; flex-direction: column; justify-content: center;
+  background: radial-gradient(circle at 20% 10%, rgba(255, 255, 255, 0.16), transparent 50%), linear-gradient(160deg, #24a058, var(--green-dark));
+  color: #fff;
+}
+.login-hero .title, .login-hero .title small { color: #fff; }
+.login-hero .tagline { color: rgba(255, 255, 255, 0.86); text-align: center; }
+.login-perks { list-style: none; margin: 28px 0 0; padding: 0; display: flex; flex-direction: column; gap: 10px; font-size: 14px; }
+.login-perks li { padding: 10px 14px; border-radius: 12px; background: rgba(255, 255, 255, 0.12); }
+.login-form { padding: 32px 36px 22px; display: flex; flex-direction: column; justify-content: center; min-height: 440px; }
+.login-screen .title-credit { position: fixed; }
+.login-form h2 { margin: 0 0 8px; font-size: 22px; font-weight: 400; }
+.login-tabs { display: flex; gap: 4px; padding: 4px; border-radius: 14px; background: var(--green-soft); margin-bottom: 20px; }
+.login-tabs button { flex: 1; padding: 9px 0; border: 0; border-radius: 10px; background: transparent; cursor: pointer; font-size: 16px; color: var(--ink-soft) !important; }
+.login-tabs button.on { background: #fff; color: var(--ink) !important; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12); }
+.login-fields { display: flex; flex-direction: column; gap: 12px; }
+.login-fields label { display: flex; flex-direction: column; gap: 5px; font-size: 13px; color: var(--ink-soft); }
+.login-fields input {
+  padding: 11px 14px; border: 2px solid var(--line); border-radius: 12px; background: #fff; font-size: 16px; outline: none;
+  user-select: text; transition: border-color 0.12s ease, box-shadow 0.12s ease; color: var(--ink) !important;
+}
+.login-fields input:focus { border-color: var(--green); box-shadow: 0 0 0 4px rgba(31, 143, 74, 0.14); }
+.login-fields input::placeholder { color: #a9b8ad; }
+.login-fields .btn.primary { margin-top: 4px; padding: 13px; font-size: 17px; }
+.login-or { display: flex; align-items: center; gap: 12px; margin: 18px 0 14px; font-size: 12px; color: var(--ink-soft); }
+.login-or::before, .login-or::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+.google-slot { display: flex; flex-direction: column; align-items: center; min-height: 44px; }
+.btn.guest { margin-top: 12px; background: transparent; box-shadow: inset 0 0 0 2px var(--line); }
+.btn.link { background: transparent; padding: 8px; font-size: 13px; color: var(--ink-soft) !important; text-decoration: underline; }
+.login-step { margin: 0; font-size: 13px; line-height: 1.5; color: var(--green-dark); }
+.login-step.muted { color: #a9b8ad; }
+.login-note { margin: 6px 0 0; font-size: 12px; text-align: center; color: var(--ink-soft); }
+.login-error { min-height: 20px; margin: 12px 0 0; font-size: 13px; line-height: 1.5; text-align: center; color: #c0562b; }
+.login-upgrade-head p, .login-offline p { margin: 0 0 18px; font-size: 14px; line-height: 1.6; color: var(--ink-soft); }
+.login-offline { display: flex; flex-direction: column; gap: 10px; }
+@media (max-width: 760px) {
+  .login-card { grid-template-columns: 1fr; }
+  .login-hero { padding: 26px 24px; }
+  .login-perks { display: none; }
+  .login-form { min-height: 0; padding: 24px; }
+  .title-side { padding: 28px 22px 60px; width: 100%; }
+  .player-card { top: auto; bottom: 40px; right: 12px; }
+}
 .start-point { display: inline-block; margin: 2px 0 0; padding: 5px 12px; border-radius: 999px; background: var(--green-soft); font-size: 13px; font-weight: 600; color: var(--green-dark); }
 .title-credit { position: absolute; left: 0; right: 0; bottom: 12px; margin: 0; text-align: center; font-size: 12px; color: #fff; text-shadow: 0 1px 4px rgba(10, 30, 20, 0.8); }
 
@@ -320,7 +416,6 @@ kbd {
 .shop-item .icon { font-size: 26px; }
 .shop-item .name { flex: 1; text-align: left; font-weight: 700; }
 .shop-item .price { font-variant-numeric: tabular-nums; color: var(--green-dark); font-weight: 700; }
-.confirm-new { margin: 0; font-size: 14px; line-height: 1.5; color: var(--ink); text-align: center; }
 .race-leave {
   margin-left: 4px; border: 0; border-radius: 999px; padding: 4px 10px; background: rgba(200, 48, 42, 0.12); color: #a3241f;
   font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; align-self: center;
@@ -445,3 +540,5 @@ kbd {
 .sport-meter .fill { position: absolute; top: 0; bottom: 0; left: 0; background: linear-gradient(90deg, #f2c21b, #f08a24 60%, #d22b26); }
 .sport-msg { font-size: 22px; font-weight: 800; color: var(--orange); animation: pop-in 0.2s ease; }
 .sport-hint { font-size: 11px; color: var(--ink-soft); margin-top: 2px; }
+.title-screen .title-credit { left: min(430px, 100%); }
+@media (max-width: 760px) { .title-screen .title-credit { left: 0; } }
