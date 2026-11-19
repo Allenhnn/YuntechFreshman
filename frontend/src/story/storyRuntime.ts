@@ -5,9 +5,11 @@ import { ITEMS, type ItemId } from '../state/items';
 import { actions, gameStore } from '../state/store';
 import { achievementById, sideById, storyActions, storyStore, type StoryProgress, type StoryScene } from '../state/story';
 import {
-  DAYS, DIALOGS, PHOTO_SPOTS, STALL_IDS, TOUR_STOPS,
+  ACTIVITY, CAFETERIA, DAYS, DIALOGS, DORM, PHOTO_SPOTS, STALL_IDS, TOUR_FACTS, TOUR_STOPS,
   type SceneId, type Step,
 } from './storyData';
+import { createBeacons, type Beacon } from './beacons';
+import { createNpcs, type NpcSpec } from './npcs';
 
 /**
  * Runs the first week: checks the current step's condition against what the player does, starts
@@ -93,6 +95,15 @@ export const storyEvents = {
 
 const dayStart = (day: number, minuteOfDay: number): number => (day - 1) * 1440 + minuteOfDay;
 
+function inRingPt(x: number, z: number, r: number[]): boolean {
+  let hit = false;
+  for (let i = 0, n = r.length / 2, j = n - 1; i < n; j = i++) {
+    const xi = r[i * 2]!, zi = r[i * 2 + 1]!, xj = r[j * 2]!, zj = r[j * 2 + 1]!;
+    if (zi > z !== zj > z && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) hit = !hit;
+  }
+  return hit;
+}
+
 export function createStoryRuntime(d: StoryDeps): StoryRuntime {
   const st = () => storyStore.getState();
   const prog = (): StoryProgress => st().progress;
@@ -137,7 +148,10 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
     const last = p.step + 1 >= day.steps.length;
     storyActions.update((q) => ({ ...q, day: last ? q.day + 1 : q.day, step: last ? 0 : q.step + 1 }));
     d.sound('coin');
-    if (last && p.day < DAYS.length) toast(`🌙 Day ${p.day}「${day.title}」結束`);
+    if (last && p.day < DAYS.length) {
+      toast(`🌙 Day ${p.day}「${day.title}」結束`);
+      storyActions.celebrate(`Day ${p.day} 完成！`, `「${day.title}」・明天是 Day ${p.day + 1}「${DAYS[p.day]!.title}」`);
+    }
     else if (!last) toast(`✅ ${step.text}`);
     if (gameStore.getState().nav) actions.setNav(null);
     begin();
@@ -199,9 +213,105 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
     return len / 5.5;
   };
 
+  // --- Beacons and characters -----------------------------------------------------------------
+  const beacons = createBeacons(d.scene, d.tracker);
+  const npcs = createNpcs(d.scene, d.tracker);
+  const insideCache = new Map<string, { x: number; z: number } | null>();
+  /** A spot well inside a building's footprint, close to its centre (for characters). */
+  const insidePoint = (name: string): { x: number; z: number } | null => {
+    if (insideCache.has(name)) return insideCache.get(name)!;
+    const r = d.campus.buildings.find((b) => b.name === name)?.outer;
+    let best: { x: number; z: number; d: number } | null = null;
+    if (r) {
+      const xs = r.filter((_, i) => i % 2 === 0), zs = r.filter((_, i) => i % 2 === 1);
+      const cx = (Math.min(...xs) + Math.max(...xs)) / 2, cz = (Math.min(...zs) + Math.max(...zs)) / 2;
+      for (let dx = -60; dx <= 60; dx += 1.5) for (let dz = -60; dz <= 60; dz += 1.5) {
+        const x = cx + dx, z = cz + dz;
+        if ([[0, 0], [2.5, 0], [-2.5, 0], [0, 2.5], [0, -2.5]].every(([ox, oz]) => inRingPt(x + ox!, z + oz!, r))) {
+          const dd = Math.hypot(dx, dz);
+          if (!best || dd < best.d) best = { x, z, d: dd };
+        }
+      }
+    }
+    const out = best ? { x: best.x, z: best.z } : d.placeOf(name);
+    insideCache.set(name, out);
+    return out;
+  };
+  const LOOKS = {
+    nurse: { shirt: 0xffffff, pants: 0xf8bbd0, hair: 0x2b211b, hat: 0xffffff },
+    roommate: { shirt: 0x2c6fd6, pants: 0x34495e, hair: 0x1c1a19 },
+    teacher: { shirt: 0x6d6d73, pants: 0x1f1f24, hair: 0x4a3a2a },
+    principal: { shirt: 0x1f1f24, pants: 0x1f1f24, hair: 0x9ea4aa },
+    clerk: { shirt: 0xd8553a, pants: 0x1f1f24, hair: 0x1c1a19, hat: 0x2c6fd6 },
+    staff: { shirt: 0x26a69a, pants: 0x34495e, hair: 0x2b211b },
+    guard: { shirt: 0x37474f, pants: 0x1f1f24, hair: 0x1c1a19, hat: 0x263238 },
+  };
+  const near = (p: { x: number; z: number } | null, dx: number, dz: number): { x: number; z: number } | null => (p ? { x: p.x + dx, z: p.z + dz } : null);
+  const npcSpecs = (): NpcSpec[] => {
+    const out: NpcSpec[] = [];
+    const add = (key: string, name: string, p: { x: number; z: number } | null, look: NpcSpec['look'], talk = false): void => {
+      if (p) out.push({ key, name, x: p.x, z: p.z, look, talk });
+    };
+    const step = on() ? currentStep() : null;
+    const scene = step?.cond.t === 'talk' ? step.cond.scene : null;
+    const dormYard = near(d.placeOf(DORM), 3, 2);
+    if (scene === 'nurse') add('nurse', '健康中心護理師', near(insidePoint(ACTIVITY), -3, 0), LOOKS.nurse, true);
+    if (scene === 'roommateD2' || scene === 'bibD3' || scene === 'summary') add('roommate', '室友阿凱', dormYard, LOOKS.roommate, true);
+    if (scene === 'assembly') add('principal', '校長', insidePoint('國際會議廳'), LOOKS.principal, true);
+    if (scene === 'mixer') {
+      const c = insidePoint(ACTIVITY);
+      add('mx1', '小美（設計系）', near(c, -2, 2), { shirt: 0xf48fb1, pants: 0x9a8a6c, hair: 0x3d2b20 }, true);
+      add('mx2', '阿哲（資工系）', near(c, 0, 3), { shirt: 0x37474f, pants: 0x2d3a5c, hair: 0x151515 }, true);
+      add('mx3', '小安（企管系）', near(c, 2, 2), { shirt: 0xf2c230, pants: 0x2d3a5c, hair: 0x2b211b }, true);
+    }
+    if (scene === 'clubFair') {
+      const c = insidePoint(ACTIVITY);
+      add('cl1', '🎸 吉他社', near(c, -3, 3), { shirt: 0x8a5bd6, pants: 0x1f1f24, hair: 0x151515 }, true);
+      add('cl2', '📷 攝影社', near(c, 0, 4), { shirt: 0x26a69a, pants: 0x34495e, hair: 0x2b211b }, true);
+      add('cl3', '🏀 籃球社', near(c, 3, 3), { shirt: 0xf08a24, pants: 0x1f1f24, hair: 0x1c1a19 }, true);
+    }
+    if (step && (step.cond.t === 'class' || step.cond.t === 'quiz')) add('teacher', '老師', insidePoint(step.place), LOOKS.teacher);
+    add('clerk', '萊爾富店員', near(insidePoint(ACTIVITY), 3, -2), LOOKS.clerk);
+    if (side('lostFound')?.state === 'active' && actions.hasItem('lostCard')) {
+      add('desk', '服務台人員', insidePoint('行政大樓'), LOOKS.staff, true);
+      add('guard', '警衛伯伯', insidePoint('警衛室'), LOOKS.guard, true);
+    }
+    return out;
+  };
+  const ICON: Record<string, string> = { talk: '💬', buy: '🛒', eat: '🍱', sport: '🏀', class: '📚', sleep: '🛏️', run: '🏁', quiz: '📝', enter: '📍' };
+  const beaconList = (f: StoryFrame): Beacon[] => {
+    const out: Beacon[] = [];
+    const add = (key: string, p: { x: number; z: number } | null, icon: string, color: number, main = false): void => {
+      if (p) out.push({ key, x: p.x, z: p.z, icon, color, main });
+    };
+    const step = on() ? currentStep() : null;
+    if (step && step.cond.t !== 'run' && !inPlace(f, step.place)) add('main', d.placeOf(step.place), ICON[step.cond.t] ?? '📍', 0xf08a24, true);
+    if (!on()) return out;
+    if (cardAt) add('card', cardAt, '✨', 0x4fc3f7);
+    const tour = side('tour');
+    if (tour?.state === 'active') { const next = TOUR_STOPS.find((n) => !tour.done.includes(n)); if (next) add('tour', d.placeOf(next), '🚩', 0x1f8f4a); }
+    const photo = side('photo');
+    if (photo?.state === 'active') for (const n of PHOTO_SPOTS) if (!photo.done.includes(n)) add(`photo:${n}`, d.placeOf(n), '📸', 0x2c6fd6);
+    if (side('lostFound')?.state === 'active' && actions.hasItem('lostCard')) {
+      add('lost1', d.placeOf('行政大樓'), '🪪', 0x4fc3f7);
+      add('lost2', d.placeOf('警衛室'), '🪪', 0x4fc3f7);
+    }
+    const bike = side('bikeReturn');
+    if (bike?.state === 'active') { const t = d.bikeStations.find((b) => b.name === bike.target); if (t) add('bike', t, '🚲', 0xd8553a); }
+    if (side('foodie')?.state === 'active') add('foodie', d.placeOf(CAFETERIA), '🍱', 0xf2c230);
+    const ath = side('athlete');
+    if (ath?.state === 'active') {
+      if (!ath.done.includes('volleyball')) add('ath:v', d.placeOf('排球場'), '🏐', 0x8a5bd6);
+      if (!ath.done.includes('soccer')) add('ath:s', d.placeOf('足球場'), '⚽', 0x8a5bd6);
+      if (!ath.done.includes('track')) add('ath:t', d.placeOf('操場'), '🏃', 0x8a5bd6);
+    }
+    return out;
+  };
+  let visualsAt = -1;
+
   // --- Lost student card (side quest) ---------------------------------------------------------
-  const cardMesh = new Mesh(d.tracker.geometry(new BoxGeometry(0.35, 0.03, 0.22)), d.tracker.material(new MeshStandardMaterial({ color: 0x4fc3f7, emissive: 0x1e88e5, emissiveIntensity: 0.9 })));
-  const glow = new Mesh(d.tracker.geometry(new CylinderGeometry(0.6, 0.6, 0.02, 24)), d.tracker.material(new MeshBasicMaterial({ color: 0x4fc3f7, transparent: true, opacity: 0.35 })));
+  const cardMesh = new Mesh(d.tracker.geometry(new BoxGeometry(0.5, 0.04, 0.32)), d.tracker.material(new MeshStandardMaterial({ color: 0x4fc3f7, emissive: 0x1e88e5, emissiveIntensity: 0.9 })));
+  const glow = new Mesh(d.tracker.geometry(new CylinderGeometry(1.0, 1.0, 0.02, 24)), d.tracker.material(new MeshBasicMaterial({ color: 0x4fc3f7, transparent: true, opacity: 0.35 })));
   cardMesh.add(glow);
   glow.position.y = -0.1;
   let cardAt: { x: number; z: number } | null = null;
@@ -238,6 +348,7 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
     storyActions.update((p) => ({ ...p, side: { ...p.side, [id]: { ...s, done, state: finished ? 'done' : 'active' } } }));
     if (finished) {
       if (q.reward.coins) actions.addCoins(q.reward.coins);
+      storyActions.celebrate(`支線完成：${q.title}`, [q.reward.coins ? `+NT$ ${q.reward.coins}` : '', q.reward.title ? `獲得稱號「${q.reward.title}」` : ''].filter(Boolean).join('　'));
       toast(`🎉 支線完成：${q.title}${q.reward.coins ? `　+NT$ ${q.reward.coins}` : ''}${q.reward.title ? `　獲得稱號「${q.reward.title}」` : ''}`);
       d.sound('coin');
     } else {
@@ -418,6 +529,16 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
     lastX = f.x; lastZ = f.z;
     lastFrame = f;
     if (!f.area) for (const [name, rs] of rings) if (rs.some((r) => inRing(f.x, f.z, r))) { f = { ...f, area: name }; break; }
+    const now = performance.now() / 1000;
+    beacons.update(now, f.x, f.z);
+    npcs.update(dt, now, f.x, f.z);
+    if (now - visualsAt > 0.5) {
+      visualsAt = now;
+      beacons.set(beaconList(f));
+      npcs.set(npcSpecs());
+      const ph = side('photo');
+      storyActions.setLive({ photoSpot: f.area && PHOTO_SPOTS.includes(f.area) && !(ph?.done.includes(f.area)) && ph?.state !== 'done' ? f.area : null });
+    }
     if (!f.playing) return;
     // Area changes: explorer, tour, lost card delivery.
     if (f.area !== lastArea) {
@@ -427,7 +548,11 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
         if (prog().visited.length >= 20) unlock('explorer');
       }
       if (f.area === '大門') startSide('tour');
-      if (f.area && TOUR_STOPS.includes(f.area)) sideProgress('tour', f.area);
+      if (f.area && TOUR_STOPS.includes(f.area) && side('tour')?.state === 'active' && !side('tour')!.done.includes(f.area) && !st().scene) {
+        const lines = TOUR_FACTS[f.area];
+        sideProgress('tour', f.area);
+        if (lines) { pendingScene = 'tourFact' as SceneId; open({ kind: 'dialog', id: 'tourFact', lines: lines.map((text) => ({ who: '導覽小雲', text })) }); }
+      }
       if ((f.area === '行政大樓' || f.area === '警衛室') && actions.hasItem('lostCard') && side('lostFound')?.state === 'active') playScene('lostFound');
     }
     // Lost card: appears once per session, picked up by walking over it.
@@ -566,7 +691,8 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
     return null;
   };
 
-  if (import.meta.env.DEV) (window as unknown as { __story: unknown }).__story = () => ({ cls, run, pendingScene, step: currentStep()?.id, frame: lastFrame && { ...lastFrame } });
+  if (import.meta.env.DEV) (window as unknown as { __story: unknown }).__story = () => ({ cls, run, pendingScene, step: currentStep()?.id, frame: lastFrame && { ...lastFrame }, card: cardAt });
+  if (import.meta.env.DEV) (window as unknown as { __spawnCard: unknown }).__spawnCard = () => { if (!cardAt) placeCard(lastX, lastZ); return cardAt; };
   return {
     update,
     prompt,
@@ -596,6 +722,8 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
       advance();
     },
     dispose() {
+      beacons.dispose();
+      npcs.dispose();
       clearRun();
       d.scene.remove(cardMesh);
       for (const k of Object.keys(storyEvents) as (keyof typeof storyEvents)[]) (storyEvents as Record<string, unknown>)[k] = () => undefined;

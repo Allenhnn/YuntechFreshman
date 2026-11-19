@@ -30,7 +30,9 @@ export type GameCommand =
   | { type: 'storyGuide' }
   /** 管理員模式 story controls. */
   | { type: 'storyAdmin'; op: 'jump'; day: number; step: number }
-  | { type: 'storyAdmin'; op: 'complete' | 'reset' };
+  | { type: 'storyAdmin'; op: 'complete' | 'reset' }
+  /** 管理員模式: set the clock to a time of the current day (minutes). */
+  | { type: 'setClock'; minuteOfDay: number };
 
 const queue: GameCommand[] = [];
 

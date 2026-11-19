@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { listPhotos } from '../state/album';
 import { useGame } from '../state/store';
+import { useStory } from '../state/story';
 import { useApi } from './api';
 
 /**
@@ -11,6 +12,7 @@ export function CameraOverlay(): ReactNode {
   const api = useApi();
   const selfie = useGame((s) => s.cameraSelfie);
   const albumVersion = useGame((s) => s.albumVersion);
+  const photoSpot = useStory((s) => s.live.photoSpot);
   const [flash, setFlash] = useState(0);
   const [thumb, setThumb] = useState<string | null>(null);
   const drag = useRef<{ x: number; y: number } | null>(null);
@@ -64,6 +66,7 @@ export function CameraOverlay(): ReactNode {
       }}
       onPointerUp={() => (drag.current = null)}
     >
+      {photoSpot && <div className="photo-spot">📸 打卡點：{photoSpot}　按快門打卡！</div>}
       {flash > 0 && <div key={flash} className="camera-flash" />}
       <div className="camera-top">
         <span className="camera-mode-name">{selfie ? '🤳 自拍' : '📷 拍照'}</span>

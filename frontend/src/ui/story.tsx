@@ -3,9 +3,19 @@ import { useGame } from '../state/store';
 import { storyActions, useStory, type StoryProgress } from '../state/story';
 import { ACHIEVEMENTS, CLUBS, DAYS, MIXER, QUIZ, SIDE_QUESTS, PHOTO_SPOTS, TOUR_STOPS } from '../story/storyData';
 import { storyEvents } from '../story/storyRuntime';
+import { dispatch } from '../state/commands';
 import { useApi } from './api';
 
 const ARROWS = ['↑', '↗', '→', '↘', '↓', '↙', '←', '↖'];
+/** Hints for side quests not started yet. */
+const SIDE_HINTS: Record<string, string> = {
+  lostFound: '走在人行道上，留意地上發亮的東西',
+  bikeReturn: '到腳踏車站騎一台腳踏車看看',
+  tour: '從大學路的校門口開始',
+  photo: '用手機相機（P → 相機）拍一張照片',
+  athlete: '先到籃球場玩一次投籃挑戰',
+  foodie: '到學生餐廳的攤位買點東西',
+};
 
 function sideText(id: string, p: StoryProgress): string {
   const q = SIDE_QUESTS.find((s) => s.id === id)!;
@@ -68,6 +78,53 @@ export function AchievementPopup(): ReactNode {
   );
 }
 
+const CONFETTI = ['#f2c230', '#1f8f4a', '#2c6fd6', '#d8553a', '#f48fb1', '#8a5bd6', '#4cc27a'];
+/** Side quest done / day over: confetti rain and a card. */
+export function Celebration(): ReactNode {
+  const c = useStory((s) => s.celebration);
+  const [shown, setShown] = useState<number | null>(null);
+  useEffect(() => {
+    if (!c || Date.now() - c.at > 3000) return;
+    setShown(c.at);
+    const t = window.setTimeout(() => setShown(null), 3600);
+    return () => window.clearTimeout(t);
+  }, [c]);
+  const bits = useMemo(() => Array.from({ length: 70 }, (_, i) => ({
+    left: Math.random() * 100, delay: Math.random() * 0.6, dur: 1.8 + Math.random() * 1.4,
+    color: CONFETTI[i % CONFETTI.length], rot: Math.random() * 360, w: 6 + Math.random() * 6,
+  })), [shown]);
+  if (!c || shown !== c.at) return null;
+  return (
+    <div className="celebrate" key={c.at}>
+      {bits.map((b, i) => (
+        <i key={i} style={{ left: `${b.left}%`, animationDelay: `${b.delay}s`, animationDuration: `${b.dur}s`, background: b.color, width: b.w, height: b.w * 1.6, transform: `rotate(${b.rot}deg)` }} />
+      ))}
+      <div className="celebrate-card">
+        <b>🎉 {c.title}</b>
+        {c.sub && <span>{c.sub}</span>}
+      </div>
+    </div>
+  );
+}
+
+/** Stamp card for list-type side quests (tour stops, photo spots, stalls, sports). */
+function Stamps({ id, p }: { id: string; p: StoryProgress }): ReactNode {
+  const s = p.side[id];
+  const list: [string, string][] | null =
+    id === 'tour' ? TOUR_STOPS.map((n) => [n, '🚩'])
+      : id === 'photo' ? PHOTO_SPOTS.map((n) => [n, '📸'])
+        : id === 'foodie' ? [['buffet', '🍛 自助餐'], ['noodles', '🍜 麵食'], ['bento', '🍱 便當'], ['drinks', '🧋 飲料']]
+          : id === 'athlete' ? [['volleyball', '🏐 墊球 10 下'], ['soccer', '⚽ PK 進 3 球'], ['track', '🏃 田徑計時賽']] : null;
+  if (!s || !list) return null;
+  return (
+    <div className="stamps">
+      {list.map(([k, label]) => (
+        <span key={k} className={`stamp${s.done.includes(k) ? ' got' : ''}`}>{id === 'tour' || id === 'photo' ? `${label} ${k}` : label}</span>
+      ))}
+    </div>
+  );
+}
+
 /** J: main story, side quests and achievements. */
 export function QuestLog(): ReactNode {
   const api = useApi();
@@ -100,7 +157,8 @@ export function QuestLog(): ReactNode {
             return (
               <div key={q.id} className={`ql-side ${s?.state ?? 'locked'}`}>
                 <b>{s?.state === 'done' ? '✓ ' : s ? '📌 ' : '🔒 '}{q.title}</b>
-                <span>{s ? (s.state === 'done' ? '已完成' : sideText(q.id, p)) : '還沒觸發，到處逛逛看'}</span>
+                <span>{s ? (s.state === 'done' ? '已完成' : sideText(q.id, p)) : SIDE_HINTS[q.id] ?? '還沒觸發，到處逛逛看'}</span>
+                <Stamps id={q.id} p={p} />
               </div>
             );
           })}
@@ -423,6 +481,12 @@ export function StoryAdmin({ onJump, onComplete, onReset }: { onJump: (day: numb
           <button className="btn small" onClick={() => onJump(day, step)}>跳</button>
         </span>
         <span />
+      </div>
+      <div className="admin-row">
+        <span className="admin-label">時間</span>
+        {[['清晨', 6 * 60], ['中午', 12 * 60], ['黃昏', 17 * 60 + 50], ['晚上', 20 * 60], ['深夜', 23 * 60 + 30]].map(([l, m]) => (
+          <button key={l} className="btn small" onClick={() => dispatch({ type: 'setClock', minuteOfDay: m as number })}>{l}</button>
+        ))}
       </div>
       <div className="admin-row">
         <button className="btn small" onClick={onComplete}>完成目前步驟</button>

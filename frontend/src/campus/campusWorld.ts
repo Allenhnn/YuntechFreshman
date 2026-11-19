@@ -79,6 +79,8 @@ export interface CampusWorld {
   loadAround(x: number, z: number, onProgress?: (fraction: number) => void): Promise<void>;
   followShadow(x: number, z: number): void;
   setShadowQuality(quality: ShadowQuality): void;
+  /** Day/night: sky, sun or moon, ambient light, fog, lit windows. Returns night 0 (day) … 1 (night). */
+  setTimeOfDay(minuteOfDay: number): number;
   stats(): { chunks: number; colliders: number };
   dispose(): void;
 }
@@ -136,6 +138,8 @@ export function createCampusWorld(
           uHorizon: { value: SKY_HORIZON.clone() },
           uGround: { value: new Color(0xa9b8a0) },
           uSunDir: { value: SUN_OFFSET.clone().normalize() },
+          uNight: { value: 0 },
+          uMoonDir: { value: new Vector3(-0.4, 0.6, -0.5).normalize() },
         },
       }),
     ),
@@ -153,7 +157,8 @@ export function createCampusWorld(
   scene.environment = envTarget.texture;
   scene.environmentIntensity = 0.35;
 
-  root.add(new HemisphereLight(0xdcecff, 0x6f7a58, 0.9));
+  const hemi = new HemisphereLight(0xdcecff, 0x6f7a58, 0.9);
+  root.add(hemi);
   const sun = new DirectionalLight(0xfff1dc, 2.6);
   sun.castShadow = true;
   sun.shadow.mapSize.set(SHADOW_SIZE.high, SHADOW_SIZE.high);
@@ -161,6 +166,9 @@ export function createCampusWorld(
   sun.shadow.bias = -0.0005;
   sun.shadow.normalBias = 0.04;
   root.add(sun, sun.target);
+  const lightOffset = SUN_OFFSET.clone();
+  let lastMinute = -1;
+  let lastNight = 0;
 
   // --- Ground: one large plane (UVs in 4 m tiles), plus static collision ----------------------
   const span = 4000;
@@ -496,7 +504,47 @@ export function createCampusWorld(
       const sx = Math.round(x / s) * s;
       const sz = Math.round(z / s) * s;
       sun.target.position.set(sx, 0, sz);
-      sun.position.set(sx + SUN_OFFSET.x, SUN_OFFSET.y, sz + SUN_OFFSET.z);
+      sun.position.set(sx + lightOffset.x, lightOffset.y, sz + lightOffset.z);
+    },
+    setTimeOfDay(minute) {
+      const key = Math.round(minute);
+      if (key === lastMinute) return lastNight;
+      lastMinute = key;
+      const t = ((minute % 1440) + 1440) % 1440 / 60; // hours
+      // Sun: rises 06:00 in the east, sets 18:00 in the west.
+      const a = ((t - 6) / 12) * Math.PI;
+      const elev = Math.sin(a);
+      const sunDir = new Vector3(Math.cos(a) * 0.8, elev, 0.35).normalize();
+      const moonDir = new Vector3(-Math.cos(a) * 0.7, Math.max(0.25, -elev), -0.4).normalize();
+      // 0 day … 1 night, with dusk / dawn in between.
+      const night = Math.min(1, Math.max(0, (0.08 - elev) / 0.3));
+      const dusk = Math.max(0, 1 - Math.abs(elev - 0.02) / 0.22) * (1 - night * 0.6);
+      const mixC = (day: number, eve: number, nite: number): Color =>
+        new Color(day).lerp(new Color(eve), dusk).lerp(new Color(nite), night);
+      const u = (sky.material as ShaderMaterial).uniforms;
+      u.uZenith!.value.copy(mixC(0x5a98d8, 0x45589a, 0x0a1430));
+      const horizon = mixC(0xdbe9f2, 0xf3a874, 0x1a2747);
+      u.uHorizon!.value.copy(horizon);
+      u.uGround!.value.copy(mixC(0xa9b8a0, 0x8a7a70, 0x161d1a));
+      (u.uSunDir!.value as Vector3).copy(sunDir);
+      (u.uMoonDir!.value as Vector3).copy(moonDir);
+      u.uNight!.value = night;
+      (scene.fog as Fog).color.copy(horizon);
+      // The shadow-casting light follows the sun by day and the moon by night.
+      const fromSun = elev > -0.05;
+      lightOffset.copy(fromSun ? sunDir : moonDir).multiplyScalar(220);
+      lightOffset.y = Math.max(lightOffset.y, 60);
+      sun.color.copy(fromSun ? mixC(0xfff1dc, 0xffb070, 0xffb070) : new Color(0xb4c4ec));
+      sun.intensity = fromSun ? 2.6 * (1 - dusk * 0.45) * Math.min(1, Math.max(0.15, elev * 3 + 0.3)) : 0.45;
+      hemi.color.copy(mixC(0xdcecff, 0xf0c7a8, 0x6a7898));
+      hemi.groundColor.copy(mixC(0x6f7a58, 0x6a5848, 0x1c2228));
+      hemi.intensity = 0.9 - night * 0.3;
+      scene.environmentIntensity = 0.35 - night * 0.18;
+      // Lit classroom windows after dark.
+      mats.glass.emissive.setHex(0xffd49a);
+      mats.glass.emissiveIntensity = night * 0.85;
+      lastNight = night;
+      return night;
     },
     setShadowQuality(quality) {
       sun.castShadow = quality !== 'off';

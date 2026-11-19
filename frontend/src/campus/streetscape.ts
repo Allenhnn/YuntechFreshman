@@ -1,4 +1,6 @@
 import {
+  AdditiveBlending,
+  MeshBasicMaterial,
   BoxGeometry,
   BufferAttribute,
   BufferGeometry as Geometry,
@@ -345,7 +347,7 @@ function along(points: readonly number[], step: number, off: number, phase = 0.5
   return out;
 }
 
-export function createStreetscape(scene: Scene, physics: RAPIER.World, campus: CampusData, tracker: ResourceTracker, keepClear: readonly Ring[]): { dispose(): void } {
+export function createStreetscape(scene: Scene, physics: RAPIER.World, campus: CampusData, tracker: ResourceTracker, keepClear: readonly Ring[]): { setNight(night: number): void; dispose(): void } {
   const vehicles = campus.roads.filter((r) => r.kind !== 'walkway');
   const walks = campus.roads.filter((r) => r.kind === 'walkway');
   const inCampus = (x: number, z: number): boolean => pointInRing(x, z, campus.boundary);
@@ -408,7 +410,34 @@ export function createStreetscape(scene: Scene, physics: RAPIER.World, campus: C
   }
   instance(lampGeo, mat(0x9a9d9f, { metalness: 0.4 }), lamps);
   // Lit heads: a small emissive box at the arm end.
-  instance(new BoxGeometry(0.45, 0.04, 0.2).translate(ARM, LAMP_H - 0.32, 0), mat(0xffffff, { emissive: 0xfff2d6, emissiveIntensity: 0.8 }), lamps);
+  const lampHead = mat(0xffffff, { emissive: 0xfff2d6, emissiveIntensity: 0.8 });
+  instance(new BoxGeometry(0.45, 0.04, 0.2).translate(ARM, LAMP_H - 0.32, 0), lampHead, lamps);
+  // Night: a warm pool of light on the road under each head (additive decal, no real light cost).
+  const poolCanvas = document.createElement('canvas');
+  poolCanvas.width = poolCanvas.height = 128;
+  const pg = poolCanvas.getContext('2d');
+  if (pg) {
+    const grad = pg.createRadialGradient(64, 64, 4, 64, 64, 62);
+    grad.addColorStop(0, 'rgba(255, 214, 150, 1)');
+    grad.addColorStop(0.5, 'rgba(255, 196, 120, 0.45)');
+    grad.addColorStop(1, 'rgba(255, 190, 110, 0)');
+    pg.fillStyle = grad;
+    pg.fillRect(0, 0, 128, 128);
+  }
+  const poolTex = tracker.texture(new CanvasTexture(poolCanvas));
+  poolTex.colorSpace = SRGBColorSpace;
+  const poolMat = tracker.material(new MeshBasicMaterial({ map: poolTex, transparent: true, opacity: 0, blending: AdditiveBlending, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -8, polygonOffsetUnits: -16 }));
+  const pools = new InstancedMesh(tracker.geometry(new PlaneGeometry(9, 9).rotateX(-Math.PI / 2).translate(ARM, 0.07, 0)), poolMat, Math.max(1, lamps.length));
+  {
+    const M = new Matrix4(), q = new Quaternion(), up = new Vector3(0, 1, 0), p = new Vector3(), one = new Vector3(1, 1, 1);
+    lamps.forEach((sp, i) => pools.setMatrixAt(i, M.compose(p.set(sp.x, 0, sp.z), q.setFromAxisAngle(up, sp.yaw), one)));
+    pools.count = lamps.length;
+    pools.computeBoundingSphere();
+  }
+  pools.visible = false;
+  pools.renderOrder = 2;
+  scene.add(pools);
+  meshes.push(pools);
 
   // --- Central axis: palms both sides and black post lanterns. -----------------------------------
   const paving = tracker.material(new MeshStandardMaterial({ map: tracker.texture(axisPaving()), roughness: 0.9, polygonOffset: true, polygonOffsetFactor: -5, polygonOffsetUnits: -10 }));
@@ -841,6 +870,11 @@ export function createStreetscape(scene: Scene, physics: RAPIER.World, campus: C
   }
 
   return {
+    setNight(night) {
+      pools.visible = night > 0.05;
+      poolMat.opacity = night * 0.75;
+      lampHead.emissiveIntensity = 0.8 + night * 2.2;
+    },
     dispose() {
       for (const c of colliders) physics.removeCollider(c, false);
       for (const m of meshes) m.removeFromParent();

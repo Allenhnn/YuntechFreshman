@@ -19,7 +19,7 @@ import type { ResourceTracker } from '../core/resources';
 
 /**
  * Ambient campus life: students walking the footpaths and campus lanes, students cycling the campus
- * roads, scooters and cars on the streets. Purely visual (no colliders, like parked bikes and trees),
+ * roads, scooters and cars only on 大學路 and 龍潭路 beside the main gate (no motor traffic on campus). Purely visual (no colliders, like parked bikes and trees),
  * kept to a ring around the player: agents that drift beyond the fog are moved to a fresh spot
  * inside it, so the cost stays fixed wherever the player goes.
  *
@@ -29,6 +29,8 @@ import type { ResourceTracker } from '../core/resources';
  */
 export interface Traffic {
   setEnabled(kind: 'people' | 'vehicles', on: boolean): void;
+  /** Headlights and tail lights glow after dark (0 day … 1 night). */
+  setNight(night: number): void;
   /** A walker within `r` of (x, z) is knocked over; true when someone was hit. */
   hit(x: number, z: number, r: number): boolean;
   update(dt: number, px: number, pz: number): void;
@@ -173,13 +175,17 @@ function tube(a: [number, number, number], b: [number, number, number], r: numbe
 const LEG = 0.8;
 const ARM = 0.6;
 
+/** 大學路 (二段 / 三段) and 龍潭路, the public streets beside the main gate. */
+const streetByGate = (r: CampusRoad): boolean => r.kind !== 'walkway' && !!r.name && (r.name.startsWith('大學路') || r.name === '龍潭路');
+
 export function createTraffic(scene: Scene, campus: CampusData, tracker: ResourceTracker): Traffic {
   const inside = (x: number, z: number): boolean => inRing(x, z, campus.boundary);
   const nets: Record<Net, Graph> = {
     walk: buildGraph(campus.roads, (r) => r.kind === 'walkway' || r.kind === 'service', null),
     bike: buildGraph(campus.roads, (r) => r.kind === 'service' || r.kind === 'minor', inside),
-    motor: buildGraph(campus.roads, (r) => r.kind === 'major' || r.kind === 'minor' || (r.kind === 'service' && !r.paved), null),
-    car: buildGraph(campus.roads, (r) => r.kind === 'major' || r.kind === 'minor', null),
+    // Scooters and cars stay off campus: only the streets by the main gate (大學路, 龍潭路).
+    motor: buildGraph(campus.roads, streetByGate, null),
+    car: buildGraph(campus.roads, streetByGate, null),
   };
   const netOf: Record<Kind, Graph> = { walker: nets.walk, cyclist: nets.bike, scooter: nets.motor, car: nets.car };
 
@@ -226,8 +232,13 @@ export function createTraffic(scene: Scene, campus: CampusData, tracker: Resourc
   const carWheelM = inst(new CylinderGeometry(0.33, 0.33, 0.24, 14).rotateZ(Math.PI / 2).translate(0, 0.33, 0), dark, COUNTS.car * 4);
   const lights = merged([box(0.3, 0.12, 0.04, -0.6, 0.7, 2.16), box(0.3, 0.12, 0.04, 0.6, 0.7, 2.16)]);
   const tail = merged([box(0.3, 0.1, 0.04, -0.62, 0.72, -2.16), box(0.3, 0.1, 0.04, 0.62, 0.72, -2.16)]);
-  const headLightM = inst(lights, mat(0xfff6d8, 0.3), COUNTS.car);
-  const tailLightM = inst(tail, mat(0xc4212b, 0.4), COUNTS.car);
+  const headMat = mat(0xfff6d8, 0.3);
+  const tailMat = mat(0xc4212b, 0.4);
+  headMat.emissive.setHex(0xfff2c8);
+  tailMat.emissive.setHex(0xff2a2a);
+  headMat.emissiveIntensity = tailMat.emissiveIntensity = 0;
+  const headLightM = inst(lights, headMat, COUNTS.car);
+  const tailLightM = inst(tail, tailMat, COUNTS.car);
 
   const peopleMeshes = [torsoM, headM, hairM, legM, armM, bikeM, bikeWheelM];
   const vehicleMeshes = [scooterM, scooterWheelM, carM, cabinM, roofM, carWheelM, headLightM, tailLightM];
@@ -330,9 +341,20 @@ export function createTraffic(scene: Scene, campus: CampusData, tracker: Resourc
     }
   };
 
+  if (import.meta.env.DEV) {
+    (window as unknown as { __traffic: unknown }).__traffic = {
+      walkers: () => agents.filter((a) => a.kind === 'walker' && !a.hidden && a.edge >= 0).map((a) => ({ x: a.x, z: a.z, yaw: a.yaw, fall: a.fall })),
+      vehicles: () => agents.filter((a) => (a.kind === 'car' || a.kind === 'scooter') && !a.hidden && a.edge >= 0).map((a) => ({ kind: a.kind, x: a.x, z: a.z })),
+      inCampus: (x: number, z: number) => inRing(x, z, campus.boundary),
+    };
+  }
   return {
     setEnabled(kind, on) {
       enabled = { ...enabled, [kind]: on };
+    },
+    setNight(night) {
+      headMat.emissiveIntensity = night * 3;
+      tailMat.emissiveIntensity = night * 1.5;
     },
     hit(x, z, r) {
       if (!enabled.people) return false;

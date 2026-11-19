@@ -60,9 +60,11 @@ export interface StoryState {
   /** Open story scene (dialog / mini-game), shown in the story modal. */
   scene: StoryScene | null;
   /** Live objective details: distance (m) and direction to the target, timers. */
-  live: { distance: number | null; bearing: number | null; timer: string | null; stamina: number | null; note: string | null; place: string | null };
+  live: { distance: number | null; bearing: number | null; timer: string | null; stamina: number | null; note: string | null; place: string | null; photoSpot?: string | null };
   /** Achievements waiting for their popup (first = showing). */
   unlockQueue: string[];
+  /** Big moments (side quest done, day over): confetti and a card. */
+  celebration: { title: string; sub: string; at: number } | null;
 }
 
 const KEY = 'yfm.story.v1';
@@ -110,6 +112,7 @@ export const storyStore = createStore<StoryState>()(() => ({
   scene: null,
   live: { distance: null, bearing: null, timer: null, stamina: null, note: null, place: null },
   unlockQueue: [],
+  celebration: null,
 }));
 
 export function useStory<T>(selector: (s: StoryState) => T): T {
@@ -156,6 +159,9 @@ export const storyActions = {
   },
   unlocked(id: string): void {
     set({ unlockQueue: [...get().unlockQueue, id] });
+  },
+  celebrate(title: string, sub: string): void {
+    set({ celebration: { title, sub, at: Date.now() } });
   },
   popUnlock(): void {
     set({ unlockQueue: get().unlockQueue.slice(1) });

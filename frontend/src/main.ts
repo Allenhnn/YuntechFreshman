@@ -322,6 +322,8 @@ async function boot(): Promise<void> {
     scene, tracker: sceneResources, campus,
     placeOf: (name) => {
       if (name === '籃球場') { const h = courts.hoops[0]; return h ? { x: h.x, z: h.z } : null; }
+      if (name === '排球場') { const v = courts.volley[0]; return v ? { x: v.x, z: v.z } : null; }
+      if (name === '足球場' && playground) { const [x, z] = playground.pitch.toWorld(playground.pitch.halfLength - 11, 0); return { x, z }; }
       if (name === '路跑起點' || name === '操場') return playground ? { ...playground.startSpot } : null;
       if (name === '大門') return centreOf('警衛室');
       return centreOf(name);
@@ -343,6 +345,7 @@ async function boot(): Promise<void> {
   sportFinished.add(onSport);
   trackFinished.add(onTrack);
   let wasRiding = false;
+  let lastNight = -1;
   const storyFrame: StoryFrame = { x: 0, z: 0, area: null, minutes: 0, riding: false, sprinting: false, playing: false, viewYaw: 0 };
   const insideBuilding = createBuildingTest(campus);
   const moveMods: MoveModifiers = { fly: false, noclip: false, speed: 1, bike: false, blocked: null };
@@ -623,6 +626,13 @@ async function boot(): Promise<void> {
       case 'storyGuide':
         story.guide();
         return;
+      case 'setClock': {
+        const day = Math.floor(gameStore.getState().gameMinutes / 1440);
+        const m = day * 1440 + cmd.minuteOfDay;
+        clockSeconds = m - START_MINUTES;
+        actions.setGameMinutes(m);
+        return;
+      }
       case 'storyAdmin':
         if (cmd.op === 'jump') story.jump(cmd.day, cmd.step);
         else if (cmd.op === 'complete') story.completeStep();
@@ -958,6 +968,14 @@ async function boot(): Promise<void> {
     }
     coins.render(world, time);
     traffic.update(dt, Transform.x[eid]!, Transform.z[eid]!);
+    {
+      const night = env.setTimeOfDay(ui.gameMinutes % 1440);
+      if (night !== lastNight) {
+        lastNight = night;
+        streetscape.setNight(night);
+        traffic.setNight(night);
+      }
+    }
     {
       const riding = bikes.ridden >= 0;
       const px = Transform.x[eid]!, pz = Transform.z[eid]!;

@@ -654,3 +654,26 @@ kbd {
 .ach-popup b { font-weight: 400; font-size: 18px; }
 .ach-popup span { font-size: 12px; color: var(--ink-soft); }
 @keyframes ach-in { from { opacity: 0; transform: translate(-50%, -14px) scale(0.9); } }
+
+/* ---------- Story: celebration, stamps, photo spot ---------- */
+.celebrate { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 6; }
+.celebrate i { position: absolute; top: -20px; border-radius: 2px; animation: confetti-fall linear forwards; }
+@keyframes confetti-fall { to { transform: translateY(110vh) rotate(720deg); opacity: 0.6; } }
+.celebrate-card {
+  position: absolute; top: 34%; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: 18px 30px; border-radius: 22px; background: var(--cream); box-shadow: 0 20px 50px rgba(10, 40, 25, 0.4), inset 0 0 0 3px #f2c230;
+  animation: celebrate-in 0.5s cubic-bezier(0.2, 1.5, 0.4, 1), fade-out 0.5s ease 3.1s forwards; white-space: nowrap;
+}
+.celebrate-card b { font-weight: 400; font-size: 24px; }
+.celebrate-card span { font-size: 14px; color: var(--green-dark); }
+@keyframes celebrate-in { from { opacity: 0; transform: translateX(-50%) scale(0.6); } }
+@keyframes fade-out { to { opacity: 0; } }
+.stamps { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+.stamp { padding: 3px 8px; border-radius: 8px; border: 1.5px dashed #c9d6cc; font-size: 11px; color: #a9b8ad; }
+.stamp.got { border: 1.5px solid #d8553a; color: #d8553a; background: #fff3ef; transform: rotate(-3deg); font-weight: 700; }
+.photo-spot {
+  position: absolute; top: 18px; left: 50%; transform: translateX(-50%); padding: 8px 18px; border-radius: 999px; pointer-events: none;
+  background: rgba(44, 111, 214, 0.92); color: #fff; font-size: 15px; box-shadow: var(--shadow); animation: pulse 1.2s ease-in-out infinite;
+}
+@keyframes pulse { 50% { transform: translateX(-50%) scale(1.06); } }
+.admin-label { font-size: 13px; color: var(--ink-soft); margin-right: 4px; }
