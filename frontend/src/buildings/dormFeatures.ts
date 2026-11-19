@@ -14,8 +14,10 @@ import {
   Quaternion,
   RepeatWrapping,
   Shape,
+  ShapeGeometry,
   SphereGeometry,
   SRGBColorSpace,
+  Vector2,
   Vector3,
   type BufferGeometry,
   type Material,
@@ -54,27 +56,53 @@ const D_WING: WallAnchor = { id: 296668594, edge: 0, a: [20.6, 372.3], b: [22.0,
 
 // ---------------------------------------------------------------- dimensions (m)
 /**
- * 宿舍服務中心（局部座標，x 往東、z 往南朝廣場）。量體平面沿著 L 形轉角：北棟南面 (0,0)–(9,0)、
- * 正面 z = depth，西側貼斜牆 (0,0)–(−3.64,3.19) 與南翼東面（x ≈ −3.7）。
+ * 宿舍服務中心。正面照：店面是一道斜的立面，斜切學生宿舍C 的 L 形內角、朝東南面向路口（左邊南翼往鏡頭凸出、
+ * 右邊北棟往後退）。先在 C_SOUTH 的牆面座標系（x 往東沿北棟南面、z 往南）定出內角：北棟南面 z = 0、
+ * OSM 的小斜牆 (0,0)–(−3.64,3.19)、南翼東面 (−3.64,3.19)–(−4.22,13.45)；正面是 x + z = FRONT_K 這條 45° 線，
+ * 從南翼牆面切到北棟牆面。其餘部件都在「正面座標系」裡：x 沿正面由西（南翼端）往東（北棟端）、
+ * z 朝外（東南），正面在 z = depth。
  */
-const SVC = { west: -3.75, east: 9.0, depth: 5.0, roof: 3.4, wing: [-3.64, 3.19] as const };
-/** 正面分段：西實牆段 | 玻璃店面 | 東深色窗段。 */
-const SHOP = { x0: 0.4, x1: 7.2 };
+const CORNER = { frontK: 6.15, diag: [[0, 0], [-3.64, 3.19]] as const, wing: [[-3.64, 3.19], [-4.22, 13.45]] as const };
+const SVC = { depth: 4.7, roof: 3.4 };
+/** 正面分段（正面座標 x）：西實牆段 | 玻璃店面 | 東深色窗段（東段到正面全長 len）。 */
+const SHOP = { x0: 4.2, x1: 11.0 };
 /** 店面上方的招牌與白色簷口（向外出挑 `out`）。 */
-const FASCIA = { x0: 0.2, x1: 7.4, y0: 3.12, y1: 4.0, out: 1.0, soffit: 0.12 };
+const FASCIA = { x0: 4.0, x1: 11.2, y0: 3.12, y1: 4.0, out: 1.0, soffit: 0.12 };
 const RISE = 0.15;
 const TREAD = 0.35;
 const PORCH = { z0: SVC.depth, z1: SVC.depth + 1.6, top: 0.6 };
-/** 台階（店面與東段前方，幾乎全寬）。 */
-const STEPS = { x0: 2.6, x1: SVC.east };
+/** 台階從 x0 到正面東端（店面與東段前方）。 */
+const STEPS = { x0: 6.4 };
 /** 坡道：前廊前方、與立面平行，西端（x0）著地、東端（x1）接前廊；外側矮牆從 wallFrom 開始，西端留入口。 */
-const RAMP = { x0: -3.4, x1: 2.4, z0: PORCH.z1, z1: PORCH.z1 + 1.4, wall: 0.15, wallFrom: -2.2, wallTop: 1.15 };
-/** 前方廣場：灰色連鎖磚夾紅磚帶（照片），從前廊鋪到路邊；兩個方形樹穴（混凝土框、土面）各種一棵校園樹。 */
-const PLAZA = { x0: SVC.west, x1: 10.5, z0: SVC.depth, z1: 15.0, band: 4 };
+const RAMP = { x0: 0.35, x1: 6.2, z0: PORCH.z1, z1: PORCH.z1 + 1.4, wall: 0.15, wallFrom: 1.6, wallTop: 1.15 };
+/**
+ * 前方廣場（C_SOUTH 牆面座標）：灰色連鎖磚夾紅磚帶（照片），從正面鋪到兩條路邊；
+ * 多邊形 = 正面西端 → 正面東端 → 沿北棟南面延伸到南北向路邊 → 沿兩條路邊（路口處切角）→ 南翼東南角；離路緣約 0.4 m。
+ */
+const PLAZA = { east: 13.6, eastSouth: 12.5, southEast: 10.5, south: 15.0, band: 4 };
+/** 樹穴（正面座標）：混凝土框、土面，各種一棵校園樹。 */
 const PITS: readonly { x: number; z: number; size: number; scale: number }[] = [
-  { x: 5.6, z: 11.6, size: 2.0, scale: 1.0 },
-  { x: 0.2, z: 12.4, size: 1.8, scale: 0.9 },
+  { x: 8.4, z: SVC.depth + 6.3, size: 2.0, scale: 1.0 },
+  { x: 2.0, z: SVC.depth + 6.6, size: 1.8, scale: 0.9 },
 ];
+
+/** 正面兩端（C_SOUTH 牆面座標）：西端 = 正面線與南翼牆面的交點，東端 = 與北棟南面（z = 0）的交點。 */
+function frontEnds(): { west: [number, number]; east: [number, number]; len: number } {
+  const [[ax, az], [bx, bz]] = CORNER.wing;
+  // Wing line x = ax + (bx − ax)·t, z = az + (bz − az)·t; solve x + z = K.
+  const t = (CORNER.frontK - ax - az) / (bx - ax + bz - az);
+  const west: [number, number] = [ax + (bx - ax) * t, az + (bz - az) * t];
+  const east: [number, number] = [CORNER.frontK, 0];
+  return { west, east, len: Math.hypot(east[0] - west[0], east[1] - west[1]) };
+}
+
+/** Plaza (and tree-free) outline in C_SOUTH wall coordinates. */
+function plazaOutline(): [number, number][] {
+  const { west, east } = frontEnds();
+  const [, wingEnd] = CORNER.wing;
+  return [west, east, [PLAZA.east, 0], [PLAZA.east, PLAZA.eastSouth], [PLAZA.southEast, PLAZA.south], [wingEnd[0] - 0.1, PLAZA.south], [wingEnd[0], wingEnd[1]]];
+}
+
 /** 學生宿舍D 入口：雨遮、平台、台階。 */
 const D_ENTRY = { canopy: { x0: 0.3, x1: 4.7, depth: 2.8, y: 3.2 }, deck: { x0: 0.2, x1: 4.8, depth: 3.0, top: 0.6 }, steps: { x0: -0.6, x1: 5.3 } };
 
@@ -276,24 +304,16 @@ interface Frame {
   add(geo: BufferGeometry, m: Material | Material[], shadow?: boolean): Mesh;
 }
 
-function wallFrame(ctx: Ctx, campus: CampusData, w: WallAnchor, name: string): Frame | null {
-  const b = campus.buildings.find((q) => q.id === w.id);
-  if (!b) return null;
-  const r = b.outer, n = r.length / 2, i = w.edge, j = (i + 1) % n;
-  if (i >= n) return null;
-  const ax = r[i * 2]!, az = r[i * 2 + 1]!, bx = r[j * 2]!, bz = r[j * 2 + 1]!;
-  // The OSM data moved: skip rather than float the feature off its wall.
-  if (Math.hypot(ax - w.a[0], az - w.a[1]) > 0.5 || Math.hypot(bx - w.b[0], bz - w.b[1]) > 0.5) return null;
-  const len = Math.hypot(ax - bx, az - bz);
-  const ux = (ax - bx) / len, uz = (az - bz) / len; // end → start
+/** Frame with its origin at world (ox, oz) and local +x along world (ux, uz); local +z is (−uz, ux). */
+function frameAt(ctx: Ctx, ox: number, oz: number, ux: number, uz: number, name: string): Frame {
   const g = new Group();
   g.name = name;
-  g.position.set(bx, 0, bz);
-  g.rotation.y = Math.atan2(-uz, ux); // local +x → (ux, uz), local +z → (−uz, ux): outward for a CCW ring
+  g.position.set(ox, 0, oz);
+  g.rotation.y = Math.atan2(-uz, ux); // local +x → (ux, uz), local +z → (−uz, ux)
   ctx.scene.add(g);
   ctx.groups.push(g);
   const q = new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), g.rotation.y);
-  const world = (x: number, z: number): [number, number] => [bx + ux * x - uz * z, bz + uz * x + ux * z];
+  const world = (x: number, z: number): [number, number] => [ox + ux * x - uz * z, oz + uz * x + ux * z];
   return {
     g,
     world,
@@ -312,6 +332,31 @@ function wallFrame(ctx: Ctx, campus: CampusData, w: WallAnchor, name: string): F
       return o;
     },
   };
+}
+
+function wallFrame(ctx: Ctx, campus: CampusData, w: WallAnchor, name: string): Frame | null {
+  const b = campus.buildings.find((q) => q.id === w.id);
+  if (!b) return null;
+  const r = b.outer, n = r.length / 2, i = w.edge, j = (i + 1) % n;
+  if (i >= n) return null;
+  const ax = r[i * 2]!, az = r[i * 2 + 1]!, bx = r[j * 2]!, bz = r[j * 2 + 1]!;
+  // The OSM data moved: skip rather than float the feature off its wall.
+  if (Math.hypot(ax - w.a[0], az - w.a[1]) > 0.5 || Math.hypot(bx - w.b[0], bz - w.b[1]) > 0.5) return null;
+  const len = Math.hypot(ax - bx, az - bz);
+  // Origin at the edge's end vertex, +x back along the wall: +z then points out of a CCW ring.
+  return frameAt(ctx, bx, bz, (ax - bx) / len, (az - bz) / len, name);
+}
+
+/** The service centre's front frame, inside the C_SOUTH wall frame `c`: x along the diagonal front, z out (SE), front at z = depth. */
+function serviceFrontFrame(ctx: Ctx, c: Frame): { f: Frame; len: number; toFront(x: number, z: number): [number, number] } {
+  const { west, east, len } = frontEnds();
+  const ux = (east[0] - west[0]) / len, uz = (east[1] - west[1]) / len; // along the front, in C coords
+  const nx = -uz, nz = ux; // out of the front (south-east)
+  const ox = west[0] - nx * SVC.depth, oz = west[1] - nz * SVC.depth;
+  const [wox, woz] = c.world(ox, oz), [w1x, w1z] = c.world(ox + ux, oz + uz);
+  const f = frameAt(ctx, wox, woz, w1x - wox, w1z - woz, '宿舍服務中心');
+  const toFront = (x: number, z: number): [number, number] => [(x - ox) * ux + (z - oz) * uz, (x - ox) * nx + (z - oz) * nz];
+  return { f, len, toFront };
 }
 
 // ---------------------------------------------------------------- parts
@@ -354,27 +399,31 @@ function addSteps(f: Frame, x0: number, x1: number, z0: number, top: number, m: 
 }
 
 /** 學生宿舍C：宿舍服務中心（量體、正面三段、招牌與簷口、前廊、台階、坡道、花盆、燈柱）。 */
-function addServiceCentre(ctx: Ctx, f: Frame): void {
+function addServiceCentre(ctx: Ctx, c: Frame): Frame {
+  const { f, len: E, toFront } = serviceFrontFrame(ctx, c);
   const concrete = ctx.mat(CONCRETE, { roughness: 0.9 });
   const wall = ctx.mat(SVC_WALL, { roughness: 0.85 });
   const white = ctx.mat(0xe8e8e4, { roughness: 0.7 });
-  const { west: W0, east: E, depth: D, roof: R } = SVC;
-  const [wx, wz] = SVC.wing;
+  const W0 = 0;
+  const { depth: D, roof: R } = SVC;
 
-  // Body: footprint along the L (north block, the diagonal, the wing), extruded to the roof.
+  // Body: the corner the diagonal front cuts off the L — front, north block face, OSM's short
+  // diagonal, wing face — extruded to the roof (a few cm into the walls so no seam shows).
+  const { west, east } = frontEnds();
+  const plan = [west, east, [east[0] + 0.05, -0.05], [CORNER.diag[0][0] + 0.05, CORNER.diag[0][1] - 0.05], [CORNER.diag[1][0] - 0.05, CORNER.diag[1][1]]]
+    .map(([x, z]) => toFront(x!, z!));
   // Shape points are (x, −z): after rotateX(−π/2) the shape's y becomes −z and the extrusion runs up.
-  const plan = new Shape();
-  plan.moveTo(0, -0);
-  plan.lineTo(E, -0);
-  plan.lineTo(E, -D);
-  plan.lineTo(W0, -D);
-  plan.lineTo(wx - 0.05, -wz);
-  plan.lineTo(0, -0);
-  f.add(new ExtrudeGeometry(plan, { depth: R, bevelEnabled: false }).rotateX(-Math.PI / 2), wall);
-  f.solid(E / 2, R / 2, D / 2, E / 2, R / 2, D / 2);
-  f.solid((W0 + 0) / 2, R / 2, (wz + D) / 2, -W0 / 2, R / 2, (D - wz) / 2);
-  f.add(span(W0 - 0.05, E + 0.15, R, R + 0.18, wz, D + 0.15), white); // roof edge
-  f.add(span(-1.5, E + 0.15, R, R + 0.18, 0, wz), white);
+  const shape = new Shape(plan.map(([x, z]) => new Vector2(x, -z)));
+  f.add(new ExtrudeGeometry(shape, { depth: R, bevelEnabled: false }).rotateX(-Math.PI / 2), wall);
+  f.add(new ExtrudeGeometry(shape, { depth: 0.18, bevelEnabled: false }).rotateX(-Math.PI / 2).translate(0, R, 0), white); // roof slab
+  f.add(span(W0 - 0.05, E + 0.05, R, R + 0.18, D - 0.1, D + 0.15), white); // roof edge over the front
+  const hull: number[] = [];
+  for (const [x, z] of plan) {
+    const [wx, wz] = f.world(x, z);
+    hull.push(wx, 0, wz, wx, R, wz);
+  }
+  const body = RAPIER.ColliderDesc.convexHull(new Float32Array(hull));
+  if (body) ctx.colliders.push(ctx.tracker.collider(ctx.physics.createCollider(body)));
 
   // Front, west to east: wall with windows and the wheelchair sign | storefront | dark windows.
   const face = (x0: number, x1: number, y0: number, y1: number, map: CanvasTexture): void => {
@@ -398,7 +447,7 @@ function addServiceCentre(ctx: Ctx, f: Frame): void {
   f.add(span(W0, E, 0, top, PORCH.z0, PORCH.z1), concrete);
   f.solid((W0 + E) / 2, top / 2, (PORCH.z0 + PORCH.z1) / 2, (E - W0) / 2, top / 2, (PORCH.z1 - PORCH.z0) / 2);
   // Steps down to the plaza in front of the storefront and the east section.
-  addSteps(f, STEPS.x0, STEPS.x1, PORCH.z1, top, concrete);
+  addSteps(f, STEPS.x0, E, PORCH.z1, top, concrete);
 
   // Ramp along the front of the west section, rising eastward onto the porch; a solid concrete
   // parapet on its outer side (open at the low west end) with a steel rail and a blue sign.
@@ -427,21 +476,21 @@ function addServiceCentre(ctx: Ctx, f: Frame): void {
 
   // Pots along the porch edge and on the plaza, the lantern by the ramp's low end.
   addPots(ctx, f, [
-    [-0.8, PORCH.z1 - 0.4, top], [1.0, PORCH.z1 - 0.4, top], [7.8, PORCH.z0 + 0.4, top], [8.6, PORCH.z0 + 0.4, top],
-    [3.4, 9.6], [4.4, 10.1], [9.8, 8.6], [-1.4, 8.9], [0.6, 9.1],
+    [3.0, PORCH.z1 - 0.4, top], [4.8, PORCH.z1 - 0.4, top], [11.6, PORCH.z0 + 0.4, top], [12.4, PORCH.z0 + 0.4, top],
+    [7.0, D + 4.6], [5.8, D + 4.9], [13.4, D + 3.9], [2.6, D + 3.9], [4.4, D + 4.1],
   ]);
-  addLanterns(ctx, f, [[-2.6, 10.2]]);
+  addLanterns(ctx, f, [[1.0, D + 5.2]]);
+  return f;
 }
 
 /** 宿舍服務中心前的廣場鋪面與樹穴（樹用校園樹的幾何與材質，沒有碰撞，同校園其他樹）。 */
-function addPlaza(ctx: Ctx, f: Frame, trees: Pick<CampusMaterials, 'trunk' | 'canopy'> | undefined): void {
-  const { x0, x1, z0, z1, band } = PLAZA;
+function addPlaza(ctx: Ctx, c: Frame, f: Frame, trees: Pick<CampusMaterials, 'trunk' | 'canopy'> | undefined): void {
   const tex = canvasTexture(512, 512, plazaPaving, ctx.tracker);
   tex.wrapS = tex.wrapT = RepeatWrapping;
-  tex.repeat.set((x1 - x0) / band, (z1 - z0) / band);
+  tex.repeat.set(1 / PLAZA.band, 1 / PLAZA.band); // ShapeGeometry UVs are in metres
   const paving = ctx.tracker.material(new MeshStandardMaterial({ map: tex, roughness: 0.92, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -8 }));
-  const ground = f.add(new PlaneGeometry(x1 - x0, z1 - z0).rotateX(-Math.PI / 2), paving, false);
-  ground.position.set((x0 + x1) / 2, 0.025, (z0 + z1) / 2);
+  const outline = new Shape(plazaOutline().map(([x, z]) => new Vector2(x, -z)));
+  c.add(new ShapeGeometry(outline).rotateX(-Math.PI / 2).translate(0, 0.025, 0), paving, false);
 
   const curb = ctx.mat(0xa9a7a0, { roughness: 0.9 });
   const soil = ctx.mat(0x6b5a45, { roughness: 1, polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -12 });
@@ -457,13 +506,13 @@ function addPlaza(ctx: Ctx, f: Frame, trees: Pick<CampusMaterials, 'trunk' | 'ca
   const { trunk, canopy } = campusTreeGeometry();
   const trunks = new InstancedMesh(ctx.tracker.geometry(trunk), trees.trunk, PITS.length);
   const canopies = new InstancedMesh(ctx.tracker.geometry(canopy), trees.canopy, PITS.length);
-  const m = new Matrix4(), q = new Quaternion(), up = new Vector3(0, 1, 0), c = new Color();
+  const m = new Matrix4(), q = new Quaternion(), up = new Vector3(0, 1, 0), tint = new Color();
   PITS.forEach((p, i) => {
     m.compose(new Vector3(p.x, 0, p.z), q.setFromAxisAngle(up, p.x), new Vector3(p.scale, p.scale, p.scale));
     trunks.setMatrixAt(i, m);
     canopies.setMatrixAt(i, m);
     const shift = (i + 1) / (PITS.length + 1);
-    canopies.setColorAt(i, c.setRGB(0.16 + shift * 0.08, 0.3 + shift * 0.12, 0.1 + shift * 0.05));
+    canopies.setColorAt(i, tint.setRGB(0.16 + shift * 0.08, 0.3 + shift * 0.12, 0.1 + shift * 0.05));
   });
   for (const mesh of [trunks, canopies]) {
     mesh.castShadow = true;
@@ -523,14 +572,21 @@ function addDormDPlanter(ctx: Ctx, f: Frame): void {
 // ---------------------------------------------------------------- public
 /** Tree-free rings over the features (campus tree scatter), in world x/z. */
 export function dormTreeFree(): number[][] {
-  const rect = (w: WallAnchor, x0: number, x1: number, z0: number, z1: number): number[] => {
+  const toWorld = (w: WallAnchor): ((x: number, z: number) => [number, number]) => {
     const len = Math.hypot(w.a[0] - w.b[0], w.a[1] - w.b[1]);
     const ux = (w.a[0] - w.b[0]) / len, uz = (w.a[1] - w.b[1]) / len;
-    const p = (x: number, z: number): [number, number] => [w.b[0] + ux * x - uz * z, w.b[1] + uz * x + ux * z];
+    return (x: number, z: number): [number, number] => [w.b[0] + ux * x - uz * z, w.b[1] + uz * x + ux * z];
+  };
+  const rect = (w: WallAnchor, x0: number, x1: number, z0: number, z1: number): number[] => {
+    const p = toWorld(w);
     return [...p(x0, z0), ...p(x1, z0), ...p(x1, z1), ...p(x0, z1)];
   };
+  const c = toWorld(C_SOUTH);
+  // The plaza plus the corner behind the front (north block face, OSM diagonal, wing face).
+  const { east } = frontEnds();
+  const svc: [number, number][] = [[0, 0], [east[0], 0], ...plazaOutline().slice(2), [CORNER.diag[1][0], CORNER.diag[1][1]]];
   return [
-    rect(C_SOUTH, SVC.west - 0.3, PLAZA.x1, 0, PLAZA.z1),
+    svc.flatMap(([x, z]) => c(x, z)),
     rect(D_RECESS, -1.5, 7.5, 0, D_ENTRY.deck.depth + 2.5),
     rect(D_WING, 0, 7.5, 0, 3.5),
   ];
@@ -543,8 +599,8 @@ export function createDormFeatures(scene: Scene, physics: RAPIER.World, campus: 
   };
   const c = wallFrame(ctx, campus, C_SOUTH, '宿舍服務中心');
   if (c) {
-    addServiceCentre(ctx, c);
-    addPlaza(ctx, c, trees);
+    const front = addServiceCentre(ctx, c);
+    addPlaza(ctx, c, front, trees);
   }
   const d = wallFrame(ctx, campus, D_RECESS, '學生宿舍D 入口');
   if (d) {

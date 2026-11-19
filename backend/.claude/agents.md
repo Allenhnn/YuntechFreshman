@@ -164,6 +164,12 @@ docker compose down             # 停止（加 -v 會連資料一起刪除）
 | `.env.example` 沒被 commit | 根目錄 `.gitignore` 有 `.env*`；需要時用 `git add -f backend/.env.example` |
 
 ## 變更紀錄
+### 2026-11-19（前端：宿舍服務中心正面改為斜向）— 分支 `feat/dorm-c-d-exterior`
+- 需求：使用者指出正面照中服務中心是斜的
+- `frontend/src/buildings/dormFeatures.ts`：正面改為斜切學生宿舍C L 形內角的 45° 立面（x + z = 6.15，從南翼牆面切到北棟南面，全長 14.4 m），朝東南面向路口；量體是被正面切下的那塊轉角（ExtrudeGeometry＋凸包碰撞）；招牌、店面、前廊、台階、坡道、花盆、燈柱、樹穴改在「正面座標系」配置；廣場鋪面延伸到南北向路邊（離路緣約 0.4 m）
+- 重構：`frameAt()`（任意原點與方向的局部座標系），`wallFrame()` 改用它；`serviceFrontFrame()` 由 C 棟牆面座標系推出正面座標系
+- 測試：`tsc --noEmit` 通過、`vite build` 成功；用實際校園資料檢查各部件不壓道路與建築；headless Chrome 從廣場東南側對著正面截圖
+
 ### 2026-11-19（前端：宿舍服務中心依正面照重新建模）— 分支 `feat/dorm-c-d-exterior`
 - 需求：使用者提供宿舍服務中心正面照，要求仔細觀察後重新建模
 - `frontend/src/buildings/dormFeatures.ts`：服務中心量體改為填滿學生宿舍C L 形轉角（ExtrudeGeometry 沿北棟、斜牆、南翼）；正面三段（♿ 實牆段、玻璃店面含下排「宿舍服…務中心」字貼、深色窗段）、深灰招牌（藍色 C、金字校名、LED 板）與白色簷口；全寬前廊與台階；坡道改為與立面平行、往東上升，外側混凝土矮牆與藍色指標牌；新增廣場鋪面（灰色連鎖磚夾紅磚帶）與兩個方形樹穴（種校園樹）
