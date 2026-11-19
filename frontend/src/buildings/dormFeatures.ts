@@ -67,21 +67,21 @@ const D_WING: WallAnchor = { id: 296668594, edge: 0, a: [20.6, 372.3], b: [22.0,
  * z 朝外（東南），正面在 z = depth。
  */
 /**
- * outerK：前廊外緣（台階起點）的 45° 線 x + z = outerK；店面牆退到前廊後面（前廊在建築輪廓內、上有屋頂），
- * 只有台階（與旁邊的坡道）突出到廣場。
+ * outerK：店面牆（正面）的 45° 線 x + z = outerK（比最初的 6.15 往前約 0.4 m）。沒有突出的前廊平台：
+ * 台階與無障礙坡道直接從店面牆腳往外，只有它們突出到廣場；招牌與白色簷口從牆面往外出挑（照片）。
  */
 const CORNER = { outerK: 6.725, diag: [[0, 0], [-3.64, 3.19]] as const, wing: [[-3.64, 3.19], [-4.22, 13.45]] as const };
 const SVC = { depth: 4.7, roof: 3.4 };
 /** 正面分段（正面座標 x）：西實牆段 | 玻璃店面 | 東深色窗段（東段到正面全長 len）。 */
-const SHOP = { x0: 2.8, x1: 9.6 };
-/** 前廊外緣上方的招牌（x 範圍、高度），前廊頂的白色簷底厚度。 */
-const FASCIA = { x0: 2.6, x1: 9.8, y0: 3.12, y1: 4.0, soffit: 0.12 };
+const SHOP = { x0: 3.6, x1: 10.8 };
+/** 店面上方的招牌與白色簷口：x 範圍、高度、從牆面出挑 out、簷底厚度。 */
+const FASCIA = { x0: 3.4, x1: 11.0, y0: 3.12, y1: 4.0, out: 1.0, soffit: 0.12 };
 const RISE = 0.15;
 const TREAD = 0.35;
-/** 內凹前廊：店面牆（z = depth）到外緣（z1），上方是屋頂與招牌。 */
-const PORCH = { z0: SVC.depth, z1: SVC.depth + 1.6, top: 0.6 };
-/** 店面牆的 45° 線（outerK 往內退前廊深度）。 */
-const WALL_K = CORNER.outerK - (PORCH.z1 - PORCH.z0) * Math.SQRT2;
+/** 店面地坪（門檻）高度；台階與坡道都從店面牆腳（z = depth）往外。 */
+const PORCH = { z0: SVC.depth, z1: SVC.depth, top: 0.6 };
+/** 店面牆的 45° 線。 */
+const WALL_K = CORNER.outerK;
 /**
  * 無障礙坡道（使用者標線）：從前廊外緣的西端（南翼牆角）沿南翼牆面往外（往南）下降，離牆 inset、寬 width、
  * 沿牆長 len；外側（廣場側）一道混凝土矮牆（藍色指標牌、扶手），低端開口。
@@ -97,8 +97,8 @@ const PLAZA = { east: 13.6, eastSouth: 12.5, southEast: 10.5, south: 15.0, band:
 type Pit = { x: number; z: number; size: number; scale: number; lift?: number };
 /** 樹穴（正面座標）：混凝土框、土面，各種一棵校園樹。 */
 const PITS: readonly Pit[] = [
-  { x: 7.0, z: SVC.depth + 6.3, size: 2.0, scale: 1.0 },
-  { x: 0.9, z: SVC.depth + 6.6, size: 1.8, scale: 0.9 },
+  { x: 8.8, z: SVC.depth + 4.7, size: 2.0, scale: 1.0 },
+  { x: 2.7, z: SVC.depth + 5.0, size: 1.8, scale: 0.9 },
 ];
 
 /** 正面兩端（C_SOUTH 牆面座標）：西端 = 正面線與南翼牆面的交點，東端 = 與北棟南面（z = 0）的交點。 */
@@ -491,29 +491,17 @@ function addServiceCentre(ctx: Ctx, c: Frame): Frame {
   face(SHOP.x0, SHOP.x1, top, FASCIA.y0, canvasTexture(1360, 480, storefront, ctx.tracker));
   face(SHOP.x1, E, top, R - 0.1, canvasTexture(512, 336, wallSection([[0.1, 0.9]], false), ctx.tracker));
 
-  // Recessed porch inside the outline: its floor, and above it the building carried out to the
-  // porch's outer edge (wall-coloured lintel, white soffit, roof) — wall to wall, so only the steps
-  // and the ramp stand proud of the building. The trapezoid widens outward along the two walls.
+  // The storefront wall is the front: steps and ramp start at its foot (outer == wall line).
   const outer = frontEnds(CORNER.outerK);
-  const [owx] = toFront(...outer.west), [oex] = toFront(...outer.east);
-  const porch: [number, number][] = [[W0, PORCH.z0], [E, PORCH.z0], [oex, PORCH.z1], [owx, PORCH.z1]];
-  const slab = (y0: number, y1: number, m: Material): void => {
-    f.add(new ExtrudeGeometry(new Shape(porch.map(([x, z]) => new Vector2(x, -z))), { depth: y1 - y0, bevelEnabled: false }).rotateX(-Math.PI / 2).translate(0, y0, 0), m);
-  };
-  slab(0, top, concrete);
-  const floor: number[] = [];
-  for (const [x, z] of porch) { const [wx, wz] = f.world(x, z); floor.push(wx, 0, wz, wx, top, wz); }
-  const porchHull = RAPIER.ColliderDesc.convexHull(new Float32Array(floor));
-  if (porchHull) ctx.colliders.push(ctx.tracker.collider(ctx.physics.createCollider(porchHull)));
-  const { x0: fx0, x1: fx1, y0: fy0, y1: fy1, soffit } = FASCIA;
-  slab(fy0 - soffit, fy0, white); // soffit
-  slab(fy0, R, wall); // lintel
-  slab(R, R + 0.18, white); // roof
-  // The dark sign box on the porch's outer edge, standing above the roof line.
+  const [oex] = toFront(...outer.east);
+  // White soffit projecting from the wall over the storefront, the dark sign box on top of it (photo).
+  const { x0: fx0, x1: fx1, y0: fy0, y1: fy1, out, soffit } = FASCIA;
+  f.add(span(fx0 - 0.2, fx1 + 0.2, fy0 - soffit, fy0, D, D + out + 0.05), white);
   const sign = ctx.tracker.material(new MeshStandardMaterial({ map: canvasTexture(1440, 176, signBand, ctx.tracker), roughness: 0.6 }));
   const dark = ctx.mat(0x5f6368);
-  const box = f.add(new BoxGeometry(fx1 - fx0, fy1 - fy0, 0.32), [dark, dark, dark, dark, sign, dark]);
-  box.position.set((fx0 + fx1) / 2, (fy0 + fy1) / 2, PORCH.z1 - 0.14);
+  const box = f.add(new BoxGeometry(fx1 - fx0, fy1 - fy0, out), [dark, dark, dark, dark, sign, dark]);
+  box.position.set((fx0 + fx1) / 2, (fy0 + fy1) / 2, D + out / 2);
+  f.add(span(W0 - 0.05, E + 0.05, R, R + 0.18, D - 0.1, D + 0.15), white); // roof edge over the front
 
   const prism = (pts: readonly [number, number][], y0: number, y1: number, m: Material): void => {
     f.add(new ExtrudeGeometry(new Shape(pts.map(([x, z]) => new Vector2(x, -z))), { depth: y1 - y0, bevelEnabled: false }).rotateX(-Math.PI / 2).translate(0, y0, 0), m);
@@ -578,19 +566,18 @@ function addServiceCentre(ctx: Ctx, c: Frame): Frame {
   // widens outward, its west end along the parapet and its east end along the wall.
   const stepsWest = (z: number): number => rBo[0] + (z - z1) * (w[0] / w[1]);
   for (let k = 0; ; k++) {
-    const h = top - (k + 1) * RISE;
+    const h = top - k * RISE; // first tier at the door threshold, then one riser down each
     if (h <= 0.001) break;
     const za = z1 + k * TREAD, zb = za + TREAD;
     const east = (z: number): number => oex + (z - z1);
     prism([[stepsWest(za), za], [east(za), za], [east(zb), zb], [stepsWest(zb), zb]], 0, h, concrete);
   }
 
-  // Pots along the porch edge and on the plaza, the lantern by the ramp's low end.
+  // Pots on the plaza, the lantern by the ramp's low end.
   addPots(ctx, f, [
-    [-0.6, PORCH.z1 - 0.4, top], [1.0, PORCH.z1 - 0.4, top], [10.4, PORCH.z0 + 0.4, top], [11.1, PORCH.z0 + 0.4, top],
-    [5.6, D + 4.6], [4.4, D + 4.9], [12.2, D + 3.9], [1.4, D + 3.9], [3.0, D + 4.1],
+    [7.4, D + 3.0], [6.2, D + 3.3], [14.0, D + 2.3], [3.2, D + 2.3], [4.8, D + 2.5],
   ]);
-  addLanterns(ctx, f, [[-2.4, D + 5.2]]);
+  addLanterns(ctx, f, [[-0.6, D + 3.6]]);
   return f;
 }
 
