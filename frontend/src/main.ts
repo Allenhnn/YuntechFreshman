@@ -44,6 +44,7 @@ import { SCOOTER_SPEED_FACTOR, createBikeSystem } from './bikes/bikeSystem';
 import { createTraffic } from './ambient/traffic';
 import { createStoryRuntime, storyEvents, type StoryFrame } from './story/storyRuntime';
 import { storyStore } from './state/story';
+import { createNavPointer } from './game/navPointer';
 import { sportFinished } from './minigames/sportsGames';
 import { trackFinished } from './playground/playground';
 import { createPlayground } from './playground/playground';
@@ -357,6 +358,7 @@ async function boot(): Promise<void> {
   const onTrack = (t: number): void => storyEvents.track(t);
   sportFinished.add(onSport);
   trackFinished.add(onTrack);
+  const navPointer = createNavPointer();
   let wasRiding = false;
   let lastNight = -1;
   const storyFrame: StoryFrame = { x: 0, z: 0, area: null, minutes: 0, riding: false, sprinting: false, playing: false, viewYaw: 0 };
@@ -703,12 +705,17 @@ async function boot(): Promise<void> {
           }
         }
         if (!target && !sports.active && sports.prompt(Transform.x[eid]!, Transform.y[eid]!, Transform.z[eid]!)) {
-          const p = sports.start(Transform.x[eid]!, Transform.y[eid]!, Transform.z[eid]!);
-          if (p) {
-            teleport(p.x, 0, p.z, p.facing);
-            renderSyncSystem(world, 1);
-            rig.snap(readFocus(), p.facing + Math.PI);
-          }
+          if (gameStore.getState().countdown) return;
+          // Big 3-2-1 first; the game (and its clock) starts on 開始！ from where E was pressed.
+          const sx = Transform.x[eid]!, sy = Transform.y[eid]!, sz = Transform.z[eid]!;
+          actions.startCountdown(() => {
+            const p = sports.start(sx, sy, sz);
+            if (p) {
+              teleport(p.x, 0, p.z, p.facing);
+              renderSyncSystem(world, 1);
+              rig.snap(readFocus(), p.facing + Math.PI);
+            }
+          });
           return;
         }
         if (sports.active) return;
@@ -931,7 +938,7 @@ async function boot(): Promise<void> {
       const riding = bikes.ridden >= 0;
       moveMods.fly = ui.tester.fly && !riding;
       moveMods.noclip = ui.tester.noclip && !riding;
-      moveMods.speed = playground?.frozen || sports.frozen ? 0 : ui.tester.speed * story.speedFactor * (bikes.riddenKind === 'scooter' ? SCOOTER_SPEED_FACTOR : 1);
+      moveMods.speed = playground?.frozen || sports.frozen || (ui.countdown && ui.countdown.text !== '開始！') ? 0 : ui.tester.speed * story.speedFactor * (bikes.riddenKind === 'scooter' ? SCOOTER_SPEED_FACTOR : 1);
       moveMods.noJump = sports.active;
       moveMods.bike = riding;
       moveMods.blocked = riding ? insideBuilding : null;
@@ -1009,6 +1016,12 @@ async function boot(): Promise<void> {
       storyFrame.playing = playing && ui.modal !== 'story';
       storyFrame.viewYaw = rig.yaw;
       story.update(dt, storyFrame);
+      // On-screen pointer: the navigation goal, else the main objective.
+      const sst = storyStore.getState();
+      const mainPin = sst.pins.find((p) => p.key === 'main');
+      const target = ui.nav ? { x: ui.nav.x, z: ui.nav.z, name: ui.nav.name, color: '#2f6fd0', icon: '🏁' }
+        : mainPin && sst.enabled ? { x: mainPin.x, z: mainPin.z, name: sst.live.place ?? '主線目標', color: '#f08a24', icon: mainPin.icon } : null;
+      navPointer.update(camera, target, px, pz, playing && ui.modal === 'none' && ui.mapMode === 'mini');
     }
     const f = readFocus();
     rig.update(dt, f, colliders[eid], cameraFilter);
@@ -1108,6 +1121,7 @@ async function boot(): Promise<void> {
     bikes.dispose();
     traffic.dispose();
     story.dispose();
+    navPointer.dispose();
     sportFinished.delete(onSport);
     trackFinished.delete(onTrack);
     playground?.dispose();

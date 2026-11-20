@@ -14,6 +14,7 @@ import {
   type Scene,
 } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { CircleGeometry, MeshBasicMaterial, SRGBColorSpace, TextureLoader } from 'three';
 import type { CampusData, CampusRoad } from '../campus/campusTypes';
 import type { ResourceTracker } from '../core/resources';
 import { isLongtanMain } from '../campus/longtanConst';
@@ -243,6 +244,30 @@ export function createTraffic(scene: Scene, campus: CampusData, tracker: Resourc
   const headLightM = inst(lights, headMat, COUNTS.car);
   const tailLightM = inst(tail, tailMat, COUNTS.car);
 
+  // Faces: the user's four photos (public/textures/faces/, local only), one instanced disc per photo on
+  // the front of the head. Missing files (a fresh clone) just leave the plain heads.
+  const FACE_FILES = ['face1', 'face2', 'face3', 'face4'];
+  const faceGeo = tracker.geometry(new CircleGeometry(0.105, 20).translate(0, 0.74, 0.128));
+  const loader = new TextureLoader();
+  const faceMeshes = FACE_FILES.map((f) => {
+    const mat = tracker.material(new MeshBasicMaterial({ transparent: true, alphaTest: 0.2 }));
+    const mesh = new InstancedMesh(faceGeo, mat, people);
+    mesh.count = 0;
+    mesh.frustumCulled = false;
+    mesh.visible = false;
+    loader.load(`/textures/faces/${f}.png`, (t) => {
+      t.colorSpace = SRGBColorSpace;
+      mat.map = tracker.texture(t);
+      mat.needsUpdate = true;
+      mesh.visible = true;
+    }, undefined, () => { mesh.visible = false; });
+    scene.add(mesh);
+    return mesh;
+  });
+  /** Person → [face mesh, slot in it]. */
+  const faceOf: [number, number][] = [];
+  const faceCount = FACE_FILES.map(() => 0);
+  for (let i = 0; i < people; i++) { const f = i % FACE_FILES.length; faceOf.push([f, faceCount[f]!++]); }
   const peopleMeshes = [torsoM, headM, hairM, legM, armM, bikeM, bikeWheelM];
   const vehicleMeshes = [scooterM, scooterWheelM, carM, cabinM, roofM, carWheelM, headLightM, tailLightM];
 
@@ -316,6 +341,7 @@ export function createTraffic(scene: Scene, campus: CampusData, tracker: Resourc
   const hide = (a: Agent): void => {
     if (a.person >= 0) {
       for (const m of [torsoM, headM, hairM]) m.setMatrixAt(a.person, zero);
+      { const [f, slot] = faceOf[a.person]!; faceMeshes[f]!.setMatrixAt(slot, zero); }
       for (const m of [legM, armM]) { m.setMatrixAt(a.person * 2, zero); m.setMatrixAt(a.person * 2 + 1, zero); }
     }
     const v = a.vehicle;
@@ -334,6 +360,7 @@ export function createTraffic(scene: Scene, campus: CampusData, tracker: Resourc
     torsoM.setMatrixAt(i, trunk);
     headM.setMatrixAt(i, trunk);
     hairM.setMatrixAt(i, trunk);
+    { const [f, slot] = faceOf[i]!; faceMeshes[f]!.setMatrixAt(slot, trunk); }
     for (const [k, side, ang] of [[0, -1, armL], [1, 1, armR]] as const) {
       const arm = armMat.copy(trunk).multiply(part.makeTranslation(side * 0.24, 0.55, 0)).multiply(m4.makeRotationX(ang)).multiply(part.makeRotationZ(side * 0.08));
       armM.setMatrixAt(i * 2 + k, arm);
@@ -461,6 +488,7 @@ export function createTraffic(scene: Scene, campus: CampusData, tracker: Resourc
       }
       // Instances are written at fixed indices per agent: draw up to the highest index in use.
       for (const m of [torsoM, headM, hairM]) { m.count = personNext; m.instanceMatrix.needsUpdate = true; }
+      faceMeshes.forEach((m, f) => { m.count = faceCount[f]!; m.instanceMatrix.needsUpdate = true; });
       for (const m of [legM, armM]) { m.count = personNext * 2; m.instanceMatrix.needsUpdate = true; }
       bikeM.count = vehicleNext.cyclist; bikeWheelM.count = vehicleNext.cyclist * 2;
       scooterM.count = vehicleNext.scooter; scooterWheelM.count = vehicleNext.scooter * 2;
@@ -469,7 +497,7 @@ export function createTraffic(scene: Scene, campus: CampusData, tracker: Resourc
       for (const m of [bikeM, bikeWheelM, scooterM, scooterWheelM, carM, cabinM, roofM, carWheelM, headLightM, tailLightM]) m.instanceMatrix.needsUpdate = true;
     },
     dispose() {
-      for (const m of [...peopleMeshes, ...vehicleMeshes]) {
+      for (const m of [...peopleMeshes, ...vehicleMeshes, ...faceMeshes]) {
         scene.remove(m);
         m.dispose();
       }

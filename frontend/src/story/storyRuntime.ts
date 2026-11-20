@@ -205,9 +205,13 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
       d.scene.add(m);
       markers.push(m);
     });
-    toast('🏁 3、2、1… 開跑！依序通過黃色拱門，綠色是下一個');
-    run.started = true;
-    d.navigate(points[0]!.x, points[0]!.z, '檢查點 1');
+    run.started = false;
+    const r = run;
+    actions.startCountdown(() => {
+      r.started = true;
+      toast('🏁 開跑！依序通過拱門，綠色是下一個');
+    });
+    d.navigate(points[0]!.x, points[0]!.z, '檢查點 1', true);
   };
   /** Target time for 路跑之神: total route at a steady 5.5 m/s. */
   const runTarget = (): number => {
@@ -289,7 +293,9 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
       if (p) out.push({ key, x: p.x, z: p.z, icon, color, main });
     };
     const step = on() ? currentStep() : null;
-    if (step && step.cond.t !== 'run' && !inPlace(f, step.place)) add('main', d.placeOf(step.place), ICON[step.cond.t] ?? '📍', 0xf08a24, true);
+    const nav = gameStore.getState().nav;
+    if (nav) add('nav', { x: nav.x, z: nav.z }, '🏁', 0x2f6fd0, true);
+    if (step && step.cond.t !== 'run' && !inPlace(f, step.place) && !(nav && Math.hypot(nav.x - (d.placeOf(step.place)?.x ?? 1e9), nav.z - (d.placeOf(step.place)?.z ?? 1e9)) < 20)) add('main', d.placeOf(step.place), ICON[step.cond.t] ?? '📍', 0xf08a24, true);
     if (!on()) return out;
     if (cardAt) add('card', cardAt, '✨', 0x4fc3f7);
     const tour = side('tour');
@@ -540,7 +546,9 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
     npcs.update(dt, now, f.x, f.z);
     if (now - visualsAt > 0.5) {
       visualsAt = now;
-      beacons.set(beaconList(f));
+      const list = beaconList(f);
+      beacons.set(list);
+      storyActions.setPins(list.filter((b) => b.key !== 'nav' && b.key !== 'card'));
       npcs.set(npcSpecs());
       const ph = side('photo');
       storyActions.setLive({ photoSpot: f.area && PHOTO_SPOTS.includes(f.area) && !(ph?.done.includes(f.area)) && ph?.state !== 'done' ? f.area : null });
@@ -608,7 +616,7 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
     // Race.
     if (step?.cond.t === 'run') {
       if (!run) startRun();
-      if (run) {
+      if (run && run.started) {
         run.t += dt;
         // Stamina: sprinting drains it; when empty you can only jog until it recovers.
         run.stamina = Math.max(0, Math.min(1, run.stamina + (f.sprinting && !run.tired ? -dt / 14 : dt / 20)));

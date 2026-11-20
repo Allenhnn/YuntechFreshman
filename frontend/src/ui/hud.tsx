@@ -1,36 +1,9 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { HOTBAR_SIZE, ITEMS } from '../state/items';
 import { actions, useGame } from '../state/store';
 import { ChatLog } from './chat';
 import { useApi } from './api';
 import { FullMap, Minimap } from './minimap';
-
-const pad = (n: number): string => String(n).padStart(2, '0');
-
-function partOfDay(hour: number): string {
-  if (hour < 5) return '深夜';
-  if (hour < 11) return '早上';
-  if (hour < 13) return '中午';
-  if (hour < 18) return '下午';
-  return '晚上';
-}
-
-function Clock(): ReactNode {
-  const minutes = useGame((s) => s.gameMinutes);
-  const [real, setReal] = useState(() => new Date());
-  useEffect(() => {
-    const id = window.setInterval(() => setReal(new Date()), 1000);
-    return () => window.clearInterval(id);
-  }, []);
-  const day = Math.floor(minutes / 1440) + 1;
-  const hour = Math.floor((minutes % 1440) / 60);
-  return (
-    <div className="clock">
-      <div className="time">{pad(hour)}:{pad(minutes % 60)}</div>
-      <div className="sub">第 {day} 天 · {partOfDay(hour)} · 現實 {pad(real.getHours())}:{pad(real.getMinutes())}</div>
-    </div>
-  );
-}
 
 function Coins(): ReactNode {
   const coins = useGame((s) => s.coins);
@@ -175,7 +148,6 @@ export function Hud(): ReactNode {
   const needsRelock = useGame((s) => s.needsRelock);
   return (
     <div className="hud">
-      <Clock />
       <Coins />
       <TesterBadge />
       <SportPanel />

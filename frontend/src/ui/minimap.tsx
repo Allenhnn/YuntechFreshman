@@ -6,6 +6,9 @@ import { gateSpot } from '../campus/mainGate';
 import { outsideRing } from '../game/teleport';
 import { UNLABELLED_NAMES } from '../campus/placeNames';
 import { useApi } from './api';
+import { storyStore } from '../state/story';
+
+const hex = (c: number): string => `#${c.toString(16).padStart(6, '0')}`;
 
 /** Base map resolution: world metres → base-canvas pixels. */
 const PX_PER_M = 1.5;
@@ -214,6 +217,15 @@ export function Minimap(): ReactNode {
       g.stroke();
     }
     g.restore();
+
+    // Quest targets (main objective, side quests): pins, held on the rim when off the mini view.
+    for (const pin of storyStore.getState().pins) {
+      const [qx, qy] = base.toPx(pin.x, pin.z);
+      const dx = (qx - px) * scale, dy = (qy - py) * scale;
+      const rx = dx * Math.cos(yaw) - dy * Math.sin(yaw), ry = dx * Math.sin(yaw) + dy * Math.cos(yaw);
+      const lim = r - size * 0.1, d = Math.hypot(rx, ry), k = d > lim ? lim / d : 1;
+      drawPin(g, r + rx * k, r + ry * k + size * 0.05, size * (pin.main ? 0.06 : 0.045), hex(pin.color), pin.icon);
+    }
 
     // Facing relative to the rotated map.
     const fx = Math.sin(telemetry.facing);
@@ -468,6 +480,7 @@ export function FullMap(): ReactNode {
       strokeRoute(g, pts, dpr, 1);
       drawPin(g, ...screen(route.x, route.z), 12 * dpr, '#2f6fd0', '🏁');
     }
+    for (const pin of storyStore.getState().pins) drawPin(g, ...screen(pin.x, pin.z), (pin.main ? 13 : 10) * dpr, hex(pin.color), pin.icon);
 
     // Hovered place: outline (or ring round the pin) and a name tag by the cursor.
     const hv = hover.current;
@@ -729,6 +742,8 @@ export function FullMap(): ReactNode {
             <span><i style={{ background: '#0f8a8a' }} />腳踏車站</span>
             <span><i style={{ background: '#c0562b' }} />計時賽起點</span>
             {nav && <span><i style={{ background: '#2f6fd0' }} />導航路線</span>}
+            <span><i style={{ background: '#f08a24' }} />主線目標</span>
+            <span><i style={{ background: '#1f8f4a' }} />支線目標</span>
           </div>
           <span className="map-keys"><kbd>＋</kbd><kbd>－</kbd> 縮放　<kbd>←↑→↓</kbd> 移動　<kbd>M</kbd> 關閉</span>
         </header>

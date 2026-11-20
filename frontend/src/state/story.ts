@@ -63,6 +63,8 @@ export interface StoryState {
   live: { distance: number | null; bearing: number | null; timer: string | null; stamina: number | null; note: string | null; place: string | null; photoSpot?: string | null };
   /** Achievements waiting for their popup (first = showing). */
   unlockQueue: string[];
+  /** Quest targets for the minimap and full map (same as the beacons). */
+  pins: { key: string; x: number; z: number; icon: string; color: number; main?: boolean }[];
   /** Big moments (side quest done, day over): confetti and a card. */
   celebration: { title: string; sub: string; at: number } | null;
 }
@@ -113,6 +115,7 @@ export const storyStore = createStore<StoryState>()(() => ({
   live: { distance: null, bearing: null, timer: null, stamina: null, note: null, place: null },
   unlockQueue: [],
   celebration: null,
+  pins: [],
 }));
 
 export function useStory<T>(selector: (s: StoryState) => T): T {
@@ -159,6 +162,11 @@ export const storyActions = {
   },
   unlocked(id: string): void {
     set({ unlockQueue: [...get().unlockQueue, id] });
+  },
+  setPins(pins: StoryState['pins']): void {
+    const cur = get().pins;
+    if (cur.length === pins.length && cur.every((p, i) => p.key === pins[i]!.key && Math.abs(p.x - pins[i]!.x) < 0.5 && Math.abs(p.z - pins[i]!.z) < 0.5)) return;
+    set({ pins });
   },
   celebrate(title: string, sub: string): void {
     set({ celebration: { title, sub, at: Date.now() } });

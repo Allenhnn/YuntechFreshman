@@ -23,3 +23,6 @@ __pycache__/
 # own campus photos and reference material stay local
 **/assets-src/photos/
 .venv/
+
+# Face photos of real people (user-supplied): local only, never committed
+**/public/textures/faces/

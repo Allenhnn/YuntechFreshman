@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { useGame } from '../state/store';
+import { actions, useGame } from '../state/store';
 import { storyActions, useStory, type StoryProgress } from '../state/story';
-import { ACHIEVEMENTS, CLUBS, DAYS, MIXER, QUIZ, SIDE_QUESTS, PHOTO_SPOTS, TOUR_STOPS } from '../story/storyData';
+import { ACHIEVEMENTS, CLUBS, DAYS, MIXER, QUIZ, SIDE_QUESTS, PHOTO_SPOTS, TOUR_STOPS, type Step } from '../story/storyData';
 import { storyEvents } from '../story/storyRuntime';
 import { dispatch } from '../state/commands';
 import { useApi } from './api';
 
-const ARROWS = ['↑', '↗', '→', '↘', '↓', '↙', '←', '↖'];
 /** Hints for side quests not started yet. */
 const SIDE_HINTS: Record<string, string> = {
   lostFound: '走在人行道上，留意地上發亮的東西',
@@ -25,38 +24,105 @@ function sideText(id: string, p: StoryProgress): string {
   return q.text.replace('{n}', String(s.done.length)).replace('{total}', String(q.total)).replace('{target}', s.target ?? next);
 }
 
-/** HUD top-left: today's objective, distance and direction; one active side quest underneath. */
+const STEP_ICON: Record<string, string> = { talk: '💬', buy: '🛒', eat: '🍱', sport: '🏀', class: '📚', sleep: '🛏️', run: '🏁', quiz: '📝', enter: '📍' };
+const SIDE_ICON: Record<string, string> = { lostFound: '🪪', bikeReturn: '🚲', tour: '🚩', photo: '📸', athlete: '🏅', foodie: '🍱' };
+const WHO: Record<string, string> = {
+  wakeD1: '書桌', nurse: '健康中心護理師', roommateD2: '室友阿凱', bibD3: '室友阿凱', summary: '室友阿凱', mixer: '聯誼的同學',
+  assembly: '週會座位', clubFair: '社團攤位', study: '圖書館的座位',
+};
+
+/** A plain instruction for the step: where to go and what to press. */
+function howTo(step: Step): string {
+  const c = step.cond;
+  switch (c.t) {
+    case 'talk': return `走到${step.place}，靠近${WHO[c.scene] ?? '對方'}按 E`;
+    case 'buy': return c.shop === 'hilife' ? `走進${step.place}，按 E 打開萊爾富買一樣東西` : `走到${step.place}的攤位前，按 E 點餐`;
+    case 'eat': return c.item === 'cupNoodles' ? '打開背包（Tab）點泡麵，或按快捷鍵使用' : '打開背包（Tab）點食物，或按快捷鍵 1–5 使用';
+    case 'sport': return '走到籃球場的籃框下，按 E 開始 60 秒投籃挑戰';
+    case 'class': return `走進${step.place}，留在教室裡等點名（離開會被記翹課）`;
+    case 'sleep': return `回到${step.place}，按 E 睡覺`;
+    case 'run': return '跟著箭頭依序穿過拱門；Shift 衝刺會消耗體力';
+    case 'quiz': return `走進${step.place}，按 E 入座考試`;
+    case 'enter': return `走到${step.place}`;
+  }
+}
+
+/** HUD top-left: the main objective (what, how, where) and the active side quests. */
 export function QuestTracker(): ReactNode {
   const enabled = useStory((s) => s.enabled);
   const p = useStory((s) => s.progress);
   const live = useStory((s) => s.live);
+  const nav = useGame((s) => s.nav);
   if (!enabled) return null;
   const day = DAYS[p.day - 1];
   const step = day?.steps[p.step];
-  const sideId = Object.keys(p.side).find((k) => p.side[k]!.state === 'active');
+  const sides = Object.keys(p.side).filter((k) => p.side[k]!.state === 'active');
   return (
-    <div className="quest-tracker">
-      {day && step ? (
-        <>
-          <div className="qt-head"><b>Day {p.day}</b>・{day.title}<span className="qt-step">{p.step + 1}/{day.steps.length}</span></div>
-          <div className="qt-goal">{step.text}</div>
-          <div className="qt-meta">
-            {live.distance === 0 ? <span className="qt-here">📍 就在這裡</span>
-              : live.distance !== null && <span>{ARROWS[live.bearing ?? 0]} {live.distance} m・{live.place ?? step.place}</span>}
-            {live.timer && <span className="qt-timer">{live.timer}</span>}
-          </div>
-          {live.stamina !== null && (
-            <div className="qt-stamina" title="體力"><i style={{ width: `${live.stamina * 100}%` }} className={live.note ? 'tired' : ''} /></div>
-          )}
-          {live.note && <div className="qt-note">{live.note}</div>}
-        </>
-      ) : (
-        <div className="qt-head"><b>🎓 第一週完成</b>・自由探索</div>
-      )}
-      {sideId && <div className="qt-side">📌 {SIDE_QUESTS.find((q) => q.id === sideId)?.title}：{sideText(sideId, p)}</div>}
-      <div className="qt-keys"><kbd>J</kbd> 任務・<kbd>G</kbd> 導航</div>
+    <div className="qt">
+      <section className="qt-main">
+        <header>
+          <span className="qt-tag">主線</span>
+          {day ? <><b className="qt-day">DAY {p.day}</b><span className="qt-title">{day.title}</span></> : <span className="qt-title">第一週完成・自由探索</span>}
+        </header>
+        {day && step ? (
+          <>
+            <div className="qt-steps">{day.steps.map((st, i) => <i key={st.id} className={i < p.step ? 'done' : i === p.step ? 'now' : ''} />)}</div>
+            <div className="qt-objective">
+              <span className="qt-icon">{STEP_ICON[step.cond.t] ?? '📍'}</span>
+              <div>
+                <b>{step.text}</b>
+                <small>{howTo(step)}</small>
+              </div>
+            </div>
+            <div className="qt-chips">
+              {live.distance === 0 ? <span className="chip-here">📍 就在這裡</span>
+                : live.distance !== null && <span className="chip-dist"><i style={{ transform: `rotate(${(live.bearing ?? 0) * 45}deg)` }}>↑</i>{live.place ?? step.place}・{live.distance} m</span>}
+              {live.timer && <span className="chip-timer">{live.timer}</span>}
+              {live.distance !== 0 && (nav ? <span className="chip-nav on">🧭 導航中</span> : <span className="chip-nav"><kbd>G</kbd> 導航</span>)}
+            </div>
+            {live.stamina !== null && <div className="qt-stamina" title="體力"><i style={{ width: `${live.stamina * 100}%` }} className={live.note ? 'tired' : ''} /></div>}
+            {live.note && <div className="qt-note">{live.note}</div>}
+          </>
+        ) : (
+          <div className="qt-objective"><span className="qt-icon">🎓</span><div><b>主線全部完成！</b><small>繼續完成支線和成就，或在校園裡自由探索</small></div></div>
+        )}
+      </section>
+      <section className="qt-side">
+        <header><span className="qt-tag">支線</span><span className="qt-count">{sides.length ? `${sides.length} 個進行中` : '尚無進行中'}</span></header>
+        {sides.slice(0, 2).map((id) => {
+          const q = SIDE_QUESTS.find((x) => x.id === id)!;
+          const st = p.side[id]!;
+          return (
+            <div key={id} className="qt-side-row">
+              <span className="qt-side-icon">{SIDE_ICON[id] ?? '📌'}</span>
+              <div>
+                <b>{q.title}<em>{st.done.length}/{q.total}</em></b>
+                <small>{sideText(id, p)}</small>
+                <span className="qt-bar"><i style={{ width: `${(st.done.length / q.total) * 100}%` }} /></span>
+              </div>
+            </div>
+          );
+        })}
+        {!sides.length && <small className="qt-empty">在校園裡逛逛會觸發支線（按 J 查看提示）</small>}
+        {sides.length > 2 && <small className="qt-empty">還有 {sides.length - 2} 個支線，按 J 查看</small>}
+      </section>
+      <footer><kbd>J</kbd> 任務清單・<kbd>G</kbd> 導航到主線</footer>
     </div>
   );
+}
+
+/** Big 3-2-1 / 開始！ in the middle of the screen before a mini-game (store.countdown; the track
+ * time trial's own countdown shows here too). */
+export function BigCountdown(): ReactNode {
+  const api = useApi();
+  const cd = useGame((s) => s.countdown);
+  const race = useGame((s) => s.race);
+  const raceText = race?.phase === 'countdown' ? String(Math.max(1, Math.ceil(race.countdown))) : null;
+  const text = cd?.text ?? raceText;
+  const key = cd ? cd.id : raceText;
+  useEffect(() => { if (text) api.click(); }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (!text) return null;
+  return <div className="big-countdown"><b key={key ?? ''} className={/\d/.test(text) ? '' : 'go'}>{text}</b></div>;
 }
 
 /** Achievement unlocked: a gold card under the toast for a few seconds. */
@@ -383,18 +449,18 @@ function Wake(): ReactNode {
   const [sleepy, setSleepy] = useState(0.2);
   const [left, setLeft] = useState(20);
   const [done, setDone] = useState<boolean | null>(null);
-  const sleepyRef = useRef(sleepy);
-  sleepyRef.current = sleepy;
+  const [started, setStarted] = useState(false);
+  useEffect(() => { actions.startCountdown(() => setStarted(true)); }, []);
   useEffect(() => {
-    if (done !== null) return;
+    if (done !== null || !started) return;
     const t = window.setInterval(() => {
       setSleepy((s) => Math.min(1, s + 0.035));
       setLeft((l) => l - 0.1);
     }, 100);
     return () => window.clearInterval(t);
-  }, [done]);
+  }, [done, started]);
   useEffect(() => {
-    if (done !== null) return;
+    if (done !== null || !started) return;
     if (sleepy >= 1) setDone(false);
     else if (left <= 0) setDone(true);
   }, [sleepy, left, done]);

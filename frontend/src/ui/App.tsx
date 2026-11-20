@@ -12,7 +12,7 @@ import { PhoneDrawer } from './phone';
 import { ElevatorModal, Fade, InteractPrompt, ShopModal } from './elevator';
 import { ChatBox } from './chat';
 import { CameraOverlay } from './camera';
-import { AchievementPopup, Celebration, QuestLog, QuestTracker, StoryModal } from './story';
+import { AchievementPopup, BigCountdown, Celebration, QuestLog, QuestTracker, StoryModal } from './story';
 import './ui.css';
 
 function App(): ReactNode {
@@ -33,6 +33,7 @@ function App(): ReactNode {
       {phase === 'playing' && modal === 'quests' && <QuestLog />}
       {phase === 'playing' && <AchievementPopup />}
       {phase === 'playing' && <Celebration />}
+      {phase === 'playing' && <BigCountdown />}
       {phase === 'playing' && <InteractPrompt />}
       <Fade />
       {phase === 'loading' && <LoadingScreen />}
