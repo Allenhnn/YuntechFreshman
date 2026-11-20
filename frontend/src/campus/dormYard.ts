@@ -1,18 +1,13 @@
 import {
   BoxGeometry,
   CanvasTexture,
-  Color,
-  CylinderGeometry,
   Group,
-  InstancedMesh,
-  Matrix4,
   Mesh,
   MeshStandardMaterial,
   PlaneGeometry,
   Quaternion,
   RepeatWrapping,
   SRGBColorSpace,
-  TorusGeometry,
   Vector3,
   type BufferGeometry,
   type Scene,
@@ -20,6 +15,7 @@ import {
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RAPIER } from '../physics/physics';
 import type { ResourceTracker } from '../core/resources';
+import { mulberry32 } from '../core/math';
 import type { CampusData, Ring } from './campusTypes';
 
 /**
@@ -52,6 +48,18 @@ export const DORM_GATES: readonly GateMark[] = [
   { name: '學生宿舍E.F 後門', a: [97.0, 388.3], b: [118.7, 380.6] },
 ];
 
+/**
+ * Each dorm group (A, B, C, D, E.F) is one closed courtyard reached only through its two gates; the
+ * groups do not connect. Three-wing groups have a third gap between two wings: closed with a plain
+ * wall (OSM building ids of the two wings; the wall follows the shortest segment between them).
+ */
+const CLOSED_GAPS: readonly [number, number][] = [
+  [234786931, 234786932], // 學生宿舍A1 – A2
+  [234786934, 234786935], // 學生宿舍B1 – B2
+  [296668592, 296668595], // 學生宿舍C (west wing – east wing, toward the C/D courtyard)
+  [296668593, 296668594], // 學生宿舍D (west wing – east wing, toward the C/D courtyard)
+];
+
 /** Bike parking rows (polylines). */
 const BIKE_ROWS: readonly (readonly number[])[] = [
   [30.3, 330.8, 32.9, 349.3],
@@ -68,19 +76,40 @@ const SHEDS: readonly Ring[] = [
   [27.0, 411.7, 39.4, 409.5, 44.4, 431.3, 32.5, 433.5],
 ];
 
+/** Shed frame: centre, long-axis unit vector, length and width (long axis between the short sides). */
+function shedFrame(s: Ring): { cx: number; cz: number; lx: number; lz: number; L: number; W: number } {
+  const m0 = [(s[0]! + s[2]!) / 2, (s[1]! + s[3]!) / 2], m1 = [(s[4]! + s[6]!) / 2, (s[5]! + s[7]!) / 2];
+  const L = Math.hypot(m1[0]! - m0[0]!, m1[1]! - m0[1]!);
+  return { cx: (m0[0]! + m1[0]!) / 2, cz: (m0[1]! + m1[1]!) / 2, lx: (m1[0]! - m0[0]!) / L, lz: (m1[1]! - m0[1]!) / L, L, W: Math.hypot(s[2]! - s[0]!, s[3]! - s[1]!) };
+}
+
 /**
- * Rideable vehicles in the dorm bike parking (the parked rows are scenery): one bike just before the
- * start of each row, one beside the north shed, and the dorm scooter by the road next to the new-player
- * start (faster than a bike).
+ * Every bike in the dorm parking rows and sheds — all rideable (the bike system draws and rides them)
+ * — plus the dorm scooter by the road next to the new-player start (faster than a bike).
+ * Seeded, so the same bikes stand in the same places every visit.
  */
 export function dormRideables(): { x: number; z: number; yaw: number; kind: 'bike' | 'scooter' }[] {
   const out: { x: number; z: number; yaw: number; kind: 'bike' | 'scooter' }[] = [];
-  for (const r of BIKE_ROWS) {
-    const ax = r[0]!, az = r[1]!, len = Math.hypot(r[2]! - ax, r[3]! - az);
-    const ux = (r[2]! - ax) / len, uz = (r[3]! - az) / len;
-    out.push({ x: ax - ux * 1.1, z: az - uz * 1.1, yaw: Math.atan2(-uz, ux) + Math.PI / 2, kind: 'bike' });
+  const rnd = mulberry32(20261120);
+  const row = (ax: number, az: number, bx: number, bz: number, step: number, facing: number): void => {
+    const len = Math.hypot(bx - ax, bz - az);
+    const ux = (bx - ax) / len, uz = (bz - az) / len;
+    for (let t = 0.4; t < len - 0.3; t += step) {
+      if (rnd() < 0.12) continue; // the odd empty slot
+      // Bike axis (+Z local) across the row; yaw maps +Z onto (sin, cos).
+      out.push({ x: ax + ux * t, z: az + uz * t, yaw: Math.atan2(-uz, ux) + Math.PI / 2 + facing + (rnd() - 0.5) * 0.25, kind: 'bike' });
+    }
+  };
+  for (const r of BIKE_ROWS) for (let i = 0; i + 3 < r.length; i += 2) row(r[i]!, r[i + 1]!, r[i + 2]!, r[i + 3]!, 0.75, 0);
+  for (const sh of SHEDS) {
+    const f = shedFrame(sh);
+    const toWorld = (a: number, b: number): [number, number] => [f.cx + f.lx * a - f.lz * b, f.cz + f.lz * a + f.lx * b];
+    for (const side of [-1, 1]) {
+      const [ax, az] = toWorld(-f.L / 2 + 0.5, side * (f.W / 2 - 1.3));
+      const [bx, bz] = toWorld(f.L / 2 - 0.5, side * (f.W / 2 - 1.3));
+      row(ax, az, bx, bz, 0.7, side > 0 ? Math.PI : 0);
+    }
   }
-  out.push({ x: 25.8, z: 300.5, yaw: Math.PI / 2, kind: 'bike' });
   out.push({ x: 27.4, z: 314.6, yaw: 0, kind: 'scooter' });
   return out;
 }
@@ -112,13 +141,6 @@ function merged(parts: BufferGeometry[]): BufferGeometry {
   return g;
 }
 const box = (w: number, h: number, d: number, x = 0, y = 0, z = 0): BufferGeometry => new BoxGeometry(w, h, d).translate(x, y, z);
-function tube(a: [number, number, number], b: [number, number, number], r: number): BufferGeometry {
-  const from = new Vector3(...a), to = new Vector3(...b), dir = to.clone().sub(from);
-  const g = new CylinderGeometry(r, r, dir.length(), 6, 1);
-  g.applyQuaternion(new Quaternion().setFromUnitVectors(new Vector3(0, 1, 0), dir.normalize()));
-  return g.translate((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2);
-}
-
 function canvas(tracker: ResourceTracker, w: number, h: number, paint: (g: CanvasRenderingContext2D) => void): CanvasTexture {
   const c = document.createElement('canvas');
   c.width = w;
@@ -131,7 +153,18 @@ function canvas(tracker: ResourceTracker, w: number, h: number, paint: (g: Canva
   return t;
 }
 
-export function createDormYard(scene: Scene, physics: RAPIER.World, campus: CampusData, tracker: ResourceTracker): { dispose(): void } {
+/** Sensor gates open within OPEN_R of the gate centre and close past CLOSE_R. */
+const OPEN_R = 4.5;
+const CLOSE_R = 6.5;
+const GATE_SPEED = 2.2; // m/s of leaf travel
+
+export interface DormYard {
+  /** Per frame (sensor gates); returns true on the frame a gate starts to open (for a sound). */
+  update(dt: number, px: number, py: number, pz: number): boolean;
+  dispose(): void;
+}
+
+export function createDormYard(scene: Scene, physics: RAPIER.World, campus: CampusData, tracker: ResourceTracker): DormYard {
   const root = new Group();
   root.name = 'dorm yard (gates, bike parking, sheds)';
   scene.add(root);
@@ -143,6 +176,10 @@ export function createDormYard(scene: Scene, physics: RAPIER.World, campus: Camp
   const iron = mat(0x5a6168, { metalness: 0.5, roughness: 0.5 });
   const tile = mat(0xb5463a, { roughness: 0.8 });
   const dark = mat(0x2a2d31, { roughness: 0.5 });
+  const sensorRed = mat(0xc62828, { emissive: 0xff3030, emissiveIntensity: 0.9 });
+  const sensorGreen = mat(0x2e7d32, { emissive: 0x30ff60, emissiveIntensity: 0.9 });
+  interface SensorGate { x: number; z: number; leaf: Mesh; light: Mesh; block: RAPIER.Collider; open: number; target: number }
+  const gates: SensorGate[] = [];
   const pavers = tracker.material(new MeshStandardMaterial({
     map: canvas(tracker, 128, 128, (g) => {
       for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) {
@@ -184,6 +221,39 @@ export function createDormYard(scene: Scene, physics: RAPIER.World, campus: Camp
     }
     return best;
   };
+  // Plain walls closing the third gap of each three-wing group.
+  for (const [ia, ib] of CLOSED_GAPS) {
+    const A = dorms.find((b) => b.id === ia), B = dorms.find((b) => b.id === ib);
+    if (!A || !B) continue;
+    const oa = outline(A.outer), ob = outline(B.outer);
+    let best: { d: number; p: [number, number]; q: [number, number] } | null = null;
+    for (const p of oa) for (const q of ob) {
+      const d = Math.hypot(p[0] - q[0], p[1] - q[1]);
+      if (!best || d < best.d) best = { d, p, q };
+    }
+    if (!best || best.d < 0.4 || best.d > 25) continue;
+    const ux = (best.q[0] - best.p[0]) / best.d, uz = (best.q[1] - best.p[1]) / best.d;
+    const cx = (best.p[0] + best.q[0]) / 2, cz = (best.p[1] + best.q[1]) / 2;
+    const yaw = Math.atan2(-uz, ux);
+    const grp = new Group();
+    grp.position.set(cx, 0, cz);
+    grp.rotation.y = yaw;
+    root.add(grp);
+    const w = best.d + 0.1;
+    for (const [geo, m] of [[box(w, WALL_H, WALL_T, 0, WALL_H / 2, 0), white], [box(w + 0.06, 0.08, WALL_T + 0.1, 0, WALL_H + 0.04, 0), coping]] as const) {
+      const mesh = new Mesh(tracker.geometry(geo), m);
+      mesh.castShadow = mesh.receiveShadow = true;
+      grp.add(mesh);
+    }
+    const n = Math.max(1, Math.round(w / 3));
+    for (let i = 0; i <= n; i++) {
+      const pil = new Mesh(tracker.geometry(box(0.42, WALL_H + 0.18, 0.42, -w / 2 + (i * w) / n, (WALL_H + 0.18) / 2, 0)), white);
+      pil.castShadow = true;
+      grp.add(pil);
+    }
+    solid(cx, WALL_H / 2, cz, w / 2, WALL_H / 2, WALL_T / 2 + 0.05, yaw);
+  }
+
   for (const g of DORM_GATES) {
     const mx = (g.a[0] + g.b[0]) / 2, mz = (g.a[1] + g.b[1]) / 2;
     const br = bridge(mx, mz);
@@ -230,13 +300,20 @@ export function createDormYard(scene: Scene, physics: RAPIER.World, campus: Camp
       slope.rotation.x = side * 0.42;
     }
     add(box(roofW + 0.1, 0.12, 0.18, 0, 3.66, 0), mat(0x8c3a30)); // ridge
-    // Sliding gate, pushed open behind the right-hand wall; card reader by the left pillar.
+    // Sensor sliding gate (感應門): closed across the opening, slides behind the right-hand wall
+    // when someone comes close; card reader and a sensor light by the left pillar.
     const bars: BufferGeometry[] = [box(GATE_W, 0.06, 0.06, 0, 0.12, 0), box(GATE_W, 0.06, 0.06, 0, 1.75, 0)];
     for (let i = 0; i <= 14; i++) bars.push(box(0.035, 1.7, 0.035, -GATE_W / 2 + (i * GATE_W) / 14, 0.93, 0));
-    const gate = add(merged(bars), iron);
-    gate.position.set(GATE_W / 2 + 0.35 + GATE_W / 2 + 0.2, 0, 0.32);
+    const leaf = add(merged(bars), iron);
+    leaf.position.set(0, 0, 0.32);
     add(box(0.14, 1.15, 0.14, -GATE_W / 2 - 0.9, 0.58, 0.6), iron);
     add(box(0.22, 0.3, 0.1, -GATE_W / 2 - 0.9, 1.25, 0.63), dark);
+    const light = add(box(0.16, 0.16, 0.06, -GATE_W / 2 - 0.35, 2.55, 0.38), sensorRed);
+    const [gx, gz] = world(0, 0.32);
+    const block = physics.createCollider(RAPIER.ColliderDesc.cuboid(GATE_W / 2, 1.0, 0.12).setTranslation(gx, 1.0, gz)
+      .setRotation((() => { const q = new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), yaw); return { x: q.x, y: q.y, z: q.z, w: q.w }; })()));
+    colliders.push(block);
+    gates.push({ x: cx, z: cz, leaf, light, block, open: 0, target: 0 });
     // Pavers through the gate (both sides).
     const path = new Mesh(tracker.geometry(new PlaneGeometry(GATE_W - 0.4, 14).rotateX(-Math.PI / 2).translate(0, 0.035, 0)), pavers);
     (path.geometry.attributes.uv!.array as Float32Array).forEach((v, i, arr) => { arr[i] = v * (i % 2 === 0 ? 2 : 7); });
@@ -244,37 +321,10 @@ export function createDormYard(scene: Scene, physics: RAPIER.World, campus: Camp
     grp.add(path);
   }
 
-  // --- Parked bikes (rows and sheds) -------------------------------------------------------------
-  const bikeFrame = merged([
-    tube([0, 0.3, -0.46], [0, 0.62, -0.18], 0.022), tube([0, 0.62, -0.18], [0, 0.66, 0.28], 0.022),
-    tube([0, 0.3, -0.06], [0, 0.66, 0.28], 0.022), tube([0, 0.3, -0.06], [0, 0.3, -0.46], 0.018),
-    tube([0, 0.62, -0.18], [0, 0.3, -0.06], 0.022), tube([0, 0.66, 0.28], [0, 0.3, 0.46], 0.02),
-    box(0.5, 0.03, 0.03, 0, 0.82, 0.3), tube([0, 0.66, 0.28], [0, 0.82, 0.3], 0.018), box(0.12, 0.04, 0.22, 0, 0.66, -0.2),
-    box(0.26, 0.16, 0.2, 0, 0.78, 0.44), // front basket
-  ]);
-  const wheelGeo = new TorusGeometry(0.3, 0.022, 5, 14).rotateY(Math.PI / 2).translate(0, 0.3, 0);
-  const spots: { x: number; z: number; yaw: number }[] = [];
-  const row = (ax: number, az: number, bx: number, bz: number, step: number, facing: number): void => {
-    const len = Math.hypot(bx - ax, bz - az);
-    const ux = (bx - ax) / len, uz = (bz - az) / len;
-    for (let t = 0.4; t < len - 0.3; t += step) {
-      if (Math.random() < 0.12) continue; // the odd empty slot
-      // Bike axis (+Z local) across the row; yaw maps +Z onto (sin, cos).
-      const yaw = Math.atan2(-uz, ux) + Math.PI / 2 + facing + (Math.random() - 0.5) * 0.25;
-      spots.push({ x: ax + ux * t, z: az + uz * t, yaw });
-    }
-  };
-  for (const r of BIKE_ROWS) for (let i = 0; i + 3 < r.length; i += 2) row(r[i]!, r[i + 1]!, r[i + 2]!, r[i + 3]!, 0.7, 0);
-
   // --- Sheds --------------------------------------------------------------------------------------
   const roofMat = mat(0x5f9a78, { roughness: 0.4, transparent: true, opacity: 0.88 });
   for (const s of SHEDS) {
-    // Long axis from the first short side's midpoint to the opposite one.
-    const m0 = [(s[0]! + s[2]!) / 2, (s[1]! + s[3]!) / 2], m1 = [(s[4]! + s[6]!) / 2, (s[5]! + s[7]!) / 2];
-    const cx = (m0[0]! + m1[0]!) / 2, cz = (m0[1]! + m1[1]!) / 2;
-    const L = Math.hypot(m1[0]! - m0[0]!, m1[1]! - m0[1]!);
-    const Wd = Math.hypot(s[2]! - s[0]!, s[3]! - s[1]!);
-    const lx = (m1[0]! - m0[0]!) / L, lz = (m1[1]! - m0[1]!) / L; // long axis
+    const { cx, cz, lx, lz, L, W: Wd } = shedFrame(s);
     const grp = new Group();
     grp.position.set(cx, 0, cz);
     grp.rotation.y = Math.atan2(-lz, lx); // local +x = long axis
@@ -296,35 +346,26 @@ export function createDormYard(scene: Scene, physics: RAPIER.World, campus: Camp
     const slab = new Mesh(tracker.geometry(new PlaneGeometry(L, Wd).rotateX(-Math.PI / 2).translate(0, 0.03, 0)), mat(0xa9a59d, { polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -8 }));
     slab.receiveShadow = true;
     grp.add(slab);
-    // Two rows of bikes along the long sides, nosed in.
-    const toWorld = (ax: number, az: number): [number, number] => [cx + lx * ax - lz * az, cz + lz * ax + lx * az];
-    for (const side of [-1, 1]) {
-      const [ax, az] = toWorld(-L / 2 + 0.5, side * (Wd / 2 - 1.3));
-      const [bx, bz] = toWorld(L / 2 - 0.5, side * (Wd / 2 - 1.3));
-      row(ax, az, bx, bz, 0.62, side > 0 ? Math.PI : 0);
-    }
   }
 
-  const colors = [0x1f8f4a, 0x2c6fd6, 0xf2c230, 0xd8553a, 0x1d1d20, 0xf4f4f4, 0x8a5bd6, 0x9ea4aa].map((c) => new Color(c));
-  const frames = new InstancedMesh(tracker.geometry(bikeFrame), mat(0xffffff, { roughness: 0.5 }), Math.max(1, spots.length));
-  const wheels = new InstancedMesh(tracker.geometry(wheelGeo), dark, Math.max(1, spots.length * 2));
-  const M = new Matrix4(), W = new Matrix4(), q = new Quaternion(), up = new Vector3(0, 1, 0), p = new Vector3(), one = new Vector3(1, 1, 1);
-  spots.forEach((s, i) => {
-    M.compose(p.set(s.x, 0, s.z), q.setFromAxisAngle(up, s.yaw), one);
-    frames.setMatrixAt(i, M);
-    frames.setColorAt(i, colors[i % colors.length]!);
-    wheels.setMatrixAt(i * 2, W.copy(M).multiply(new Matrix4().makeTranslation(0, 0, 0.46)));
-    wheels.setMatrixAt(i * 2 + 1, W.copy(M).multiply(new Matrix4().makeTranslation(0, 0, -0.46)));
-  });
-  frames.count = spots.length;
-  wheels.count = spots.length * 2;
-  for (const m of [frames, wheels]) {
-    m.castShadow = true;
-    m.computeBoundingSphere();
-    root.add(m);
-  }
-
+  const travel = GATE_W + 0.55;
   return {
+    update(dt, px, py, pz) {
+      let started = false;
+      for (const g of gates) {
+        const d = Math.hypot(px - g.x, pz - g.z);
+        const want = py < 1.5 && d < OPEN_R ? 1 : d > CLOSE_R || py >= 1.5 ? 0 : g.target;
+        if (want === 1 && g.target === 0) started = true;
+        g.target = want;
+        if (g.open === g.target) continue;
+        g.open = g.target > g.open ? Math.min(1, g.open + (dt * GATE_SPEED) / travel) : Math.max(0, g.open - (dt * GATE_SPEED) / travel);
+        g.leaf.position.x = g.open * travel;
+        g.light.material = g.open > 0 ? sensorGreen : sensorRed;
+        // Passable once it is mostly open; blocks again as soon as it starts closing over the gap.
+        g.block.setEnabled(g.open < 0.6);
+      }
+      return started;
+    },
     dispose() {
       for (const c of colliders) physics.removeCollider(c, false);
       root.removeFromParent();

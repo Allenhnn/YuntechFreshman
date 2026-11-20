@@ -16,6 +16,7 @@ import {
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { CampusData, CampusRoad } from '../campus/campusTypes';
 import type { ResourceTracker } from '../core/resources';
+import { isLongtanMain } from '../campus/longtanConst';
 
 /**
  * Ambient campus life: students walking the footpaths and campus lanes, students cycling the campus
@@ -177,7 +178,7 @@ const LEG = 0.8;
 const ARM = 0.6;
 
 /** 大學路 (二段 / 三段) and 龍潭路, the public streets beside the main gate. */
-const streetByGate = (r: CampusRoad): boolean => r.kind !== 'walkway' && !!r.name && (r.name.startsWith('大學路') || r.name === '龍潭路');
+const streetByGate = (r: CampusRoad): boolean => r.kind !== 'walkway' && !!r.name && (r.name.startsWith('大學路') || isLongtanMain(r));
 
 /** `blocked`: places people must not walk over (sunken courtyards cut into the ground). */
 export function createTraffic(scene: Scene, campus: CampusData, tracker: ResourceTracker, blocked?: (x: number, z: number) => boolean): Traffic {

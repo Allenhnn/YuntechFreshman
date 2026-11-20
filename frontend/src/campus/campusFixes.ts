@@ -77,7 +77,9 @@ export function divideLongtan(campus: CampusData): void {
   let cut = -1;
   for (let i = 0; i < p.length; i += 2) if (p[i]! >= LONGTAN_DIVIDED.westX - 0.5) cut = i;
   if (cut < 2) return;
-  const east = { ...road, points: p.slice(0, cut + 2), width: LONGTAN_DIVIDED.width, median: LONGTAN_DIVIDED.median };
+  // 龍潭路 is one road (user, 2026-11-20): the wide stretch keeps its width and sidewalks but has no
+  // planted median — one carriageway each way with a centre line.
+  const east = { ...road, points: p.slice(0, cut + 2), width: LONGTAN_DIVIDED.width };
   const west = { ...road, points: p.slice(cut) };
   campus.roads.splice(idx, 1, east, ...(west.points.length >= 4 ? [west] : []));
   // The two-way stretch west of here (this piece and the polyline on from the N–S branch).

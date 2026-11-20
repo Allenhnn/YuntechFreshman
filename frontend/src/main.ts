@@ -961,6 +961,7 @@ async function boot(): Promise<void> {
     if (playing && !streamAt && !ui.fading) updateNav(time, Transform.x[eid]!, Transform.z[eid]!);
     navLine.update(dt, time);
     if (autoDoors.update(dt, Transform.x[eid]!, Transform.y[eid]!, Transform.z[eid]!) && playing) audio.play('click', 0.4);
+    if (dormYard.update(dt, Transform.x[eid]!, Transform.y[eid]!, Transform.z[eid]!) && playing) audio.play('click', 0.4);
     const gateEvent = sensorGates.update(dt, time, Transform.x[eid]!, Transform.z[eid]!, ui.inventory.some((s) => s?.id === 'studentCard'));
     if (playing && gateEvent === 'opened') { actions.toast('嗶！學生證感應成功'); audio.play('click'); }
     else if (playing && gateEvent === 'noCard') actions.toast('🚫 需要學生證感應才能通過');
