@@ -81,7 +81,7 @@ export function courtPit(src: BuildingSource): { rings: Ring[]; contains(x: numb
 }
 
 /** Triangle soup in group-local coordinates (x = plan x, y up, z = plan y), shared by meshes and trimesh colliders. */
-class Soup {
+export class Soup {
   readonly p: number[] = [];
   quad(a: number[], b: number[], c: number[], d: number[]): void {
     this.p.push(...a, ...b, ...c, ...a, ...c, ...d);
@@ -97,7 +97,7 @@ class Soup {
   }
 }
 
-function canvasTex(tracker: ResourceTracker, w: number, h: number, paint: (g: CanvasRenderingContext2D) => void): CanvasTexture {
+export function canvasTex(tracker: ResourceTracker, w: number, h: number, paint: (g: CanvasRenderingContext2D) => void): CanvasTexture {
   const c = document.createElement('canvas');
   c.width = w;
   c.height = h;
@@ -110,7 +110,7 @@ function canvasTex(tracker: ResourceTracker, w: number, h: number, paint: (g: Ca
   return t;
 }
 
-function speckle(g: CanvasRenderingContext2D, w: number, h: number, n: number, colors: string[], seed: number): void {
+export function speckle(g: CanvasRenderingContext2D, w: number, h: number, n: number, colors: string[], seed: number): void {
   let s = seed;
   const r = (): number => ((s = (s * 16807) % 2147483647) / 2147483647);
   for (let i = 0; i < n; i++) {
