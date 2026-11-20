@@ -151,7 +151,7 @@ export interface Achievement {
 }
 
 export const ACHIEVEMENTS: Achievement[] = [
-  { id: 'lake', title: '跳雲夢湖', icon: '🌊', desc: '跳進雲夢湖', unavailable: '雲夢湖尚未加入地圖' },
+  { id: 'lake', title: '跳雲夢湖', icon: '🌊', desc: '跳進學生活動中心前的雲夢湖' },
   { id: 'run2020', title: '2020跑完', icon: '🏃', desc: '跑完雲科路跑全程' },
   { id: 'skip', title: '翹課', icon: '🚪', desc: '上課途中溜出教室', secret: true },
   { id: 'cheat', title: '作弊', icon: '👀', desc: '小考時偷看隔壁', secret: true },

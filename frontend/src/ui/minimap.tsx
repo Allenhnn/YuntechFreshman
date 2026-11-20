@@ -65,6 +65,16 @@ function renderBaseMap(data: CampusData): BaseMap {
     g.fill();
   }
 
+  for (const w of data.water ?? []) {
+    g.fillStyle = '#7cc3e0';
+    g.strokeStyle = '#5aa8c8';
+    g.lineWidth = 1.5;
+    g.beginPath();
+    ringPath(g, w.ring, toPx);
+    g.fill();
+    g.stroke();
+  }
+
   for (const lot of data.parking ?? []) {
     g.fillStyle = '#b4b2ab';
     g.beginPath();

@@ -68,6 +68,8 @@ export interface CampusData {
   trees: number[]; // flat [x, z, ...] from natural=tree nodes
   /** Scooter parks (added at load time, campus/scooterLots.ts) for the map. */
   parking?: { name: string; ring: Ring }[];
+  /** Ponds (added at load time, campus/ponds.ts) for the map. */
+  water?: { name: string; ring: Ring }[];
 }
 
 /** Chunk size for streaming (m). The campus + margin is roughly 6 x 6 chunks. */

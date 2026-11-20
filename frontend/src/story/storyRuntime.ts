@@ -93,6 +93,8 @@ export const storyEvents = {
   bikeHit: (): void => undefined,
   /** Took a cyclist's bike. */
   robBike: (): void => undefined,
+  /** Went into a pond (by name). */
+  lake: (_name: string): void => undefined,
   bikeMoved: (_metres: number): void => undefined,
   mount: (): void => undefined,
   dismount: (_x: number, _z: number): void => undefined,
@@ -480,6 +482,10 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
     setFlags({ safeMetres: 0 });
     toast('💥 撞到人了！路人：「欸！看路啦！」');
     d.sound('close');
+  };
+  storyEvents.lake = (name) => {
+    if (name === '雲夢湖') unlock('lake');
+    toast(name === '雲夢湖' ? '🌊 噗通！跳進雲夢湖了，全身濕透…' : '🪷 踩進荷花池了，小心別踩到荷花！');
   };
   storyEvents.robBike = () => {
     unlock('robBike');

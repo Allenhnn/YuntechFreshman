@@ -62,6 +62,7 @@ import { courtPit, createMgmtCourtyard } from './buildings/mgmtCourtyard';
 import { createDormCourtyard, dormCourtPit } from './buildings/dormCourtyard';
 import { createDormYard, dormRideables, dormYardClearings } from './campus/dormYard';
 import { createHilifeStore } from './buildings/hilifeStore';
+import { PONDS, WATER_Y, createPonds, pondAt } from './campus/ponds';
 import { createMbLobby } from './buildings/mbLobby';
 import { MAIN_GATE_GUARDHOUSE, createMainGate, gateTreeExclusions, inGateZone } from './campus/mainGate';
 import { addBoundaryZone } from './campus/boundaryZone';
@@ -214,10 +215,11 @@ async function boot(): Promise<void> {
     : undefined;
   const bikeStations = placeBikeStations(campus);
   actions.setBikeStations(bikeStations);
-  const keepClear = [...buildingFootprintRings(librarySrc), ...handBuiltSrcs.flatMap(buildingFootprintRings), ...stationClearings(bikeStations), ...gateTreeExclusions(), ...SCOOTER_LOTS.map((l) => l.ring), ...(court ? [court.treeFree] : []), ...yuntayTreeFree(), ...dormTreeFree(), dormPit.treeFree, ...dormYardClearings()];
+  const keepClear = [...buildingFootprintRings(librarySrc), ...handBuiltSrcs.flatMap(buildingFootprintRings), ...stationClearings(bikeStations), ...gateTreeExclusions(), ...SCOOTER_LOTS.map((l) => l.ring), ...(court ? [court.treeFree] : []), ...yuntayTreeFree(), ...dormTreeFree(), dormPit.treeFree, ...dormYardClearings(), ...PONDS.map((p) => p.ring)];
+  campus.water = PONDS.map((p) => ({ name: p.name, ring: p.ring }));
   const env = createCampusWorld(scene, physics, renderer, campus, sceneResources, {
     treeExclusions: keepClear,
-    groundHoles: [...buildingGroundHoles(librarySrc), ...(court?.rings ?? []), dormPit.ring],
+    groundHoles: [...buildingGroundHoles(librarySrc), ...(court?.rings ?? []), dormPit.ring, ...PONDS.map((p) => p.ring)],
     facades,
     entrances: traced?.entrances,
   });
@@ -244,6 +246,7 @@ async function boot(): Promise<void> {
   const dormCourtyard = createDormCourtyard(scene, physics, sceneResources);
   const dormYard = createDormYard(scene, physics, campus, sceneResources);
   const hilife = createHilifeStore(scene, physics, campus, sceneResources);
+  const ponds = createPonds(scene, physics, sceneResources);
   const mgmtCourtyard = mb ? createMgmtCourtyard(scene, physics, sceneResources, mb) : null;
   const mbLobby = mb ? createMbLobby(scene, physics, sceneResources, mb) : null;
 
@@ -318,7 +321,7 @@ async function boot(): Promise<void> {
   const navGraph = buildNavGraph(campus);
   const navLine = createNavLine(scene, sceneResources);
   const bikes = createBikeSystem(scene, bikeStations, sceneResources, dormRideables());
-  const inPit = (x: number, z: number): boolean => dormPit.contains(x, z) || !!court?.contains(x, z);
+  const inPit = (x: number, z: number): boolean => dormPit.contains(x, z) || !!court?.contains(x, z) || !!pondAt(x, z);
   const traffic = createTraffic(scene, campus, sceneResources, inPit);
   const applyAmbient = (a: GameState['ambient']): void => {
     traffic.setEnabled('people', a.people);
@@ -366,6 +369,7 @@ async function boot(): Promise<void> {
   trackFinished.add(onTrack);
   const navPointer = createNavPointer();
   let wasRiding = false;
+  let inWater = false;
   let lastNight = -1;
   const storyFrame: StoryFrame = { x: 0, z: 0, area: null, minutes: 0, riding: false, sprinting: false, playing: false, viewYaw: 0 };
   const insideBuilding = createBuildingTest(campus);
@@ -401,7 +405,7 @@ async function boot(): Promise<void> {
   const groundHeightAt = (x: number, z: number): number => {
     const ray = new RAPIER.Ray({ x, y: 2.5, z }, { x: 0, y: -1, z: 0 });
     const hit = physics.castRay(ray, 20, true, RAPIER.QueryFilterFlags.EXCLUDE_SENSORS, undefined, colliders[eid], undefined,
-      (c) => c.handle !== env.groundCollider.handle || !(library.isOverBasement(x, z) || !!court?.contains(x, z) || dormPit.contains(x, z)));
+      (c) => c.handle !== env.groundCollider.handle || !(library.isOverBasement(x, z) || !!court?.contains(x, z) || dormPit.contains(x, z) || !!pondAt(x, z)));
     return hit ? 2.5 - hit.timeOfImpact : 0;
   };
 
@@ -810,7 +814,7 @@ async function boot(): Promise<void> {
   // Over a basement the campus ground collider is ignored; the basement's own top slab takes over.
   const groundHandle = env.groundCollider.handle;
   const groundFilter = (c: { handle: number }): boolean =>
-    c.handle !== groundHandle || !(library.isOverBasement(Transform.x[eid]!, Transform.z[eid]!) || !!court?.contains(Transform.x[eid]!, Transform.z[eid]!) || dormPit.contains(Transform.x[eid]!, Transform.z[eid]!));
+    c.handle !== groundHandle || !(library.isOverBasement(Transform.x[eid]!, Transform.z[eid]!) || !!court?.contains(Transform.x[eid]!, Transform.z[eid]!) || dormPit.contains(Transform.x[eid]!, Transform.z[eid]!) || !!pondAt(Transform.x[eid]!, Transform.z[eid]!));
 
   const cameraFilter = (c: { handle: number }): boolean =>
     groundFilter(c) && !env.isBoundaryCollider(c.handle) && !buildings().some((b) => b.isCameraTransparent(c.handle));
@@ -956,7 +960,7 @@ async function boot(): Promise<void> {
       const riding = bikes.ridden >= 0;
       moveMods.fly = ui.tester.fly && !riding;
       moveMods.noclip = ui.tester.noclip && !riding;
-      moveMods.speed = playground?.frozen || sports.frozen || (ui.countdown && ui.countdown.text !== '開始！') ? 0 : ui.tester.speed * story.speedFactor * (bikes.riddenKind === 'scooter' ? SCOOTER_SPEED_FACTOR : 1);
+      moveMods.speed = playground?.frozen || sports.frozen || (ui.countdown && ui.countdown.text !== '開始！') ? 0 : ui.tester.speed * story.speedFactor * (bikes.riddenKind === 'scooter' ? SCOOTER_SPEED_FACTOR : 1) * (inWater ? 0.55 : 1);
       moveMods.noJump = sports.active;
       moveMods.bike = riding;
       moveMods.blocked = riding ? insideBuilding : null;
@@ -1007,6 +1011,19 @@ async function boot(): Promise<void> {
     }
     coins.render(world, time);
     traffic.update(dt, Transform.x[eid]!, Transform.z[eid]!);
+    ponds.update(dt, time);
+    {
+      // In the water: slow wading; a splash (and the story hears of it) on the way in.
+      const px = Transform.x[eid]!, pz = Transform.z[eid]!;
+      const pond = pondAt(px, pz);
+      const wet = !!pond && Transform.y[eid]! < WATER_Y + 0.15;
+      if (wet && !inWater && pond) {
+        ponds.splash(px, pz);
+        audio.play('close');
+        storyEvents.lake(pond.name);
+      }
+      inWater = wet;
+    }
     {
       const night = env.setTimeOfDay(ui.gameMinutes % 1440);
       if (night !== lastNight) {
@@ -1136,6 +1153,7 @@ async function boot(): Promise<void> {
     dormCourtyard.dispose();
     dormYard.dispose();
     hilife?.dispose();
+    ponds.dispose();
     mgmtCourtyard?.dispose();
     mbLobby?.dispose();
     interiors.dispose();
