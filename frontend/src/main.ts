@@ -61,6 +61,7 @@ import { createDormFeatures, dormTreeFree } from './buildings/dormFeatures';
 import { courtPit, createMgmtCourtyard } from './buildings/mgmtCourtyard';
 import { createDormCourtyard, dormCourtPit } from './buildings/dormCourtyard';
 import { createDormYard, dormRideables, dormYardClearings } from './campus/dormYard';
+import { createHilifeStore } from './buildings/hilifeStore';
 import { createMbLobby } from './buildings/mbLobby';
 import { MAIN_GATE_GUARDHOUSE, createMainGate, gateTreeExclusions, inGateZone } from './campus/mainGate';
 import { addBoundaryZone } from './campus/boundaryZone';
@@ -240,6 +241,7 @@ async function boot(): Promise<void> {
   const dormFeatures = createDormFeatures(scene, physics, campus, sceneResources, env.materials);
   const dormCourtyard = createDormCourtyard(scene, physics, sceneResources);
   const dormYard = createDormYard(scene, physics, campus, sceneResources);
+  const hilife = createHilifeStore(scene, physics, campus, sceneResources);
   const mgmtCourtyard = mb ? createMgmtCourtyard(scene, physics, sceneResources, mb) : null;
   const mbLobby = mb ? createMbLobby(scene, physics, sceneResources, mb) : null;
 
@@ -354,6 +356,7 @@ async function boot(): Promise<void> {
     bikeStations,
     groundAt: (x, z) => groundHeightAt(x, z),
     blocked: inPit,
+    hilife: hilife ? { counter: hilife.counter, clerk: hilife.clerk } : null,
   });
   const onSport = (kind: 'basketball' | 'volleyball' | 'soccer', score: number): void => storyEvents.sport(kind, score);
   const onTrack = (t: number): void => storyEvents.track(t);
@@ -1116,6 +1119,7 @@ async function boot(): Promise<void> {
     dormFeatures.dispose();
     dormCourtyard.dispose();
     dormYard.dispose();
+    hilife?.dispose();
     mgmtCourtyard?.dispose();
     mbLobby?.dispose();
     interiors.dispose();

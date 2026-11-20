@@ -10,6 +10,7 @@ import {
 } from './storyData';
 import { createBeacons, type Beacon } from './beacons';
 import { createNpcs, type NpcSpec } from './npcs';
+import { insidePoint as insidePointOf } from '../campus/insidePoint';
 
 /**
  * Runs the first week: checks the current step's condition against what the player does, starts
@@ -39,6 +40,8 @@ export interface StoryDeps {
   groundAt(x: number, z: number): number;
   /** Places nothing should be put (sunken courtyards). */
   blocked(x: number, z: number): boolean;
+  /** 萊爾富 in 學生活動中心: where customers stand and where the clerk stands. */
+  hilife: { counter: { x: number; z: number }; clerk: { x: number; z: number } } | null;
 }
 
 export interface StoryFrame {
@@ -98,15 +101,6 @@ export const storyEvents = {
 };
 
 const dayStart = (day: number, minuteOfDay: number): number => (day - 1) * 1440 + minuteOfDay;
-
-function inRingPt(x: number, z: number, r: number[]): boolean {
-  let hit = false;
-  for (let i = 0, n = r.length / 2, j = n - 1; i < n; j = i++) {
-    const xi = r[i * 2]!, zi = r[i * 2 + 1]!, xj = r[j * 2]!, zj = r[j * 2 + 1]!;
-    if (zi > z !== zj > z && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) hit = !hit;
-  }
-  return hit;
-}
 
 export function createStoryRuntime(d: StoryDeps): StoryRuntime {
   const st = () => storyStore.getState();
@@ -225,25 +219,9 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
   const beacons = createBeacons(d.scene, d.tracker);
   const npcs = createNpcs(d.scene, d.tracker);
   const insideCache = new Map<string, { x: number; z: number } | null>();
-  /** A spot well inside a building's footprint, close to its centre (for characters). */
   const insidePoint = (name: string): { x: number; z: number } | null => {
-    if (insideCache.has(name)) return insideCache.get(name)!;
-    const r = d.campus.buildings.find((b) => b.name === name)?.outer;
-    let best: { x: number; z: number; d: number } | null = null;
-    if (r) {
-      const xs = r.filter((_, i) => i % 2 === 0), zs = r.filter((_, i) => i % 2 === 1);
-      const cx = (Math.min(...xs) + Math.max(...xs)) / 2, cz = (Math.min(...zs) + Math.max(...zs)) / 2;
-      for (let dx = -60; dx <= 60; dx += 1.5) for (let dz = -60; dz <= 60; dz += 1.5) {
-        const x = cx + dx, z = cz + dz;
-        if ([[0, 0], [2.5, 0], [-2.5, 0], [0, 2.5], [0, -2.5]].every(([ox, oz]) => inRingPt(x + ox!, z + oz!, r))) {
-          const dd = Math.hypot(dx, dz);
-          if (!best || dd < best.d) best = { x, z, d: dd };
-        }
-      }
-    }
-    const out = best ? { x: best.x, z: best.z } : d.placeOf(name);
-    insideCache.set(name, out);
-    return out;
+    if (!insideCache.has(name)) insideCache.set(name, insidePointOf(d.campus, name) ?? d.placeOf(name));
+    return insideCache.get(name)!;
   };
   const LOOKS = {
     nurse: { shirt: 0xffffff, pants: 0xf8bbd0, hair: 0x2b211b, hat: 0xffffff },
@@ -279,12 +257,33 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
       add('cl3', '🏀 籃球社', near(c, 3, 3), { shirt: 0xf08a24, pants: 0x1f1f24, hair: 0x1c1a19 }, true);
     }
     if (step && (step.cond.t === 'class' || step.cond.t === 'quiz')) add('teacher', '老師', insidePoint(step.place), LOOKS.teacher);
-    add('clerk', '萊爾富店員', near(insidePoint(ACTIVITY), 3, -2), LOOKS.clerk);
+    if (d.hilife) add('clerk', '萊爾富店員', d.hilife.clerk, LOOKS.clerk);
     if (side('lostFound')?.state === 'active' && actions.hasItem('lostCard')) {
       add('desk', '服務台人員', insidePoint('行政大樓'), LOOKS.staff, true);
       add('guard', '警衛伯伯', insidePoint('警衛室'), LOOKS.guard, true);
     }
     return out;
+  };
+  /** Characters each conversation needs you to walk up to (scenes not listed happen at the place). */
+  const SCENE_NPCS: Partial<Record<SceneId, string[]>> = {
+    nurse: ['nurse'], roommateD2: ['roommate'], bibD3: ['roommate'], summary: ['roommate'], assembly: ['principal'],
+    mixer: ['mx1', 'mx2', 'mx3'], clubFair: ['cl1', 'cl2', 'cl3'], lostFound: ['desk', 'guard'],
+  };
+  const TALK_R = 2.6;
+  let lastNpcs: NpcSpec[] = [];
+  const npcsFor = (scene: SceneId): NpcSpec[] => lastNpcs.filter((n) => SCENE_NPCS[scene]?.includes(n.key));
+  /** Whether you are close enough to start `scene` (always, for scenes without a character). */
+  const closeTo = (scene: SceneId, f: StoryFrame): boolean => {
+    if (!SCENE_NPCS[scene]) return true;
+    return npcsFor(scene).some((n) => Math.hypot(n.x - f.x, n.z - f.z) < TALK_R);
+  };
+  /** Where the step happens: the character to talk to if there is one, else the place. */
+  const stepTarget = (step: Step): { x: number; z: number } | null => {
+    if (step.cond.t === 'talk') {
+      const n = npcsFor(step.cond.scene)[0];
+      if (n) return { x: n.x, z: n.z };
+    }
+    return d.placeOf(step.place);
   };
   const ICON: Record<string, string> = { talk: '💬', buy: '🛒', eat: '🍱', sport: '🏀', class: '📚', sleep: '🛏️', run: '🏁', quiz: '📝', enter: '📍' };
   const beaconList = (f: StoryFrame): Beacon[] => {
@@ -295,7 +294,9 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
     const step = on() ? currentStep() : null;
     const nav = gameStore.getState().nav;
     if (nav) add('nav', { x: nav.x, z: nav.z }, '🏁', 0x2f6fd0, true);
-    if (step && step.cond.t !== 'run' && !inPlace(f, step.place) && !(nav && Math.hypot(nav.x - (d.placeOf(step.place)?.x ?? 1e9), nav.z - (d.placeOf(step.place)?.z ?? 1e9)) < 20)) add('main', d.placeOf(step.place), ICON[step.cond.t] ?? '📍', 0xf08a24, true);
+    const tgt = step ? stepTarget(step) : null;
+    const there = step && (step.cond.t === 'talk' ? closeTo(step.cond.scene, f) && inPlace(f, step.place) : inPlace(f, step.place));
+    if (step && tgt && step.cond.t !== 'run' && !there && !(nav && Math.hypot(nav.x - tgt.x, nav.z - tgt.z) < 20)) add('main', tgt, ICON[step.cond.t] ?? '📍', 0xf08a24, true);
     if (!on()) return out;
     if (cardAt) add('card', cardAt, '✨', 0x4fc3f7);
     const tour = side('tour');
@@ -566,10 +567,11 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
           if (lines) { pendingScene = 'tourFact' as SceneId; open({ kind: 'dialog', id: 'tourFact', lines: lines.map((text) => ({ who: '導覽小雲', text })) }); }
         }
       }
+      lastNpcs = npcSpecs();
       const list = beaconList(f);
       beacons.set(list);
       storyActions.setPins(list.filter((b) => b.key !== 'nav' && b.key !== 'card'));
-      npcs.set(npcSpecs());
+      npcs.set(lastNpcs);
       const ph = side('photo');
       storyActions.setLive({ photoSpot: f.area && PHOTO_SPOTS.includes(f.area) && !(ph?.done.includes(f.area)) && ph?.state !== 'done' ? f.area : null });
     }
@@ -583,7 +585,6 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
       }
       if (f.area === '大門') startSide('tour');
 
-      if ((f.area === '行政大樓' || f.area === '警衛室') && actions.hasItem('lostCard') && side('lostFound')?.state === 'active') playScene('lostFound');
     }
     // Lost card: appears once per session, picked up by walking over it.
     if (on() && !side('lostFound') && !cardAt && Math.random() < dt / 90) placeCard(f.x, f.z);
@@ -670,7 +671,7 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
     tick++;
 
     // Tracker: distance and direction to the objective.
-    const target = step ? (run && step.cond.t === 'run' ? run.points[run.next] ?? null : d.placeOf(step.place)) : null;
+    const target = step ? (run && step.cond.t === 'run' ? run.points[run.next] ?? null : stepTarget(step)) : null;
     if (target) {
       const dx = target.x - f.x, dz = target.z - f.z;
       const dist = Math.hypot(dx, dz);
@@ -679,33 +680,43 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
       const idx = ((Math.round(-rel / (Math.PI / 4)) % 8) + 8) % 8;
       const timer = cls.phase === 'waiting' ? `點名倒數 ${Math.ceil(cls.t)} 秒` : cls.phase === 'sudden' ? `⚠️ 回教室 ${Math.floor(cls.t / 60)}:${String(Math.ceil(cls.t % 60) % 60).padStart(2, '0')}` : run ? `⏱ ${Math.floor(run.t / 60)}:${String(Math.floor(run.t % 60)).padStart(2, '0')}` : null;
       storyActions.setLive({
-        distance: inPlace(f, step!.place) && step!.cond.t !== 'run' ? 0 : Math.round(dist),
+        distance: step!.cond.t !== 'run' && inPlace(f, step!.place) && (step!.cond.t !== 'talk' || closeTo(step!.cond.scene, f)) ? 0 : Math.round(dist),
         bearing: idx,
         timer,
         stamina: run ? Math.round(run.stamina * 20) / 20 : null,
         note: run?.tired ? '跑不動了…慢慢跑恢復體力' : null,
-        place: run && step!.cond.t === 'run' ? `檢查點 ${run.next + 1}/${run.points.length}` : step!.place,
+        place: run && step!.cond.t === 'run' ? `檢查點 ${run.next + 1}/${run.points.length}`
+          : step!.cond.t === 'talk' && npcsFor(step!.cond.scene)[0] ? npcsFor(step!.cond.scene)[0]!.name : step!.place,
       });
     } else {
       storyActions.setLive({ distance: null, bearing: null, timer: null, stamina: null, note: null, place: null });
     }
   };
 
+  /** At the 萊爾富 counter (in front of it, on the ground floor). */
+  const atCounter = (f: StoryFrame): boolean => !!d.hilife && Math.hypot(d.hilife.counter.x - f.x, d.hilife.counter.z - f.z) < 2.2;
+  const lostFoundReady = (f: StoryFrame): boolean =>
+    side('lostFound')?.state === 'active' && actions.hasItem('lostCard') && closeTo('lostFound', f);
   const prompt = (f: StoryFrame): string | null => {
     const step = on() ? currentStep() : null;
+    if (lostFoundReady(f)) return '按 E 把撿到的學生證交出去';
     if (step && inPlace(f, step.place)) {
-      if (step.cond.t === 'talk') return step.cond.prompt;
+      if (step.cond.t === 'talk' && closeTo(step.cond.scene, f)) return step.cond.prompt;
       if (step.cond.t === 'sleep') return step.cond.until === 'nextDay' ? '按 E 回房間睡覺（到隔天早上）' : '按 E 回房間補眠（睡到傍晚）';
       if (step.cond.t === 'quiz') return '按 E 入座開始小考';
     }
-    if (f.area === '學生活動中心') return '按 E 逛萊爾富';
+    if (atCounter(f)) return '按 E 逛萊爾富';
     return null;
   };
 
   const interact = (f: StoryFrame): 'done' | 'hilife' | null => {
     const step = on() ? currentStep() : null;
+    if (lostFoundReady(f)) { playScene('lostFound'); return 'done'; }
     if (step && inPlace(f, step.place)) {
-      if (step.cond.t === 'talk') { playScene(step.cond.scene); return 'done'; }
+      if (step.cond.t === 'talk' && closeTo(step.cond.scene, f)) {
+        playScene(step.cond.scene);
+        return 'done';
+      }
       if (step.cond.t === 'quiz') { pendingScene = 'quiz'; open({ kind: 'quiz' }); return 'done'; }
       if (step.cond.t === 'sleep') {
         const until = step.cond.until;
@@ -717,7 +728,7 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
         return 'done';
       }
     }
-    if (f.area === '學生活動中心') return 'hilife';
+    if (atCounter(f)) return 'hilife';
     return null;
   };
 
@@ -731,7 +742,7 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
     guide() {
       const step = currentStep();
       if (!step) { toast('目前沒有主線任務'); return; }
-      const t = run && step.cond.t === 'run' ? run.points[run.next] : d.placeOf(step.place);
+      const t = run && step.cond.t === 'run' ? run.points[run.next] : stepTarget(step);
       if (t) d.navigate(t.x, t.z, step.place);
     },
     restart() {
