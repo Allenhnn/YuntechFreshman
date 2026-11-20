@@ -56,7 +56,8 @@ const WALL = 0.3;
  */
 /** Passage under the ramp's upper lane, through to the D arcade (Street View: a doorway in the ramp wall). */
 const TUNNEL = { s0: FLOOR_S0 + 0.1, s1: FLOOR_S0 + 1.7, slab: 0.25 };
-const RAMP = { wOut: -7.8, wDiv0: -5.95, wDiv1: -5.75, wIn: -3.9, t: 0.2, sTurn: 21.5, sEnd: FLOOR_S0 + 0.5, innerWall0: FLOOR_S0 + 2, rail: 1.0 };
+// Shifted 0.8 m towards D (user, 2026-11-20): the outer wall now runs along the red line next to the D corridor.
+const RAMP = { wOut: -8.6, wDiv0: -6.75, wDiv1: -6.55, wIn: -4.7, t: 0.2, sTurn: 21.5, sEnd: FLOOR_S0 + 0.5, innerWall0: FLOOR_S0 + 2, rail: 1.0 };
 /** Ground-level corridors along the buildings, and the brick apron at the road end. */
 const CORR = { n: 13.0, s: -13.15 };
 const APRON_S0 = -4;
@@ -312,8 +313,12 @@ export function createDormCourtyard(scene: Scene, physics: RAPIER.World, tracker
   }
   sloped(sEnd, sTurn, wDiv1, wIn - t, innerH); // inner lane: landing → courtyard floor
   sloped(innerWall0, sTurn, wIn - t, wIn, (s) => innerH(s) + rail); // inner wall, open at its east end
-  // Between the ramp and the D colonnade, under the upper lane's start: solid to ground level.
-  box(concrete, PIT.s0, FLOOR_S0, D, 0, PIT.wS + WALL, wOut, true);
+  // Between the ramp and the D corridor parapet the gap is left open (hollow) all the way down to the
+  // floor; only a short parapet closes its end at the road-end apron.
+  box(concrete, PIT.s0, PIT.s0 + WALL, D, 0.15, PIT.wS + WALL, wOut);
+  box(lattice, PIT.s0, PIT.s0 + WALL, 0.15, 0.92, PIT.wS + WALL, wOut);
+  box(concrete, PIT.s0 - 0.02, PIT.s0 + WALL + 0.02, 0.92, 1.02, PIT.wS + WALL, wOut);
+  solid(PIT.s0, PIT.s0 + WALL, D, 1.02, PIT.wS + WALL, wOut);
   add(rampSoup.geometry(1), concrete);
   // Half-round landing and its curved parapet (the round drum in the Street View photo).
   const wc = (wOut + wIn) / 2, R = (wIn - wOut) / 2, ARC = 16;

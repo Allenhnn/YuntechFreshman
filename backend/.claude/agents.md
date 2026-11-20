@@ -164,6 +164,14 @@ docker compose down             # 停止（加 -v 會連資料一起刪除）
 | `.env.example` 沒被 commit | 根目錄 `.gitignore` 有 `.env*`；需要時用 `git add -f backend/.env.example` |
 
 ## 變更紀錄
+### 2026-11-20（前端：迴旋坡道往 D 側平移、與走廊欄杆相接、中間鏤空）— 分支 `feat/dorm-c-d-exterior`
+- 需求：把迴旋坡道平移到截圖紅線位置；坡道跟旁邊的圍欄（D 側走廊花磚欄杆）連在一起，中間連接處直接鏤空
+- `frontend/src/buildings/dormCourtyard.ts`：`RAMP` 全部往 D 側移 0.8 m，外牆外緣在 w −8.6（紅線）
+  - 東側台階起點跟著隔牆移，變寬 0.8 m；石桌跟著坡道中線
+  - 坡道與 D 側欄杆之間原本填實到地面的一塊拿掉，鏤空直通中庭地坪／D 騎樓
+  - 路尾端加一段同樣花磚的短欄杆，把坡道外牆和走廊欄杆接起來
+- 測試：`tsc --noEmit`、`vite build` 通過；headless Chrome 從路尾同一視角確認
+
 ### 2026-11-20（前端：迴旋坡道下方開洞、D 側柱廊改成與 C 側相同的騎樓）— 分支 `feat/dorm-c-d-exterior`
 - 需求：依 Street View 照片在迴旋坡道下方開一個洞；坡道另一側（D 側）也照 C 側騎樓照片的做法
 - `frontend/src/buildings/dormCourtyard.ts`：
