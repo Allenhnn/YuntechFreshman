@@ -23,6 +23,8 @@ export interface NpcSpec {
   name: string;
   x: number;
   z: number;
+  /** Ground height under the character. */
+  y?: number;
   /** Shirt / pants / hair colours; `hat` adds a cap (nurse, staff). */
   look: { shirt: number; pants: number; hair: number; hat?: number };
   /** Shows the "!" bubble. */
@@ -105,7 +107,7 @@ export function createNpcs(scene: Scene, tracker: ResourceTracker): Npcs {
     tag.renderOrder = 9;
     root.add(trunk, tag);
     for (const m of [torso, head, hair, armL, armR]) m.castShadow = true;
-    root.position.set(s.x, 0.02, s.z);
+    root.position.set(s.x, (s.y ?? 0) + 0.02, s.z);
     scene.add(root);
     return { root, trunk, armR, armL, tag, spec: s, yaw: Math.random() * Math.PI * 2, seed: Math.random() * 10 };
   };
@@ -119,7 +121,7 @@ export function createNpcs(scene: Scene, tracker: ResourceTracker): Npcs {
       }
       for (const s of list) {
         const l = live.get(s.key);
-        if (l) l.root.position.set(s.x, 0.02, s.z);
+        if (l) l.root.position.set(s.x, (s.y ?? 0) + 0.02, s.z);
         else live.set(s.key, make(s));
       }
     },

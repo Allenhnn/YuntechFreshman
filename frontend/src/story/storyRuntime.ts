@@ -35,6 +35,10 @@ export interface StoryDeps {
   closeStoryModal(): void;
   sound(name: 'coin' | 'open' | 'close' | 'click'): void;
   bikeStations: readonly { name: string; x: number; z: number }[];
+  /** Walkable surface height at (x, z) (raised plazas, steps). */
+  groundAt(x: number, z: number): number;
+  /** Places nothing should be put (sunken courtyards). */
+  blocked(x: number, z: number): boolean;
 }
 
 export interface StoryFrame {
@@ -250,7 +254,7 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
   const npcSpecs = (): NpcSpec[] => {
     const out: NpcSpec[] = [];
     const add = (key: string, name: string, p: { x: number; z: number } | null, look: NpcSpec['look'], talk = false): void => {
-      if (p) out.push({ key, name, x: p.x, z: p.z, look, talk });
+      if (p && !d.blocked(p.x, p.z)) out.push({ key, name, x: p.x, z: p.z, y: d.groundAt(p.x, p.z), look, talk });
     };
     const step = on() ? currentStep() : null;
     const scene = step?.cond.t === 'talk' ? step.cond.scene : null;
@@ -315,6 +319,7 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
   cardMesh.add(glow);
   glow.position.y = -0.1;
   let cardAt: { x: number; z: number } | null = null;
+  let cardY = 0;
   const walkPoints: number[] = [];
   for (const r of d.campus.roads) if (r.kind === 'walkway') for (let i = 0; i < r.points.length; i += 2) walkPoints.push(r.points[i]!, r.points[i + 1]!);
   const placeCard = (x: number, z: number): void => {
@@ -322,9 +327,10 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
       const i = Math.floor(Math.random() * (walkPoints.length / 2));
       const cx = walkPoints[i * 2]!, cz = walkPoints[i * 2 + 1]!;
       const dd = Math.hypot(cx - x, cz - z);
-      if (dd > 40 && dd < 140) {
+      if (dd > 40 && dd < 140 && !d.blocked(cx, cz)) {
         cardAt = { x: cx, z: cz };
-        cardMesh.position.set(cx, 0.2, cz);
+        cardY = d.groundAt(cx, cz);
+        cardMesh.position.set(cx, cardY + 0.2, cz);
         d.scene.add(cardMesh);
         return;
       }
@@ -559,7 +565,7 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
     if (on() && !side('lostFound') && !cardAt && Math.random() < dt / 90) placeCard(f.x, f.z);
     if (cardAt) {
       cardMesh.rotation.y += dt * 2;
-      cardMesh.position.y = 0.25 + Math.sin(performance.now() / 300) * 0.06;
+      cardMesh.position.y = cardY + 0.25 + Math.sin(performance.now() / 300) * 0.06;
       if (Math.hypot(cardAt.x - f.x, cardAt.z - f.z) < 1.6) {
         d.scene.remove(cardMesh);
         cardAt = null;

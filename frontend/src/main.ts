@@ -310,7 +310,8 @@ async function boot(): Promise<void> {
   const navGraph = buildNavGraph(campus);
   const navLine = createNavLine(scene, sceneResources);
   const bikes = createBikeSystem(scene, bikeStations, sceneResources);
-  const traffic = createTraffic(scene, campus, sceneResources);
+  const inPit = (x: number, z: number): boolean => dormPit.contains(x, z) || !!court?.contains(x, z);
+  const traffic = createTraffic(scene, campus, sceneResources, inPit);
   const applyAmbient = (a: GameState['ambient']): void => {
     traffic.setEnabled('people', a.people);
     traffic.setEnabled('vehicles', a.vehicles);
@@ -332,6 +333,8 @@ async function boot(): Promise<void> {
       if (name === '足球場' && playground) { const [x, z] = playground.pitch.toWorld(playground.pitch.halfLength - 11, 0); return { x, z }; }
       if (name === '路跑起點' || name === '操場') return playground ? { ...playground.startSpot } : null;
       if (name === '大門') return centreOf('警衛室');
+      // 學生宿舍C is three OSM parts; the story's dorm is the courtyard by the C entrance where you start.
+      if (name === '學生宿舍C') return { x: campus.spawn.x, z: campus.spawn.z };
       return centreOf(name);
     },
     route: (ax, az, bx, bz) => navGraph.route(ax, az, bx, bz),
@@ -345,6 +348,8 @@ async function boot(): Promise<void> {
     closeStoryModal: () => api.closeModal(),
     sound: (n) => audio.play(n),
     bikeStations,
+    groundAt: (x, z) => groundHeightAt(x, z),
+    blocked: inPit,
   });
   const onSport = (kind: 'basketball' | 'volleyball' | 'soccer', score: number): void => storyEvents.sport(kind, score);
   const onTrack = (t: number): void => storyEvents.track(t);

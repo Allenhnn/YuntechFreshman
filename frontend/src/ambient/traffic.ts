@@ -114,7 +114,7 @@ function inRing(x: number, z: number, r: number[]): boolean {
   return hit;
 }
 
-function buildGraph(roads: readonly CampusRoad[], keep: (r: CampusRoad) => boolean, inside: ((x: number, z: number) => boolean) | null): Graph {
+function buildGraph(roads: readonly CampusRoad[], keep: (r: CampusRoad) => boolean, inside: ((x: number, z: number) => boolean) | null, blocked?: (x: number, z: number) => boolean): Graph {
   const nodes = new Map<string, number>();
   const node = (x: number, z: number): number => {
     const k = `${Math.round(x)},${Math.round(z)}`;
@@ -133,6 +133,7 @@ function buildGraph(roads: readonly CampusRoad[], keep: (r: CampusRoad) => boole
       const len = Math.hypot(bx - ax, bz - az);
       if (len < 0.3) continue;
       if (inside && !(inside(ax, az) && inside(bx, bz))) continue;
+      if (blocked && (blocked(ax, az) || blocked(bx, bz) || blocked((ax + bx) / 2, (az + bz) / 2))) continue;
       edges.push({ ax, az, bx, bz, len, a: node(ax, az), b: node(bx, bz), half: Math.max(0.3, r.width / 2), lane });
     }
   }
@@ -178,11 +179,12 @@ const ARM = 0.6;
 /** 大學路 (二段 / 三段) and 龍潭路, the public streets beside the main gate. */
 const streetByGate = (r: CampusRoad): boolean => r.kind !== 'walkway' && !!r.name && (r.name.startsWith('大學路') || r.name === '龍潭路');
 
-export function createTraffic(scene: Scene, campus: CampusData, tracker: ResourceTracker): Traffic {
+/** `blocked`: places people must not walk over (sunken courtyards cut into the ground). */
+export function createTraffic(scene: Scene, campus: CampusData, tracker: ResourceTracker, blocked?: (x: number, z: number) => boolean): Traffic {
   const inside = (x: number, z: number): boolean => inRing(x, z, campus.boundary);
   const nets: Record<Net, Graph> = {
-    walk: buildGraph(campus.roads, (r) => r.kind === 'walkway' || r.kind === 'service', null),
-    bike: buildGraph(campus.roads, (r) => r.kind === 'service' || r.kind === 'minor', inside),
+    walk: buildGraph(campus.roads, (r) => r.kind === 'walkway' || r.kind === 'service', null, blocked),
+    bike: buildGraph(campus.roads, (r) => r.kind === 'service' || r.kind === 'minor', inside, blocked),
     // Scooters and cars stay off campus: only the streets by the main gate (大學路, 龍潭路).
     motor: buildGraph(campus.roads, streetByGate, null),
     car: buildGraph(campus.roads, streetByGate, null),
