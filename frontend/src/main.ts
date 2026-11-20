@@ -76,7 +76,7 @@ import { inGateArea } from './campus/mainGate';
 import { UNLABELLED_NAMES } from './campus/placeNames';
 import { createBuildingTest, placeBikeStations, stationClearings } from './bikes/bikeStations';
 import { findMascotJoints } from './character/mascot';
-import { CLOCK_RATE, applyPose, computeRidePose, createPose } from './character/pose';
+import { BODY_REST_Y, CLOCK_RATE, applyPose, computeRidePose, computeSwimPose, createPose } from './character/pose';
 import { safeTeleportTarget } from './game/teleport';
 import { buildNavGraph, pathAhead, progressOn } from './game/navGraph';
 import { createNavLine } from './game/navLine';
@@ -370,6 +370,8 @@ async function boot(): Promise<void> {
   const navPointer = createNavPointer();
   let wasRiding = false;
   let inWater = false;
+  let swimStroke = 0;
+  let lastWake = 0;
   let lastNight = -1;
   const storyFrame: StoryFrame = { x: 0, z: 0, area: null, minutes: 0, riding: false, sprinting: false, playing: false, viewYaw: 0 };
   const insideBuilding = createBuildingTest(campus);
@@ -1008,6 +1010,22 @@ async function boot(): Promise<void> {
       bikes.update(dt, o.position.x, o.position.y, o.position.z, o.rotation.y, Math.hypot(Velocity.x[eid]!, Velocity.z[eid]!));
       // After the animation driver, so the seated pose wins over the locomotion clips.
       if (joints) applyPose(joints, computeRidePose(bikes.pedal, time * CLOCK_RATE, ridePose));
+    } else if (joints && objects[eid] && inWater) {
+      // Deep enough to swim: crawl when moving, tread water when still (hips at the water line).
+      const footY = Transform.y[eid]!;
+      const depth = WATER_Y - footY;
+      if (depth > 0.3) {
+        const speed = Math.hypot(Velocity.x[eid]!, Velocity.z[eid]!);
+        const moving = speed > 0.4;
+        swimStroke += dt * (moving ? 2.2 + speed * 0.6 : 1);
+        const float = Math.max(0, depth - BODY_REST_Y - (moving ? 0.12 : 0.42));
+        applyPose(joints, computeSwimPose(swimStroke, time * CLOCK_RATE, moving, float, ridePose));
+        // A wake: small splash rings every so often while swimming.
+        if (moving && time - lastWake > 0.55) {
+          lastWake = time;
+          ponds.splash(Transform.x[eid]!, Transform.z[eid]!);
+        }
+      }
     }
     coins.render(world, time);
     traffic.update(dt, Transform.x[eid]!, Transform.z[eid]!);

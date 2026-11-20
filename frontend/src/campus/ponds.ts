@@ -65,7 +65,7 @@ export const PONDS: readonly Pond[] = [
 ];
 
 export const WATER_Y = -0.3;
-const MAX_DEPTH = 1.0;
+const MAX_DEPTH = 1.5;
 const BANK_SLOPE = 0.4; // depth per metre from the shore
 
 function inRing(x: number, z: number, r: Ring): boolean {
