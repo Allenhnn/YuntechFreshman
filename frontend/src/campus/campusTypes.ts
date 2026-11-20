@@ -16,6 +16,8 @@ export interface CampusBuilding {
   inCampus: boolean;
   /** Set when a hand-built building (src/buildings) replaces this OSM extrusion. */
   replacedBy?: string;
+  /** Closed to visitors: exterior unchanged (doors drawn shut), no interior, no way in. */
+  sealed?: boolean;
 }
 
 export type RoadKind = 'major' | 'minor' | 'service' | 'walkway';

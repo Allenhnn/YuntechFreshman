@@ -65,7 +65,7 @@ import { createMbLobby } from './buildings/mbLobby';
 import { MAIN_GATE_GUARDHOUSE, createMainGate, gateTreeExclusions, inGateZone } from './campus/mainGate';
 import { addBoundaryZone } from './campus/boundaryZone';
 import { createBlockWallZone, createBlockWalls } from './campus/blockWall';
-import { applyBuildingFixes, divideLongtan, includeLongtanRoad, streetscapeFixes, widenCampusRoads, widenCentralAxis } from './campus/campusFixes';
+import { applyBuildingFixes, divideLongtan, includeLongtanRoad, sealBuildings, streetscapeFixes, widenCampusRoads, widenCentralAxis } from './campus/campusFixes';
 import { createLongtanSidewalks } from './campus/longtanRoad';
 import { createStreetscape, staffGateZone } from './campus/streetscape';
 import { SCOOTER_LOTS, createScooterLots } from './campus/scooterLots';
@@ -181,6 +181,7 @@ async function boot(): Promise<void> {
   if (guardhouse) guardhouse.replacedBy = 'mainGate';
   includeLongtanRoad(campus);
   divideLongtan(campus);
+  sealBuildings(campus);
   applyBuildingFixes(campus);
   widenCampusRoads(campus);
   widenCentralAxis(campus);

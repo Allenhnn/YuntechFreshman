@@ -527,6 +527,16 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
     }
     return hit;
   };
+  const sealed = new Set(d.campus.buildings.filter((b) => b.sealed && b.name).map((b) => b.name!));
+  const nearWalls = (f: StoryFrame, place: string, within: number): boolean =>
+    (rings.get(place) ?? []).some((r) => {
+      for (let i = 0, n = r.length / 2; i < n; i++) {
+        const j = (i + 1) % n, ax = r[i * 2]!, az = r[i * 2 + 1]!, dx = r[j * 2]! - ax, dz = r[j * 2 + 1]! - az, l2 = dx * dx + dz * dz || 1;
+        const t = Math.max(0, Math.min(1, ((f.x - ax) * dx + (f.z - az) * dz) / l2));
+        if (Math.hypot(ax + dx * t - f.x, az + dz * t - f.z) < within) return true;
+      }
+      return false;
+    });
   const inPlace = (f: StoryFrame, place: string): boolean => {
     if (f.area === place) return true;
     if (NEAR[place]) { const c = d.placeOf(place); return !!c && Math.hypot(c.x - f.x, c.z - f.z) < NEAR[place]!; }
@@ -546,6 +556,16 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
     npcs.update(dt, now, f.x, f.z);
     if (now - visualsAt > 0.5) {
       visualsAt = now;
+      // Tour stops: walking in, or up to a closed (sealed) building's walls, counts as a visit.
+      const tour = side('tour');
+      if (f.playing && on() && tour?.state === 'active' && !st().scene) {
+        const stop = TOUR_STOPS.find((n) => !tour.done.includes(n) && (inPlace(f, n) || (sealed.has(n) && nearWalls(f, n, 10))));
+        if (stop) {
+          const lines = TOUR_FACTS[stop];
+          sideProgress('tour', stop);
+          if (lines) { pendingScene = 'tourFact' as SceneId; open({ kind: 'dialog', id: 'tourFact', lines: lines.map((text) => ({ who: '導覽小雲', text })) }); }
+        }
+      }
       const list = beaconList(f);
       beacons.set(list);
       storyActions.setPins(list.filter((b) => b.key !== 'nav' && b.key !== 'card'));
@@ -559,14 +579,10 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
       lastArea = f.area;
       if (f.area && buildingNames.has(f.area) && !prog().visited.includes(f.area)) {
         storyActions.update((p) => ({ ...p, visited: [...p.visited, f.area!] }));
-        if (prog().visited.length >= 20) unlock('explorer');
+        if (prog().visited.length >= 15) unlock('explorer');
       }
       if (f.area === '大門') startSide('tour');
-      if (f.area && TOUR_STOPS.includes(f.area) && side('tour')?.state === 'active' && !side('tour')!.done.includes(f.area) && !st().scene) {
-        const lines = TOUR_FACTS[f.area];
-        sideProgress('tour', f.area);
-        if (lines) { pendingScene = 'tourFact' as SceneId; open({ kind: 'dialog', id: 'tourFact', lines: lines.map((text) => ({ who: '導覽小雲', text })) }); }
-      }
+
       if ((f.area === '行政大樓' || f.area === '警衛室') && actions.hasItem('lostCard') && side('lostFound')?.state === 'active') playScene('lostFound');
     }
     // Lost card: appears once per session, picked up by walking over it.

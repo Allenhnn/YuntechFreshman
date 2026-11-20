@@ -342,3 +342,22 @@ export function streetscapeFixes(campus: CampusData): void {
   }
   campus.roads.push(...added);
 }
+
+/**
+ * Buildings closed to visitors (user, 2026-11-20): 人文學院、設計學院、工程學院、技職大樓、設計工坊、
+ * 未來學院、學人宿舍、雲旭樓、營建材料檢測中心、貴賓招待所、產學研大樓、燃燒與動力實驗室. Their exteriors stay
+ * as they are (doors drawn shut); no interior is generated or loaded and nobody can get in, which saves
+ * the memory and build time of those interiors.
+ */
+export const SEALED_BUILDINGS: readonly string[] = [
+  '人科一館', '人科二館',
+  '設計一館', '設計二館', '設計三館', '設計學院',
+  '工程一館', '工程二館', '工程三館', '工程四館', '工程五館', '工程六館',
+  '技職大樓', '設計工坊', '未來學院', '學人宿舍', '雲旭樓', '營建材料檢測中心', '貴賓招待所',
+  '產學研大樓(北棟)', '產學研大樓(南棟)', '燃燒與動力實驗室',
+];
+
+export function sealBuildings(campus: CampusData): void {
+  const names = new Set(SEALED_BUILDINGS);
+  for (const b of campus.buildings) if (b.name && names.has(b.name)) b.sealed = true;
+}
