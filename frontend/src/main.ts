@@ -40,7 +40,7 @@ import { buildProceduralCharacter, loadCharacterModel, type CharacterModel } fro
 import { ANIM_NAMES, AnimState, CharacterMotor, Transform, Velocity } from './ecs/components';
 import { bodies, colliders, objects } from './ecs/registry';
 import { CAPSULE_CENTER_OFFSET, createCharacterControllerSystem, type MoveModifiers } from './ecs/systems/characterController';
-import { createBikeSystem } from './bikes/bikeSystem';
+import { SCOOTER_SPEED_FACTOR, createBikeSystem } from './bikes/bikeSystem';
 import { createTraffic } from './ambient/traffic';
 import { createStoryRuntime, storyEvents, type StoryFrame } from './story/storyRuntime';
 import { storyStore } from './state/story';
@@ -59,6 +59,7 @@ import { createYuntayExterior, yuntayTreeFree } from './buildings/yuntayExterior
 import { createDormFeatures, dormTreeFree } from './buildings/dormFeatures';
 import { courtPit, createMgmtCourtyard } from './buildings/mgmtCourtyard';
 import { createDormCourtyard, dormCourtPit } from './buildings/dormCourtyard';
+import { createDormYard, dormRideables, dormYardClearings } from './campus/dormYard';
 import { createMbLobby } from './buildings/mbLobby';
 import { MAIN_GATE_GUARDHOUSE, createMainGate, gateTreeExclusions, inGateZone } from './campus/mainGate';
 import { addBoundaryZone } from './campus/boundaryZone';
@@ -208,7 +209,7 @@ async function boot(): Promise<void> {
     : undefined;
   const bikeStations = placeBikeStations(campus);
   actions.setBikeStations(bikeStations);
-  const keepClear = [...buildingFootprintRings(librarySrc), ...handBuiltSrcs.flatMap(buildingFootprintRings), ...stationClearings(bikeStations), ...gateTreeExclusions(), ...SCOOTER_LOTS.map((l) => l.ring), ...(court ? [court.treeFree] : []), ...yuntayTreeFree(), ...dormTreeFree(), dormPit.treeFree];
+  const keepClear = [...buildingFootprintRings(librarySrc), ...handBuiltSrcs.flatMap(buildingFootprintRings), ...stationClearings(bikeStations), ...gateTreeExclusions(), ...SCOOTER_LOTS.map((l) => l.ring), ...(court ? [court.treeFree] : []), ...yuntayTreeFree(), ...dormTreeFree(), dormPit.treeFree, ...dormYardClearings()];
   const env = createCampusWorld(scene, physics, renderer, campus, sceneResources, {
     treeExclusions: keepClear,
     groundHoles: [...buildingGroundHoles(librarySrc), ...(court?.rings ?? []), dormPit.ring],
@@ -236,6 +237,7 @@ async function boot(): Promise<void> {
   const yuntayExterior = createYuntayExterior(scene, physics, sceneResources);
   const dormFeatures = createDormFeatures(scene, physics, campus, sceneResources, env.materials);
   const dormCourtyard = createDormCourtyard(scene, physics, sceneResources);
+  const dormYard = createDormYard(scene, physics, campus, sceneResources);
   const mgmtCourtyard = mb ? createMgmtCourtyard(scene, physics, sceneResources, mb) : null;
   const mbLobby = mb ? createMbLobby(scene, physics, sceneResources, mb) : null;
 
@@ -309,7 +311,7 @@ async function boot(): Promise<void> {
   const sensorGates = createSensorGates(scene, physics, sceneResources);
   const navGraph = buildNavGraph(campus);
   const navLine = createNavLine(scene, sceneResources);
-  const bikes = createBikeSystem(scene, bikeStations, sceneResources);
+  const bikes = createBikeSystem(scene, bikeStations, sceneResources, dormRideables());
   const inPit = (x: number, z: number): boolean => dormPit.contains(x, z) || !!court?.contains(x, z);
   const traffic = createTraffic(scene, campus, sceneResources, inPit);
   const applyAmbient = (a: GameState['ambient']): void => {
@@ -334,7 +336,7 @@ async function boot(): Promise<void> {
       if (name === '路跑起點' || name === '操場') return playground ? { ...playground.startSpot } : null;
       if (name === '大門') return centreOf('警衛室');
       // 學生宿舍C is three OSM parts; the story's dorm is the courtyard by the C entrance where you start.
-      if (name === '學生宿舍C') return { x: campus.spawn.x, z: campus.spawn.z };
+      if (name === '學生宿舍C') return { x: -15, z: 331 };
       return centreOf(name);
     },
     route: (ax, az, bx, bz) => navGraph.route(ax, az, bx, bz),
@@ -724,7 +726,7 @@ async function boot(): Promise<void> {
             const b = bikes.pose(bike);
             teleport(b.x, Transform.y[eid]!, b.z, b.yaw);
             bikes.mount(bike);
-            storyEvents.mount();
+            if (bikes.riddenKind === 'bike') storyEvents.mount();
           }
           return;
         }
@@ -929,7 +931,7 @@ async function boot(): Promise<void> {
       const riding = bikes.ridden >= 0;
       moveMods.fly = ui.tester.fly && !riding;
       moveMods.noclip = ui.tester.noclip && !riding;
-      moveMods.speed = playground?.frozen || sports.frozen ? 0 : ui.tester.speed * story.speedFactor;
+      moveMods.speed = playground?.frozen || sports.frozen ? 0 : ui.tester.speed * story.speedFactor * (bikes.riddenKind === 'scooter' ? SCOOTER_SPEED_FACTOR : 1);
       moveMods.noJump = sports.active;
       moveMods.bike = riding;
       moveMods.blocked = riding ? insideBuilding : null;
@@ -1044,10 +1046,10 @@ async function boot(): Promise<void> {
     }
     actions.setInteractPrompt(
       !playing || playground?.racing ? null
-        : bikes.ridden >= 0 ? '按 E 下車'
+        : bikes.ridden >= 0 ? (bikes.riddenKind === 'scooter' ? '按 E 停車下來' : '按 E 下車')
           : nearestInteractable()?.prompt
             ?? (sports.active ? null : story.prompt(storyFrame))
-            ?? (sports.prompt(f.x, f.y, f.z)) ?? (playground?.canStart(f.x, f.z) ? '按 E 開始跑道計時賽' : bikes.nearest(f.x, f.y, f.z) >= 0 ? '按 E 騎腳踏車' : null),
+            ?? (sports.prompt(f.x, f.y, f.z)) ?? (playground?.canStart(f.x, f.z) ? '按 E 開始跑道計時賽' : bikes.nearest(f.x, f.y, f.z) >= 0 ? (bikes.kindOf(bikes.nearest(f.x, f.y, f.z)) === 'scooter' ? '按 E 騎機車' : '按 E 騎腳踏車') : null),
     );
 
     telemetry.x = f.x;
@@ -1098,6 +1100,7 @@ async function boot(): Promise<void> {
     yuntayExterior.dispose();
     dormFeatures.dispose();
     dormCourtyard.dispose();
+    dormYard.dispose();
     mgmtCourtyard?.dispose();
     mbLobby?.dispose();
     interiors.dispose();

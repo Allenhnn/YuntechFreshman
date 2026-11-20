@@ -65,7 +65,7 @@ export const DAYS: Day[] = [
   {
     title: '開學第一天',
     steps: [
-      { id: '1-1', text: '起床，拿起書桌上的健康資料表', place: DORM, cond: { t: 'talk', prompt: '按 E 拿起健康資料表', scene: 'wakeD1' }, at: hm(7, 30) },
+      { id: '1-1', text: '回宿舍C 拿書桌上的健康資料表', place: DORM, cond: { t: 'talk', prompt: '按 E 拿起健康資料表', scene: 'wakeD1' }, at: hm(7, 30) },
       { id: '1-2', text: '到健康中心（學生活動中心）繳交健康資料表', place: HEALTH, cond: { t: 'talk', prompt: '按 E 和健康中心護理師說話', scene: 'nurse' } },
       { id: '1-3', text: '到學生餐廳買早午餐', place: CAFETERIA, cond: { t: 'buy', shop: 'cafeteria' } },
       { id: '1-4', text: '把剛買的食物吃掉（背包或快捷欄使用）', place: CAFETERIA, cond: { t: 'eat' } },

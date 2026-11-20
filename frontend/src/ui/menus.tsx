@@ -92,7 +92,7 @@ export function MenuScreen({ paused }: { paused: boolean }): ReactNode {
               <>
                 {hasSave
                   ? <MenuItem primary icon="▶" label="繼續遊戲" sub="回到上次離開的地方" onClick={api.continueGame} />
-                  : <MenuItem primary icon="▶" label="開始遊戲" sub="從學生宿舍C 中庭出發" onClick={api.startGame} />}
+                  : <MenuItem primary icon="▶" label="開始遊戲" sub="從宿舍區的道路出發" onClick={api.startGame} />}
                 {hasSave && <MenuItem icon="✦" label="新遊戲" sub="清除進度重新開始" onClick={() => { api.click(); setConfirmingNew(true); }} />}
                 <MenuItem icon="⌨" label="操作介紹" sub="移動、互動與快捷鍵" onClick={() => open('controls')} />
                 <MenuItem icon="⚙" label="設定" sub="畫質、音量、滑鼠" onClick={() => open('settings')} />
@@ -100,7 +100,7 @@ export function MenuScreen({ paused }: { paused: boolean }): ReactNode {
             )}
           </nav>
           <p className="hint">{hint}</p>
-          <p className="start-point">{hasSave ? (account === 'signedIn' ? '☁️ 進度已同步到帳號' : '💾 進度已儲存在這個瀏覽器') : '📍 起點：學生宿舍C 中庭'}</p>
+          <p className="start-point">{hasSave ? (account === 'signedIn' ? '☁️ 進度已同步到帳號' : '💾 進度已儲存在這個瀏覽器') : '📍 起點：宿舍區道路'}</p>
         </aside>
         <PlayerCard />
         <p className="title-credit">核心原型 v0.7 · 國立雲林科技大學校園 · 地圖資料 © OpenStreetMap contributors</p>
