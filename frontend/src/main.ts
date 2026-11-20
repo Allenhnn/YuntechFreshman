@@ -86,6 +86,8 @@ import { createThirdPersonCamera, type CameraFocus } from './camera/thirdPersonC
 import { createDebugHud } from './ui/debugHud';
 
 const AUTOSAVE_SECONDS = 5;
+/** How close you must be to a cyclist to take their bike (m). */
+const ROB_REACH = 2.2;
 /** How long a restored game waits for an upper floor to stream in. */
 const FLOOR_WAIT_MS = 10000;
 const MENU_ORBIT_RATE = 0.06;
@@ -731,6 +733,18 @@ async function boot(): Promise<void> {
           return;
         }
         if (playground?.racing) return;
+        // Take a cyclist's bike (they end up on foot, shouting).
+        if (!target && Transform.y[eid]! < 1.5) {
+          const robbed = traffic.robCyclist(Transform.x[eid]!, Transform.z[eid]!, ROB_REACH);
+          if (robbed) {
+            const i = bikes.spawnAt(robbed.x, robbed.z, robbed.yaw);
+            teleport(robbed.x, Transform.y[eid]!, robbed.z, robbed.yaw);
+            bikes.mount(i);
+            storyEvents.robBike();
+            audio.play('close');
+            return;
+          }
+        }
         if (!target) {
           const bike = bikes.nearest(Transform.x[eid]!, Transform.y[eid]!, Transform.z[eid]!);
           if (bike >= 0) {
@@ -1067,7 +1081,9 @@ async function boot(): Promise<void> {
         : bikes.ridden >= 0 ? (bikes.riddenKind === 'scooter' ? '按 E 停車下來' : '按 E 下車')
           : nearestInteractable()?.prompt
             ?? (sports.active ? null : story.prompt(storyFrame))
-            ?? (sports.prompt(f.x, f.y, f.z)) ?? (playground?.canStart(f.x, f.z) ? '按 E 開始跑道計時賽' : bikes.nearest(f.x, f.y, f.z) >= 0 ? (bikes.kindOf(bikes.nearest(f.x, f.y, f.z)) === 'scooter' ? '按 E 騎機車' : '按 E 騎腳踏車') : null),
+            ?? (sports.prompt(f.x, f.y, f.z))
+            ?? (f.y < 1.5 && traffic.cyclistNear(f.x, f.z, ROB_REACH) ? '按 E 搶走他的腳踏車' : null)
+            ?? (playground?.canStart(f.x, f.z) ? '按 E 開始跑道計時賽' : bikes.nearest(f.x, f.y, f.z) >= 0 ? (bikes.kindOf(bikes.nearest(f.x, f.y, f.z)) === 'scooter' ? '按 E 騎機車' : '按 E 騎腳踏車') : null),
     );
 
     telemetry.x = f.x;

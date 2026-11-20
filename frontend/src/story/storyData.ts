@@ -156,6 +156,7 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: 'skip', title: '翹課', icon: '🚪', desc: '上課途中溜出教室', secret: true },
   { id: 'cheat', title: '作弊', icon: '👀', desc: '小考時偷看隔壁', secret: true },
   { id: 'bikeHit', title: '騎腳踏車撞別人', icon: '🚲', desc: '騎腳踏車撞到路人', secret: true },
+  { id: 'robBike', title: '搶腳踏車', icon: '🦹', desc: '把路人騎的腳踏車搶來騎', secret: true },
   { id: 'steal', title: '偷竊', icon: '🫣', desc: '在萊爾富沒付錢就拿走商品', secret: true },
   { id: 'perfectAttendance', title: '全勤寶寶', icon: '📅', desc: '一週所有點名都成功' },
   { id: 'earlyBird', title: '早起的鳥兒', icon: '🐦', desc: '08:30 前完成當天第二個目標' },

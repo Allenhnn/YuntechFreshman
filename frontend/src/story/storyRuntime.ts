@@ -91,6 +91,8 @@ export const storyEvents = {
   steal: (_item: ItemId): void => undefined,
   photo: (_area: string | null): void => undefined,
   bikeHit: (): void => undefined,
+  /** Took a cyclist's bike. */
+  robBike: (): void => undefined,
   bikeMoved: (_metres: number): void => undefined,
   mount: (): void => undefined,
   dismount: (_x: number, _z: number): void => undefined,
@@ -478,6 +480,12 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
     setFlags({ safeMetres: 0 });
     toast('💥 撞到人了！路人：「欸！看路啦！」');
     d.sound('close');
+  };
+  storyEvents.robBike = () => {
+    unlock('robBike');
+    setFlags({ badRecord: (prog().flags.badRecord ?? 0) + 1 });
+    const lines = ['騎士：「欸！我的車！」', '騎士：「搶劫啊！有人搶我腳踏車！」', '騎士：「那是我剛買的耶！」'];
+    toast(`🦹 ${lines[Math.floor(Math.random() * lines.length)]}`);
   };
   storyEvents.bikeMoved = (metres) => {
     const m = (prog().flags.safeMetres ?? 0) + metres;

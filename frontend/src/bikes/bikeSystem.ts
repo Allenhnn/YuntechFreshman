@@ -49,6 +49,8 @@ export interface BikeSystem {
   /** World position and heading of a parked bike. */
   pose(index: number): { x: number; z: number; yaw: number };
   mount(index: number): void;
+  /** Puts a spare bike at (x, z) facing `yaw` (a bike taken from a cyclist) and returns its index. */
+  spawnAt(x: number, z: number, yaw: number): number;
   /** Leaves the bike where it is. */
   dismount(): void;
   /** Moves the ridden bike under the rider and turns its wheels and pedals. */
@@ -151,7 +153,9 @@ export function createBikeSystem(scene: Scene, stations: readonly BikeStation[],
   const face = tracker.material(new MeshStandardMaterial({ map: signTexture(tracker), roughness: 0.6 }));
 
   // --- Instances --------------------------------------------------------------------------------
-  const count = stations.length * BIKES_PER_STATION + looseBikes.length;
+  /** Spare bikes, parked out of sight until one is needed (taken from a cyclist). */
+  const SPARES = 4;
+  const count = stations.length * BIKES_PER_STATION + looseBikes.length + SPARES;
   const frames = new InstancedMesh(frameGeo, paint, count);
   const darks = new InstancedMesh(darkGeo, dark, count);
   const wheels = new InstancedMesh(wheelGeo, dark, count * 2);
@@ -227,6 +231,15 @@ export function createBikeSystem(scene: Scene, stations: readonly BikeStation[],
     write(i);
   });
 
+  const spareStart = bikes.length;
+  for (let k = 0; k < SPARES; k++) {
+    const i = bikes.length;
+    bikes.push({ x: 0, y: -60, z: 0, yaw: 0, wheel: 0, crank: 0 });
+    frames.setColorAt(i, FRAME_COLORS[k % FRAME_COLORS.length]!);
+    write(i);
+  }
+  let nextSpare = 0;
+
   // --- Scooters: one group each (few), moved with the rider like the bikes ----------------------
   const scooterBody = tracker.material(new MeshStandardMaterial({ color: 0xd8553a, roughness: 0.35, metalness: 0.25 }));
   const chrome = tracker.material(new MeshStandardMaterial({ color: 0xcfd6db, roughness: 0.2, metalness: 0.8 }));
@@ -291,6 +304,17 @@ export function createBikeSystem(scene: Scene, stations: readonly BikeStation[],
       return { x: b.x, z: b.z, yaw: b.yaw };
     },
     mount(i) { ridden = i; },
+    spawnAt(x, z, yaw) {
+      // Reuse the spares in turn, skipping the one being ridden.
+      let i = spareStart + nextSpare;
+      if (i === ridden) { nextSpare = (nextSpare + 1) % SPARES; i = spareStart + nextSpare; }
+      nextSpare = (nextSpare + 1) % SPARES;
+      const b = bikes[i]!;
+      b.x = x; b.y = 0; b.z = z; b.yaw = yaw;
+      write(i);
+      for (const mesh of bikeMeshes) mesh.instanceMatrix.needsUpdate = true;
+      return i;
+    },
     dismount() { ridden = -1; },
     update(dt, x, y, z, yaw, speed) {
       if (ridden < 0) return;

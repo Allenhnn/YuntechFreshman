@@ -33,6 +33,13 @@ export interface Traffic {
   setEnabled(kind: 'people' | 'vehicles', on: boolean): void;
   /** Headlights and tail lights glow after dark (0 day … 1 night). */
   setNight(night: number): void;
+  /** A cyclist within `r` of (x, z) (you could take their bike). */
+  cyclistNear(x: number, z: number, r: number): boolean;
+  /**
+   * Takes the bike of the nearest cyclist within `r`: they end up on foot beside it (knocked down,
+   * then walking off) and their bike leaves traffic. Returns where the bike was standing.
+   */
+  robCyclist(x: number, z: number, r: number): { x: number; z: number; yaw: number } | null;
   /** A walker within `r` of (x, z) is knocked over; true when someone was hit. */
   hit(x: number, z: number, r: number): boolean;
   update(dt: number, px: number, pz: number): void;
@@ -89,6 +96,8 @@ interface Agent {
   hidden: boolean;
   /** Seconds left lying on the ground after being hit by a bike (walkers). */
   fall: number;
+  /** Respawn beyond the fog next time (a robbed cyclist must not reappear in view). */
+  far?: boolean;
 }
 
 const RANGE = 175; // m: fog is opaque from 190 m
@@ -374,6 +383,7 @@ export function createTraffic(scene: Scene, campus: CampusData, tracker: Resourc
   if (import.meta.env.DEV) {
     (window as unknown as { __traffic: unknown }).__traffic = {
       walkers: () => agents.filter((a) => a.kind === 'walker' && !a.hidden && a.edge >= 0).map((a) => ({ x: a.x, z: a.z, yaw: a.yaw, fall: a.fall })),
+      cyclists: () => agents.filter((a) => a.kind === 'cyclist' && !a.hidden && a.edge >= 0).map((a) => ({ x: a.x, z: a.z, yaw: a.yaw })),
       vehicles: () => agents.filter((a) => (a.kind === 'car' || a.kind === 'scooter') && !a.hidden && a.edge >= 0).map((a) => ({ kind: a.kind, x: a.x, z: a.z })),
       inCampus: (x: number, z: number) => inRing(x, z, campus.boundary),
     };
@@ -385,6 +395,45 @@ export function createTraffic(scene: Scene, campus: CampusData, tracker: Resourc
     setNight(night) {
       headMat.emissiveIntensity = night * 3;
       tailMat.emissiveIntensity = night * 1.5;
+    },
+    cyclistNear(x, z, r) {
+      if (!enabled.people) return false;
+      return agents.some((a) => a.kind === 'cyclist' && !a.hidden && a.edge >= 0 && Math.hypot(a.x - x, a.z - z) < r);
+    },
+    robCyclist(x, z, r) {
+      if (!enabled.people) return null;
+      let best: Agent | null = null, bestD = r;
+      for (const a of agents) {
+        if (a.kind !== 'cyclist' || a.hidden || a.edge < 0) continue;
+        const d = Math.hypot(a.x - x, a.z - z);
+        if (d < bestD) { best = a; bestD = d; }
+      }
+      if (!best) return null;
+      const pose = { x: best.x, z: best.z, yaw: best.yaw };
+      best.edge = -1; // leaves traffic; comes back as someone else, far away
+      best.far = true;
+      // The rider, now on foot: a walker put on the nearest footpath, knocked down first.
+      const g = nets.walk;
+      let edge = -1, ed = Infinity, et = 0;
+      g.edges.forEach((e, i) => {
+        const dx = e.bx - e.ax, dz = e.bz - e.az, l2 = dx * dx + dz * dz || 1;
+        const t = Math.max(0, Math.min(1, ((pose.x - e.ax) * dx + (pose.z - e.az) * dz) / l2));
+        const d = Math.hypot(e.ax + dx * t - pose.x, e.az + dz * t - pose.z);
+        if (d < ed) { ed = d; edge = i; et = t; }
+      });
+      const walker = agents
+        .filter((a) => a.kind === 'walker' && !a.hidden && a.fall <= 0)
+        .sort((m, n) => Math.hypot(n.x - x, n.z - z) - Math.hypot(m.x - x, m.z - z))[0];
+      if (walker && edge >= 0 && ed < 25) {
+        const e = g.edges[edge]!;
+        walker.edge = edge;
+        walker.forward = Math.random() < 0.5;
+        walker.s = (walker.forward ? et : 1 - et) * e.len;
+        walker.x = NaN;
+        walker.fall = 2.2;
+        walker.speed = 1.6; // hurries off afterwards
+      }
+      return pose;
     },
     hit(x, z, r) {
       if (!enabled.people) return false;
@@ -409,7 +458,9 @@ export function createTraffic(scene: Scene, campus: CampusData, tracker: Resourc
         }
         if (a.hidden) { a.hidden = false; a.edge = -1; }
         if (a.edge < 0 || jumped || Math.hypot(a.x - px, a.z - pz) > RANGE + 15) {
-          if (!place(a, px, pz, a.edge < 0 || jumped)) { hide(a); continue; }
+          const initial = (a.edge < 0 || jumped) && !a.far;
+          a.far = false;
+          if (!place(a, px, pz, initial)) { hide(a); continue; }
           a.x = NaN;
         }
         let e = a.net.edges[a.edge]!;
