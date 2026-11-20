@@ -609,6 +609,9 @@ function addDormDCanopy(ctx: Ctx, f: Frame, g: CornerGeom, recess: Frame | null,
   const { y: CY, band: bh } = D_CANOPY;
   const top = TERRACE_TOP;
   prism(ctx, f, entryBody(g), CY, CY + 0.3, band, false);
+  // Under the canopy the terrace runs on back to the walls (user, 2026-11-20: it was open to the ground
+  // behind the steps), so the doors, the hedge planter and the columns all stand on it.
+  prism(ctx, f, entryBody(g), 0, top, concrete);
 
   // Front band with the blue D along the 45° edge, plain bands on the two returns.
   const { ff, len } = frontFrame(ctx, f, g, '學生宿舍D 雨遮');

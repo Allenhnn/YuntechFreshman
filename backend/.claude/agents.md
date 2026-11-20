@@ -164,6 +164,13 @@ docker compose down             # 停止（加 -v 會連資料一起刪除）
 | `.env.example` 沒被 commit | 根目錄 `.gitignore` 有 `.env*`；需要時用 `git add -f backend/.env.example` |
 
 ## 變更紀錄
+### 2026-11-20（前端：學生宿舍D 入口雨遮下的平台延伸到牆面）— 分支 `fix/dorm-d-entry-terrace`（從 main 99d6236 開出）
+- 需求：D 入口台階平台後方（雨遮下、柱子與牆之間）是空的、露出地面，把台階平台直接延伸過去
+- 先比對 main：merge（d036844）後 `dormFeatures.ts`、`dormCourtyard.ts` 與 `feat/dorm-c-d-exterior` 相同
+- main 新增的部分：故事、人車交通、日夜循環；交通與故事物件會避開下沉中庭，故事角色站在實際地面高度上
+- `frontend/src/buildings/dormFeatures.ts`：`addDormDCanopy` 在雨遮範圍（`entryBody`）補一塊 0–0.6 m 平台（含碰撞），門、綠籬花台、柱子、公告欄原本就都在 0.6 m 高
+- 測試：`tsc --noEmit`、`vite build` 通過；headless Chrome 從使用者截圖同一位置朝入口看，平台已接到牆面
+
 ### 2026-11-20（前端：迴旋坡道往 D 側平移、與走廊欄杆相接、中間鏤空）— 分支 `feat/dorm-c-d-exterior`
 - 需求：把迴旋坡道平移到截圖紅線位置；坡道跟旁邊的圍欄（D 側走廊花磚欄杆）連在一起，中間連接處直接鏤空
 - `frontend/src/buildings/dormCourtyard.ts`：`RAMP` 全部往 D 側移 0.8 m，外牆外緣在 w −8.6（紅線）
