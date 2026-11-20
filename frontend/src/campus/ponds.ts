@@ -54,6 +54,14 @@ export const PONDS: readonly Pond[] = [
     ],
     lotus: 9,
   },
+  {
+    // East of the road, facing 雲夢湖's arm: between the gym side (north) and the courts (south).
+    name: '雲夢湖（東池）',
+    ring: [
+      230.1, 172.4, 243.2, 170.1, 259.0, 169.2, 274.8, 170.1, 282.1, 173.3, 282.0, 179.0, 276.0, 181.0, 261.0, 184.2, 246.0, 186.6, 234.2, 185.9, 230.1, 181.0,
+    ],
+    lotus: 2.5,
+  },
 ];
 
 export const WATER_Y = -0.3;
@@ -201,7 +209,7 @@ export function createPonds(scene: Scene, physics: RAPIER.World, tracker: Resour
       const x = x0 + rnd() * (x1 - x0), z = z0 + rnd() * (z1 - z0);
       if (!inRing(x, z, r)) continue;
       const e = edgeDist(x, z, r);
-      if (e < 1.5 || (pond.lotus < 3 && e > 7)) continue; // the big lake: lotus near its edges only
+      if (e < 1.5 || (pond.lotus < 2 && e > 7)) continue; // the big lake: lotus near its edges only
       const k = 0.5 + rnd() * 0.7;
       leaves.push(new Matrix4().compose(new Vector3(x, WATER_Y + 0.02, z), new Quaternion().setFromAxisAngle(up, rnd() * 6), new Vector3(k, 1, k)));
       if (rnd() < 0.18) flowers.push(new Matrix4().compose(new Vector3(x + 0.2, WATER_Y + 0.25, z), new Quaternion(), new Vector3(1, 1, 1).multiplyScalar(0.8 + rnd() * 0.4)));

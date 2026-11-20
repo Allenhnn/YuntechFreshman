@@ -484,8 +484,9 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
     d.sound('close');
   };
   storyEvents.lake = (name) => {
-    if (name === '雲夢湖') unlock('lake');
-    toast(name === '雲夢湖' ? '🌊 噗通！跳進雲夢湖了，全身濕透…' : '🪷 踩進荷花池了，小心別踩到荷花！');
+    const lake = name.startsWith('雲夢湖');
+    if (lake) unlock('lake');
+    toast(lake ? '🌊 噗通！跳進雲夢湖了，全身濕透…' : '🪷 踩進荷花池了，小心別踩到荷花！');
   };
   storyEvents.robBike = () => {
     unlock('robBike');
