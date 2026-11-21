@@ -243,89 +243,129 @@ function discussion(ctx: Ctx, r: Rect): void {
   }
 }
 
-/**
- * Four-person dorm room: a bunk bed along each long wall at the far end, then two desks per wall
- * with chairs tucked in (as many as the room length allows).
- */
-function dormRoom(ctx: Ctx, r: Rect, door: Opening | undefined): void {
-  const [x0, y0, x1, y1] = r;
-  const alongX = x1 - x0 >= y1 - y0;
-  const lo = alongX ? x0 : y0, hi = alongX ? x1 : y1;
-  const latLo = alongX ? y0 : x0, latHi = alongX ? y1 : x1;
-  if (hi - lo < 3.2 || latHi - latLo < 2.4) return;
-  const dm = door ? (alongX ? (door.a[0] + door.b[0]) / 2 : (door.a[1] + door.b[1]) / 2) : lo;
-  const farHigh = Math.abs(dm - lo) < Math.abs(dm - hi); // door near the low end → beds at the high end
-  const dir = farHigh ? -1 : 1;
-  const end = farHigh ? hi : lo;
-  const BED_L = 2.0, BED_W = 0.95, DESK_L = 1.0, DESK_D = 0.6, BUNK_H = 1.85;
-  // (u along the room, l across it) → plan rect / point.
-  const rect = (u0: number, u1: number, l0: number, l1: number): Rect =>
-    alongX ? [Math.min(u0, u1), l0, Math.max(u0, u1), l1] : [l0, Math.min(u0, u1), l1, Math.max(u0, u1)];
-  const pt = (u: number, l: number): [number, number] => (alongX ? [u, l] : [l, u]);
-  for (const latSide of [1, -1] as const) {
-    const wall = latSide > 0 ? latLo : latHi;
-    const lat = wall + latSide * (0.1 + BED_W / 2);
-    const bedMid = end + dir * (0.1 + BED_L / 2);
-    const [bx0, by0, bx1, by1] = rect(bedMid - BED_L / 2, bedMid + BED_L / 2, lat - BED_W / 2, lat + BED_W / 2);
-    if (fits(ctx, bx0, by0, bx1, by1, 0.05, 0)) {
-      const [px, py] = pt(bedMid, lat);
-      ctx.items.push(alongX
-        ? { kind: 'bunk', x: px, y: ctx.base, z: py, ry: Math.PI / 2 * -dir, sx: BED_W, sy: 1, sz: BED_L, tint: hash(px, py) }
-        : { kind: 'bunk', x: px, y: ctx.base, z: py, ry: dir > 0 ? Math.PI : 0, sx: BED_W, sy: 1, sz: BED_L, tint: hash(px, py) });
-      ctx.colliders.push({ c: [(bx0 + bx1) / 2, ctx.base + BUNK_H / 2, (by0 + by1) / 2], h: [(bx1 - bx0) / 2, BUNK_H / 2, (by1 - by0) / 2] });
-    }
-    // Two desks against the same wall past the bunk, chairs tucked in facing the wall.
-    const deskLat = wall + latSide * (0.08 + DESK_D / 2); // off the wall line, which samples as outside
-    for (let k = 0; k < 2; k++) {
-      // 0.42 m past the bunk: occupancy is kept in 0.5 m cells, so a closer desk lands in the bunk's cell.
-      const deskMid = end + dir * (0.1 + BED_L + 0.42 + DESK_L / 2 + k * (DESK_L + 0.05));
-      const [dx0, dy0, dx1, dy1] = rect(deskMid - DESK_L / 2, deskMid + DESK_L / 2, deskLat - DESK_D / 2, deskLat + DESK_D / 2);
-      if (!fits(ctx, dx0, dy0, dx1, dy1, 0.05, 0)) break;
-      const [px, py] = pt(deskMid, deskLat);
-      ctx.items.push({ kind: 'table', x: px, y: ctx.base, z: py, ry: alongX ? 0 : Math.PI / 2, sx: DESK_L, sy: 0.75, sz: DESK_D, tint: 0 });
-      const [cx, cy] = pt(deskMid, deskLat + latSide * (DESK_D / 2 + TUCK));
-      const [fx, fy] = pt(0, -latSide);
-      ctx.items.push({ kind: 'chair', x: cx, y: ctx.base, z: cy, ry: yawToward(fx, fy), sx: 1, sy: 1, sz: 1, tint: hash(cx, cy) });
-    }
-  }
+/** Dorm room lane sizes (m): bed / desk length along the wall, gap between pieces, gap to the wall. */
+export const DORM_LANE = { bed: 2.0, desk: 1.0, gap: 0.06, wall: 0.05 } as const;
+
+export interface DormPiece {
+  kind: 'loft' | 'bunk' | 'desk';
+  /** +1: lane along the low wall (latLo), −1: along the high wall. */
+  side: 1 | -1;
+  /** Centre along the room's long axis. */
+  u: number;
 }
 
 /**
- * 上床下書桌 dorm room: along each long wall from the far end, lofts (bed on top, desk and shelf
- * underneath against the wall) with a chair at each desk — two per wall when the room is long enough.
+ * Pure layout of a four-person dorm room in rect `r` (room's largest rectangle) with its door:
+ * the pieces that fit, in placement order. Shared by the furniture pass and the room generator
+ * (which turns rooms that can't take all of them into a common room).
  */
-function loftRoom(ctx: Ctx, r: Rect, door: Opening | undefined): void {
+export function planDormRoom(r: Rect, door: Pick<Opening, 'a' | 'b'> | undefined, loft: boolean): { pieces: DormPiece[]; wanted: number; alongX: boolean; dir: 1 | -1 } {
   const [x0, y0, x1, y1] = r;
   const alongX = x1 - x0 >= y1 - y0;
   const lo = alongX ? x0 : y0, hi = alongX ? x1 : y1;
   const latLo = alongX ? y0 : x0, latHi = alongX ? y1 : x1;
-  if (hi - lo < 2.6 || latHi - latLo < 2.4) return;
-  const dm = door ? (alongX ? (door.a[0] + door.b[0]) / 2 : (door.a[1] + door.b[1]) / 2) : lo;
-  const farHigh = Math.abs(dm - lo) < Math.abs(dm - hi);
-  const dir = farHigh ? -1 : 1;
-  const end = farHigh ? hi : lo;
-  const BED_L = 2.0, BED_W = 0.95, DESK_D = 0.6, DESK_L = 1.6, PLATFORM = 1.5;
-  const rect = (u0: number, u1: number, l0: number, l1: number): Rect =>
-    alongX ? [Math.min(u0, u1), Math.min(l0, l1), Math.max(u0, u1), Math.max(l0, l1)] : [Math.min(l0, l1), Math.min(u0, u1), Math.max(l0, l1), Math.max(u0, u1)];
+  const { bed: BED_L, desk: DESK_L, gap: GAP, wall: WALL } = DORM_LANE;
+  const BED_W = 0.95;
+  const queue: DormPiece['kind'][] = loft ? ['loft', 'loft', 'loft', 'loft'] : ['bunk', 'bunk', 'desk', 'desk', 'desk', 'desk'];
+  const uv = (p: readonly [number, number]): [number, number] => (alongX ? [p[0], p[1]] : [p[1], p[0]]);
+  const da = door ? uv(door.a) : null, db = door ? uv(door.b) : null;
+  const doorU = da && db ? (da[0] + db[0]) / 2 : lo;
+  const dir: 1 | -1 = Math.abs(doorU - lo) < Math.abs(doorU - hi) ? -1 : 1; // fill from the far end
+  if (hi - lo < 2.2 || latHi - latLo < 1.6) return { pieces: [], wanted: queue.length, alongX, dir };
+  interface Lane { side: 1 | -1; spans: [number, number][]; cur: number[] }
+  const lanes: Lane[] = ([1, -1] as const).map((side) => {
+    const wall = side > 0 ? latLo : latHi;
+    const l0 = Math.min(wall, wall + side * (WALL + BED_W)), l1 = Math.max(wall, wall + side * (WALL + BED_W));
+    let spans: [number, number][] = [[lo + WALL, hi - WALL]];
+    const cut = (a: number, b: number): void => {
+      spans = spans.flatMap(([s0, s1]): [number, number][] => (b <= s0 || a >= s1 ? [[s0, s1]] : [[s0, a], [b, s1]])).filter(([p, q]) => q - p > 0.3);
+    };
+    if (da && db) {
+      if (Math.abs(da[1] - db[1]) < 0.05 && Math.abs(da[1] - wall) < 0.1) {
+        cut(Math.min(da[0], db[0]) - 0.3, Math.max(da[0], db[0]) + 0.3); // door in this lane's wall
+      } else if (Math.abs(da[0] - db[0]) < 0.05) {
+        // Door in a short wall: keep the swing clear where it overlaps the lane.
+        const dl0 = Math.min(da[1], db[1]) - 0.1, dl1 = Math.max(da[1], db[1]) + 0.1;
+        if (dl1 > l0 && dl0 < l1) cut(da[0] - 1.1, da[0] + 1.1);
+      }
+    }
+    if (dir < 0) spans.reverse();
+    return { side, spans, cur: spans.map(([a, b]) => (dir > 0 ? a : b)) };
+  });
+  const take = (lane: Lane, len: number): number | null => {
+    for (let k = 0; k < lane.spans.length; k++) {
+      const [a, b] = lane.spans[k]!;
+      const c = lane.cur[k]!;
+      if (dir > 0 ? c + len > b + 1e-6 : c - len < a - 1e-6) continue;
+      const u0 = dir > 0 ? c : c - len;
+      lane.cur[k] = dir > 0 ? u0 + len + GAP : u0 - GAP;
+      return u0 + len / 2;
+    }
+    return null;
+  };
+  const pieces: DormPiece[] = [];
+  queue.forEach((kind, i) => {
+    for (const lane of [lanes[i % 2]!, lanes[(i + 1) % 2]!]) {
+      const u = take(lane, kind === 'desk' ? DESK_L : BED_L);
+      if (u !== null) { pieces.push({ kind, side: lane.side, u }); return; }
+    }
+  });
+  return { pieces, wanted: queue.length, alongX, dir };
+}
+
+/**
+ * Four-person dorm room: four beds and four desks (each with a chair) in two lanes along the long
+ * walls, from the end away from the door (planDormRoom).
+ *  - `loft` (上床下書桌): four lofts, each a bed over its own desk.
+ *  - bunks (上下舖): two bunk beds and four desks.
+ */
+function dormRoom(ctx: Ctx, r: Rect, door: Opening | undefined, loft: boolean): void {
+  const [x0, y0, x1, y1] = r;
+  const { pieces, alongX, dir } = planDormRoom(r, door, loft);
+  const latLo = alongX ? y0 : x0, latHi = alongX ? y1 : x1;
+  const { bed: BED_L, desk: DESK_L, wall: WALL } = DORM_LANE;
+  const BED_W = 0.95, DESK_D = 0.6, BUNK_H = 1.85, PLATFORM = 1.5;
   const pt = (u: number, l: number): [number, number] => (alongX ? [u, l] : [l, u]);
-  for (const latSide of [1, -1] as const) {
-    const wall = latSide > 0 ? latLo : latHi;
-    const lat = wall + latSide * (0.05 + BED_W / 2);
-    // Local +x of the loft points at the wall (its desk side).
-    const ry = alongX ? latSide * Math.PI / 2 : latSide > 0 ? Math.PI : 0;
-    for (let k = 0; k < 2; k++) {
-      const mid = end + dir * (0.05 + BED_L / 2 + k * (BED_L + 0.08));
-      const [bx0, by0, bx1, by1] = rect(mid - BED_L / 2, mid + BED_L / 2, lat - BED_W / 2, lat + BED_W / 2);
-      if (!fits(ctx, bx0, by0, bx1, by1, 0.03, 0)) break;
-      const [px, py] = pt(mid, lat);
+  const rect = (u0: number, u1: number, l0: number, l1: number): Rect => {
+    const [ax, ay] = pt(Math.min(u0, u1), Math.min(l0, l1)), [bx, by] = pt(Math.max(u0, u1), Math.max(l0, l1));
+    return [ax, ay, bx, by];
+  };
+  const wallOf = (side: 1 | -1): number => (side > 0 ? latLo : latHi);
+  const box = (side: 1 | -1, u: number, len: number, depth: number, y: number, h: number): void => {
+    const wall = wallOf(side);
+    const [bx0, by0, bx1, by1] = rect(u - len / 2, u + len / 2, wall + side * WALL, wall + side * (WALL + depth));
+    ctx.colliders.push({ c: [(bx0 + bx1) / 2, ctx.base + y + h / 2, (by0 + by1) / 2], h: [(bx1 - bx0) / 2, h / 2, (by1 - by0) / 2] });
+  };
+  const chair = (side: 1 | -1, u: number, lat: number): void => {
+    const [cx, cy] = pt(u, lat);
+    const [fx, fy] = pt(0, -side);
+    ctx.items.push({ kind: 'chair', x: cx, y: ctx.base, z: cy, ry: yawToward(fx, fy), sx: 1, sy: 1, sz: 1, tint: hash(cx, cy) });
+  };
+  for (const { kind, side, u } of pieces) {
+    const wall = wallOf(side);
+    const len = kind === 'desk' ? DESK_L : BED_L;
+    {
+      const [ox0, oy0, ox1, oy1] = rect(u - len / 2, u + len / 2, wall + side * WALL, wall + side * (WALL + (kind === 'desk' ? DESK_D : BED_W)));
+      ctx.occ.take(ox0, oy0, ox1, oy1);
+    }
+    const [px, py] = pt(u, wall + side * (WALL + BED_W / 2));
+    if (kind === 'loft') {
+      // Local +x of the loft points at the wall (its desk side).
+      const ry = alongX ? side * Math.PI / 2 : side > 0 ? Math.PI : 0;
       ctx.items.push({ kind: 'loft', x: px, y: ctx.base, z: py, ry, sx: BED_W, sy: 1, sz: BED_L, tint: hash(px, py) });
-      // Desk block against the wall, and the bed platform overhead (room to sit underneath).
-      const [dx0, dy0, dx1, dy1] = rect(mid - DESK_L / 2, mid + DESK_L / 2, wall + latSide * 0.05, wall + latSide * (0.05 + DESK_D));
-      ctx.colliders.push({ c: [(dx0 + dx1) / 2, ctx.base + 0.39, (dy0 + dy1) / 2], h: [(dx1 - dx0) / 2, 0.39, (dy1 - dy0) / 2] });
-      ctx.colliders.push({ c: [(bx0 + bx1) / 2, ctx.base + PLATFORM + 0.22, (by0 + by1) / 2], h: [(bx1 - bx0) / 2, 0.22, (by1 - by0) / 2] });
-      const [cx, cy] = pt(mid, wall + latSide * (0.05 + DESK_D + TUCK + 0.1));
-      const [fx, fy] = pt(0, -latSide);
-      ctx.items.push({ kind: 'chair', x: cx, y: ctx.base, z: cy, ry: yawToward(fx, fy), sx: 1, sy: 1, sz: 1, tint: hash(cx, cy) });
+      box(side, u, 1.6, DESK_D, 0, 0.78); // desk under the bed
+      box(side, u, BED_L, BED_W, PLATFORM, 0.44); // bed platform overhead
+      chair(side, u, wall + side * (WALL + DESK_D + TUCK + 0.1));
+    } else if (kind === 'bunk') {
+      const ry = alongX ? Math.PI / 2 * -dir : dir > 0 ? Math.PI : 0;
+      ctx.items.push({ kind: 'bunk', x: px, y: ctx.base, z: py, ry, sx: BED_W, sy: 1, sz: BED_L, tint: hash(px, py) });
+      box(side, u, BED_L, BED_W, 0, BUNK_H);
+    } else {
+      const deskLat = wall + side * (WALL + 0.03 + DESK_D / 2);
+      const [dx, dy] = pt(u, deskLat);
+      ctx.items.push({ kind: 'table', x: dx, y: ctx.base, z: dy, ry: alongX ? 0 : Math.PI / 2, sx: DESK_L, sy: 0.75, sz: DESK_D, tint: 0 });
+      box(side, u, DESK_L, DESK_D + 0.03, 0, 0.75);
+      chair(side, u, deskLat + side * (DESK_D / 2 + TUCK));
     }
   }
 }
@@ -434,7 +474,14 @@ export function layoutFurniture(plan: FloorPlan, grid: FloorGrid, base: number, 
     plan.spaces.forEach((o, j) => {
       if (j === id || (s.group && o.group === s.group)) ids.add(j);
     });
-    const ctx: Ctx = { grid, ids, base, keepOut, items, colliders, occ: new Occupancy() };
+    // Walled rooms (dorm rooms, restrooms) only keep clear of what is inside them (their own door):
+    // stair, elevator and sign keep-outs belong to the corridor on the other side of the wall.
+    const walled = s.furnish === 'dorm' || s.furnish === 'dormLoft' || s.furnish === 'restroom';
+    // (The restroom's own door keeps a small circle: sinks may stand beside the hinge.)
+    const own = walled
+      ? keepOut.filter((k) => s.furnish === 'restroom' && s.rects.some(([a, b, c, d]) => k.x >= a - 0.05 && k.x <= c + 0.05 && k.y >= b - 0.05 && k.y <= d + 0.05)).map((k) => ({ ...k, r: Math.min(k.r, 0.55) }))
+      : keepOut;
+    const ctx: Ctx = { grid, ids, base, keepOut: own, items, colliders, occ: new Occupancy() };
     const door = plan.openings.find((o) => s.rects.some(([a, b, c, d]) => {
       const mx = (o.a[0] + o.b[0]) / 2, my = (o.a[1] + o.b[1]) / 2;
       return mx >= a - 0.05 && mx <= c + 0.05 && my >= b - 0.05 && my <= d + 0.05;
@@ -453,8 +500,8 @@ export function layoutFurniture(plan: FloorPlan, grid: FloorGrid, base: number, 
         case 'theater': seating(ctx, r, false); break;
         case 'classroom': seating(ctx, r, true); break;
         case 'exhibit': plinths(ctx, r); break;
-        case 'dorm': dormRoom(ctx, r, door); break;
-        case 'dormLoft': loftRoom(ctx, r, door); break;
+        case 'dorm': dormRoom(ctx, r, door, false); break;
+        case 'dormLoft': dormRoom(ctx, r, door, true); break;
         case 'restroom': restroom(ctx, r, door); break;
       }
     }

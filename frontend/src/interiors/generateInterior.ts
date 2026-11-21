@@ -1,5 +1,6 @@
 import type { CampusBuilding } from '../campus/campusTypes';
 import type { Entrance } from '../campus/entrances';
+import { planDormRoom } from '../buildings/furniture';
 import type { BuildingSource, Fixture, FloorPlan, FurnishKind, Opening, Rect, Space, Stair, Stall } from '../buildings/buildingTypes';
 
 /**
@@ -304,7 +305,7 @@ export function generateInterior(b: CampusBuilding, entrance: Entrance | null, i
       }
     }
 
-    tidyRooms(cells, W, H, roomCols);
+    tidyRooms(cells, W, H, roomCols, kind === 'dorm');
 
     // Region → space index.
     const spaces: Space[] = [];
@@ -365,7 +366,10 @@ export function generateInterior(b: CampusBuilding, entrance: Entrance | null, i
           cx += ((x0 + x1) / 2) * a;
           cy += ((y0 + y1) / 2) * a;
         }
-        const score = area >= 18 ? Math.hypot(cx / area - hx, cy / area - hy) : 1e6 - area;
+        // Stalls (1.4 m) + sinks (0.55 m) + an aisle need a main rect at least 2.8 × 3 m.
+        const [mx0, my0, mx1, my1] = sp.rects.reduce((p, q) => ((q[2] - q[0]) * (q[3] - q[1]) > (p[2] - p[0]) * (p[3] - p[1]) ? q : p));
+        const fits = Math.min(mx1 - mx0, my1 - my0) >= 2.8 && Math.max(mx1 - mx0, my1 - my0) >= 3;
+        const score = area >= 18 && fits ? Math.hypot(cx / area - hx, cy / area - hy) : (fits ? 1e5 : 1e6) - area;
         if (score < pickScore) { pickScore = score; pick = sp; }
       }
       const centre = (sp: Space): [number, number, number] => {
@@ -392,7 +396,8 @@ export function generateInterior(b: CampusBuilding, entrance: Entrance | null, i
           for (const sp of rooms) {
             const [x, y, a] = centre(sp);
             const d = Math.hypot(x - px, y - py);
-            if (a >= 15 && d > farD) { farD = d; far = sp; }
+            const [mx0, my0, mx1, my1] = sp.rects.reduce((p, q) => ((q[2] - q[0]) * (q[3] - q[1]) > (p[2] - p[0]) * (p[3] - p[1]) ? q : p));
+            if (a >= 15 && Math.min(mx1 - mx0, my1 - my0) >= 2.8 && d > farD) { farD = d; far = sp; }
           }
           if (far && farD > 25) makeToilet(far);
         }
@@ -400,10 +405,23 @@ export function generateInterior(b: CampusBuilding, entrance: Entrance | null, i
     }
 
     // Doors: each room gets one 1 m door on its longest run of boundary with the circulation.
-    for (const [id] of spaceOf) {
+    for (const [id, index] of spaceOf) {
       if (id < 0) continue;
-      const door = doorOnto(cells, W, H, id, (v) => v === CORRIDOR || v === HALL);
+      const sp = spaces[index]!;
+      const bedroom = sp.furnish === 'dorm' || sp.furnish === 'dormLoft';
+      // Bedrooms: the door goes at a corner of a long wall, so the lane along that wall stays long.
+      const door = doorOnto(cells, W, H, id, (v) => v === CORRIDOR || v === HALL, bedroom);
       if (door) openings.push({ kind: 'door', a: door[0], b: door[1] });
+      if (bedroom) {
+        // Every bedroom sleeps four with a desk each; one too cramped for that is the floor's common room.
+        const main = sp.rects.reduce((p, q) => ((q[2] - q[0]) * (q[3] - q[1]) > (p[2] - p[0]) * (p[3] - p[1]) ? q : p));
+        const plan = planDormRoom(main, door ? { a: door[0], b: door[1] } : undefined, sp.furnish === 'dormLoft');
+        if (plan.pieces.length < plan.wanted) {
+          sp.name = '交誼廳';
+          sp.furnish = 'discussion';
+          roomNames.add('交誼廳');
+        }
+      }
     }
     // Stair landing opens onto the corridor / hall; the elevator gets its sliding door.
     let elevator: FloorPlan['elevator'];
@@ -679,7 +697,26 @@ function connectHalls(base: Int32Array, W: number, H: number, corridorRow: numbe
   });
 }
 
-function tidyRooms(cells: Int32Array, W: number, H: number, roomCols: number): void {
+/**
+ * Dorm room width along the corridor for a room band `depth` metres deep: deep bands take the
+ * standard 3.6 m room (beds along the depth); shallow ones get wide rooms so two lanes of four
+ * beds and desks run along the corridor instead.
+ */
+function dormRoomCols(depth: number): number {
+  return Math.round((depth >= 4.8 ? 3.6 : 7.0) / C);
+}
+
+/** The dorm room's largest rectangle (where furniture.ts lays it out) holds four beds and four desks. */
+function dormRoomy(cells: Int32Array, W: number, H: number, id: number): boolean {
+  let L = 0, S = 0, best = 0;
+  for (const [c0, r0, c1, r1] of mergeCells(cells, W, H, id)) {
+    const a = (c1 - c0) * (r1 - r0);
+    if (a > best) { best = a; L = Math.max(c1 - c0, r1 - r0) * C; S = Math.min(c1 - c0, r1 - r0) * C; }
+  }
+  return S >= 2.9 && L >= (S >= 3.5 ? 4.8 : 5.5);
+}
+
+function tidyRooms(cells: Int32Array, W: number, H: number, roomCols: number, dorm = false): void {
   for (const side of [0, 1]) {
     const has = new Uint8Array(W);
     for (let i = 0; i < cells.length; i++) if (cells[i]! >= 0 && Math.floor(cells[i]! / 10000) === side) has[i % W] = 1;
@@ -688,7 +725,17 @@ function tidyRooms(cells: Int32Array, W: number, H: number, roomCols: number): v
       if (!has[c0]) continue;
       let c1 = c0;
       while (c1 < W && has[c1]) c1++;
-      const len = c1 - c0, parts = Math.max(1, Math.round(len / roomCols));
+      let cols = roomCols;
+      if (dorm) {
+        // Average depth of the band over this run of columns.
+        let n = 0;
+        for (let i = 0; i < cells.length; i++) {
+          const col = i % W;
+          if (col >= c0 && col < c1 && cells[i]! >= 0 && Math.floor(cells[i]! / 10000) === side) n++;
+        }
+        cols = dormRoomCols((n / (c1 - c0)) * C);
+      }
+      const len = c1 - c0, parts = Math.max(1, Math.round(len / cols));
       for (let row = 0; row < H; row++) {
         for (let col = c0; col < c1; col++) {
           const v = cells[row * W + col]!;
@@ -700,7 +747,7 @@ function tidyRooms(cells: Int32Array, W: number, H: number, roomCols: number): v
     }
   }
   const MIN_AREA = 9 / (C * C), MIN_SPAN = 2.4 / C;
-  for (let pass = 0; pass < 6; pass++) {
+  for (let pass = 0; pass < (dorm ? 12 : 6); pass++) {
     const stat = new Map<number, { n: number; c0: number; c1: number; r0: number; r1: number; circ: number; nb: Map<number, number> }>();
     for (let row = 0; row < H; row++) {
       for (let col = 0; col < W; col++) {
@@ -725,9 +772,12 @@ function tidyRooms(cells: Int32Array, W: number, H: number, roomCols: number): v
     for (const [id, s] of [...stat].sort((a, b) => a[1].n - b[1].n)) {
       if (merged.has(id)) continue;
       const bad = s.n < MIN_AREA || Math.min(s.c1 - s.c0 + 1, s.r1 - s.r0 + 1) < MIN_SPAN || s.circ < 2;
-      if (!bad) continue;
+      // Dorms: a room too cramped for four beds and desks grows into its neighbour (never into the hall).
+      const cramped = dorm && !bad && !dormRoomy(cells, W, H, id);
+      if (!bad && !cramped) continue;
       let into = HALL, most = 0;
       for (const [o, k] of s.nb) if (!merged.has(o) && k > most) { most = k; into = o; }
+      if (cramped && into === HALL) continue;
       // An isolated pocket with no room beside it and no way in is not floor space at all.
       if (into === HALL && s.circ === 0) into = OUT;
       for (let i = 0; i < cells.length; i++) if (cells[i] === id) cells[i] = into;
@@ -773,7 +823,7 @@ function circulationAlong(cells: Int32Array, W: number, H: number, c0: number, c
  * A door (two plan points, 1 m apart) on the room's boundary with cells matching `onto`, centred on
  * the longest straight run of that boundary.
  */
-function doorOnto(cells: Int32Array, W: number, H: number, id: number, onto: (v: number) => boolean): [[number, number], [number, number]] | null {
+function doorOnto(cells: Int32Array, W: number, H: number, id: number, onto: (v: number) => boolean, corner = false): [[number, number], [number, number]] | null {
   const cellsNeeded = Math.round(DOOR / C);
   let best: { len: number; pts: [[number, number], [number, number]] } | null = null;
   // Horizontal boundaries (between row and row + 1), scanning runs along x.
@@ -786,7 +836,8 @@ function doorOnto(cells: Int32Array, W: number, H: number, id: number, onto: (v:
         if (!ok && start >= 0) {
           const len = col - start;
           if (len >= cellsNeeded && (!best || len > best.len)) {
-            const mid = Math.floor((start + col - cellsNeeded) / 2);
+            // `corner`: on a run of 4.8 m or more, half a metre in from its start instead of centred.
+            const mid = corner && len * C >= 4.8 ? start + 1 : Math.floor((start + col - cellsNeeded) / 2);
             const y = (row + 1) * C;
             best = { len, pts: [[mid * C, y], [(mid + cellsNeeded) * C, y]] };
           }
@@ -805,7 +856,7 @@ function doorOnto(cells: Int32Array, W: number, H: number, id: number, onto: (v:
         if (!ok && start >= 0) {
           const len = row - start;
           if (len >= cellsNeeded && (!best || len > best.len)) {
-            const mid = Math.floor((start + row - cellsNeeded) / 2);
+            const mid = corner && len * C >= 4.8 ? start + 1 : Math.floor((start + row - cellsNeeded) / 2);
             const x = (col + 1) * C;
             best = { len, pts: [[x, mid * C], [x, (mid + cellsNeeded) * C]] };
           }
