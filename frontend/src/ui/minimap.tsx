@@ -7,6 +7,7 @@ import { outsideRing } from '../game/teleport';
 import { UNLABELLED_NAMES } from '../campus/placeNames';
 import { useApi } from './api';
 import { storyStore } from '../state/story';
+import { Icon, drawIcon, iconOf } from './icons';
 
 const hex = (c: number): string => `#${c.toString(16).padStart(6, '0')}`;
 
@@ -362,6 +363,8 @@ function drawPin(g: CanvasRenderingContext2D, x: number, y: number, s: number, c
   g.closePath();
   g.fill();
   g.stroke();
+  const icon = iconOf(glyph);
+  if (icon) { drawIcon(g, icon, x, y - s * 1.2, s * 1.15, '#fff', 2.4); return; }
   g.fillStyle = '#fff';
   g.font = `bold ${Math.round(s * 0.9)}px 'Cubic 11', system-ui`;
   g.textAlign = 'center';
@@ -721,7 +724,7 @@ export function FullMap(): ReactNode {
           <div className="map-search">
             <input
               type="search"
-              placeholder="🔍 搜尋建築或設施…"
+              placeholder="搜尋建築或設施…"
               value={query}
               onChange={(e) => { setQuery(e.target.value); setSel(0); setSearchOpen(true); }}
               onFocus={() => setSearchOpen(true)}
@@ -775,19 +778,19 @@ export function FullMap(): ReactNode {
             <div className="map-menu" style={{ left: menu.left, top: menu.top }}>
               <div className="title">{menu.place?.name ?? '自訂重生點'}</div>
               {menu.place && (nav?.name === menu.place.name
-                ? <button onClick={() => { api.stopNav(); setMenu(null); }}>✕ 結束導航</button>
-                : <button className="primary" onClick={() => { const p = menu.place!; api.navigateTo(p.x, p.z, p.name); setMenu(null); }}>🧭 導航到這裡</button>)}
-              {menu.place && <button onClick={() => { const p = menu.place!; api.teleportTo(p.x, p.z, p.name); setMenu(null); }}>🚀 傳送到這裡</button>}
-              {menu.place && <button onClick={() => { const p = menu.place!; actions.setCustomSpawn({ x: p.x, z: p.z, facing: telemetry.facing }); actions.toast(`重生點已設在 ${p.name}`); setMenu(null); }}>⌂ 設為重生點</button>}
-              {menu.onCustomSpawn && <button onClick={() => { actions.setCustomSpawn(null); setMenu(null); }}>↺ 恢復預設重生點</button>}
+                ? <button onClick={() => { api.stopNav(); setMenu(null); }}><Icon name="close" /> 結束導航</button>
+                : <button className="primary" onClick={() => { const p = menu.place!; api.navigateTo(p.x, p.z, p.name); setMenu(null); }}><Icon name="compass" /> 導航到這裡</button>)}
+              {menu.place && <button onClick={() => { const p = menu.place!; api.teleportTo(p.x, p.z, p.name); setMenu(null); }}><Icon name="rocket" /> 傳送到這裡</button>}
+              {menu.place && <button onClick={() => { const p = menu.place!; actions.setCustomSpawn({ x: p.x, z: p.z, facing: telemetry.facing }); actions.toast(`重生點已設在 ${p.name}`); setMenu(null); }}><Icon name="home" /> 設為重生點</button>}
+              {menu.onCustomSpawn && <button onClick={() => { actions.setCustomSpawn(null); setMenu(null); }}><Icon name="undo" /> 恢復預設重生點</button>}
               <button className="ghost" onClick={() => setMenu(null)}>取消</button>
             </div>
           )}
           <div className="map-tools">
             <button title="放大（＋）" onClick={() => zoomBy(1.5)}>＋</button>
             <button title="縮小（－）" onClick={() => zoomBy(1 / 1.5)}>－</button>
-            <button title="回到我的位置" onClick={centreOnMe}>◎</button>
-            {nav && <button title="顯示導航全程" onClick={fitRoute}>🧭</button>}
+            <button title="回到我的位置" onClick={centreOnMe}><Icon name="target" /></button>
+            {nav && <button title="顯示導航全程" onClick={fitRoute}><Icon name="compass" /></button>}
           </div>
         </div>
         </div>

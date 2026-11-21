@@ -6,6 +6,7 @@ import { auth, useAuth } from '../state/auth';
 import { storyActions, useStory } from '../state/story';
 import { dispatch } from '../state/commands';
 import { StoryAdmin } from './story';
+import { Icon, Rich } from './icons';
 
 export function Brand(): ReactNode {
   return (
@@ -100,7 +101,7 @@ export function MenuScreen({ paused }: { paused: boolean }): ReactNode {
             )}
           </nav>
           <p className="hint">{hint}</p>
-          <p className="start-point">{hasSave ? (account === 'signedIn' ? '☁️ 進度已同步到帳號' : '💾 進度已儲存在這個瀏覽器') : '📍 起點：宿舍區道路'}</p>
+          <p className="start-point"><Rich t={hasSave ? (account === 'signedIn' ? '☁️ 進度已同步到帳號' : '💾 進度已儲存在這個瀏覽器') : '📍 起點：宿舍區道路'} /></p>
         </aside>
         <PlayerCard />
         <p className="title-credit">核心原型 v0.7 · 國立雲林科技大學校園 · 地圖資料 © OpenStreetMap contributors</p>
@@ -126,7 +127,7 @@ export function MenuScreen({ paused }: { paused: boolean }): ReactNode {
 function MenuItem({ icon, label, sub, primary, onClick }: { icon: string; label: string; sub: string; primary?: boolean; onClick: () => void }): ReactNode {
   return (
     <button className={`menu-item${primary ? ' primary' : ''}`} onClick={onClick}>
-      <i aria-hidden>{icon}</i>
+      <i aria-hidden><Rich t={icon} /></i>
       <span>
         <b>{label}</b>
         <small>{sub}</small>
@@ -144,7 +145,7 @@ function PlayerCard(): ReactNode {
   if (status === 'offline') {
     return (
       <div className="player-card">
-        <div className="avatar">☁</div>
+        <div className="avatar"><Icon name="cloud" size={28} /></div>
         <div className="who">
           <b>離線遊玩</b>
           <small>進度只存在這個瀏覽器</small>

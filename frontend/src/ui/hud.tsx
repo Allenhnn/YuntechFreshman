@@ -5,6 +5,7 @@ import { ChatLog } from './chat';
 import { useApi } from './api';
 import { FullMap, Minimap } from './minimap';
 import { PhoneNotice } from './phone';
+import { Icon, Rich } from './icons';
 
 function Coins(): ReactNode {
   const coins = useGame((s) => s.coins);
@@ -31,7 +32,7 @@ function Hotbar(): ReactNode {
           onClick={() => api.selectHotbar(i)}
         >
           <span className="num">{i + 1}</span>
-          {stack && ITEMS[stack.id].icon}
+          {stack && <Rich t={ITEMS[stack.id].icon} />}
           {stack && stack.count > 1 && <span className="count">{stack.count}</span>}
         </button>
       ))}
@@ -46,7 +47,7 @@ function Toast(): ReactNode {
     const id = window.setTimeout(() => actions.clearToast(toast.id), 2600);
     return () => window.clearTimeout(id);
   }, [toast]);
-  return toast ? <div key={toast.id} className="toast">{toast.text}</div> : null;
+  return toast ? <div key={toast.id} className="toast"><Rich t={toast.text} /></div> : null;
 }
 
 function RaceHud(): ReactNode {
@@ -54,7 +55,7 @@ function RaceHud(): ReactNode {
   const race = useGame((s) => s.race);
   const best = useGame((s) => s.raceBest);
   if (!race) return null;
-  const leave = <button className="race-leave interactive" onClick={api.leaveRace}>✕ 離開計時賽 <kbd>Q</kbd></button>;
+  const leave = <button className="race-leave interactive" onClick={api.leaveRace}><Icon name="close" /> 離開計時賽 <kbd>Q</kbd></button>;
   if (race.phase === 'countdown') {
     return (
       <>
@@ -85,7 +86,7 @@ function NavBar(): ReactNode {
   const eta = secs < 60 ? `${secs} 秒` : `${Math.floor(secs / 60)} 分 ${secs % 60} 秒`;
   return (
     <div className={`nav-bar${racing ? ' lower' : ''}`}>
-      <span className="nav-icon">🧭</span>
+      <span className="nav-icon"><Icon name="compass" size={22} /></span>
       <span className="nav-goal">{nav.name}</span>
       <span className="nav-dist">{m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${m} m`}</span>
       <span className="nav-eta">步行約 {eta}</span>
@@ -118,7 +119,7 @@ function TesterBadge(): ReactNode {
   const flag = (on: boolean): ReactNode => <span className={on ? 'on' : ''}>{on ? '開' : '關'}</span>;
   return (
     <div className="tester-badge">
-      <b>🧪 測試員模式</b>　<kbd>F</kbd> 飛行 {flag(t.fly)}　<kbd>N</kbd> 穿牆 {flag(t.noclip)}　<kbd>+</kbd>/<kbd>-</kbd> 速度 <span className={t.speed > 1 ? 'on' : ''}>×{t.speed}</span>
+      <b><Icon name="flask" /> 測試員模式</b>　<kbd>F</kbd> 飛行 {flag(t.fly)}　<kbd>N</kbd> 穿牆 {flag(t.noclip)}　<kbd>+</kbd>/<kbd>-</kbd> 速度 <span className={t.speed > 1 ? 'on' : ''}>×{t.speed}</span>
       {t.fly && <>　<kbd>Space</kbd> 上升 <kbd>C</kbd> 下降</>}　<kbd>/tester</kbd> 關閉
     </div>
   );
@@ -131,7 +132,7 @@ function SportPanel(): ReactNode {
     <>
     {s.fp && <div className="crosshair"><i /><b /></div>}
     <div className={`sport-hud${s.fp ? ' big' : ''}`}>
-      <div className="sport-head"><b>{s.title}</b><span className="sport-score">{s.score}</span></div>
+      <div className="sport-head"><b><Rich t={s.title} /></b><span className="sport-score">{s.score}</span></div>
       {s.vs && <div className="sport-vs"><span>你 <b>{s.vs.you}</b></span><i>VS</i><span><b>{s.vs.them}</b> {s.vs.name}</span></div>}
       <div className="sport-info">{s.info}　最佳 {s.best}</div>
       {s.charge !== null && (
@@ -140,7 +141,7 @@ function SportPanel(): ReactNode {
           <div className="fill" style={{ width: `${s.charge * 100}%` }} />
         </div>
       )}
-      {s.message && <div className="sport-msg" key={s.message}>{s.message}</div>}
+      {s.message && <div className="sport-msg" key={s.message}><Rich t={s.message} /></div>}
       <div className="sport-hint">{s.hint}</div>
     </div>
     </>
@@ -165,7 +166,7 @@ export function Hud(): ReactNode {
       {mapMode === 'mini' && <div className="osm-credit">© OpenStreetMap contributors</div>}
       <Hotbar />
       <button className="phone-btn interactive" aria-label="手機" onClick={() => api.toggleModal('phone')}>
-        📱<kbd>P</kbd>
+        <Icon name="phone" size={30} /><kbd>P</kbd>
       </button>
       <div className="key-hints">
         <span><kbd>Tab</kbd>背包</span>

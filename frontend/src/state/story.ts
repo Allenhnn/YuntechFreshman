@@ -57,6 +57,8 @@ export interface PhoneState {
   note: { from: string; text: string; at: number } | null;
   /** A digital roll call open in the 點名系統 app. */
   rollcall: { course: string } | null;
+  /** The thread the phone opens on when it pops up by itself. */
+  focus: string | null;
 }
 
 export type StoryScene =
@@ -78,7 +80,7 @@ export interface StoryState {
   /** Open story scene (dialog / mini-game), shown in the story modal. */
   scene: StoryScene | null;
   /** Live objective details: distance (m) and direction to the target, timers. */
-  live: { distance: number | null; bearing: number | null; timer: string | null; stamina: number | null; note: string | null; place: string | null; photoSpot?: string | null };
+  live: { countdown?: { label: string; left: number; total: number; where: string } | null; distance: number | null; bearing: number | null; timer: string | null; stamina: number | null; note: string | null; place: string | null; photoSpot?: string | null };
   /** Achievements waiting for their popup (first = showing). */
   unlockQueue: string[];
   /** Quest targets for the minimap and full map (same as the beacons). */
@@ -86,6 +88,8 @@ export interface StoryState {
   /** Big moments (side quest done, day over): confetti and a card. */
   celebration: { title: string; sub: string; at: number } | null;
   phone: PhoneState;
+  /** Raising a hand at roll call (the seated pose lifts an arm). */
+  handUp: boolean;
 }
 
 const KEY = 'yfm.story.v1';
@@ -135,7 +139,8 @@ export const storyStore = createStore<StoryState>()(() => ({
   unlockQueue: [],
   celebration: null,
   pins: [],
-  phone: { threads: {}, replies: {}, unread: {}, note: null, rollcall: null },
+  phone: { threads: {}, replies: {}, unread: {}, note: null, rollcall: null, focus: null },
+  handUp: false,
 }));
 
 export function useStory<T>(selector: (s: StoryState) => T): T {
@@ -192,9 +197,15 @@ export const storyActions = {
     set({ celebration: { title, sub, at: Date.now() } });
   },
   /** A friend's message: into the thread, unread, and a notification banner. */
-  message(from: string, text: string): void {
+  message(from: string, text: string, banner = true): void {
     const ph = get().phone;
-    set({ phone: { ...ph, threads: { ...ph.threads, [from]: [...(ph.threads[from] ?? []), { me: false, text }] }, unread: { ...ph.unread, [from]: (ph.unread[from] ?? 0) + 1 }, note: { from, text, at: Date.now() } } });
+    set({ phone: { ...ph, threads: { ...ph.threads, [from]: [...(ph.threads[from] ?? []), { me: false, text }] }, unread: { ...ph.unread, [from]: (ph.unread[from] ?? 0) + 1 }, ...(banner ? { note: { from, text, at: Date.now() } } : {}) } });
+  },
+  focusThread(focus: string | null): void {
+    set({ phone: { ...get().phone, focus } });
+  },
+  setHand(handUp: boolean): void {
+    set({ handUp });
   },
   /** The player's own message in a thread. */
   sent(to: string, text: string): void {
@@ -214,7 +225,7 @@ export const storyActions = {
     set({ phone: { ...get().phone, rollcall } });
   },
   resetPhone(): void {
-    set({ phone: { threads: {}, replies: {}, unread: {}, note: null, rollcall: null } });
+    set({ phone: { threads: {}, replies: {}, unread: {}, note: null, rollcall: null, focus: null }, handUp: false });
   },
   popUnlock(): void {
     set({ unlockQueue: get().unlockQueue.slice(1) });

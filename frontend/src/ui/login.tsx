@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'rea
 import { auth, useAuth } from '../state/auth';
 import { useApi } from './api';
 import { Brand } from './menus';
+import { Icon } from './icons';
 
 interface GoogleId {
   initialize(o: { client_id: string; callback: (r: { credential: string }) => void }): void;
@@ -101,9 +102,9 @@ export function LoginScreen(): ReactNode {
           <Brand />
           <p className="tagline">走進校園，開始你的大學第一天</p>
           <ul className="login-perks">
-            <li>☁️ 進度存在帳號，換電腦也能繼續</li>
-            <li>🎒 背包、最佳紀錄、重生點跟著你走</li>
-            <li>🚲 先用訪客玩，之後再註冊也能保留進度</li>
+            <li><Icon name="cloud" /> 進度存在帳號，換電腦也能繼續</li>
+            <li><Icon name="bag" /> 背包、最佳紀錄、重生點跟著你走</li>
+            <li><Icon name="bike" /> 先用訪客玩，之後再註冊也能保留進度</li>
           </ul>
         </div>
 

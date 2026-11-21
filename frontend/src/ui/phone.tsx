@@ -6,6 +6,7 @@ import { FRIEND, ROOMMATE } from '../story/storyData';
 import { deletePhoto, listPhotos, type Photo } from '../state/album';
 import { useApi } from './api';
 import { SettingsPanel } from './menus';
+import { Icon, Rich } from './icons';
 
 interface AppSpec {
   id: string;
@@ -84,9 +85,10 @@ const AVATAR: Record<string, string> = { [ROOMMATE]: '🧑🏻', [FRIEND]: '👩
 function Chat(): ReactNode {
   const api = useApi();
   const phone = useStory((s) => s.phone);
-  const [open, setOpen] = useState<string | null>(null);
+  const [open, setOpen] = useState<string | null>(phone.focus);
   const end = useRef<HTMLDivElement>(null);
   const names = [...new Set([ROOMMATE, FRIEND, ...Object.keys(phone.threads)])];
+  useEffect(() => { if (phone.focus) { setOpen(phone.focus); storyActions.focusThread(null); } }, [phone.focus]);
   useEffect(() => { if (open) storyActions.readThread(open); }, [open, phone.threads]);
   useEffect(() => { end.current?.scrollIntoView({ block: 'end' }); }, [open, phone.threads]);
   if (open) {
@@ -94,14 +96,14 @@ function Chat(): ReactNode {
     const replies = phone.replies[open] ?? [];
     return (
       <div className="chat-thread">
-        <div className="chat-head"><button className="btn small" onClick={() => { api.click(); setOpen(null); }}>‹</button><b>{AVATAR[open] ?? '🙂'} {open}</b></div>
+        <div className="chat-head"><button className="btn small" onClick={() => { api.click(); setOpen(null); }}>‹</button><b><Rich t={AVATAR[open] ?? '🙂'} /> {open}</b></div>
         <div className="chat-msgs">
           {!msgs.length && <div className="desc">還沒有訊息</div>}
-          {msgs.map((m, i) => <div key={i} className={`bubble${m.me ? ' me' : ''}`}>{m.text}</div>)}
+          {msgs.map((m, i) => <div key={i} className={`bubble${m.me ? ' me' : ''}`}><Rich t={m.text} /></div>)}
           <div ref={end} />
         </div>
         <div className="chat-replies">
-          {replies.length ? replies.map((r) => <button key={r.id} className="btn small" onClick={() => { api.click(); storyEvents.chat(open, r.id); }}>{r.text}</button>)
+          {replies.length ? replies.map((r) => <button key={r.id} className="btn small" onClick={() => { api.click(); storyEvents.chat(open, r.id); }}><Rich t={r.text} /></button>)
             : <span className="desc">（沒有可以回的話）</span>}
         </div>
       </div>
@@ -114,8 +116,8 @@ function Chat(): ReactNode {
         const lastMsg = msgs[msgs.length - 1];
         return (
           <button key={n} className="chat-row" onClick={() => { api.click(); setOpen(n); }}>
-            <i>{AVATAR[n] ?? '🙂'}</i>
-            <span><b>{n}</b><small>{lastMsg ? lastMsg.text : '（沒有訊息）'}</small></span>
+            <i><Rich t={AVATAR[n] ?? '🙂'} /></i>
+            <span><b>{n}</b><small><Rich t={lastMsg ? lastMsg.text : '（沒有訊息）'} /></small></span>
             {(phone.unread[n] ?? 0) > 0 && <em>{phone.unread[n]}</em>}
           </button>
         );
@@ -141,17 +143,17 @@ function Rollcall(): ReactNode {
     if (storyEvents.rollcallCode(code)) { setState('ok'); actions.toast('✅ 數位點名簽到成功'); }
     else { setState('bad'); setCode(''); }
   };
-  if (!rc && state !== 'ok') return <div className="desc rc-none">目前沒有進行中的點名 ✅</div>;
+  if (!rc && state !== 'ok') return <div className="desc rc-none">目前沒有進行中的點名 <Icon name="checkCircle" /></div>;
   return (
     <div className="rc">
       <div className="rc-course">{rc?.course ?? '已簽到'}</div>
-      {state === 'ok' ? <div className="rc-ok">✅ 簽到成功！</div> : (
+      {state === 'ok' ? <div className="rc-ok"><Icon name="checkCircle" size={30} /> 簽到成功！</div> : (
         <>
           <div className={`rc-code${state === 'bad' ? ' bad' : ''}`}>{[0, 1, 2, 3].map((i) => <span key={i}>{code[i] ?? ''}</span>)}</div>
-          <div className="rc-msg">{state === 'bad' ? '❌ 點名碼錯誤，請重試' : '輸入 4 位數點名碼'}</div>
+          <div className="rc-msg">{state === 'bad' ? <><Icon name="closeCircle" /> 點名碼錯誤，請重試</> : '輸入 4 位數點名碼'}</div>
           <div className="rc-keys">
             {['1', '2', '3', '4', '5', '6', '7', '8', '9', '⌫', '0', '✓'].map((k) => (
-              <button key={k} className={k === '✓' ? 'go' : ''} disabled={k === '✓' && code.length !== 4} onClick={() => (k === '✓' ? submit() : press(k))}>{k}</button>
+              <button key={k} className={k === '✓' ? 'go' : ''} disabled={k === '✓' && code.length !== 4} onClick={() => (k === '✓' ? submit() : press(k))}><Rich t={k} /></button>
             ))}
           </div>
         </>
@@ -164,6 +166,7 @@ function Rollcall(): ReactNode {
 export function PhoneNotice(): ReactNode {
   const api = useApi();
   const note = useStory((s) => s.phone.note);
+  const phoneOpen = useGame((s) => s.modal === 'phone');
   const [shown, setShown] = useState<number | null>(null);
   useEffect(() => {
     if (!note) return;
@@ -171,11 +174,11 @@ export function PhoneNotice(): ReactNode {
     const t = window.setTimeout(() => setShown(null), 5000);
     return () => window.clearTimeout(t);
   }, [note]);
-  if (!note || shown !== note.at) return null;
+  if (!note || shown !== note.at || phoneOpen) return null;
   return (
     <button className="phone-notice interactive" key={note.at} onClick={() => { api.click(); actions.setPhonePage('chat'); api.toggleModal('phone'); }}>
-      <i>{AVATAR[note.from] ?? '💬'}</i>
-      <span><b>{note.from}</b><small>{note.text}</small></span>
+      <i><Rich t={AVATAR[note.from] ?? '💬'} /></i>
+      <span><b>{note.from}</b><small><Rich t={note.text} /></small></span>
       <em>按 P 查看</em>
     </button>
   );
@@ -217,13 +220,13 @@ export function PhoneDrawer(): ReactNode {
         <div className="notch" />
         <div className="statusbar">
           <span>{hh}:{mm}</span>
-          <span>📶 🔋</span>
+          <span><Icon name="signal" /> <Icon name="battery" /></span>
         </div>
         {page === 'home' ? (
           <div className="apps">
             {apps.map((a) => (
               <button key={a.id} className="app" disabled={!a.run} onClick={a.run} title={a.run ? a.label : '即將推出'}>
-                <span className="ico" style={{ background: a.color }}>{a.icon}{a.id === 'msg' && unread > 0 && <em className="badge">{unread}</em>}{a.id === 'rollcall' && rcOpen && <em className="badge">!</em>}</span>
+                <span className="ico" style={{ background: a.color }}><Rich t={a.icon} />{a.id === 'msg' && unread > 0 && <em className="badge">{unread}</em>}{a.id === 'rollcall' && rcOpen && <em className="badge">!</em>}</span>
                 {a.label}
               </button>
             ))}

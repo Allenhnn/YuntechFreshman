@@ -48,6 +48,8 @@ export interface StoryDeps {
   walkSpeed: number;
   /** Nearest point on a campus road or walkway. */
   snapToRoad(x: number, z: number): { x: number; z: number };
+  /** Pops the phone up on a chat thread (a message the story wants you to read now). */
+  openPhone(from: string): void;
 }
 
 export interface StoryFrame {
@@ -64,6 +66,8 @@ export interface StoryFrame {
   /** Building whose chair you sit on, or null. */
   seatedIn: string | null;
   lying: boolean;
+  /** Code of the room whose chair you sit on (MA214), or null. */
+  seatedRoom: string | null;
 }
 
 export type SceneResult =
@@ -161,9 +165,10 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
     if (step.msg) {
       const m = step.msg;
       window.setTimeout(() => {
-        storyActions.message(m.from, m.text);
+        storyActions.message(m.from, m.text, false);
         d.sound('open');
         if (m.from === ROOMMATE) storyActions.setReplies(ROOMMATE, [{ id: 'otw', text: '馬上到！' }, { id: 'ok', text: '收到 👍' }]);
+        d.openPhone(m.from); // the phone pops up on the chat, not a message over the game
       }, step.wake ? 1500 : 400);
     }
   };
@@ -197,6 +202,13 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
   let wakeFor = 0;
   let wasLying = false;
   let wakeTried = false;
+  let wrongRoomToast = false;
+  /** The live countdown object, reused while it does not change (the store compares by identity). */
+  let cdCache: { label: string; left: number; total: number; where: string } | null = null;
+  const cdOf = (left: number, total: number, where: string): NonNullable<typeof cdCache> => {
+    if (!cdCache || cdCache.left !== left || cdCache.total !== total || cdCache.where !== where) cdCache = { label: '點名倒數', left, total, where };
+    return cdCache;
+  };
   /** The digital roll call's code (in the chat), null when none is open. */
   let rcCode: string | null = null;
   /** The step the automatic navigation was started for. */
@@ -207,6 +219,7 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
   const resetTransient = (): void => {
     cls = { phase: 'idle', t: 0, limit: 0 };
     wakeFor = 0;
+    wrongRoomToast = false;
     wakeTried = false;
     wasLying = false;
     rcCode = null;
@@ -330,6 +343,7 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
       const n = npcsFor(step.cond.scene)[0];
       if (n) return { x: n.x, z: n.z };
     }
+    if (step.room) { const r = d.placeOf(step.room); if (r) return r; }
     return d.placeOf(step.place);
   };
   const ICON: Record<string, string> = { talk: '💬', buy: '🛒', eat: '🍱', sport: '🏀', class: '📚', sleep: '🛏️', run: '🏁', quiz: '📝', enter: '📍', scene: '📚', getUp: '⏰', phoneRollcall: '📱', outfit: '👕' };
@@ -720,38 +734,39 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
       if (f.lying) wasLying = true;
       else if (wasLying && wakeFor <= 0) { wasLying = false; advance(); }
     }
-    // Roll call: from where you are, the walk to the classroom plus 5 seconds to sit down.
+    // Roll call: from where you are, the walk to the classroom (MA214) plus 5 seconds to sit down.
     if (step?.cond.t === 'class' && !st().scene) {
       if (cls.phase === 'idle') {
-        const c = d.placeOf(step.place);
+        const c = d.placeOf(step.room ?? step.place);
         const path = c ? d.route(f.x, f.z, c.x, c.z) : [];
-        let len = 0;
+        let len = 12; // the stairs up to 2F count as 12 m of walking
         for (let i = 2; i < path.length; i += 2) len += Math.hypot(path[i]! - path[i - 2]!, path[i + 1]! - path[i - 1]!);
         const limit = Math.ceil(len / d.walkSpeed + 5);
         cls = { phase: 'timed', t: limit, limit };
-        toast(`⏰ 老師在點名了！${limit} 秒內到 ${step.place} 找空位坐下`);
+        toast(`老師在點名了！${limit} 秒內到 ${step.room ?? step.place} 坐下`);
       } else if (cls.phase === 'timed') {
         cls.t -= dt;
-        if (f.seatedIn === step.place) {
+        const here = f.seatedIn === step.place;
+        if (here && step.room && f.seatedRoom !== step.room) {
+          if (!wrongRoomToast) { wrongRoomToast = true; toast(`這裡不是 ${step.room}！到管理一館 2F 的 ${step.room} 教室`); }
+        } else if (here) {
+          // In the right room: the professor calls the roll, raise your hand when it is your number.
           cls.phase = 'done';
-          pendingScene = 'rollcallOk';
-          open({ kind: 'dialog', id: 'rollcallOk', lines: [
-            { who: '教授', text: `…學號末三碼 ${prog().studentNo}？` },
-            { who: '你', text: '（氣喘吁吁）有、有！' },
-            { who: '教授', text: '好，剛好趕上。下次早點來。' },
-          ] });
-        } else if (cls.t <= 0) {
+          pendingScene = 'rollcall';
+          open({ kind: 'rollcall', advanced: false, sudden: false });
+        }
+        if (cls.phase === 'timed' && cls.t <= 0) {
           cls.phase = 'done';
           actions.addCoins(-Math.min(ABSENT_FINE, gameStore.getState().coins));
           storyActions.update((p) => ({ ...p, rollcalls: { ok: p.rollcalls.ok, total: p.rollcalls.total + 1 }, flags: { ...p.flags, absent: (p.flags.absent ?? 0) + 1 } }));
           d.sound('close');
-          toast(`❌ 點名結束，你缺席了！扣 NT$ ${ABSENT_FINE}`);
+          toast(`點名結束，你缺席了！扣 NT$ ${ABSENT_FINE}`);
           advance();
         }
       }
     }
     // A scene that starts by itself: the stay-awake game once you sit in the classroom.
-    if (step?.cond.t === 'scene' && !st().scene && f.seatedIn === step.place) playScene(step.cond.scene);
+    if (step?.cond.t === 'scene' && !st().scene && f.seatedIn === step.place && (!step.room || f.seatedRoom === step.room)) playScene(step.cond.scene);
     // Digital roll call: the code lives in the chat with your friend.
     if (step?.cond.t === 'phoneRollcall' && !rcCode) {
       rcCode = String(1000 + Math.floor(Math.random() * 9000));
@@ -808,18 +823,20 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
       const view = Math.atan2(-Math.sin(f.viewYaw), -Math.cos(f.viewYaw));
       const rel = Math.atan2(dx, dz) - view;
       const idx = ((Math.round(-rel / (Math.PI / 4)) % 8) + 8) % 8;
-      const timer = cls.phase === 'timed' && step!.cond.t === 'class' ? `⏰ 點名倒數 ${Math.max(0, Math.ceil(cls.t))} 秒` : run ? `⏱ ${Math.floor(run.t / 60)}:${String(Math.floor(run.t % 60)).padStart(2, '0')}` : null;
+      const classTimer = cls.phase === 'timed' && step!.cond.t === 'class';
+      const timer = run ? `⏱ ${Math.floor(run.t / 60)}:${String(Math.floor(run.t % 60)).padStart(2, '0')}` : null;
       storyActions.setLive({
         distance: step!.cond.t !== 'run' && inPlace(f, step!.place) && (step!.cond.t !== 'talk' || closeTo(step!.cond.scene, f)) ? 0 : Math.round(dist),
         bearing: idx,
         timer,
+        countdown: classTimer ? cdOf(Math.max(0, Math.ceil(cls.t)), cls.limit, `${step!.place} ${step!.room ?? ''}`.trim()) : null,
         stamina: run ? Math.round(run.stamina * 20) / 20 : null,
         note: run?.tired ? '跑不動了…慢慢跑恢復體力' : null,
         place: run && step!.cond.t === 'run' ? `檢查點 ${run.next + 1}/${run.points.length}`
           : step!.cond.t === 'talk' && npcsFor(step!.cond.scene)[0] ? npcsFor(step!.cond.scene)[0]!.name : step!.place,
       });
     } else {
-      storyActions.setLive({ distance: null, bearing: null, timer: null, stamina: null, note: null, place: null });
+      storyActions.setLive({ distance: null, bearing: null, timer: null, countdown: null, stamina: null, note: null, place: null });
     }
   };
 

@@ -6,6 +6,7 @@ import { OUTFIT_ITEMS, OUTFIT_PARTS } from '../character/outfit';
 import { storyEvents } from '../story/storyRuntime';
 import { dispatch } from '../state/commands';
 import { useApi } from './api';
+import { Icon, Rich } from './icons';
 
 /** Hints for side quests not started yet. */
 const SIDE_HINTS: Record<string, string> = {
@@ -74,23 +75,23 @@ export function QuestTracker(): ReactNode {
           <>
             <div className="qt-steps">{day.steps.map((st, i) => <i key={st.id} className={i < p.step ? 'done' : i === p.step ? 'now' : ''} />)}</div>
             <div className="qt-objective">
-              <span className="qt-icon">{STEP_ICON[step.cond.t] ?? '📍'}</span>
+              <span className="qt-icon"><Rich t={STEP_ICON[step.cond.t] ?? '📍'} /></span>
               <div>
                 <b>{step.text}</b>
                 <small>{howTo(step)}</small>
               </div>
             </div>
             <div className="qt-chips">
-              {live.distance === 0 ? <span className="chip-here">📍 就在這裡</span>
+              {live.distance === 0 ? <span className="chip-here"><Icon name="pin" /> 就在這裡</span>
                 : live.distance !== null && <span className="chip-dist"><i style={{ transform: `rotate(${(live.bearing ?? 0) * 45}deg)` }}>↑</i>{live.place ?? step.place}・{live.distance} m</span>}
               {live.timer && <span className="chip-timer">{live.timer}</span>}
-              {live.distance !== 0 && (nav ? <span className="chip-nav on">🧭 導航中</span> : <span className="chip-nav"><kbd>G</kbd> 導航</span>)}
+              {live.distance !== 0 && (nav ? <span className="chip-nav on"><Icon name="compass" /> 導航中</span> : <span className="chip-nav"><kbd>G</kbd> 導航</span>)}
             </div>
             {live.stamina !== null && <div className="qt-stamina" title="體力"><i style={{ width: `${live.stamina * 100}%` }} className={live.note ? 'tired' : ''} /></div>}
             {live.note && <div className="qt-note">{live.note}</div>}
           </>
         ) : (
-          <div className="qt-objective"><span className="qt-icon">🎓</span><div><b>主線全部完成！</b><small>繼續完成支線和成就，或在校園裡自由探索</small></div></div>
+          <div className="qt-objective"><span className="qt-icon"><Icon name="grad" size={26} /></span><div><b>主線全部完成！</b><small>繼續完成支線和成就，或在校園裡自由探索</small></div></div>
         )}
       </section>
       <section className="qt-side">
@@ -100,7 +101,7 @@ export function QuestTracker(): ReactNode {
           const st = p.side[id]!;
           return (
             <div key={id} className="qt-side-row">
-              <span className="qt-side-icon">{SIDE_ICON[id] ?? '📌'}</span>
+              <span className="qt-side-icon"><Rich t={SIDE_ICON[id] ?? '📌'} /></span>
               <div>
                 <b>{q.title}<em>{st.done.length}/{q.total}</em></b>
                 <small>{sideText(id, p)}</small>
@@ -113,6 +114,26 @@ export function QuestTracker(): ReactNode {
         {sides.length > 2 && <small className="qt-empty">還有 {sides.length - 2} 個支線，按 J 查看</small>}
       </section>
       <footer><kbd>J</kbd> 任務清單・<kbd>G</kbd> 導航到主線</footer>
+    </div>
+  );
+}
+
+/** Top-centre countdown (the roll call): label, mm:ss, a shrinking bar that turns red, and where to. */
+export function TopCountdown(): ReactNode {
+  const cd = useStory((s) => s.live.countdown);
+  const modal = useGame((s) => s.modal);
+  if (!cd || modal === 'story') return null;
+  const mm = String(Math.floor(cd.left / 60)).padStart(2, '0'), ss = String(cd.left % 60).padStart(2, '0');
+  const frac = cd.total ? Math.max(0, Math.min(1, cd.left / cd.total)) : 0;
+  const urgent = cd.left <= 30 || frac < 0.2;
+  return (
+    <div className={`top-cd${urgent ? ' urgent' : ''}`} role="timer" aria-label={`${cd.label} ${cd.left} 秒`}>
+      <div className="top-cd-icon"><Icon name="clock" size={26} /></div>
+      <div className="top-cd-body">
+        <div className="top-cd-label">{cd.label}<small>{cd.where}</small></div>
+        <div className="top-cd-time">{mm}<i>:</i>{ss}</div>
+        <div className="top-cd-bar"><i style={{ width: `${frac * 100}%` }} /></div>
+      </div>
     </div>
   );
 }
@@ -144,8 +165,8 @@ export function AchievementPopup(): ReactNode {
   if (!a) return null;
   return (
     <div className="ach-popup" key={`${shown}-${queue.length}`}>
-      <i>{a.icon}</i>
-      <div><small>🏆 成就解鎖</small><b>{a.title}</b><span>{a.desc}</span></div>
+      <i><Rich t={a.icon} /></i>
+      <div><small><Icon name="trophy" /> 成就解鎖</small><b>{a.title}</b><span>{a.desc}</span></div>
     </div>
   );
 }
@@ -172,7 +193,7 @@ export function Celebration(): ReactNode {
         <i key={i} style={{ left: `${b.left}%`, animationDelay: `${b.delay}s`, animationDuration: `${b.dur}s`, background: b.color, width: b.w, height: b.w * 1.6, transform: `rotate(${b.rot}deg)` }} />
       ))}
       <div className="celebrate-card">
-        <b>🎉 {c.title}</b>
+        <b><Icon name="party" /> {c.title}</b>
         {c.sub && <span>{c.sub}</span>}
       </div>
     </div>
@@ -191,7 +212,7 @@ function Stamps({ id, p }: { id: string; p: StoryProgress }): ReactNode {
   return (
     <div className="stamps">
       {list.map(([k, label]) => (
-        <span key={k} className={`stamp${s.done.includes(k) ? ' got' : ''}`}>{id === 'tour' || id === 'photo' ? `${label} ${k}` : label}</span>
+        <span key={k} className={`stamp${s.done.includes(k) ? ' got' : ''}`}><Rich t={id === 'tour' || id === 'photo' ? `${label} ${k}` : label} /></span>
       ))}
     </div>
   );
@@ -219,16 +240,16 @@ export function QuestLog(): ReactNode {
               {(di + 1 < p.day || di + 1 === p.day) && d.steps.map((s, si) => {
                 const done = di + 1 < p.day || si < p.step;
                 const now = di + 1 === p.day && si === p.step;
-                return <div key={s.id} className={`ql-step${done ? ' done' : ''}${now ? ' now' : ''}`}>{done ? '✓' : now ? '▶' : '・'} {s.text}</div>;
+                return <div key={s.id} className={`ql-step${done ? ' done' : ''}${now ? ' now' : ''}`}><Rich t={done ? '✓' : now ? '▶' : '・'} /> {s.text}</div>;
               })}
-              {di + 1 > p.day && <div className="ql-step locked">🔒 尚未開始</div>}
+              {di + 1 > p.day && <div className="ql-step locked"><Icon name="lock" /> 尚未開始</div>}
             </div>
           ))}
           {tab === 'side' && SIDE_QUESTS.map((q) => {
             const s = p.side[q.id];
             return (
               <div key={q.id} className={`ql-side ${s?.state ?? 'locked'}`}>
-                <b>{s?.state === 'done' ? '✓ ' : s ? '📌 ' : '🔒 '}{q.title}</b>
+                <b><Rich t={s?.state === 'done' ? '✓ ' : s ? '📌 ' : '🔒 '} />{q.title}</b>
                 <span>{s ? (s.state === 'done' ? '已完成' : sideText(q.id, p)) : SIDE_HINTS[q.id] ?? '還沒觸發，到處逛逛看'}</span>
                 <Stamps id={q.id} p={p} />
               </div>
@@ -240,7 +261,7 @@ export function QuestLog(): ReactNode {
                 const at = p.achievements[a.id];
                 return (
                   <div key={a.id} className={`ach${at ? ' got' : ''}`}>
-                    <i>{at || !a.secret ? a.icon : '❔'}</i>
+                    <i><Rich t={at || !a.secret ? a.icon : '❔'} /></i>
                     <b>{at || !a.secret ? a.title : '？？？'}</b>
                     <span>{a.unavailable ? `（${a.unavailable}）` : at || !a.secret ? a.desc : '隱藏成就'}</span>
                   </div>
@@ -264,7 +285,7 @@ export function StoryModal(): ReactNode {
     <div className="screen story-screen">
       <div className="card story-card">
         {scene.kind === 'dialog' && <Dialog lines={scene.lines} />}
-        {scene.kind === 'rollcall' && <RollCall advanced={scene.advanced} sudden={scene.sudden} />}
+        {scene.kind === 'rollcall' && <RollCall />}
         {scene.kind === 'quiz' && <Quiz />}
         {scene.kind === 'mixer' && <Mixer />}
 
@@ -288,8 +309,8 @@ function Dialog({ lines }: { lines: { who: string; text: string }[] }): ReactNod
   const line = lines[i]!;
   return (
     <>
-      <div className="speaker">{line.who}</div>
-      <p className="story-text">{line.text}</p>
+      <div className="speaker"><Rich t={line.who} /></div>
+      <p className="story-text"><Rich t={line.text} /></p>
       <button className="btn primary" onClick={next}>{i + 1 < lines.length ? '繼續 ▸' : '好'}</button>
     </>
   );
@@ -308,79 +329,99 @@ function useEnterKey(fn: () => void): void {
 }
 
 /**
- * 點名: the teacher calls numbers; on your turn type your student number's last three digits
- * (basic) or the code flashed on the board (advanced) within the time limit. One retry.
+ * 點名 (in MA214, seated): the professor reads out student numbers one by one; when it is yours,
+ * press Space to raise your hand and answer 「有」 before the 3.5 s window closes. Raising it early
+ * (before your number) only earns a glare. The seated character lifts an arm.
  */
-function RollCall({ advanced, sudden }: { advanced: boolean; sudden: boolean }): ReactNode {
+const HAND_WINDOW = 3.5;
+function RollCall(): ReactNode {
   const api = useApi();
   const studentNo = useStory((s) => s.progress.studentNo);
-  const others = useMemo(() => Array.from({ length: 3 }, () => String(100 + Math.floor(Math.random() * 900))), []);
-  const [phase, setPhase] = useState<'calling' | 'flash' | 'answer' | 'result'>('calling');
-  const [called, setCalled] = useState(0);
-  const [code, setCode] = useState(() => String(1000 + Math.floor(Math.random() * 9000)));
-  const [value, setValue] = useState('');
-  const LIMIT = 8;
-  const [left, setLeft] = useState(LIMIT);
-  const [tries, setTries] = useState(0);
-  const [ok, setOk] = useState(false);
-  const want = advanced ? code : studentNo;
-
-  useEffect(() => {
-    if (phase !== 'calling') return;
-    if (called >= others.length) { setPhase(advanced ? 'flash' : 'answer'); return; }
-    const t = window.setTimeout(() => setCalled((c) => c + 1), 700);
-    return () => window.clearTimeout(t);
-  }, [phase, called, others.length, advanced]);
-  useEffect(() => {
-    if (phase !== 'flash') return;
-    const t = window.setTimeout(() => setPhase('answer'), 1600);
-    return () => window.clearTimeout(t);
-  }, [phase]);
-  const submit = (): void => {
-    const good = value.trim() === want;
-    if (good || tries >= 1) { setOk(good); setPhase('result'); api.click(); return; }
-    setTries(1);
-    setValue('');
-    if (advanced) { setCode(String(1000 + Math.floor(Math.random() * 9000))); setPhase('flash'); }
+  const list = useMemo(() => {
+    const others = new Set<string>();
+    while (others.size < 5) { const n = String(100 + Math.floor(Math.random() * 900)); if (n !== studentNo) others.add(n); }
+    const arr = [...others];
+    arr.splice(3, 0, studentNo); // you are fourth
+    return arr;
+  }, [studentNo]);
+  const mine = list.indexOf(studentNo);
+  const [idx, setIdx] = useState(-1); // the number being read, -1 = about to start
+  const [left, setLeft] = useState(HAND_WINDOW);
+  const [done, setDone] = useState<'ok' | 'late' | null>(null);
+  const [early, setEarly] = useState(false);
+  const doneRef = useRef(done);
+  doneRef.current = done;
+  const raise = (): void => {
+    if (doneRef.current) return;
+    if (idx !== mine) { setEarly(true); window.setTimeout(() => setEarly(false), 900); return; }
+    api.click();
+    setDone('ok');
+    storyActions.setHand(true);
   };
-  const submitRef = useRef(submit);
-  submitRef.current = submit;
+  const raiseRef = useRef(raise);
+  raiseRef.current = raise;
   useEffect(() => {
-    if (phase !== 'answer') return;
-    let l = LIMIT;
-    setLeft(l);
-    const t = window.setInterval(() => {
-      l -= 1;
-      setLeft(l);
-      if (l <= 0) { window.clearInterval(t); submitRef.current(); } // time is up
-    }, 1000);
-    return () => window.clearInterval(t);
-  }, [phase, tries]);
-
+    const k = (e: KeyboardEvent): void => {
+      if (e.code === 'Space' && !e.repeat) { e.preventDefault(); raiseRef.current(); }
+    };
+    window.addEventListener('keydown', k);
+    return () => { window.removeEventListener('keydown', k); storyActions.setHand(false); };
+  }, []);
+  // Reading the numbers, one every 1.4 s; yours waits for the hand.
+  useEffect(() => {
+    if (done) return;
+    if (idx === mine) {
+      setLeft(HAND_WINDOW);
+      const t = window.setInterval(() => setLeft((l) => {
+        if (l <= 0.1) { window.clearInterval(t); setDone('late'); return 0; }
+        return l - 0.1;
+      }), 100);
+      return () => window.clearInterval(t);
+    }
+    const t = window.setTimeout(() => setIdx((n) => n + 1), idx < 0 ? 900 : 1400);
+    return () => window.clearTimeout(t);
+  }, [idx, done, mine]);
+  const finish = (ok: boolean): void => storyEvents.finishScene({ kind: 'rollcall', ok });
+  const calling = idx >= 0 && idx < list.length ? list[idx] : null;
   return (
-    <>
-      <div className="speaker">老師{sudden ? '（突然點名）' : ''}</div>
-      {phase === 'calling' && <p className="story-text">點名囉！{others.slice(0, called).map((n) => `「末三碼 ${n}」「有！」`).join(' ')}</p>}
-      {phase === 'flash' && <p className="story-text">今天改用隨堂驗證碼，記住黑板上的數字：<b className="flash-code">{code}</b></p>}
-      {phase === 'answer' && (
+    <div className="rollcall">
+      <div className="speaker"><Icon name="book" /> 教授・MA214 點名</div>
+      <div className="rc-board">
+        {list.map((n, i) => (
+          <span key={i} className={`rc-no${i === idx ? ' now' : ''}${i < idx ? ' past' : ''}${i === mine ? ' me' : ''}`}>
+            <b>{n}</b><small>{i === mine ? '你' : i < idx ? '有' : ''}</small>
+          </span>
+        ))}
+      </div>
+      {!done && (
+        <p className="story-text">
+          {idx < 0 ? '教授翻開點名簿…' : <>教授：「學號末三碼 <b className="rc-call">{calling}</b>？」{idx !== mine && i18nOther(idx)}</>}
+        </p>
+      )}
+      {!done && idx === mine && (
+        <div className="rc-hand">
+          <div className="rc-hand-msg"><Icon name="bolt" /> 輪到你了！按 <kbd>Space</kbd> 舉手說「有」</div>
+          <div className="countdown"><i style={{ width: `${(left / HAND_WINDOW) * 100}%` }} /></div>
+        </div>
+      )}
+      {!done && idx !== mine && <div className={`rc-wait${early ? ' early' : ''}`}>{early ? '還沒叫到你！' : '等教授叫到你的學號…'}</div>}
+      {done === 'ok' && (
         <>
-          <p className="story-text">{advanced ? '輸入剛剛黑板上的驗證碼' : '輪到你了！輸入你的學號末三碼（學生證上有）'}{tries ? '（最後一次機會）' : ''}</p>
-          <form className="rollcall-form" onSubmit={(e) => { e.preventDefault(); submit(); }}>
-            <input className="text-input big" value={value} onChange={(e) => setValue(e.currentTarget.value.replace(/\D/g, ''))} maxLength={advanced ? 4 : 3} autoFocus inputMode="numeric" />
-            <button className="btn primary" type="submit">喊「有」</button>
-          </form>
-          <div className="countdown"><i style={{ width: `${(left / LIMIT) * 100}%` }} /></div>
+          <p className="story-text">你舉起手：「有！」<br />教授：「好，記你到。」</p>
+          <button className="btn primary" onClick={() => finish(true)}>放下手</button>
         </>
       )}
-      {phase === 'result' && (
+      {done === 'late' && (
         <>
-          <p className="story-text">{ok ? '老師：好，有到。' : `老師：${want} 沒來嗎？記缺席。`}</p>
-          <button className="btn primary" onClick={() => storyEvents.finishScene({ kind: 'rollcall', ok })}>好</button>
+          <p className="story-text">教授：「{studentNo} 沒來嗎？……記缺席。」（你忘了舉手）</p>
+          <button className="btn primary" onClick={() => finish(false)}>糟了</button>
         </>
       )}
-    </>
+      {!done && <button className="btn" onClick={raise}>舉手（Space）</button>}
+    </div>
   );
 }
+const i18nOther = (i: number): string => (i % 2 ? '「有。」' : '「到。」');
 
 function Quiz(): ReactNode {
   const api = useApi();
@@ -412,7 +453,7 @@ function Quiz(): ReactNode {
       <div className="quiz-options">
         {q.options.map((o, k) => <button key={k} className={`btn${peek === k ? ' peeked' : ''}`} onClick={() => answer(k)}>{o}</button>)}
       </div>
-      <button className="btn link" onClick={doPeek} disabled={peek !== null}>👀 偷看隔壁的答案（可能被抓）</button>
+      <button className="btn link" onClick={doPeek} disabled={peek !== null}><Icon name="eyes" /> 偷看隔壁的答案（可能被抓）</button>
     </>
   );
 }
@@ -465,10 +506,10 @@ function Mixer(): ReactNode {
     <div className="mixer-people">
       {MIXER.map((p, i) => (
         <div key={p.who} className={`mixer-person${i === pi && turn < total ? ' now' : ''}${aff[i]! >= MIXER_GOAL ? ' good' : ''}`}>
-          <i>{p.look}</i>
+          <i><Rich t={p.look} /></i>
           <b>{p.who.split('（')[0]}</b>
           <span className="aff"><em style={{ width: `${aff[i]}%` }} /><s style={{ left: `${MIXER_GOAL}%` }} /></span>
-          <small>❤ {aff[i]}</small>
+          <small><Icon name="heart" /> {aff[i]}</small>
         </div>
       ))}
     </div>
@@ -479,7 +520,7 @@ function Mixer(): ReactNode {
       <div className="mixer">
         <div className="speaker">聯誼結束</div>
         {bars}
-        <p className="story-text">{won === MIXER.length ? '大成功！三個人都想跟你交換 IG 💕' : won > 0 ? `和 ${won} 個人聊得不錯，交換了聯絡方式！` : '今晚好像沒什麼火花…下次再加油。'}</p>
+        <p className="story-text">{won === MIXER.length ? '大成功！三個人都想跟你交換 IG' : won > 0 ? `和 ${won} 個人聊得不錯，交換了聯絡方式！` : '今晚好像沒什麼火花…下次再加油。'}</p>
         <button className="btn primary" onClick={() => storyEvents.finishScene({ kind: 'mixer', score: won })}>回宿舍</button>
       </div>
     );
@@ -490,8 +531,8 @@ function Mixer(): ReactNode {
       {bars}
       {reply ? (
         <>
-          <div className={`mixer-float ${reply.delta >= 0 ? 'up' : 'down'}`}>{reply.delta >= 0 ? `+${reply.delta} ❤` : `${reply.delta} 💔`}</div>
-          <p className="story-text">{m.who.split('（')[0]}：「{reply.text}」</p>
+          <div className={`mixer-float ${reply.delta >= 0 ? 'up' : 'down'}`}>{reply.delta >= 0 ? <>+{reply.delta} <Icon name="heart" /></> : <>{reply.delta} <Icon name="heartBreak" /></>}</div>
+          <p className="story-text">{m.who.split('（')[0]}：「<Rich t={reply.text} />」</p>
           <button className="btn primary" onClick={next}>{turn + 1 < total ? (turn % 2 === 1 ? '換下一位聊天 ▸' : '繼續聊 ▸') : '看看結果'}</button>
         </>
       ) : (
@@ -610,16 +651,16 @@ function Wardrobe(): ReactNode {
   };
   return (
     <div className="wardrobe">
-      <h2>👕 衣櫃</h2>
+      <h2><Icon name="shirt" /> 衣櫃</h2>
       <div className="wd-parts">
         {OUTFIT_PARTS.map((p) => (
           <button key={p.id} className={`${p.id === part ? 'on' : ''}${outfit[p.id] ? ' worn' : ''}`} onClick={() => { api.click(); setPart(p.id); }}>
-            <i>{p.icon}</i>{p.label}
+            <i><Rich t={p.icon} /></i>{p.label}
           </button>
         ))}
       </div>
       <div className="wd-items">
-        <button className={`wd-item${!outfit[part] ? ' on' : ''}`} onClick={() => wear(null)}><span className="sw none">✕</span>脫下</button>
+        <button className={`wd-item${!outfit[part] ? ' on' : ''}`} onClick={() => wear(null)}><span className="sw none"><Icon name="close" size={14} /></span>脫下</button>
         {OUTFIT_ITEMS.filter((it) => it.part === part).map((it) => (
           <button key={it.id} className={`wd-item${outfit[part] === it.id ? ' on' : ''}`} onClick={() => wear(it.id)}>
             <span className="sw" style={{ background: `#${it.color.toString(16).padStart(6, '0')}` }} />{it.name}
@@ -637,7 +678,7 @@ function ClubFair(): ReactNode {
   return (
     <>
       <div className="speaker">社團博覽會 {i + 1}/{CLUBS.length}</div>
-      <p className="story-text">{CLUBS[i]}</p>
+      <p className="story-text"><Rich t={CLUBS[i]!} /></p>
       <button className="btn primary" onClick={() => (i + 1 < CLUBS.length ? setI(i + 1) : storyEvents.finishScene({ kind: 'clubFair' }))}>
         {i + 1 < CLUBS.length ? '下一攤 ▸' : '逛完了'}
       </button>
@@ -654,7 +695,7 @@ function Summary(): ReactNode {
     : (f.absent ?? 0) > 0 ? '偶爾缺課，下週記得準時。' : '模範新生！老師對你印象很好。';
   return (
     <>
-      <div className="speaker">🎓 第一週回顧</div>
+      <div className="speaker"><Icon name="grad" /> 第一週回顧</div>
       <div className="summary-grid">
         <span>點名</span><b>{p.rollcalls.ok}/{p.rollcalls.total}</b>
         <span>翹課</span><b>{f.skipped ?? 0} 次</b>
@@ -708,7 +749,7 @@ export function StoryAdmin({ onJump, onComplete, onReset }: { onJump: (day: numb
               if (achievements[a.id]) delete achievements[a.id]; else achievements[a.id] = Date.now();
               return { ...q, achievements };
             })}>
-            {a.icon} {a.title}
+            <Rich t={a.icon} /> {a.title}
           </button>
         ))}
       </div>

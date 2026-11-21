@@ -44,7 +44,7 @@ import { CAPSULE_CENTER_OFFSET, createCharacterControllerSystem, type MoveModifi
 import { SCOOTER_SPEED_FACTOR, createBikeSystem } from './bikes/bikeSystem';
 import { createTraffic } from './ambient/traffic';
 import { createStoryRuntime, storyEvents, type StoryFrame } from './story/storyRuntime';
-import { storyStore } from './state/story';
+import { storyActions, storyStore } from './state/story';
 import { createNavPointer } from './game/navPointer';
 import { sportFinished } from './minigames/sportsGames';
 import { trackFinished } from './playground/playground';
@@ -362,6 +362,7 @@ async function boot(): Promise<void> {
       if (name === '排球場') { const v = courts.volley[0]; return v ? { x: v.x, z: v.z } : null; }
       if (name === '足球場' && playground) { const [x, z] = playground.pitch.toWorld(playground.pitch.halfLength - 11, 0); return { x, z }; }
       if (name === '路跑起點') return snapToRoad(RACE_ROUTE[0]!.x, RACE_ROUTE[0]!.z);
+      if (name === 'MA214' && ma) { const [x, z] = ma.planToWorld(47.75, 19.25); return { x, z }; }
       if (name === '操場') return playground ? { ...playground.startSpot } : null;
       if (name === '大門') return centreOf('警衛室');
       // 學生宿舍C is three OSM parts; the story's dorm is the courtyard by the C entrance where you start.
@@ -383,6 +384,11 @@ async function boot(): Promise<void> {
     blocked: inPit,
     hilife: hilife ? { counter: hilife.counter, clerk: hilife.clerk } : null,
     putInBed: (place) => putInBed(place),
+    openPhone: (from) => {
+      storyActions.focusThread(from);
+      actions.setPhonePage('chat');
+      if (gameStore.getState().modal === 'none') api.openModal('phone');
+    },
     snapToRoad,
     walkSpeed: CHARACTER.walkSpeed,
   });
@@ -396,7 +402,7 @@ async function boot(): Promise<void> {
   let swimStroke = 0;
   let lastWake = 0;
   let lastNight = -1;
-  const storyFrame: StoryFrame = { x: 0, z: 0, area: null, minutes: 0, riding: false, sprinting: false, playing: false, viewYaw: 0, seatedIn: null, lying: false };
+  const storyFrame: StoryFrame = { x: 0, z: 0, area: null, minutes: 0, riding: false, sprinting: false, playing: false, viewYaw: 0, seatedIn: null, seatedRoom: null, lying: false };
   const insideBuilding = createBuildingTest(campus);
   const moveMods: MoveModifiers = { fly: false, noclip: false, speed: 1, bike: false, blocked: null };
   const joints = findMascotJoints(model.root);
@@ -1122,7 +1128,7 @@ async function boot(): Promise<void> {
     renderSyncSystem(world, accumulator / FIXED_DT);
     animationSystem(world, dt, time);
     if (seat && joints) {
-      applyPose(joints, seat.s.kind === 'bed' ? computeLiePose(time, ridePose) : computeSitPose(time, ridePose));
+      applyPose(joints, seat.s.kind === 'bed' ? computeLiePose(time, ridePose) : computeSitPose(time, ridePose, storyStore.getState().handUp));
     } else if (bikes.ridden >= 0 && objects[eid]) {
       const o = objects[eid]!;
       bikes.update(dt, o.position.x, o.position.y, o.position.z, o.rotation.y, Math.hypot(Velocity.x[eid]!, Velocity.z[eid]!));
@@ -1187,6 +1193,7 @@ async function boot(): Promise<void> {
       storyFrame.playing = playing && ui.modal !== 'story';
       storyFrame.viewYaw = rig.yaw;
       storyFrame.seatedIn = seat && seat.s.kind === 'chair' ? seat.s.building : null;
+      storyFrame.seatedRoom = seat && seat.s.kind === 'chair' ? seat.s.room : null;
       storyFrame.lying = !!seat && seat.s.kind === 'bed';
       story.update(dt, storyFrame);
       // On-screen pointer: the navigation goal, else the main objective.

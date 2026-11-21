@@ -14,6 +14,7 @@ import {
   type Scene,
 } from 'three';
 import type { ResourceTracker } from '../core/resources';
+import { drawIcon, iconOf } from '../ui/icons';
 
 /**
  * Quest beacons: a soft column of light with a floating, bobbing icon badge over each quest target,
@@ -61,10 +62,8 @@ export function createBeacons(scene: Scene, tracker: ResourceTracker): Beacons {
       g.beginPath();
       g.arc(64, 58, 46, 0, Math.PI * 2);
       g.stroke();
-      g.font = '56px system-ui, "Apple Color Emoji", "Segoe UI Emoji", sans-serif';
-      g.textAlign = 'center';
-      g.textBaseline = 'middle';
-      g.fillText(icon, 64, 62);
+      const glyph = iconOf(icon);
+      if (glyph) drawIcon(g, glyph, 64, 58, 54, '#ffffff', 2.2);
     }
     t = tracker.texture(new CanvasTexture(c));
     t.colorSpace = SRGBColorSpace;

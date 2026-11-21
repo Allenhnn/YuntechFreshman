@@ -112,6 +112,8 @@ export interface Seat {
   /** Chair: the way a sitter faces. Bed: the direction of the head end. */
   yaw: number;
   building: string;
+  /** Code of the room it stands in (e.g. MA214), else its id. */
+  room: string;
 }
 
 export interface HandBuiltBuilding {
@@ -520,11 +522,13 @@ export function createHandBuiltBuilding(
   for (const lvl of meshes.levels) {
     for (const it of lvl.furniture) {
       const [x, z] = xf.toWorld(it.x, it.z);
+      const sp = src.floors[lvl.id]?.spaces.find((q) => q.rects.some(([a, b, c, d]) => it.x >= a && it.x <= c && it.z >= b && it.z <= d));
+      const room = sp?.code ?? sp?.id ?? '';
       if (it.kind === 'chair' && !it.taken) {
-        seats.push({ kind: 'chair', x, y: it.y + 0.42, z, base: it.y, yaw: planFacingOf(-Math.sin(it.ry), -Math.cos(it.ry)), building: src.name });
+        seats.push({ kind: 'chair', x, y: it.y + 0.42, z, base: it.y, yaw: planFacingOf(-Math.sin(it.ry), -Math.cos(it.ry)), building: src.name, room });
       } else if (it.kind === 'bunk' || it.kind === 'loft' || it.kind === 'bed') {
         const top = it.kind === 'bunk' ? 0.44 : it.kind === 'loft' ? 1.7 : 0.46;
-        seats.push({ kind: 'bed', x, y: it.y + top, z, base: it.y, yaw: planFacingOf(Math.sin(it.ry), Math.cos(it.ry)), building: src.name });
+        seats.push({ kind: 'bed', x, y: it.y + top, z, base: it.y, yaw: planFacingOf(Math.sin(it.ry), Math.cos(it.ry)), building: src.name, room });
       }
     }
   }

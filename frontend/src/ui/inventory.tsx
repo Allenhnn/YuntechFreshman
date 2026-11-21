@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, ty
 import { HOTBAR_SIZE, ITEMS } from '../state/items';
 import { useGame } from '../state/store';
 import { useApi } from './api';
+import { Icon, Rich } from './icons';
 
 /** Last pointer position, so a ghost appears under the cursor on its first frame. */
 const pointer = { x: 0, y: 0 };
@@ -96,7 +97,7 @@ export function InventoryModal(): ReactNode {
         onDoubleClick={() => stack && api.useItem(i)}
       >
         {i < HOTBAR_SIZE && <span className="num">{i + 1}</span>}
-        {stack && ITEMS[stack.id].icon}
+        {stack && <Rich t={ITEMS[stack.id].icon} />}
         {stack && stack.count > 1 && <span className="count">{stack.count}</span>}
       </button>,
     );
@@ -110,14 +111,14 @@ export function InventoryModal(): ReactNode {
       <div className="card wide" style={{ width: 'auto' }}>
         <div className="modal-head">
           <h2>背包</h2>
-          <button className="close-x" aria-label="關閉" onClick={api.closeModal}>✕</button>
+          <button className="close-x" aria-label="關閉" onClick={api.closeModal}><Icon name="close" /></button>
         </div>
         <div className="inventory">
           <div className="grid">{cells}</div>
           <div className="detail">
             {def && focused ? (
               <>
-                <div className="icon">{def.icon}</div>
+                <div className="icon"><Rich t={def.icon} /></div>
                 <div className="name">{def.name}{focused.count > 1 ? ` ×${focused.count}` : ''}</div>
                 <div className="desc">{def.description}</div>
                 <button className="btn primary small" onClick={() => api.useItem(focus)}>使用</button>
@@ -129,7 +130,7 @@ export function InventoryModal(): ReactNode {
         </div>
         <p className="footer"><kbd>Tab</kbd> 或 <kbd>Esc</kbd> 關閉 · 拖曳或點擊移動物品 · 雙擊使用</p>
       </div>
-      {ghostStack && <Ghost icon={ITEMS[ghostStack.id].icon} />}
+      {ghostStack && <Ghost icon={<Rich t={ITEMS[ghostStack.id].icon} />} />}
     </div>
   );
 }

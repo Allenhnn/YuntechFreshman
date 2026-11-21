@@ -881,3 +881,51 @@ kbd {
 .sport-hud.big .sport-meter .fill { background: rgba(255,255,255,0.0); border-right: 6px solid #1d1d1f; }
 .sport-hud.big .sport-score { font-size: 34px; }
 .sport-hud.big .sport-hint { font-size: 14px; }
+
+/* ---------- Line icons (replace emoji) ---------- */
+svg.ico-line { vertical-align: -0.2em; flex: none; }
+.np-icon { color: var(--np); }
+.np-icon svg { width: 16px; height: 16px; }
+.qt-icon svg, .qt-side-icon svg { width: 26px; height: 26px; }
+.app .ico svg { width: 30px; height: 30px; }
+.slot svg { width: 28px; height: 28px; }
+.chat-row i svg, .phone-notice i svg { width: 28px; height: 28px; }
+.menu-item i svg { width: 26px; height: 26px; }
+.toast svg { margin: 0 2px; }
+
+/* ---------- Top-centre countdown ---------- */
+.top-cd { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; min-width: 300px; padding: 10px 18px 12px 12px; border-radius: 20px; background: var(--glass); border: 2px solid #fff; box-shadow: var(--shadow); pointer-events: none; animation: cd-in 0.35s cubic-bezier(.2,1.3,.4,1); z-index: 20; }
+.top-cd-icon { flex: none; width: 46px; height: 46px; border-radius: 14px; background: var(--orange); color: #fff; display: flex; align-items: center; justify-content: center; }
+.top-cd-body { flex: 1; min-width: 0; }
+.top-cd-label { display: flex; align-items: baseline; gap: 8px; font-size: 14px; font-weight: 700; color: var(--ink); }
+.top-cd-label small { font-size: 12px; font-weight: 400; color: var(--ink-soft); }
+.top-cd-time { font-size: 34px; line-height: 1.05; font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums; letter-spacing: 1px; }
+.top-cd-time i { font-style: normal; opacity: 0.55; animation: cd-blink 1s steps(2) infinite; }
+.top-cd-bar { height: 8px; margin-top: 6px; border-radius: 4px; background: #e2e8e3; overflow: hidden; }
+.top-cd-bar i { display: block; height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--green), #6cc26f); transition: width 0.9s linear; }
+.top-cd.urgent { border-color: #ffb4a8; }
+.top-cd.urgent .top-cd-icon { background: #e53935; animation: cd-pulse 0.8s ease-in-out infinite; }
+.top-cd.urgent .top-cd-time { color: #c62828; }
+.top-cd.urgent .top-cd-bar i { background: linear-gradient(90deg, #e53935, #ff8a65); }
+@keyframes cd-in { from { transform: translate(-50%, -140%); } to { transform: translate(-50%, 0); } }
+@keyframes cd-blink { 50% { opacity: 0.15; } }
+@keyframes cd-pulse { 50% { transform: scale(1.12); } }
+.phone-notice { top: 108px; }
+
+/* ---------- Roll call (raise a hand) ---------- */
+.rollcall { display: flex; flex-direction: column; gap: 12px; }
+.rc-board { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+.rc-no { display: flex; flex-direction: column; align-items: center; padding: 8px 2px; border-radius: 12px; background: #eef3ef; border: 2px solid transparent; color: var(--ink-soft); }
+.rc-no b { font-size: 20px; }
+.rc-no small { height: 14px; font-size: 12px; }
+.rc-no.past { background: #e1f1e6; color: var(--green-dark); }
+.rc-no.now { border-color: var(--orange); background: #fff3e6; color: var(--ink); transform: translateY(-3px); }
+.rc-no.me { outline: 2px dashed var(--green); }
+.rc-call { font-size: 28px; color: var(--orange); }
+.rc-hand-msg { font-size: 18px; font-weight: 800; color: #c62828; margin-bottom: 6px; animation: cd-pulse 0.6s ease-in-out infinite; }
+.rc-hand-msg kbd { background: #fff; border-radius: 6px; padding: 1px 8px; border: 2px solid #c62828; }
+.rc-wait { color: var(--ink-soft); font-size: 14px; }
+.rc-wait.early { color: #e65100; animation: shake 0.4s; }
+/* the top-centre countdown takes the top edge: guide bar and phone banner sit under it */
+.top-cd ~ .nav-bar, .hud:has(~ .top-cd) .nav-bar { top: 112px; }
+.phone-notice { top: 168px; }

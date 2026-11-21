@@ -1,4 +1,5 @@
 import { Vector3, type Camera } from 'three';
+import { iconHtml } from '../ui/icons';
 
 /**
  * On-screen guide to the current target (navigation goal, else the main story objective): a tag
@@ -26,7 +27,7 @@ export function createNavPointer(): NavPointer {
     update(camera, target, px, pz, visible) {
       if (!target || !visible || Math.hypot(target.x - px, target.z - pz) < 6) { el.style.display = 'none'; return; }
       el.style.display = '';
-      if (target.name !== lastName) { name.textContent = target.name; icon.textContent = target.icon; lastName = target.name; }
+      if (target.name !== lastName) { name.textContent = target.name; icon.innerHTML = iconHtml(target.icon); lastName = target.name; }
       if (target.color !== lastColor) { el.style.setProperty('--np', target.color); lastColor = target.color; }
       const d = Math.hypot(target.x - px, target.z - pz);
       dist.textContent = d >= 1000 ? `${(d / 1000).toFixed(1)} km` : `${Math.round(d)} m`;

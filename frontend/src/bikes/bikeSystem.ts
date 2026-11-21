@@ -21,6 +21,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { BIKE } from '../config';
 import type { ResourceTracker } from '../core/resources';
 import type { BikeStation } from './bikeStations';
+import { drawIcon } from '../ui/icons';
 
 /**
  * Parked and ridden bikes as instanced meshes (one draw call per part, at most a few hundred
@@ -103,8 +104,7 @@ function signTexture(tracker: ResourceTracker): CanvasTexture {
     g.fillStyle = '#fffdf6';
     g.textAlign = 'center';
     g.textBaseline = 'middle';
-    g.font = "700 62px system-ui, 'PingFang TC', sans-serif";
-    g.fillText('🚲', 128, 44);
+    drawIcon(g, 'bike', 128, 42, 64, '#fffdf6', 2.2);
     g.font = "800 32px system-ui, 'PingFang TC', sans-serif";
     g.fillText('腳踏車站', 128, 100);
   }

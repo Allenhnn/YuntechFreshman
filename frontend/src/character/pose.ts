@@ -181,11 +181,12 @@ export function computeSwimPose(stroke: number, clock: number, moving: boolean, 
 }
 
 /** Sitting on a chair (feet at the floor under it, seat top 0.42 m): thighs forward, hands on the desk. */
-export function computeSitPose(clock: number, out: Pose): Pose {
+export function computeSitPose(clock: number, out: Pose, handUp = false): Pose {
   const b = Math.sin(clock * 1.6);
   out.lean = 0.06;
   out.legL = out.legR = -1.45;
   out.armLX = out.armRX = -0.75;
+  if (handUp) out.armRX = -3.0 + Math.sin(clock * 9) * 0.08; // right arm straight up
   out.armSpread = 0.22;
   out.bob = 0.16;
   out.squash = 1 + b * 0.008;

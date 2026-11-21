@@ -65,6 +65,8 @@ export interface Step {
   give?: ItemId;
   /** Toast when the step begins. */
   say?: string;
+  /** The exact room (space code) the step happens in, e.g. 管理一館 2F MA214. */
+  room?: string;
   /** The step begins with you lying in your dorm bed. */
   wake?: boolean;
   /** A phone message when the step begins. */
@@ -110,8 +112,8 @@ export const DAYS: Day[] = [
     title: '遲到危機與翹課日常',
     steps: [
       { id: '1-1', text: '睡過頭了！快下床（看手機訊息）', place: DORM, cond: { t: 'getUp' }, at: hm(7, 52), wake: true, msg: { from: ROOMMATE, text: '老師正準備點名！你人咧？？快來管一！' } },
-      { id: '1-2', text: '衝去管理一館，點名結束前找空位坐下', place: CLASS1, cond: { t: 'class' } },
-      { id: '1-3', text: '教授開始上課…撐住別睡著！', place: CLASS1, cond: { t: 'scene', scene: 'stayAwake' } },
+      { id: '1-2', text: '衝去管理一館 2F 的 MA214 教室，找空位坐下，被點到時舉手', place: CLASS1, room: 'MA214', cond: { t: 'class' } },
+      { id: '1-3', text: '教授開始上課…撐住別睡著！', place: CLASS1, room: 'MA214', cond: { t: 'scene', scene: 'stayAwake' } },
       { id: '1-4', text: '下課了，去學生餐廳買午餐', place: CAFETERIA, cond: { t: 'buy', shop: 'cafeteria' }, at: hm(12, 0) },
       { id: '1-5', text: '把午餐吃掉（背包或快捷欄使用）', place: CAFETERIA, cond: { t: 'eat' } },
       { id: '1-6', text: '下午的課翹掉！用手機問點名碼，在「點名系統」簽到', place: CAFETERIA, cond: { t: 'phoneRollcall' }, at: hm(13, 10), msg: { from: FRIEND, text: '下午那堂改數位點名喔，要輸 4 位數的點名碼～' } },
