@@ -125,6 +125,28 @@ export function createFurnitureKit(tracker: ResourceTracker): FurnitureKit {
   ]);
   const bunk = groups([bunkFrame, bunkLinen]);
 
+  // Loft bed (上床下書桌): unit footprint (scaled to 0.95 × 2.0), absolute height; wall side at +X,
+  // ladder on the room side at the −Z end; desk, side panels and a book shelf under the platform.
+  const loftFrame = merge([
+    ...[[-0.47, -0.485], [0.47, -0.485], [-0.47, 0.485], [0.47, 0.485]].map(([x, z]) => unitBox(0.05, 1.95, 0.03, x, 0, z)),
+    unitBox(1, 0.08, 1, 0, 1.5), // platform
+    unitBox(0.03, 0.3, 1, 0.485, 1.58), // wall-side rail
+    unitBox(0.03, 0.3, 0.72, -0.485, 1.58, 0.14), // room-side rail, open at the ladder
+    unitBox(1, 0.3, 0.02, 0, 1.58, 0.49), unitBox(1, 0.3, 0.02, 0, 1.58, -0.49), // head / foot boards
+    unitBox(0.03, 1.55, 0.02, -0.5, 0, -0.47), unitBox(0.03, 1.55, 0.02, -0.5, 0, -0.31), // ladder rails
+    ...[0.35, 0.7, 1.05, 1.4].map((y) => unitBox(0.025, 0.03, 0.16, -0.5, y, -0.39)),
+    unitBox(0.64, 0.035, 0.82, 0.17, 0.74, 0.02), // desk top
+    unitBox(0.64, 0.74, 0.015, 0.17, 0, -0.39), unitBox(0.64, 0.74, 0.015, 0.17, 0, 0.42), // desk side panels
+    unitBox(0.3, 0.32, 0.3, 0.33, 0.42, 0.25), // drawer unit
+    unitBox(0.22, 0.02, 0.8, 0.38, 1.12, 0.02), unitBox(0.22, 0.34, 0.015, 0.38, 1.12, -0.38), unitBox(0.22, 0.34, 0.015, 0.38, 1.12, 0.42), // shelf
+  ]);
+  const loftLinen = merge([
+    unitBox(0.92, 0.12, 0.96, 0, 1.58), unitBox(0.7, 0.08, 0.08, 0, 1.7, 0.42),
+    unitBox(0.18, 0.26, 0.04, 0.4, 1.14, -0.2), unitBox(0.18, 0.22, 0.05, 0.4, 1.14, -0.15), unitBox(0.18, 0.28, 0.04, 0.4, 1.14, -0.1), // books
+    unitBox(0.3, 0.2, 0.1, 0.3, 0.775, 0.1), // laptop / monitor
+  ]);
+  const loft = groups([loftFrame, loftLinen]);
+
   // Restroom: toilet and sink unit (absolute sizes, front on −Z), mirror and partition panels.
   const ceramic = tracker.material(new MeshStandardMaterial({ color: 0xf7f7f4, roughness: 0.2 }));
   const counter = tracker.material(new MeshStandardMaterial({ color: 0x8e9696, roughness: 0.4 }));
@@ -460,10 +482,10 @@ export function createFurnitureKit(tracker: ResourceTracker): FurnitureKit {
 
   return {
     signMaterial,
-    geometry: { shelf, table, chair, plinth: unit, stage: unit, riser: unit, screen: tracker.geometry(unitBox(1, 1, 1)), bed, whiteboard, bunk, toilet, sink, mirror: tracker.geometry(unitBox(1, 1, 1)), partition: tracker.geometry(unitBox(1, 1, 1)), hydrant, bins, sign: signGeo, bracket: unit, vending: unit },
+    geometry: { shelf, table, chair, plinth: unit, stage: unit, riser: unit, screen: tracker.geometry(unitBox(1, 1, 1)), bed, whiteboard, bunk, loft, toilet, sink, mirror: tracker.geometry(unitBox(1, 1, 1)), partition: tracker.geometry(unitBox(1, 1, 1)), hydrant, bins, sign: signGeo, bracket: unit, vending: unit },
     material: {
       shelf: [wood, wood, wood, wood, books, books], table: laminate, chair: fabric, plinth, stage: stageFloor, riser: tierFloor, screen, bed: [wood, linen, linen],
-      whiteboard: [alu, boardFace], bunk: [wood, linen], toilet: ceramic, sink: [counter, ceramic, chrome], mirror, partition: panel,
+      whiteboard: [alu, boardFace], bunk: [wood, linen], loft: [wood, linen], toilet: ceramic, sink: [counter, ceramic, chrome], mirror, partition: panel,
       hydrant: [red, red, red, red, red, cabinetFront], bins: [binColor(0x6e7275), binColor(0x2c6fd6), binColor(0x2f8f4a)], sign: panel, bracket: mountBlack,
       vending: [vendingBody, vendingBody, vendingTop, vendingTop, vendingBody, vendingFace], // front on −Z
     },

@@ -109,7 +109,7 @@ function onlyTraced(t: TracedIndex, ids: readonly string[]): TracedIndex {
   return { buildings, entrances: Object.fromEntries(Object.entries(t.entrances).filter(([id]) => osm.has(id))) };
 }
 
-const FOOD: ReadonlySet<ItemId> = new Set<ItemId>(['bread', 'bento', 'buffet', 'beefNoodles', 'plainNoodles', 'bubbleTea', 'soyMilk', 'onigiri', 'teaEgg', 'sportsDrink', 'cupNoodles']);
+const FOOD: ReadonlySet<ItemId> = new Set<ItemId>(['bread', 'bento', 'buffet', 'beefNoodles', 'plainNoodles', 'bubbleTea', 'soyMilk', 'onigiri', 'teaEgg', 'sportsDrink', 'cupNoodles', 'mineralWater', 'greenTea', 'cannedCoffee']);
 
 const ITEM_MESSAGES: Readonly<Record<ItemId, string>> = {
   bento: '排骨便當好吃！',
@@ -127,6 +127,9 @@ const ITEM_MESSAGES: Readonly<Record<ItemId, string>> = {
   teaEgg: '茶葉蛋香噴噴。',
   sportsDrink: '咕嚕咕嚕… 電解質補滿！',
   cupNoodles: '呼～宿舍泡麵的味道。',
+  mineralWater: '咕嚕咕嚕… 透心涼！',
+  greenTea: '無糖綠茶，清爽解膩。',
+  cannedCoffee: '咖啡因上線，精神來了！',
   healthForm: '📋 新生健康資料表：記得交到健康中心',
   raceBib: '🎽 雲科路跑 參賽號碼布',
   lostCard: '🪪 別人的學生證，送到行政大樓或警衛室',
@@ -678,6 +681,11 @@ async function boot(): Promise<void> {
             actions.setShop({ title: stall.name, items: STALL_MENUS[stall.menu], menu: stall.menu });
             api.openModal('shop');
           }
+          return;
+        }
+        if (target?.id.includes(':vending:')) {
+          actions.setShop({ title: '自動販賣機', items: STALL_MENUS.vending, menu: 'vending' });
+          api.openModal('shop');
           return;
         }
         if (target?.id.includes(':door:')) {

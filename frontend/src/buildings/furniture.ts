@@ -9,7 +9,7 @@ import type { ColliderBox } from './buildingMesh';
  * walls, doors, voids, cores and neighbouring rooms without hand placement. Keep-out circles protect
  * elevator landings, signs and stair ends.
  */
-export type FurnitureKind = 'shelf' | 'table' | 'chair' | 'plinth' | 'stage' | 'riser' | 'screen' | 'bed' | 'whiteboard' | 'bunk' | 'toilet' | 'sink' | 'mirror' | 'partition' | 'hydrant' | 'bins' | 'sign' | 'bracket' | 'vending';
+export type FurnitureKind = 'shelf' | 'table' | 'chair' | 'plinth' | 'stage' | 'riser' | 'screen' | 'bed' | 'whiteboard' | 'bunk' | 'toilet' | 'sink' | 'mirror' | 'partition' | 'hydrant' | 'bins' | 'sign' | 'bracket' | 'vending' | 'loft';
 
 export interface FurnitureItem {
   kind: FurnitureKind;
@@ -275,14 +275,55 @@ function dormRoom(ctx: Ctx, r: Rect, door: Opening | undefined): void {
       ctx.colliders.push({ c: [(bx0 + bx1) / 2, ctx.base + BUNK_H / 2, (by0 + by1) / 2], h: [(bx1 - bx0) / 2, BUNK_H / 2, (by1 - by0) / 2] });
     }
     // Two desks against the same wall past the bunk, chairs tucked in facing the wall.
-    const deskLat = wall + latSide * (DESK_D / 2);
+    const deskLat = wall + latSide * (0.08 + DESK_D / 2); // off the wall line, which samples as outside
     for (let k = 0; k < 2; k++) {
-      const deskMid = end + dir * (0.1 + BED_L + 0.15 + DESK_L / 2 + k * (DESK_L + 0.05));
+      // 0.42 m past the bunk: occupancy is kept in 0.5 m cells, so a closer desk lands in the bunk's cell.
+      const deskMid = end + dir * (0.1 + BED_L + 0.42 + DESK_L / 2 + k * (DESK_L + 0.05));
       const [dx0, dy0, dx1, dy1] = rect(deskMid - DESK_L / 2, deskMid + DESK_L / 2, deskLat - DESK_D / 2, deskLat + DESK_D / 2);
       if (!fits(ctx, dx0, dy0, dx1, dy1, 0.05, 0)) break;
       const [px, py] = pt(deskMid, deskLat);
       ctx.items.push({ kind: 'table', x: px, y: ctx.base, z: py, ry: alongX ? 0 : Math.PI / 2, sx: DESK_L, sy: 0.75, sz: DESK_D, tint: 0 });
       const [cx, cy] = pt(deskMid, deskLat + latSide * (DESK_D / 2 + TUCK));
+      const [fx, fy] = pt(0, -latSide);
+      ctx.items.push({ kind: 'chair', x: cx, y: ctx.base, z: cy, ry: yawToward(fx, fy), sx: 1, sy: 1, sz: 1, tint: hash(cx, cy) });
+    }
+  }
+}
+
+/**
+ * 上床下書桌 dorm room: along each long wall from the far end, lofts (bed on top, desk and shelf
+ * underneath against the wall) with a chair at each desk — two per wall when the room is long enough.
+ */
+function loftRoom(ctx: Ctx, r: Rect, door: Opening | undefined): void {
+  const [x0, y0, x1, y1] = r;
+  const alongX = x1 - x0 >= y1 - y0;
+  const lo = alongX ? x0 : y0, hi = alongX ? x1 : y1;
+  const latLo = alongX ? y0 : x0, latHi = alongX ? y1 : x1;
+  if (hi - lo < 2.6 || latHi - latLo < 2.4) return;
+  const dm = door ? (alongX ? (door.a[0] + door.b[0]) / 2 : (door.a[1] + door.b[1]) / 2) : lo;
+  const farHigh = Math.abs(dm - lo) < Math.abs(dm - hi);
+  const dir = farHigh ? -1 : 1;
+  const end = farHigh ? hi : lo;
+  const BED_L = 2.0, BED_W = 0.95, DESK_D = 0.6, DESK_L = 1.6, PLATFORM = 1.5;
+  const rect = (u0: number, u1: number, l0: number, l1: number): Rect =>
+    alongX ? [Math.min(u0, u1), Math.min(l0, l1), Math.max(u0, u1), Math.max(l0, l1)] : [Math.min(l0, l1), Math.min(u0, u1), Math.max(l0, l1), Math.max(u0, u1)];
+  const pt = (u: number, l: number): [number, number] => (alongX ? [u, l] : [l, u]);
+  for (const latSide of [1, -1] as const) {
+    const wall = latSide > 0 ? latLo : latHi;
+    const lat = wall + latSide * (0.05 + BED_W / 2);
+    // Local +x of the loft points at the wall (its desk side).
+    const ry = alongX ? latSide * Math.PI / 2 : latSide > 0 ? Math.PI : 0;
+    for (let k = 0; k < 2; k++) {
+      const mid = end + dir * (0.05 + BED_L / 2 + k * (BED_L + 0.08));
+      const [bx0, by0, bx1, by1] = rect(mid - BED_L / 2, mid + BED_L / 2, lat - BED_W / 2, lat + BED_W / 2);
+      if (!fits(ctx, bx0, by0, bx1, by1, 0.03, 0)) break;
+      const [px, py] = pt(mid, lat);
+      ctx.items.push({ kind: 'loft', x: px, y: ctx.base, z: py, ry, sx: BED_W, sy: 1, sz: BED_L, tint: hash(px, py) });
+      // Desk block against the wall, and the bed platform overhead (room to sit underneath).
+      const [dx0, dy0, dx1, dy1] = rect(mid - DESK_L / 2, mid + DESK_L / 2, wall + latSide * 0.05, wall + latSide * (0.05 + DESK_D));
+      ctx.colliders.push({ c: [(dx0 + dx1) / 2, ctx.base + 0.39, (dy0 + dy1) / 2], h: [(dx1 - dx0) / 2, 0.39, (dy1 - dy0) / 2] });
+      ctx.colliders.push({ c: [(bx0 + bx1) / 2, ctx.base + PLATFORM + 0.22, (by0 + by1) / 2], h: [(bx1 - bx0) / 2, 0.22, (by1 - by0) / 2] });
+      const [cx, cy] = pt(mid, wall + latSide * (0.05 + DESK_D + TUCK + 0.1));
       const [fx, fy] = pt(0, -latSide);
       ctx.items.push({ kind: 'chair', x: cx, y: ctx.base, z: cy, ry: yawToward(fx, fy), sx: 1, sy: 1, sz: 1, tint: hash(cx, cy) });
     }
@@ -302,26 +343,35 @@ function restroom(ctx: Ctx, r: Rect, door: Opening | undefined): void {
   const dm = door ? (alongX ? (door.a[0] + door.b[0]) / 2 : (door.a[1] + door.b[1]) / 2) : lo;
   const farHigh = Math.abs(dm - lo) < Math.abs(dm - hi);
   const dir = farHigh ? -1 : 1;
-  const end = farHigh ? hi : lo;
+  const end = farHigh ? hi - 0.03 : lo + 0.03; // wall lines sample as outside: stay just inside
+  // Stalls go on the long wall without the door (sinks opposite); `s` points from the stall wall into the room.
+  const doorLat = door ? (alongX ? (door.a[1] + door.b[1]) / 2 : (door.a[0] + door.b[0]) / 2) : latHi;
+  const s = Math.abs(doorLat - latLo) < 0.1 ? -1 : 1;
+  const stallWall = s > 0 ? latLo : latHi, sinkWall = s > 0 ? latHi : latLo;
   const pt = (u: number, l: number): [number, number] => (alongX ? [u, l] : [l, u]);
+  const box = (u0: number, u1: number, l0: number, l1: number): Rect => {
+    const [ax, ay] = pt(Math.min(u0, u1), Math.min(l0, l1)), [bx, by] = pt(Math.max(u0, u1), Math.max(l0, l1));
+    return [ax, ay, bx, by];
+  };
   /** Axis-aligned panel from (u0, l0) to (u1, l1) in room axes, `h` tall from `y`. */
   const panel = (u0: number, u1: number, l0: number, l1: number, y: number, h: number, solid: boolean): void => {
-    const [ax, ay] = pt(Math.min(u0, u1), Math.min(l0, l1)), [bx, by] = pt(Math.max(u0, u1), Math.max(l0, l1));
+    const [ax, ay, bx, by] = box(u0, u1, l0, l1);
     const sx = Math.max(bx - ax, 0.04), sz = Math.max(by - ay, 0.04);
     ctx.items.push({ kind: 'partition', x: (ax + bx) / 2, y, z: (ay + by) / 2, ry: 0, sx, sy: h, sz, tint: 0 });
     if (solid) ctx.colliders.push({ c: [(ax + bx) / 2, y + h / 2, (ay + by) / 2], h: [sx / 2, h / 2, sz / 2] });
   };
 
-  // Stalls: 1.0 m wide, 1.4 m deep, keeping 1.6 m clear by the door.
+  // Stalls: 1.0 m wide, 1.4 m deep, keeping 1.6 m clear by the door; fewer if the full row won't fit.
   const STALL_W = 1.0, STALL_D = 1.4, PART_H = 1.8, LIFT = 0.12;
-  const count = Math.min(4, Math.floor((hi - lo - 1.6) / STALL_W));
-  const front = latLo + STALL_D;
-  const stallFar = end, stallNear = end + dir * count * STALL_W;
-  const [sx0, sy0] = pt(Math.min(stallFar, stallNear), latLo), [sx1, sy1] = pt(Math.max(stallFar, stallNear), front);
-  if (count > 0 && fits(ctx, Math.min(sx0, sx1), Math.min(sy0, sy1), Math.max(sx0, sx1), Math.max(sy0, sy1), 0, 0)) {
+  const back = stallWall + s * 0.03;
+  const front = back + s * STALL_D;
+  for (let count = Math.min(4, Math.floor((hi - lo - 1.6) / STALL_W)); count > 0; count--) {
+    const stallFar = end, stallNear = end + dir * count * STALL_W;
+    const [ax, ay, bx, by] = box(stallFar, stallNear, back, front);
+    if (!fits(ctx, ax, ay, bx, by, 0, 0)) continue;
     for (let k = 0; k <= count; k++) {
       const u = end + dir * k * STALL_W;
-      panel(u - 0.02, u + 0.02, latLo, front, ctx.base + LIFT, PART_H, true);
+      panel(u - 0.02, u + 0.02, back, front, ctx.base + LIFT, PART_H, true);
     }
     for (let k = 0; k < count; k++) {
       const ua = end + dir * k * STALL_W, ub = ua + dir * STALL_W;
@@ -331,30 +381,37 @@ function restroom(ctx: Ctx, r: Rect, door: Opening | undefined): void {
       panel(ub - dir * 0.2, ub, front - 0.02, front + 0.02, ctx.base + LIFT, PART_H, true);
       const hinge = pt(ua + dir * 0.2, front);
       const open = 1.1; // radians the leaf has swung in from the closed line
-      const [ldx, ldy] = pt(dir * Math.cos(open), -Math.sin(open));
+      const [ldx, ldy] = pt(dir * Math.cos(open), -s * Math.sin(open));
       ctx.items.push({ kind: 'partition', x: hinge[0] + ldx * 0.3, y: ctx.base + LIFT, z: hinge[1] + ldy * 0.3, ry: Math.atan2(-ldy, ldx), sx: 0.6, sy: PART_H, sz: 0.035, tint: 0 });
-      const [tx, ty] = pt(uMid, latLo + 0.3);
-      const [fx, fy] = pt(0, 1);
+      const [tx, ty] = pt(uMid, back + s * 0.3);
+      const [fx, fy] = pt(0, s);
       ctx.items.push({ kind: 'toilet', x: tx, y: ctx.base, z: ty, ry: yawToward(fx, fy), sx: 1, sy: 1, sz: 1, tint: 0 });
     }
     panel(stallFar, stallNear, front - 0.03, front + 0.03, ctx.base + PART_H + LIFT - 0.06, 0.06, false); // head rail
+    break;
   }
 
   // Sinks along the opposite wall, centred on the room, mirror above.
   const SINK_W = 0.6, SINK_D = 0.55;
   const sinks = Math.min(3, Math.floor((hi - lo - 1.4) / SINK_W));
   if (sinks < 1) return;
-  const mid = (lo + hi) / 2, half = (sinks * SINK_W) / 2;
-  const [cx0, cy0] = pt(mid - half, latHi - SINK_D), [cx1, cy1] = pt(mid + half, latHi - 0.03); // inset: the far wall line samples as outside
-  if (!fits(ctx, Math.min(cx0, cx1), Math.min(cy0, cy1), Math.max(cx0, cx1), Math.max(cy0, cy1), 0, 0)) return;
-  const [fx, fy] = pt(0, -1);
+  const half = (sinks * SINK_W) / 2;
+  const face = sinkWall - s * 0.03; // inset: the far wall line samples as outside
+  // Centred on the wall, else slid toward either end (clear of a door in the middle of that wall).
+  const mid = [(lo + hi) / 2, lo + 0.1 + half, hi - 0.1 - half].find((m) => {
+    const [ax, ay, bx, by] = box(m - half, m + half, face - s * SINK_D, face);
+    return fits(ctx, ax, ay, bx, by, 0, 0);
+  });
+  if (mid === undefined) return;
+  const [cx0, cy0, cx1, cy1] = box(mid - half, mid + half, face - s * SINK_D, face);
+  const [fx, fy] = pt(0, -s);
   for (let k = 0; k < sinks; k++) {
-    const [px, py] = pt(mid - half + SINK_W * (k + 0.5), latHi - 0.03 - SINK_D / 2);
+    const [px, py] = pt(mid - half + SINK_W * (k + 0.5), face - s * (SINK_D / 2));
     ctx.items.push({ kind: 'sink', x: px, y: ctx.base, z: py, ry: yawToward(fx, fy), sx: 1, sy: 1, sz: 1, tint: 0 });
   }
-  ctx.colliders.push({ c: [(cx0 + cx1) / 2, ctx.base + 0.45, (cy0 + cy1) / 2], h: [Math.abs(cx1 - cx0) / 2, 0.45, Math.abs(cy1 - cy0) / 2] });
-  const [mx0, my0] = pt(mid - half, latHi - 0.03), [mx1, my1] = pt(mid + half, latHi - 0.01);
-  ctx.items.push({ kind: 'mirror', x: (mx0 + mx1) / 2, y: ctx.base + 1.15, z: (my0 + my1) / 2, ry: 0, sx: Math.max(Math.abs(mx1 - mx0), 0.02), sy: 0.85, sz: Math.max(Math.abs(my1 - my0), 0.02), tint: 0 });
+  ctx.colliders.push({ c: [(cx0 + cx1) / 2, ctx.base + 0.45, (cy0 + cy1) / 2], h: [(cx1 - cx0) / 2, 0.45, (cy1 - cy0) / 2] });
+  const [mx0, my0, mx1, my1] = box(mid - half, mid + half, face, sinkWall - s * 0.01);
+  ctx.items.push({ kind: 'mirror', x: (mx0 + mx1) / 2, y: ctx.base + 1.15, z: (my0 + my1) / 2, ry: 0, sx: Math.max(mx1 - mx0, 0.02), sy: 0.85, sz: Math.max(my1 - my0, 0.02), tint: 0 });
 }
 
 function plinths(ctx: Ctx, r: Rect): void {
@@ -397,6 +454,7 @@ export function layoutFurniture(plan: FloorPlan, grid: FloorGrid, base: number, 
         case 'classroom': seating(ctx, r, true); break;
         case 'exhibit': plinths(ctx, r); break;
         case 'dorm': dormRoom(ctx, r, door); break;
+        case 'dormLoft': loftRoom(ctx, r, door); break;
         case 'restroom': restroom(ctx, r, door); break;
       }
     }

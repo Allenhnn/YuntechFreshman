@@ -490,6 +490,15 @@ export function createHandBuiltBuilding(
     });
   }
 
+  for (const [levelId, floor] of Object.entries(src.floors)) {
+    const y = src.levels.find((l) => l.id === levelId)?.elevation ?? 0;
+    (floor.fixtures ?? []).forEach((f, i) => {
+      if (f.kind !== 'vending') return;
+      const [x, z] = xf.toWorld(f.at[0] + f.facing[0] * 1.4, f.at[1] + f.facing[1] * 1.4);
+      interactables.push({ id: `${src.id}:vending:${levelId}:${i}`, prompt: '按 E 用販賣機買飲料', x, y, z, radius: 1.3 });
+    });
+  }
+
   const footprintRings: Ring[] = meshes.footprint.map(([a, b, c, d]) => [
     ...xf.toWorld(a, b), ...xf.toWorld(c, b), ...xf.toWorld(c, d), ...xf.toWorld(a, d),
   ]);

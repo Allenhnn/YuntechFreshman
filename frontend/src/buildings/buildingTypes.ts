@@ -20,6 +20,7 @@ export type FurnishKind =
   | 'classroom'
   | 'exhibit'
   | 'dorm'
+  | 'dormLoft'
   | 'restroom';
 
 export interface Space {

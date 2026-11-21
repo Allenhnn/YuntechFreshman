@@ -4,7 +4,7 @@ import { buildingEntrance } from '../campus/entrances';
 import type { FacadeData } from '../campus/facadeTypes';
 import type { BuildingSource, TracedIndex } from '../buildings/buildingTypes';
 import { buildBuildingMeshes, type BuildingMeshes, type BuildingPart } from '../buildings/buildingMesh';
-import { generateInterior } from './generateInterior';
+import { dormVendingPart, generateInterior } from './generateInterior';
 
 /**
  * Off-main-thread interior generation: plan layout + the hand-built mesh pipeline take up to
@@ -51,7 +51,7 @@ const api = {
     } else {
       const b = campus?.buildings.find((x) => String(x.id) === key);
       if (!campus || !b) return null;
-      source = generateInterior(b, buildingEntrance(b, campus.roads, photoEdges.get(b.id)))?.source ?? null;
+      source = generateInterior(b, buildingEntrance(b, campus.roads, photoEdges.get(b.id)), undefined, dormVendingPart(b, campus.buildings))?.source ?? null;
     }
     if (!source) return null;
     const meshes = buildBuildingMeshes(source);
