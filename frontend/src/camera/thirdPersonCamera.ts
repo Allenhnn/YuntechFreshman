@@ -18,6 +18,11 @@ export interface ThirdPersonCamera {
   readonly yaw: number;
   /** Current spring-arm length (m); short when a wall is close behind the character. */
   readonly distance: number;
+  /** Smoothed pitch (positive: camera above, looking down). */
+  readonly pitch: number;
+  /** First person: the camera sits at the eyes and looks along yaw / pitch (ball games). */
+  readonly firstPerson: boolean;
+  setFirstPerson(on: boolean): void;
   rotate(dxPixels: number, dyPixels: number): void;
   update(dt: number, focus: CameraFocus, ignore: RAPIER.Collider | undefined, filter?: (collider: RAPIER.Collider) => boolean): void;
   /** Jump straight to the target state (spawn / teleport), optionally with a new yaw. */
@@ -39,6 +44,7 @@ export function createThirdPersonCamera(camera: PerspectiveCamera, physics: RAPI
   let fov: number = CAMERA.baseFov;
   let dip = 0;
   let lastLandingSeq = 0;
+  let fp = false;
   const pivot = new Vector3();
   const probe = new RAPIER.Ball(CAMERA.probeRadius);
   const dir = { x: 0, y: 0, z: 0 };
@@ -48,6 +54,11 @@ export function createThirdPersonCamera(camera: PerspectiveCamera, physics: RAPI
     dir.x = Math.sin(yaw) * cp;
     dir.y = Math.sin(pitch);
     dir.z = Math.cos(yaw) * cp;
+    if (fp) {
+      camera.position.set(pivot.x, pivot.y - 0.05, pivot.z);
+      camera.lookAt(pivot.x - dir.x, pivot.y - 0.05 - dir.y, pivot.z - dir.z);
+      return;
+    }
     camera.position.set(pivot.x + dir.x * distance, pivot.y + dir.y * distance, pivot.z + dir.z * distance);
     camera.lookAt(pivot);
   };
@@ -57,11 +68,23 @@ export function createThirdPersonCamera(camera: PerspectiveCamera, physics: RAPI
       return yaw;
     },
     get distance() {
-      return distance;
+      return fp ? 0 : distance;
+    },
+    get pitch() {
+      return pitch;
+    },
+    get firstPerson() {
+      return fp;
+    },
+    setFirstPerson(on) {
+      if (on === fp) return;
+      fp = on;
+      targetPitch = on ? -0.16 : CAMERA.defaultPitch; // first person: look slightly up (hoop, goal)
+      pitch = targetPitch;
     },
     rotate(dx, dy) {
       targetYaw -= dx * CAMERA.sensitivity;
-      targetPitch = clamp(targetPitch + dy * CAMERA.sensitivity, CAMERA.pitchMin, CAMERA.pitchMax);
+      targetPitch = clamp(targetPitch + dy * CAMERA.sensitivity, fp ? -1.1 : CAMERA.pitchMin, fp ? 1.0 : CAMERA.pitchMax);
     },
     snap(focus, newYaw) {
       if (newYaw !== undefined) targetYaw = newYaw;
@@ -89,6 +112,7 @@ export function createThirdPersonCamera(camera: PerspectiveCamera, physics: RAPI
       const pivotY = pivot.y;
       pivot.y += dip;
 
+      if (fp) { place(); pivot.y = pivotY; return; }
       // Spring arm collision.
       const cp = Math.cos(pitch);
       dir.x = Math.sin(yaw) * cp;

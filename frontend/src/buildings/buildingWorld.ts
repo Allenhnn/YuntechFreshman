@@ -100,8 +100,24 @@ export interface Interactable {
   radius: number;
 }
 
+/** A chair to sit on or a bed to lie on (world space). */
+export interface Seat {
+  kind: 'chair' | 'bed';
+  x: number;
+  /** Seat top / mattress top. */
+  y: number;
+  z: number;
+  /** Floor under it. */
+  base: number;
+  /** Chair: the way a sitter faces. Bed: the direction of the head end. */
+  yaw: number;
+  building: string;
+}
+
 export interface HandBuiltBuilding {
   readonly source: BuildingSource;
+  /** Chairs and beds (empty until the interior is loaded). */
+  readonly seats: readonly Seat[];
   /** World-space footprint rings of the ground floor (no-tree zones). */
   readonly footprintRings: Ring[];
   readonly interactables: Interactable[];
@@ -499,6 +515,25 @@ export function createHandBuiltBuilding(
     });
   }
 
+  // Chairs (not taken by a student figure) and beds: lower bunk, loft top, single beds.
+  const seats: Seat[] = [];
+  for (const lvl of meshes.levels) {
+    for (const it of lvl.furniture) {
+      const [x, z] = xf.toWorld(it.x, it.z);
+      if (it.kind === 'chair' && !it.taken) {
+        seats.push({ kind: 'chair', x, y: it.y + 0.42, z, base: it.y, yaw: planFacingOf(-Math.sin(it.ry), -Math.cos(it.ry)), building: src.name });
+      } else if (it.kind === 'bunk' || it.kind === 'loft' || it.kind === 'bed') {
+        const top = it.kind === 'bunk' ? 0.44 : it.kind === 'loft' ? 1.7 : 0.46;
+        seats.push({ kind: 'bed', x, y: it.y + top, z, base: it.y, yaw: planFacingOf(Math.sin(it.ry), Math.cos(it.ry)), building: src.name });
+      }
+    }
+  }
+  function planFacingOf(dx: number, dy: number): number {
+    const [x1, z1] = xf.toWorld(dx, dy);
+    const [x0, z0] = xf.toWorld(0, 0);
+    return Math.atan2(x1 - x0, z1 - z0);
+  }
+
   const footprintRings: Ring[] = meshes.footprint.map(([a, b, c, d]) => [
     ...xf.toWorld(a, b), ...xf.toWorld(c, b), ...xf.toWorld(c, d), ...xf.toWorld(a, d),
   ]);
@@ -508,6 +543,7 @@ export function createHandBuiltBuilding(
 
   return {
     source: src,
+    get seats() { return interior ? seats : []; },
     footprintRings,
     interactables,
     stairPortals: meshes.portals,

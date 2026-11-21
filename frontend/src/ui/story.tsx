@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { actions, useGame } from '../state/store';
 import { storyActions, useStory, type StoryProgress } from '../state/story';
-import { ACHIEVEMENTS, CLUBS, DAYS, MIXER, QUIZ, SIDE_QUESTS, PHOTO_SPOTS, TOUR_STOPS, type Step } from '../story/storyData';
+import { ACHIEVEMENTS, CLUBS, DAYS, MIXER, MIXER_GOAL, MIXER_START, QUIZ, SIDE_QUESTS, PHOTO_SPOTS, TOUR_STOPS, type Step } from '../story/storyData';
+import { OUTFIT_ITEMS, OUTFIT_PARTS } from '../character/outfit';
 import { storyEvents } from '../story/storyRuntime';
 import { dispatch } from '../state/commands';
 import { useApi } from './api';
@@ -24,7 +25,7 @@ function sideText(id: string, p: StoryProgress): string {
   return q.text.replace('{n}', String(s.done.length)).replace('{total}', String(q.total)).replace('{target}', s.target ?? next);
 }
 
-const STEP_ICON: Record<string, string> = { talk: '💬', buy: '🛒', eat: '🍱', sport: '🏀', class: '📚', sleep: '🛏️', run: '🏁', quiz: '📝', enter: '📍' };
+const STEP_ICON: Record<string, string> = { talk: '💬', buy: '🛒', eat: '🍱', sport: '🏀', class: '📚', sleep: '🛏️', run: '🏁', quiz: '📝', enter: '📍', scene: '📚', getUp: '⏰', phoneRollcall: '📱', outfit: '👕' };
 const SIDE_ICON: Record<string, string> = { lostFound: '🪪', bikeReturn: '🚲', tour: '🚩', photo: '📸', athlete: '🏅', foodie: '🍱' };
 const WHO: Record<string, string> = {
   wakeD1: '書桌', nurse: '健康中心護理師', roommateD2: '室友阿凱', bibD3: '室友阿凱', summary: '室友阿凱', mixer: '聯誼的同學',
@@ -38,8 +39,13 @@ function howTo(step: Step): string {
     case 'talk': return `走到${step.place}，靠近${WHO[c.scene] ?? '對方'}按 E`;
     case 'buy': return c.shop === 'hilife' ? `走進${step.place}，按 E 打開萊爾富買一樣東西` : `走到${step.place}的攤位前，按 E 點餐`;
     case 'eat': return c.item === 'cupNoodles' ? '打開背包（Tab）點泡麵，或按快捷鍵使用' : '打開背包（Tab）點食物，或按快捷鍵 1–5 使用';
-    case 'sport': return '走到籃球場的籃框下，按 E 開始 60 秒投籃挑戰';
-    case 'class': return `走進${step.place}，留在教室裡等點名（離開會被記翹課）`;
+    case 'sport': return c.kind === 'basketball' ? '走到籃球場的籃框下，按 E 開始投籃（第一人稱：滑鼠瞄準、Space 蓄力）'
+      : c.kind === 'soccer' ? '走到足球場罰球點，按 E 開始 PK 大賽' : c.kind === 'volleyball' ? '走進排球場，按 E 開始墊球比賽' : '走到跑道起點，按 E 開始逆時針計時賽';
+    case 'class': return `跟著導航到${step.place}，在時間內走到教室空位按 E 坐下（遲到扣錢）`;
+    case 'scene': return `在${step.place}的座位坐好（按 E 坐下），上課就開始了`;
+    case 'getUp': return '按 E 或任一移動鍵下床';
+    case 'phoneRollcall': return '按 P 打開手機 →「聊天室」問小芳點名碼 →「點名系統」輸入';
+    case 'outfit': return `在${step.place}按 E 打開衣櫃，至少穿上 3 件再出門`;
     case 'sleep': return `回到${step.place}，按 E 睡覺`;
     case 'run': return '跟著箭頭依序穿過拱門；Shift 衝刺會消耗體力';
     case 'quiz': return `走進${step.place}，按 E 入座考試`;
@@ -253,6 +259,7 @@ export function QuestLog(): ReactNode {
 export function StoryModal(): ReactNode {
   const scene = useStory((s) => s.scene);
   if (!scene) return null;
+  if (scene.kind === 'wardrobe') return <Wardrobe />;
   return (
     <div className="screen story-screen">
       <div className="card story-card">
@@ -260,9 +267,10 @@ export function StoryModal(): ReactNode {
         {scene.kind === 'rollcall' && <RollCall advanced={scene.advanced} sudden={scene.sudden} />}
         {scene.kind === 'quiz' && <Quiz />}
         {scene.kind === 'mixer' && <Mixer />}
-        {scene.kind === 'wake' && <Wake />}
+
         {scene.kind === 'clubFair' && <ClubFair />}
         {scene.kind === 'summary' && <Summary />}
+        {scene.kind === 'stayAwake' && <StayAwake />}
       </div>
     </div>
   );
@@ -409,84 +417,218 @@ function Quiz(): ReactNode {
   );
 }
 
+/** Fisher–Yates on a copy (answer order changes every question). */
+function shuffled<T>(a: readonly T[]): T[] {
+  const out = [...a];
+  for (let i = out.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [out[i], out[j]] = [out[j]!, out[i]!]; }
+  return out;
+}
+
+const MIXER_TIME = 9;
+
+/**
+ * 聯誼: chat with three people, two questions each. Every answer moves that person's 好感度;
+ * silence (the timer runs out) is awkward and costs too. Hearts float up or break, the card glows
+ * or shakes. The night is a success for everyone at 60 or more.
+ */
 function Mixer(): ReactNode {
   const api = useApi();
-  const [i, setI] = useState(0);
-  const [score, setScore] = useState(0);
-  const [reply, setReply] = useState<string | null>(null);
-  const m = MIXER[i]!;
-  const choose = (k: number): void => {
-    api.click();
-    const good = k === m.best;
-    setScore((s) => s + (good ? 1 : 0));
-    setReply(good ? `${m.who.split('（')[0]}：「哈哈，聊得來！」` : `${m.who.split('（')[0]}：「喔…這樣啊。」`);
+  const [aff, setAff] = useState<number[]>(() => MIXER.map(() => MIXER_START));
+  const [turn, setTurn] = useState(0); // person * 2 + question
+  const [reply, setReply] = useState<{ text: string; delta: number } | null>(null);
+  const [left, setLeft] = useState(MIXER_TIME);
+  const [fx, setFx] = useState(0);
+  const total = MIXER.length * 2;
+  const pi = Math.floor(turn / 2), m = MIXER[pi], q = m?.qs[turn % 2];
+  const options = useMemo(() => (q ? shuffled(q.options) : []), [q]);
+  const answer = (delta: number, text: string): void => {
+    setAff((a) => a.map((v, i) => (i === pi ? Math.max(0, Math.min(100, v + delta)) : v)));
+    setReply({ text, delta });
+    setFx((n) => n + 1);
+    if (delta >= 0) api.click(); else actions.toast(delta <= -15 ? '💔 好感度大跌！' : '💧 有點尷尬…');
   };
+  useEffect(() => {
+    if (reply || turn >= total) return;
+    setLeft(MIXER_TIME);
+    const t = window.setInterval(() => setLeft((l) => {
+      if (l <= 0.1) { window.clearInterval(t); answer(-10, '（你沉默太久，氣氛有點冷…）'); return 0; }
+      return l - 0.1;
+    }), 100);
+    return () => window.clearInterval(t);
+  }, [turn, reply]); // eslint-disable-line react-hooks/exhaustive-deps
   const next = (): void => {
+    api.click();
     setReply(null);
-    if (i + 1 < MIXER.length) setI(i + 1);
-    else storyEvents.finishScene({ kind: 'mixer', score });
+    setTurn((t) => t + 1);
   };
+  const bars = (
+    <div className="mixer-people">
+      {MIXER.map((p, i) => (
+        <div key={p.who} className={`mixer-person${i === pi && turn < total ? ' now' : ''}${aff[i]! >= MIXER_GOAL ? ' good' : ''}`}>
+          <i>{p.look}</i>
+          <b>{p.who.split('（')[0]}</b>
+          <span className="aff"><em style={{ width: `${aff[i]}%` }} /><s style={{ left: `${MIXER_GOAL}%` }} /></span>
+          <small>❤ {aff[i]}</small>
+        </div>
+      ))}
+    </div>
+  );
+  if (turn >= total || !m || !q) {
+    const won = aff.filter((v) => v >= MIXER_GOAL).length;
+    return (
+      <div className="mixer">
+        <div className="speaker">聯誼結束</div>
+        {bars}
+        <p className="story-text">{won === MIXER.length ? '大成功！三個人都想跟你交換 IG 💕' : won > 0 ? `和 ${won} 個人聊得不錯，交換了聯絡方式！` : '今晚好像沒什麼火花…下次再加油。'}</p>
+        <button className="btn primary" onClick={() => storyEvents.finishScene({ kind: 'mixer', score: won })}>回宿舍</button>
+      </div>
+    );
+  }
   return (
-    <>
-      <div className="speaker">聯誼・{m.who}</div>
+    <div className={`mixer${reply ? (reply.delta >= 0 ? ' glow' : ' shake') : ''}`} key={fx}>
+      <div className="speaker">聯誼・{m.who}　<small>第 {turn + 1}/{total} 題</small></div>
+      {bars}
       {reply ? (
         <>
-          <p className="story-text">{reply}</p>
-          <button className="btn primary" onClick={next}>{i + 1 < MIXER.length ? '換下一位聊天 ▸' : '聯誼結束'}</button>
+          <div className={`mixer-float ${reply.delta >= 0 ? 'up' : 'down'}`}>{reply.delta >= 0 ? `+${reply.delta} ❤` : `${reply.delta} 💔`}</div>
+          <p className="story-text">{m.who.split('（')[0]}：「{reply.text}」</p>
+          <button className="btn primary" onClick={next}>{turn + 1 < total ? (turn % 2 === 1 ? '換下一位聊天 ▸' : '繼續聊 ▸') : '看看結果'}</button>
         </>
       ) : (
         <>
-          <p className="story-text">「{m.ask}」</p>
-          <div className="quiz-options">{m.options.map((o, k) => <button key={k} className="btn" onClick={() => choose(k)}>{o}</button>)}</div>
+          <p className="story-text">「{q.ask}」</p>
+          <div className="mixer-timer"><i style={{ width: `${(left / MIXER_TIME) * 100}%` }} /></div>
+          <div className="quiz-options">{options.map((o) => <button key={o.text} className="btn" onClick={() => answer(o.delta, o.reply)}>{o.text}</button>)}</div>
         </>
       )}
-    </>
+    </div>
   );
 }
 
-/** 週會: the drowsiness bar creeps up; tap Space to stay awake for 20 seconds. */
-function Wake(): ReactNode {
-  const [sleepy, setSleepy] = useState(0.2);
-  const [left, setLeft] = useState(20);
+const AWAKE_TIME = 25;
+const SAFE: [number, number] = [0.38, 0.72];
+
+/**
+ * 防睡挑戰: the 精神 marker sinks on its own (faster while yawning); hold Space or the button to
+ * push it up. Keep it inside the green zone: outside it for 2.5 s, or at the bottom, you fall
+ * asleep and the professor catches you. States: 清醒 → 打哈欠 (random, stronger pull) → 睡著.
+ */
+function StayAwake(): ReactNode {
+  const [v, setV] = useState(0.55);
+  const [left, setLeft] = useState(AWAKE_TIME);
+  const [drowsy, setDrowsy] = useState(0); // seconds outside the zone
+  const [yawn, setYawn] = useState(false);
   const [done, setDone] = useState<boolean | null>(null);
   const [started, setStarted] = useState(false);
+  const hold = useRef(false);
   useEffect(() => { actions.startCountdown(() => setStarted(true)); }, []);
   useEffect(() => {
-    if (done !== null || !started) return;
-    const t = window.setInterval(() => {
-      setSleepy((s) => Math.min(1, s + 0.035));
-      setLeft((l) => l - 0.1);
-    }, 100);
-    return () => window.clearInterval(t);
-  }, [done, started]);
-  useEffect(() => {
-    if (done !== null || !started) return;
-    if (sleepy >= 1) setDone(false);
-    else if (left <= 0) setDone(true);
-  }, [sleepy, left, done]);
-  useEffect(() => {
     const k = (e: KeyboardEvent): void => {
-      if (e.code === 'Space') { e.preventDefault(); setSleepy((s) => Math.max(0, s - 0.08)); }
+      if (e.code !== 'Space') return;
+      e.preventDefault();
+      hold.current = e.type === 'keydown';
     };
     window.addEventListener('keydown', k);
-    return () => window.removeEventListener('keydown', k);
+    window.addEventListener('keyup', k);
+    return () => { window.removeEventListener('keydown', k); window.removeEventListener('keyup', k); };
   }, []);
+  useEffect(() => {
+    if (!started || done !== null) return;
+    let val = 0.55, vel = 0, out = 0, t = AWAKE_TIME, yawnT = 3 + Math.random() * 3, yawning = 0, last = performance.now(), raf = 0;
+    const step = (now: number): void => {
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      t -= dt;
+      yawnT -= dt;
+      if (yawnT <= 0) { yawning = 1.6; yawnT = 3.5 + Math.random() * 3; }
+      yawning = Math.max(0, yawning - dt);
+      const pull = yawning > 0 ? 0.62 : 0.32 + (1 - t / AWAKE_TIME) * 0.22;
+      vel += (hold.current ? 0.95 : -pull) * dt;
+      if (yawning > 0) vel += (Math.random() - 0.5) * 0.9 * dt;
+      vel *= Math.pow(0.35, dt);
+      val += vel * dt;
+      if (val >= 1) { val = 1; vel = 0; }
+      out = val < SAFE[0] || val > SAFE[1] ? out + dt : Math.max(0, out - dt * 1.5);
+      setV(val); setLeft(t); setDrowsy(out); setYawn(yawning > 0);
+      if (val <= 0 || out >= 2.5) { setDone(false); return; }
+      if (t <= 0) { setDone(true); return; }
+      raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [started, done]);
+  const lid = done === false ? 50 : Math.min(48, (drowsy / 2.5) * 40 + (v < SAFE[0] ? (SAFE[0] - v) * 40 : 0));
+  const state = done === false ? '睡著' : yawn ? '打哈欠' : drowsy > 0.3 ? '昏昏欲睡' : '清醒';
   return (
-    <>
-      <div className="speaker">週會・校長致詞</div>
+    <div className="awake">
+      <div className="awake-lids" style={{ ['--lid' as string]: `${lid}%` }} />
+      <div className="speaker">課堂・教授講課中　<small>剩 {Math.max(0, Math.ceil(left))} 秒</small></div>
       {done === null ? (
         <>
-          <p className="story-text">「各位同學，大學生活就是…（好想睡…）」連按 <kbd>Space</kbd> 保持清醒！剩 {Math.ceil(left)} 秒</p>
-          <div className="sleepy"><i style={{ width: `${sleepy * 100}%` }} /></div>
-          <button className="btn" onClick={() => setSleepy((s) => Math.max(0, s - 0.08))}>捏自己一下（或按 Space）</button>
+          <p className="story-text">「…所以這個公式非常重要，期末一定會考…」{yawn ? <b className="yawn">哈～～欠～</b> : null}</p>
+          <div className={`awake-state s-${state}`}>狀態：{state}</div>
+          <div className={`awake-bar${yawn ? ' yawning' : ''}`}>
+            <span className="zone" style={{ left: `${SAFE[0] * 100}%`, width: `${(SAFE[1] - SAFE[0]) * 100}%` }} />
+            <span className="danger lo">睡著</span><span className="danger hi">太亢奮</span>
+            <i style={{ left: `${v * 100}%` }} />
+          </div>
+          <div className="awake-drowsy"><i style={{ width: `${(drowsy / 2.5) * 100}%` }} /></div>
+          <button className="btn" onPointerDown={() => { hold.current = true; }} onPointerUp={() => { hold.current = false; }} onPointerLeave={() => { hold.current = false; }}>
+            按住提神（或按住 Space）
+          </button>
+          <small className="awake-hint">把指針維持在綠色安全區：按住往右、放開往左；離開安全區太久或掉到最左邊就會睡著</small>
+        </>
+      ) : done ? (
+        <>
+          <p className="story-text">鐘聲響了，撐過一整堂課！</p>
+          <button className="btn primary" onClick={() => storyEvents.finishScene({ kind: 'stayAwake', ok: true })}>下課</button>
         </>
       ) : (
         <>
-          <p className="story-text">{done ? '撐到週會結束了！' : 'Zzz…（被旁邊的同學推醒）'}</p>
-          <button className="btn primary" onClick={() => storyEvents.finishScene({ kind: 'wake', ok: done })}>離開會場</button>
+          <p className="story-text">Zzz…「這位同學！上課睡覺？」（被教授抓包）</p>
+          <button className="btn primary" onClick={() => storyEvents.finishScene({ kind: 'stayAwake', ok: false })}>重新挑戰這堂課</button>
         </>
       )}
-    </>
+    </div>
+  );
+}
+
+/** 衣櫃: six parts, each worn or taken off on its own; the character on screen is the preview. */
+function Wardrobe(): ReactNode {
+  const api = useApi();
+  const saved = useStory((s) => s.progress.outfit);
+  const outfit = saved ?? {};
+  const [part, setPart] = useState<(typeof OUTFIT_PARTS)[number]['id']>('hat');
+  const worn = OUTFIT_PARTS.filter((p) => outfit[p.id]).length;
+  const wear = (id: string | null): void => {
+    api.click();
+    storyActions.update((p) => {
+      const o = { ...(p.outfit ?? {}) };
+      if (id) o[part] = id; else delete o[part];
+      return { ...p, outfit: o };
+    });
+  };
+  return (
+    <div className="wardrobe">
+      <h2>👕 衣櫃</h2>
+      <div className="wd-parts">
+        {OUTFIT_PARTS.map((p) => (
+          <button key={p.id} className={`${p.id === part ? 'on' : ''}${outfit[p.id] ? ' worn' : ''}`} onClick={() => { api.click(); setPart(p.id); }}>
+            <i>{p.icon}</i>{p.label}
+          </button>
+        ))}
+      </div>
+      <div className="wd-items">
+        <button className={`wd-item${!outfit[part] ? ' on' : ''}`} onClick={() => wear(null)}><span className="sw none">✕</span>脫下</button>
+        {OUTFIT_ITEMS.filter((it) => it.part === part).map((it) => (
+          <button key={it.id} className={`wd-item${outfit[part] === it.id ? ' on' : ''}`} onClick={() => wear(it.id)}>
+            <span className="sw" style={{ background: `#${it.color.toString(16).padStart(6, '0')}` }} />{it.name}
+          </button>
+        ))}
+      </div>
+      <p className="wd-note">已穿 {worn}/6 件{worn < 3 ? '・至少穿 3 件才夠帥' : '・帥！'}</p>
+      <button className="btn primary" disabled={worn < 3} onClick={() => storyEvents.finishScene({ kind: 'wardrobe' })}>完成造型，出門！</button>
+    </div>
   );
 }
 

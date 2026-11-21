@@ -17,7 +17,7 @@ import { clearProgress, loadProgress, notifySaveChanged, type SaveData } from '.
 export type GamePhase = 'loading' | 'menu' | 'playing' | 'paused';
 export type MenuPanel = 'root' | 'controls' | 'settings';
 export type Modal = 'none' | 'inventory' | 'phone' | 'elevator' | 'shop' | 'chat' | 'camera' | 'story' | 'quests';
-export type PhonePage = 'home' | 'settings' | 'album';
+export type PhonePage = 'home' | 'settings' | 'album' | 'chat' | 'rollcall';
 export type MapMode = 'mini' | 'full';
 export type LookMode = 'pointerLock' | 'drag';
 
@@ -85,6 +85,8 @@ export interface RaceState {
   gate: number;
   gates: number;
   testing: boolean;
+  /** The classmate's lap time to beat (s). */
+  rival?: number;
 }
 
 export interface ShopMenu {
@@ -135,6 +137,10 @@ export interface SportHud {
   sweet: [number, number] | null;
   message: string;
   hint: string;
+  /** Match against a classmate: their name and score (or time), shown as a scoreboard. */
+  vs?: { name: string; you: string; them: string } | null;
+  /** First-person game: show the crosshair. */
+  fp?: boolean;
 }
 
 export interface GameState {

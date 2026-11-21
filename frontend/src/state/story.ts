@@ -41,6 +41,22 @@ export interface StoryProgress {
   achievements: Record<string, number>;
   /** Buildings walked into. */
   visited: string[];
+  /** Wardrobe: what is worn on each of the six parts (item id), absent = nothing there. */
+  outfit?: Partial<Record<OutfitPart, string>>;
+}
+
+export type OutfitPart = 'hat' | 'shirt' | 'jacket' | 'pants' | 'socks' | 'shoes';
+
+export interface ChatMsg { me: boolean; text: string }
+/** The phone's story side: chat threads, quick replies, the newest notification, the roll call app. */
+export interface PhoneState {
+  threads: Record<string, ChatMsg[]>;
+  /** Quick replies the player can send in each thread. */
+  replies: Record<string, { id: string; text: string }[]>;
+  unread: Record<string, number>;
+  note: { from: string; text: string; at: number } | null;
+  /** A digital roll call open in the 點名系統 app. */
+  rollcall: { course: string } | null;
 }
 
 export type StoryScene =
@@ -50,7 +66,9 @@ export type StoryScene =
   | { kind: 'mixer' }
   | { kind: 'wake' }
   | { kind: 'clubFair' }
-  | { kind: 'summary' };
+  | { kind: 'summary' }
+  | { kind: 'stayAwake' }
+  | { kind: 'wardrobe' };
 
 export interface StoryState {
   progress: StoryProgress;
@@ -67,6 +85,7 @@ export interface StoryState {
   pins: { key: string; x: number; z: number; icon: string; color: number; main?: boolean }[];
   /** Big moments (side quest done, day over): confetti and a card. */
   celebration: { title: string; sub: string; at: number } | null;
+  phone: PhoneState;
 }
 
 const KEY = 'yfm.story.v1';
@@ -116,6 +135,7 @@ export const storyStore = createStore<StoryState>()(() => ({
   unlockQueue: [],
   celebration: null,
   pins: [],
+  phone: { threads: {}, replies: {}, unread: {}, note: null, rollcall: null },
 }));
 
 export function useStory<T>(selector: (s: StoryState) => T): T {
@@ -170,6 +190,31 @@ export const storyActions = {
   },
   celebrate(title: string, sub: string): void {
     set({ celebration: { title, sub, at: Date.now() } });
+  },
+  /** A friend's message: into the thread, unread, and a notification banner. */
+  message(from: string, text: string): void {
+    const ph = get().phone;
+    set({ phone: { ...ph, threads: { ...ph.threads, [from]: [...(ph.threads[from] ?? []), { me: false, text }] }, unread: { ...ph.unread, [from]: (ph.unread[from] ?? 0) + 1 }, note: { from, text, at: Date.now() } } });
+  },
+  /** The player's own message in a thread. */
+  sent(to: string, text: string): void {
+    const ph = get().phone;
+    set({ phone: { ...ph, threads: { ...ph.threads, [to]: [...(ph.threads[to] ?? []), { me: true, text }] } } });
+  },
+  setReplies(to: string, replies: { id: string; text: string }[]): void {
+    const ph = get().phone;
+    set({ phone: { ...ph, replies: { ...ph.replies, [to]: replies } } });
+  },
+  readThread(from: string): void {
+    const ph = get().phone;
+    if (!ph.unread[from]) return;
+    set({ phone: { ...ph, unread: { ...ph.unread, [from]: 0 } } });
+  },
+  setRollcall(rollcall: PhoneState['rollcall']): void {
+    set({ phone: { ...get().phone, rollcall } });
+  },
+  resetPhone(): void {
+    set({ phone: { threads: {}, replies: {}, unread: {}, note: null, rollcall: null } });
   },
   popUnlock(): void {
     set({ unlockQueue: get().unlockQueue.slice(1) });

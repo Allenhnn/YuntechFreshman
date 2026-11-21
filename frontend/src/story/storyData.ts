@@ -18,21 +18,32 @@ export const ACTIVITY = '學生活動中心';
 
 export type SceneId =
   | 'wakeD1' | 'nurse' | 'roommateD2' | 'mixer' | 'bibD3' | 'assembly' | 'office'
-  | 'clubFair' | 'summary' | 'lostFound' | 'rollcall' | 'quiz' | 'sleep' | 'study' | 'hilife';
+  | 'clubFair' | 'summary' | 'lostFound' | 'rollcall' | 'quiz' | 'sleep' | 'study' | 'hilife'
+  | 'stayAwake' | 'wardrobe' | 'rollcallOk';
+
+export type SportKind = 'basketball' | 'soccer' | 'volleyball' | 'track';
 
 export type Cond =
   /** Walk into the place. */
   | { t: 'enter' }
   /** Press E in the place to play a scene; done when the scene ends. */
   | { t: 'talk'; prompt: string; scene: SceneId }
+  /** A scene that opens by itself once you are there (the class's stay-awake game). */
+  | { t: 'scene'; scene: SceneId }
   /** Buy anything at the cafeteria stalls or 萊爾富. */
   | { t: 'buy'; shop: 'cafeteria' | 'hilife' }
   /** Eat any food / a given item. */
   | { t: 'eat'; item?: ItemId }
-  /** Finish a basketball challenge. */
-  | { t: 'sport' }
-  /** A class with a roll call; leaving is skipping (sudden roll call). */
-  | { t: 'class'; advanced: boolean }
+  /** Finish a ball game / the track time trial. */
+  | { t: 'sport'; kind: SportKind }
+  /** Roll call: sit down on a free chair in the classroom before the time runs out. */
+  | { t: 'class' }
+  /** Get out of bed (you wake up lying in it). */
+  | { t: 'getUp' }
+  /** Ask a friend for the code in the chat app, then sign in with the 點名系統 app. */
+  | { t: 'phoneRollcall' }
+  /** Press E in the dorm to change clothes at the wardrobe. */
+  | { t: 'outfit' }
   /** Press E in the dorm to sleep until `until` (minutes of the day) or the next morning. */
   | { t: 'sleep'; until: number | 'nextDay' }
   /** The road race (checkpoints). */
@@ -48,10 +59,16 @@ export interface Step {
   cond: Cond;
   /** Clock (minutes of the day) when the step begins, if the story moves time on. */
   at?: number;
+  /** Clock (minutes of the day) when the step is done (the basketball game runs until dark). */
+  doneAt?: number;
   /** Item handed over when the step begins. */
   give?: ItemId;
   /** Toast when the step begins. */
   say?: string;
+  /** The step begins with you lying in your dorm bed. */
+  wake?: boolean;
+  /** A phone message when the step begins. */
+  msg?: { from: string; text: string };
 }
 
 export interface Day {
@@ -61,56 +78,73 @@ export interface Day {
 
 const hm = (h: number, m = 0): number => h * 60 + m;
 
+/**
+ * 2020 路跑 route (the event map): start by the swimming pool, south past the 檢終 arch to the
+ * dorms, west along the dorm road, north up the road east of 荷花池 to 龍潭路, west to 管理學院,
+ * north to the first 檢查 point, east along the north road to the second, south to 龍潭路, west,
+ * south along the courts back past the start to finish at 檢終. World points from the map (fitted
+ * to building centres, ±15 m); the runtime snaps each leg to the walkway graph.
+ */
+export const RACE_ROUTE: readonly { x: number; z: number; name: string }[] = [
+  { x: 209.8, z: 101.9, name: '起點' },
+  { x: 227.4, z: 208.6, name: '檢終（第一次通過）' },
+  { x: 239.4, z: 309.5, name: '宿舍區轉角' },
+  { x: 23.3, z: 338.2, name: '宿舍 C 轉角' },
+  { x: -49.4, z: -130.2, name: '龍潭路口' },
+  { x: -237.8, z: -117.3, name: '管理學院轉角' },
+  { x: -246.6, z: -281.7, name: '檢查點（西北）' },
+  { x: 297.5, z: -353.8, name: '檢查點（東北）' },
+  { x: 345.3, z: -178.5, name: '工程學院轉角' },
+  { x: 170.2, z: -151.2, name: '龍潭路轉角' },
+  { x: 209.8, z: 101.9, name: '回到起點' },
+  { x: 227.4, z: 208.6, name: '檢終・終點' },
+];
+
+export const ROOMMATE = '室友阿凱';
+export const FRIEND = '同學小芳';
+/** Fine for missing a roll call (NT$). */
+export const ABSENT_FINE = 50;
+
 export const DAYS: Day[] = [
   {
-    title: '開學第一天',
+    title: '遲到危機與翹課日常',
     steps: [
-      { id: '1-1', text: '回宿舍C 拿書桌上的健康資料表', place: DORM, cond: { t: 'talk', prompt: '按 E 拿起健康資料表', scene: 'wakeD1' }, at: hm(7, 30) },
-      { id: '1-2', text: '到健康中心（學生活動中心）繳交健康資料表', place: HEALTH, cond: { t: 'talk', prompt: '按 E 和健康中心護理師說話', scene: 'nurse' } },
-      { id: '1-3', text: '到學生餐廳買早午餐', place: CAFETERIA, cond: { t: 'buy', shop: 'cafeteria' } },
-      { id: '1-4', text: '把剛買的食物吃掉（背包或快捷欄使用）', place: CAFETERIA, cond: { t: 'eat' } },
-      { id: '1-5', text: '到管理一館上課，等老師點名', place: CLASS1, cond: { t: 'class', advanced: false } },
-      { id: '1-6', text: '下課了，回宿舍休息', place: DORM, cond: { t: 'sleep', until: 'nextDay' }, at: hm(12, 0) },
+      { id: '1-1', text: '睡過頭了！快下床（看手機訊息）', place: DORM, cond: { t: 'getUp' }, at: hm(7, 52), wake: true, msg: { from: ROOMMATE, text: '老師正準備點名！你人咧？？快來管一！' } },
+      { id: '1-2', text: '衝去管理一館，點名結束前找空位坐下', place: CLASS1, cond: { t: 'class' } },
+      { id: '1-3', text: '教授開始上課…撐住別睡著！', place: CLASS1, cond: { t: 'scene', scene: 'stayAwake' } },
+      { id: '1-4', text: '下課了，去學生餐廳買午餐', place: CAFETERIA, cond: { t: 'buy', shop: 'cafeteria' }, at: hm(12, 0) },
+      { id: '1-5', text: '把午餐吃掉（背包或快捷欄使用）', place: CAFETERIA, cond: { t: 'eat' } },
+      { id: '1-6', text: '下午的課翹掉！用手機問點名碼，在「點名系統」簽到', place: CAFETERIA, cond: { t: 'phoneRollcall' }, at: hm(13, 10), msg: { from: FRIEND, text: '下午那堂改數位點名喔，要輸 4 位數的點名碼～' } },
+      { id: '1-7', text: '翹課成功，去籃球場打球打到天黑', place: '籃球場', cond: { t: 'sport', kind: 'basketball' }, doneAt: hm(19, 0) },
+      { id: '1-8', text: '天黑了，回宿舍睡覺', place: DORM, cond: { t: 'sleep', until: 'nextDay' } },
     ],
   },
   {
-    title: '運動與聯誼',
+    title: '夜生活與聯誼準備',
     steps: [
-      { id: '2-1', text: '起床，室友約你去打籃球', place: DORM, cond: { t: 'talk', prompt: '按 E 和室友說話', scene: 'roommateD2' }, at: hm(7, 30) },
-      { id: '2-2', text: '到籃球場完成一次投籃挑戰', place: '籃球場', cond: { t: 'sport' } },
-      { id: '2-3', text: '到萊爾富（學生活動中心 1F）買東西吃', place: ACTIVITY, cond: { t: 'buy', shop: 'hilife' } },
-      { id: '2-4', text: '回宿舍補眠（睡到傍晚）', place: DORM, cond: { t: 'sleep', until: hm(18, 0) } },
-      { id: '2-5', text: '晚上到學生活動中心參加聯誼', place: ACTIVITY, cond: { t: 'talk', prompt: '按 E 加入聯誼', scene: 'mixer' } },
-      { id: '2-6', text: '回宿舍睡覺', place: DORM, cond: { t: 'sleep', until: 'nextDay' } },
+      { id: '2-1', text: '睡到晚上才醒…下床準備出門', place: DORM, cond: { t: 'getUp' }, at: hm(18, 30), wake: true, msg: { from: ROOMMATE, text: '今晚聯誼別忘了！穿帥一點啊 😎' } },
+      { id: '2-2', text: '打開宿舍衣櫃，換一套帥氣穿搭', place: DORM, cond: { t: 'outfit' } },
+      { id: '2-3', text: '到學生活動中心參加聯誼，把好感度聊滿', place: ACTIVITY, cond: { t: 'talk', prompt: '按 E 加入聯誼', scene: 'mixer' } },
+      { id: '2-4', text: '聯誼結束，回宿舍睡覺', place: DORM, cond: { t: 'sleep', until: 'nextDay' } },
     ],
   },
   {
-    title: '雲科路跑',
+    title: '校園路跑',
     steps: [
-      { id: '3-1', text: '起床，今天是雲科路跑，領號碼布', place: DORM, cond: { t: 'talk', prompt: '按 E 拿號碼布', scene: 'bibD3' }, at: hm(7, 0) },
-      { id: '3-2', text: '到操場起跑點報到', place: '路跑起點', cond: { t: 'enter' } },
-      { id: '3-3', text: '跑完全程：依序通過所有檢查點（不能騎車）', place: '路跑起點', cond: { t: 'run' } },
+      { id: '3-1', text: '早起！今天是雲科路跑，下床', place: DORM, cond: { t: 'getUp' }, at: hm(7, 0), wake: true, give: 'raceBib', msg: { from: ROOMMATE, text: '號碼布幫你領了，在你桌上！起點在游泳館旁邊' } },
+      { id: '3-2', text: '到路跑起點（游泳館旁）報到', place: '路跑起點', cond: { t: 'enter' } },
+      { id: '3-3', text: '跑完全程：依路線通過所有檢查點（不能騎車）', place: '路跑起點', cond: { t: 'run' } },
       { id: '3-4', text: '累死了，回宿舍睡一整天', place: DORM, cond: { t: 'sleep', until: 'nextDay' } },
     ],
   },
   {
-    title: '週會',
+    title: '體育課與運動競賽',
     steps: [
-      { id: '4-1', text: '起床，今天早上有週會', place: DORM, cond: { t: 'enter' }, at: hm(7, 30) },
-      { id: '4-2', text: '到國際會議廳聽週會，別睡著', place: HALL, cond: { t: 'talk', prompt: '按 E 入座聽週會', scene: 'assembly' } },
-      { id: '4-3', text: '回宿舍吃泡麵', place: DORM, cond: { t: 'eat', item: 'cupNoodles' }, give: 'cupNoodles', say: '宿舍櫃子裡還有一包泡麵，已放進背包' },
-      { id: '4-4', text: '到管理二館上課，這次點名比較難', place: CLASS2, cond: { t: 'class', advanced: true }, at: hm(13, 0) },
-      { id: '4-5', text: '下課了，回宿舍睡覺', place: DORM, cond: { t: 'sleep', until: 'nextDay' } },
-    ],
-  },
-  {
-    title: '小考與社團博覽會',
-    steps: [
-      { id: '5-1', text: '起床，今天第一次小考', place: DORM, cond: { t: 'enter' }, at: hm(7, 30) },
-      { id: '5-2', text: '到圖書館複習 30 分鐘', place: LIBRARY, cond: { t: 'talk', prompt: '按 E 坐下讀書', scene: 'study' } },
-      { id: '5-3', text: '到管理一館參加小考', place: CLASS1, cond: { t: 'quiz' } },
-      { id: '5-4', text: '到學生活動中心逛社團博覽會', place: ACTIVITY, cond: { t: 'talk', prompt: '按 E 逛社團攤位', scene: 'clubFair' } },
-      { id: '5-5', text: '回宿舍，結束第一週', place: DORM, cond: { t: 'talk', prompt: '按 E 回顧這一週', scene: 'summary' } },
+      { id: '4-1', text: '起床，今天有體育課', place: DORM, cond: { t: 'getUp' }, at: hm(8, 0), wake: true, msg: { from: ROOMMATE, text: '體育課在操場集合，今天要比賽喔！' } },
+      { id: '4-2', text: '足球：PK 大賽，贏過阿凱', place: '足球場', cond: { t: 'sport', kind: 'soccer' } },
+      { id: '4-3', text: '排球：墊球比賽，比阿凱多', place: '排球場', cond: { t: 'sport', kind: 'volleyball' } },
+      { id: '4-4', text: '跑操場：逆時針一圈計時賽', place: '操場', cond: { t: 'sport', kind: 'track' } },
+      { id: '4-5', text: '回宿舍，和室友聊聊這一週', place: DORM, cond: { t: 'talk', prompt: '按 E 回顧這一週', scene: 'summary' } },
     ],
   },
 ];
@@ -206,12 +240,67 @@ export const DIALOGS: Partial<Record<SceneId, Line[]>> = {
   ],
 };
 
-/** 聯誼: three topics, each with one best answer (index). */
-export const MIXER: { who: string; ask: string; options: string[]; best: number }[] = [
-  { who: '小美（設計系）', ask: '你平常假日都在做什麼？', options: ['睡覺打電動', '去古坑爬山、騎腳踏車', '在宿舍追劇'], best: 1 },
-  { who: '阿哲（資工系）', ask: '你覺得學校哪裡最好吃？', options: ['學餐自助餐，便宜大碗', '不知道，我都吃泡麵', '後門的雞排'], best: 0 },
-  { who: '小安（企管系）', ask: '要不要一起參加社團？', options: ['好啊！哪個社團？', '再說吧', '社團好麻煩'], best: 0 },
+/**
+ * 聯誼: three people, two rounds each. Every answer moves that person's 好感度 (affinity, 0–100,
+ * starting at 40); the night goes well when everyone ends at 60 or more. Wrong answers hurt more
+ * than right ones help, and the second round of each person is pickier.
+ */
+export interface MixerQ { ask: string; options: { text: string; delta: number; reply: string }[] }
+export const MIXER: { who: string; look: string; qs: MixerQ[] }[] = [
+  {
+    who: '小美（設計系）', look: '🎨',
+    qs: [
+      { ask: '你平常假日都在做什麼？', options: [
+        { text: '去古坑爬山、騎腳踏車', delta: 18, reply: '哇！我也超愛戶外，下次一起去！' },
+        { text: '睡覺打電動', delta: -12, reply: '喔…這樣啊。' },
+        { text: '在宿舍追劇', delta: 4, reply: '追劇也不錯啦，最近在看什麼？' },
+        { text: '研究怎麼省錢吃學餐', delta: -6, reply: '…好務實喔。' },
+      ] },
+      { ask: '你覺得我這件外套好看嗎？', options: [
+        { text: '顏色很襯你，有設計感', delta: 16, reply: '你眼光不錯嘛 😊' },
+        { text: '還好吧', delta: -18, reply: '……（表情僵住）' },
+        { text: '多少錢買的？', delta: -10, reply: '問這個幹嘛啦。' },
+        { text: '跟你很搭，是自己改的嗎？', delta: 22, reply: '對！你居然看得出來！' },
+      ] },
+    ],
+  },
+  {
+    who: '阿哲（資工系）', look: '💻',
+    qs: [
+      { ask: '學校哪裡最好吃？', options: [
+        { text: '學餐自助餐，便宜大碗', delta: 16, reply: '懂吃！CP 值之王。' },
+        { text: '不知道，我都吃泡麵', delta: -8, reply: '兄弟你要吃好一點…' },
+        { text: '萊爾富的茶葉蛋', delta: 6, reply: '哈哈，宵夜首選。' },
+        { text: '我只吃外送', delta: -12, reply: '有錢人喔。' },
+      ] },
+      { ask: '期末專題要不要跟我同組？', options: [
+        { text: '好啊！我負責簡報和美術', delta: 20, reply: '太好了，我正缺會做簡報的！' },
+        { text: '你寫程式我掛名就好', delta: -22, reply: '……我考慮一下。' },
+        { text: '看狀況吧', delta: -5, reply: '嗯，好喔。' },
+        { text: '可以，但我只想做輕鬆的部分', delta: -10, reply: '大家都想啊…' },
+      ] },
+    ],
+  },
+  {
+    who: '小安（企管系）', look: '📊',
+    qs: [
+      { ask: '要不要一起參加社團？', options: [
+        { text: '好啊！哪個社團？', delta: 15, reply: '熱舞社！一起來！' },
+        { text: '再說吧', delta: -6, reply: '喔…好吧。' },
+        { text: '社團好麻煩', delta: -16, reply: '…………' },
+        { text: '你參加的我都參加', delta: 8, reply: '哈哈，好會講話。' },
+      ] },
+      { ask: '你覺得大學最重要的是什麼？', options: [
+        { text: '認識很多朋友、多嘗試', delta: 20, reply: '我也這麼覺得！' },
+        { text: '成績', delta: 2, reply: '嗯，也是很重要啦。' },
+        { text: '睡飽', delta: -10, reply: '…你是認真的嗎？' },
+        { text: '翹課不被抓', delta: -20, reply: '欸你這樣不行啦。' },
+      ] },
+    ],
+  },
 ];
+export const MIXER_START = 40;
+export const MIXER_GOAL = 60;
 
 /** Day 5 quiz: campus questions whose answers the week has shown. */
 export const QUIZ: { q: string; options: string[]; answer: number }[] = [

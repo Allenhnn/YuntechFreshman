@@ -5,8 +5,8 @@ import { ITEMS, type ItemId } from '../state/items';
 import { actions, gameStore } from '../state/store';
 import { achievementById, sideById, storyActions, storyStore, type StoryProgress, type StoryScene } from '../state/story';
 import {
-  ACTIVITY, CAFETERIA, DAYS, DIALOGS, DORM, PHOTO_SPOTS, STALL_IDS, TOUR_FACTS, TOUR_STOPS,
-  type SceneId, type Step,
+  ABSENT_FINE, ACTIVITY, RACE_ROUTE, CAFETERIA, DAYS, DIALOGS, DORM, FRIEND, PHOTO_SPOTS, ROOMMATE, STALL_IDS, TOUR_FACTS, TOUR_STOPS,
+  type SceneId, type SportKind, type Step,
 } from './storyData';
 import { createBeacons, type Beacon } from './beacons';
 import { createNpcs, type NpcSpec } from './npcs';
@@ -42,6 +42,12 @@ export interface StoryDeps {
   blocked(x: number, z: number): boolean;
   /** 萊爾富 in 學生活動中心: where customers stand and where the clerk stands. */
   hilife: { counter: { x: number; z: number }; clerk: { x: number; z: number } } | null;
+  /** Puts the player lying in a bed of `place`; false while its interior is not loaded. */
+  putInBed(place: string): boolean;
+  /** Walking speed (m/s) for the roll-call time limit. */
+  walkSpeed: number;
+  /** Nearest point on a campus road or walkway. */
+  snapToRoad(x: number, z: number): { x: number; z: number };
 }
 
 export interface StoryFrame {
@@ -55,6 +61,9 @@ export interface StoryFrame {
   playing: boolean;
   /** Camera yaw (view direction = −(sin, cos)) for the tracker arrow. */
   viewYaw: number;
+  /** Building whose chair you sit on, or null. */
+  seatedIn: string | null;
+  lying: boolean;
 }
 
 export type SceneResult =
@@ -64,7 +73,9 @@ export type SceneResult =
   | { kind: 'mixer'; score: number }
   | { kind: 'wake'; ok: boolean }
   | { kind: 'clubFair' }
-  | { kind: 'summary' };
+  | { kind: 'summary' }
+  | { kind: 'stayAwake'; ok: boolean }
+  | { kind: 'wardrobe' };
 
 export interface StoryRuntime {
   update(dt: number, f: StoryFrame): void;
@@ -99,6 +110,13 @@ export const storyEvents = {
   mount: (): void => undefined,
   dismount: (_x: number, _z: number): void => undefined,
   sport: (_kind: string, _score: number): void => undefined,
+  /** Sat down on a chair / lay down on a bed (building name), and got up again. */
+  sit: (_kind: 'chair' | 'bed', _building: string): void => undefined,
+  stand: (_kind: 'chair' | 'bed'): void => undefined,
+  /** Tapped a quick reply in the chat app. */
+  chat: (_to: string, _reply: string): void => undefined,
+  /** Entered a code in the 點名系統 app; true when it signs you in. */
+  rollcallCode: (_code: string): boolean => false,
   track: (_seconds: number): void => undefined,
   /** The story modal reports how a scene ended. */
   finishScene: (_r: SceneResult): void => undefined,
@@ -139,6 +157,15 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
     }
     if (step.give && !actions.hasItem(step.give)) actions.giveItem(step.give);
     if (step.say) toast(step.say);
+    if (step.wake) { wakeFor = 20; wakeTried = true; }
+    if (step.msg) {
+      const m = step.msg;
+      window.setTimeout(() => {
+        storyActions.message(m.from, m.text);
+        d.sound('open');
+        if (m.from === ROOMMATE) storyActions.setReplies(ROOMMATE, [{ id: 'otw', text: '馬上到！' }, { id: 'ok', text: '收到 👍' }]);
+      }, step.wake ? 1500 : 400);
+    }
   };
   const advance = (): void => {
     const p = prog();
@@ -156,16 +183,34 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
     }
     else if (!last) toast(`✅ ${step.text}`);
     if (gameStore.getState().nav) actions.setNav(null);
+    if (step.doneAt !== undefined) {
+      d.setClock(dayStart(p.day, step.doneAt));
+      toast('🌆 打到天都黑了…');
+    }
     begin();
   };
 
   // --- Transient state (not saved: a reload restarts the step) --------------------------------
-  let cls: { phase: 'idle' | 'waiting' | 'away' | 'sudden'; t: number; away: number } = { phase: 'idle', t: 0, away: 0 };
+  /** Roll call: `timed` counts down until you sit in the classroom. */
+  let cls: { phase: 'idle' | 'timed' | 'done'; t: number; limit: number } = { phase: 'idle', t: 0, limit: 0 };
+  /** Seconds left to find the dorm bed to wake up in (it streams in), 0 when not waking. */
+  let wakeFor = 0;
+  let wasLying = false;
+  let wakeTried = false;
+  /** The digital roll call's code (in the chat), null when none is open. */
+  let rcCode: string | null = null;
+  /** The step the automatic navigation was started for. */
+  let autoNavFor: string | null = null;
   let run: { points: { x: number; z: number }[]; next: number; t: number; started: boolean; stamina: number; tired: boolean } | null = null;
   let speedFactor = 1;
   let pendingScene: SceneId | null = null;
   const resetTransient = (): void => {
-    cls = { phase: 'idle', t: 0, away: 0 };
+    cls = { phase: 'idle', t: 0, limit: 0 };
+    wakeFor = 0;
+    wakeTried = false;
+    wasLying = false;
+    rcCode = null;
+    storyActions.setRollcall(null);
     clearRun();
     speedFactor = 1;
   };
@@ -183,17 +228,15 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
   const startRun = (): void => {
     const start = d.placeOf('路跑起點');
     if (!start) return;
-    const stops = ['圖書館', '行政大樓', '管理一館', '學生活動中心'].map((n) => d.placeOf(n)).filter((p): p is { x: number; z: number } => !!p);
+    // The fixed event route: an arch at every turn, each snapped onto the walkway graph.
     const points: { x: number; z: number }[] = [];
     let from = start;
-    for (const s of [...stops, start]) {
-      const path = d.route(from.x, from.z, s.x, s.z);
-      // Checkpoint at the end of each leg (on the walkable route, not inside the building).
-      const n = path.length / 2;
-      const k = Math.max(0, n - 2);
-      points.push({ x: path[k * 2] ?? s.x, z: path[k * 2 + 1] ?? s.z });
-      from = { x: path[(n - 1) * 2] ?? s.x, z: path[(n - 1) * 2 + 1] ?? s.z };
+    for (const s of RACE_ROUTE.slice(1)) {
+      const end = d.snapToRoad(s.x, s.z);
+      points.push(end);
+      from = end;
     }
+    void from;
     run = { points, next: 0, t: 0, started: false, stamina: 1, tired: false };
     points.forEach((p, i) => {
       const m = new Mesh(archGeo, i === 0 ? nextMat : ringMat);
@@ -209,7 +252,7 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
       r.started = true;
       toast('🏁 開跑！依序通過拱門，綠色是下一個');
     });
-    d.navigate(points[0]!.x, points[0]!.z, '檢查點 1', true);
+    d.navigate(points[0]!.x, points[0]!.z, RACE_ROUTE[1]!.name, true);
   };
   /** Target time for 路跑之神: total route at a steady 5.5 m/s. */
   const runTarget = (): number => {
@@ -260,7 +303,7 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
       add('cl2', '📷 攝影社', near(c, 0, 4), { shirt: 0x26a69a, pants: 0x34495e, hair: 0x2b211b }, true);
       add('cl3', '🏀 籃球社', near(c, 3, 3), { shirt: 0xf08a24, pants: 0x1f1f24, hair: 0x1c1a19 }, true);
     }
-    if (step && (step.cond.t === 'class' || step.cond.t === 'quiz')) add('teacher', '老師', insidePoint(step.place), LOOKS.teacher);
+    if (step && step.cond.t === 'quiz') add('teacher', '老師', insidePoint(step.place), LOOKS.teacher);
     if (d.hilife) add('clerk', '萊爾富店員', d.hilife.clerk, LOOKS.clerk);
     if (side('lostFound')?.state === 'active' && actions.hasItem('lostCard')) {
       add('desk', '服務台人員', insidePoint('行政大樓'), LOOKS.staff, true);
@@ -289,7 +332,7 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
     }
     return d.placeOf(step.place);
   };
-  const ICON: Record<string, string> = { talk: '💬', buy: '🛒', eat: '🍱', sport: '🏀', class: '📚', sleep: '🛏️', run: '🏁', quiz: '📝', enter: '📍' };
+  const ICON: Record<string, string> = { talk: '💬', buy: '🛒', eat: '🍱', sport: '🏀', class: '📚', sleep: '🛏️', run: '🏁', quiz: '📝', enter: '📍', scene: '📚', getUp: '⏰', phoneRollcall: '📱', outfit: '👕' };
   const beaconList = (f: StoryFrame): Beacon[] => {
     const out: Beacon[] = [];
     const add = (key: string, p: { x: number; z: number } | null, icon: string, color: number, main = false): void => {
@@ -385,6 +428,8 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
     if (id === 'assembly') return open({ kind: 'wake' });
     if (id === 'clubFair') return open({ kind: 'clubFair' });
     if (id === 'summary') return open({ kind: 'summary' });
+    if (id === 'stayAwake') return open({ kind: 'stayAwake' });
+    if (id === 'wardrobe') return open({ kind: 'wardrobe' });
     const lines = DIALOGS[id];
     if (lines) open({ kind: 'dialog', id, lines });
   };
@@ -414,6 +459,17 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
         toast(`📝 小考成績：${r.score * 20} 分`);
         return;
       }
+      case 'stayAwake':
+        if (r.ok) { advance(); toast('📚 撐過這堂課了！'); }
+        else {
+          toast('😴 睡著被教授抓包！重新挑戰這堂課');
+          d.sound('close');
+          window.setTimeout(() => { if (currentStep()?.cond.t === 'scene' && !st().scene) playScene('stayAwake'); }, 1400);
+        }
+        return;
+      case 'wardrobe':
+        if (step?.cond.t === 'outfit') { advance(); toast('😎 帥！出發去聯誼'); }
+        return;
       case 'mixer':
         setFlags({ mixer: r.score });
         if (r.score >= 3) unlock('mixerStar');
@@ -447,6 +503,13 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
     if (id === 'wakeD1') actions.giveItem('healthForm');
     if (id === 'study') d.setClock(gameStore.getState().gameMinutes + 30);
     if (id === 'office') { advance(); toast('📝 小考成績：0 分'); return; }
+    if (id === 'rollcallOk') {
+      cls.phase = 'done';
+      storyActions.update((p) => ({ ...p, rollcalls: { ok: p.rollcalls.ok + 1, total: p.rollcalls.total + 1 } }));
+      toast('✅ 點名成功');
+      if (step?.cond.t === 'class') advance();
+      return;
+    }
     if (step?.cond.t === 'talk' && step.cond.scene === id) advance();
   };
 
@@ -513,17 +576,42 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
     const target = d.bikeStations.find((b) => b.name === s.target);
     if (target && Math.hypot(target.x - x, target.z - z) < 10) sideProgress('bikeReturn', 'returned');
   };
-  storyEvents.sport = (kind, score) => {
+  const sportDone = (kind: SportKind): void => {
     const step = currentStep();
+    if (on() && step?.cond.t === 'sport' && step.cond.kind === kind) advance();
+  };
+  storyEvents.sport = (kind, score) => {
     if (kind === 'basketball') {
       if (score >= 15) unlock('sharpShooter');
-      if (on() && step?.cond.t === 'sport') advance();
       startSide('athlete');
     }
     if (kind === 'volleyball' && score >= 10) sideProgress('athlete', 'volleyball');
     if (kind === 'soccer' && score >= 3) sideProgress('athlete', 'soccer');
+    sportDone(kind as SportKind);
   };
-  storyEvents.track = () => sideProgress('athlete', 'track');
+  storyEvents.track = () => { sideProgress('athlete', 'track'); sportDone('track'); };
+  storyEvents.sit = () => undefined;
+  storyEvents.stand = () => undefined;
+  storyEvents.chat = (to, reply) => {
+    const r = st().phone.replies[to]?.find((x) => x.id === reply);
+    if (!r) return;
+    storyActions.sent(to, r.text);
+    storyActions.setReplies(to, []);
+    const answer = (text: string): void => { window.setTimeout(() => { storyActions.message(to, text); d.sound('open'); }, 1300); };
+    if (reply === 'askCode' && rcCode) answer(`點名碼是 ${rcCode}，快去「點名系統」輸入！`);
+    else if (reply === 'otw') answer('快點啦！老師已經點到一半了 😱');
+    else if (reply === 'ok') answer('👍');
+  };
+  storyEvents.rollcallCode = (code) => {
+    const step = currentStep();
+    if (!on() || step?.cond.t !== 'phoneRollcall' || !rcCode || code !== rcCode) return false;
+    rcCode = null;
+    storyActions.setRollcall(null);
+    storyActions.update((p) => ({ ...p, rollcalls: { ok: p.rollcalls.ok + 1, total: p.rollcalls.total + 1 } }));
+    unlock('skip');
+    window.setTimeout(advance, 900);
+    return true;
+  };
 
   // --- Per frame ------------------------------------------------------------------------------
   let lastArea: string | null = null;
@@ -583,6 +671,13 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
         }
       }
       lastNpcs = npcSpecs();
+      // Story mode navigates by itself: once per step, toward its target (the race steers on its own).
+      const cur = on() ? currentStep() : null;
+      if (cur && f.playing && !st().scene && cur.id !== autoNavFor && cur.cond.t !== 'run' && cur.cond.t !== 'getUp' && cur.cond.t !== 'phoneRollcall' && !f.lying) {
+        const tgt = stepTarget(cur);
+        autoNavFor = cur.id;
+        if (tgt && Math.hypot(tgt.x - f.x, tgt.z - f.z) > 15 && !inPlace(f, cur.place)) d.navigate(tgt.x, tgt.z, cur.place, true);
+      }
       const list = beaconList(f);
       beacons.set(list);
       storyActions.setPins(list.filter((b) => b.key !== 'nav' && b.key !== 'card'));
@@ -614,34 +709,54 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
     }
 
     const step = on() ? currentStep() : null;
-    // Class: wait for the roll call; leaving is skipping; a sudden roll call calls you back.
+    // Waking up: lying in the dorm bed (once its interior has streamed in), then getting up.
+    if (wakeFor > 0) {
+      wakeFor -= dt;
+      if (d.putInBed(DORM)) wakeFor = 0; // the next frame reports lying
+      else if (wakeFor <= 0 && step?.cond.t === 'getUp') advance(); // no bed to wake up in: just carry on
+    }
+    if (step?.cond.t === 'getUp') {
+      if (!wakeTried) { wakeTried = true; wakeFor = 20; } // loaded a save on this step: back into bed
+      if (f.lying) wasLying = true;
+      else if (wasLying && wakeFor <= 0) { wasLying = false; advance(); }
+    }
+    // Roll call: from where you are, the walk to the classroom plus 5 seconds to sit down.
     if (step?.cond.t === 'class' && !st().scene) {
-      const inside = inPlace(f, step.place);
-      if (cls.phase === 'idle' && inside) {
-        cls = { phase: 'waiting', t: 20, away: 0 };
-        toast('🔔 上課鐘響！20 秒後點名，別亂跑');
-      } else if (cls.phase === 'waiting') {
-        if (inside) {
-          cls.away = 0;
-          cls.t -= dt;
-          if (cls.t <= 0) { cls.phase = 'idle'; pendingScene = 'rollcall'; open({ kind: 'rollcall', advanced: (step.cond as { advanced: boolean }).advanced, sudden: false }); }
-        } else if ((cls.away += dt) > 10) {
-          unlock('skip');
-          setFlags({ skipped: (prog().flags.skipped ?? 0) + 1 });
-          cls = { phase: 'sudden', t: 180, away: 0 };
-          toast('⚠️ 老師突然點名！3 分鐘內回到教室');
-          d.sound('close');
-        }
-      } else if (cls.phase === 'sudden') {
+      if (cls.phase === 'idle') {
+        const c = d.placeOf(step.place);
+        const path = c ? d.route(f.x, f.z, c.x, c.z) : [];
+        let len = 0;
+        for (let i = 2; i < path.length; i += 2) len += Math.hypot(path[i]! - path[i - 2]!, path[i + 1]! - path[i - 1]!);
+        const limit = Math.ceil(len / d.walkSpeed + 5);
+        cls = { phase: 'timed', t: limit, limit };
+        toast(`⏰ 老師在點名了！${limit} 秒內到 ${step.place} 找空位坐下`);
+      } else if (cls.phase === 'timed') {
         cls.t -= dt;
-        if (inside) { cls.phase = 'idle'; pendingScene = 'rollcall'; open({ kind: 'rollcall', advanced: (step.cond as { advanced: boolean }).advanced, sudden: true }); }
-        else if (cls.t <= 0) {
-          cls.phase = 'idle';
+        if (f.seatedIn === step.place) {
+          cls.phase = 'done';
+          pendingScene = 'rollcallOk';
+          open({ kind: 'dialog', id: 'rollcallOk', lines: [
+            { who: '教授', text: `…學號末三碼 ${prog().studentNo}？` },
+            { who: '你', text: '（氣喘吁吁）有、有！' },
+            { who: '教授', text: '好，剛好趕上。下次早點來。' },
+          ] });
+        } else if (cls.t <= 0) {
+          cls.phase = 'done';
+          actions.addCoins(-Math.min(ABSENT_FINE, gameStore.getState().coins));
           storyActions.update((p) => ({ ...p, rollcalls: { ok: p.rollcalls.ok, total: p.rollcalls.total + 1 }, flags: { ...p.flags, absent: (p.flags.absent ?? 0) + 1 } }));
+          d.sound('close');
+          toast(`❌ 點名結束，你缺席了！扣 NT$ ${ABSENT_FINE}`);
           advance();
-          toast('❌ 沒趕上點名，記一次缺席');
         }
       }
+    }
+    // A scene that starts by itself: the stay-awake game once you sit in the classroom.
+    if (step?.cond.t === 'scene' && !st().scene && f.seatedIn === step.place) playScene(step.cond.scene);
+    // Digital roll call: the code lives in the chat with your friend.
+    if (step?.cond.t === 'phoneRollcall' && !rcCode) {
+      rcCode = String(1000 + Math.floor(Math.random() * 9000));
+      storyActions.setRollcall({ course: '下午的通識課' });
+      storyActions.setReplies(FRIEND, [{ id: 'askCode', text: '下午點名碼多少？拜託 🙏' }]);
     }
     // Enter.
     if (step?.cond.t === 'enter' && inPlace(f, step.place)) advance();
@@ -656,7 +771,7 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
         if (run.tired && run.stamina > 0.35) run.tired = false;
         speedFactor = run.tired ? 0.6 : 1;
         const p = run.points[run.next];
-        if (p && Math.hypot(p.x - f.x, p.z - f.z) < 7) {
+        if (p && Math.hypot(p.x - f.x, p.z - f.z) < 9) {
           if (f.riding) {
             if (tick % 40 === 0) toast('🚩 工作人員：騎腳踏車不算喔！下車用跑的');
           } else {
@@ -665,9 +780,9 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
             const n = run.points[run.next];
             if (n) {
               if (markers[run.next]) markers[run.next]!.material = nextMat;
-              toast(`🚩 檢查點 ${run.next}/${run.points.length}`);
+              toast(`🚩 ${RACE_ROUTE[run.next]?.name ?? '檢查點'}（${run.next}/${run.points.length}）`);
               d.sound('coin');
-              d.navigate(n.x, n.z, `檢查點 ${run.next + 1}`, true);
+              d.navigate(n.x, n.z, RACE_ROUTE[run.next + 1]?.name ?? `檢查點 ${run.next + 1}`, true);
             } else {
               const t = run.t;
               const target = runTarget();
@@ -693,7 +808,7 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
       const view = Math.atan2(-Math.sin(f.viewYaw), -Math.cos(f.viewYaw));
       const rel = Math.atan2(dx, dz) - view;
       const idx = ((Math.round(-rel / (Math.PI / 4)) % 8) + 8) % 8;
-      const timer = cls.phase === 'waiting' ? `點名倒數 ${Math.ceil(cls.t)} 秒` : cls.phase === 'sudden' ? `⚠️ 回教室 ${Math.floor(cls.t / 60)}:${String(Math.ceil(cls.t % 60) % 60).padStart(2, '0')}` : run ? `⏱ ${Math.floor(run.t / 60)}:${String(Math.floor(run.t % 60)).padStart(2, '0')}` : null;
+      const timer = cls.phase === 'timed' && step!.cond.t === 'class' ? `⏰ 點名倒數 ${Math.max(0, Math.ceil(cls.t))} 秒` : run ? `⏱ ${Math.floor(run.t / 60)}:${String(Math.floor(run.t % 60)).padStart(2, '0')}` : null;
       storyActions.setLive({
         distance: step!.cond.t !== 'run' && inPlace(f, step!.place) && (step!.cond.t !== 'talk' || closeTo(step!.cond.scene, f)) ? 0 : Math.round(dist),
         bearing: idx,
@@ -719,6 +834,7 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
       if (step.cond.t === 'talk' && closeTo(step.cond.scene, f)) return step.cond.prompt;
       if (step.cond.t === 'sleep') return step.cond.until === 'nextDay' ? '按 E 回房間睡覺（到隔天早上）' : '按 E 回房間補眠（睡到傍晚）';
       if (step.cond.t === 'quiz') return '按 E 入座開始小考';
+      if (step.cond.t === 'outfit') return '按 E 打開衣櫃換裝';
     }
     if (atCounter(f)) return '按 E 逛萊爾富';
     return null;
@@ -733,6 +849,7 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
         return 'done';
       }
       if (step.cond.t === 'quiz') { pendingScene = 'quiz'; open({ kind: 'quiz' }); return 'done'; }
+      if (step.cond.t === 'outfit') { playScene('wardrobe'); return 'done'; }
       if (step.cond.t === 'sleep') {
         const until = step.cond.until;
         const p = prog();
@@ -762,11 +879,14 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
     },
     restart() {
       storyActions.reset();
+      storyActions.resetPhone();
+      autoNavFor = null;
       resetTransient();
       if (cardAt) { d.scene.remove(cardMesh); cardAt = null; }
       begin();
     },
     jump(day, step) {
+      autoNavFor = null;
       storyActions.update((p) => ({ ...p, day, step }));
       storyActions.openScene(null);
       begin();
@@ -774,7 +894,6 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
     completeStep() {
       const step = currentStep();
       if (!step) return;
-      if (step.cond.t === 'talk' && step.cond.scene === 'wakeD1') actions.giveItem('healthForm');
       advance();
     },
     dispose() {

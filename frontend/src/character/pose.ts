@@ -180,6 +180,34 @@ export function computeSwimPose(stroke: number, clock: number, moving: boolean, 
   return out;
 }
 
+/** Sitting on a chair (feet at the floor under it, seat top 0.42 m): thighs forward, hands on the desk. */
+export function computeSitPose(clock: number, out: Pose): Pose {
+  const b = Math.sin(clock * 1.6);
+  out.lean = 0.06;
+  out.legL = out.legR = -1.45;
+  out.armLX = out.armRX = -0.75;
+  out.armSpread = 0.22;
+  out.bob = 0.16;
+  out.squash = 1 + b * 0.008;
+  out.headTilt = 0.04 + b * 0.02;
+  out.leaf0 = b * 0.06; out.leaf1 = b * 0.06 + 0.02; out.leaf2 = b * 0.06 - 0.02;
+  return out;
+}
+
+/** Lying on the back (root on the mattress): body tipped back, head toward local −Z, slow breathing. */
+export function computeLiePose(clock: number, out: Pose): Pose {
+  const b = Math.sin(clock * 1.1);
+  out.lean = -Math.PI / 2;
+  out.legL = 0.05; out.legR = -0.05;
+  out.armLX = out.armRX = 0.1;
+  out.armSpread = 0.28;
+  out.bob = -0.15;
+  out.squash = 1 + b * 0.012;
+  out.headTilt = 0;
+  out.leaf0 = -0.3; out.leaf1 = -0.25; out.leaf2 = -0.35;
+  return out;
+}
+
 export function applyPose(j: PoseJoints, p: Pose): void {
   j.legL.rotation.x = p.legL;
   j.legR.rotation.x = p.legR;

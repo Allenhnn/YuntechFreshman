@@ -2,6 +2,8 @@ import {
   BoxGeometry,
   CanvasTexture,
   Color,
+  CylinderGeometry,
+  SphereGeometry,
   InstancedMesh,
   Matrix4,
   PlaneGeometry,
@@ -85,15 +87,16 @@ export function createFurnitureKit(tracker: ResourceTracker): FurnitureKit {
       unitBox(0.05, 0.95, 0.05, 0.45, 0, 0.42),
     ]) ?? unitBox(1, 1, 1),
   );
+  // Roomy seat (0.56 m, top at 0.42 m) so the round-bodied mascot fits when sitting.
   const chair = tracker.geometry(
     mergeGeometries([
-      unitBox(0.45, 0.06, 0.45, 0, 0.44),
-      unitBox(0.45, 0.45, 0.05, 0, 0.5, 0.2), // backrest on +Z; yaw 0 faces −Z
-      unitBox(0.04, 0.44, 0.04, -0.19, 0, -0.19),
-      unitBox(0.04, 0.44, 0.04, 0.19, 0, -0.19),
-      unitBox(0.04, 0.44, 0.04, -0.19, 0, 0.19),
-      unitBox(0.04, 0.44, 0.04, 0.19, 0, 0.19),
-    ]) ?? unitBox(0.45, 0.9, 0.45),
+      unitBox(0.56, 0.06, 0.52, 0, 0.36),
+      unitBox(0.56, 0.48, 0.05, 0, 0.42, 0.24), // backrest on +Z; yaw 0 faces −Z
+      unitBox(0.04, 0.36, 0.04, -0.25, 0, -0.22),
+      unitBox(0.04, 0.36, 0.04, 0.25, 0, -0.22),
+      unitBox(0.04, 0.36, 0.04, -0.25, 0, 0.22),
+      unitBox(0.04, 0.36, 0.04, 0.25, 0, 0.22),
+    ]) ?? unitBox(0.56, 0.9, 0.52),
   );
   // Bed: unit footprint 1 × 1 (scaled to 0.95 × 2.0), frame + mattress + pillow at the +Z (head) end.
   const linen = tracker.material(new MeshStandardMaterial({ color: 0xf1efe8, roughness: 0.95 }));
@@ -146,6 +149,36 @@ export function createFurnitureKit(tracker: ResourceTracker): FurnitureKit {
     unitBox(0.3, 0.2, 0.1, 0.3, 0.775, 0.1), // laptop / monitor
   ]);
   const loft = groups([loftFrame, loftLinen]);
+
+  // Classroom people (mascot style, front on −Z like a chair): a seated student and a standing
+  // professor (clothes tinted per instance), and a round white head with a face (separate item).
+  const student = tracker.geometry(merge([
+    new CylinderGeometry(0.17, 0.2, 0.32, 14).translate(0, 0.47 + 0.16, 0) as unknown as BoxGeometry,
+    unitBox(0.11, 0.1, 0.32, -0.09, 0.4, -0.16), unitBox(0.11, 0.1, 0.32, 0.09, 0.4, -0.16), // thighs on the seat
+    unitBox(0.09, 0.36, 0.09, -0.09, 0.04, -0.3), unitBox(0.09, 0.36, 0.09, 0.09, 0.04, -0.3), // shins
+    unitBox(0.08, 0.08, 0.34, -0.21, 0.66, -0.17), unitBox(0.08, 0.08, 0.34, 0.21, 0.66, -0.17), // arms on the desk
+  ]));
+  const teacher = tracker.geometry(merge([
+    unitBox(0.11, 0.34, 0.11, -0.09, 0), unitBox(0.11, 0.34, 0.11, 0.09, 0),
+    new CylinderGeometry(0.17, 0.2, 0.36, 14).translate(0, 0.32 + 0.18, 0) as unknown as BoxGeometry,
+    unitBox(0.08, 0.32, 0.08, -0.22, 0.34), unitBox(0.08, 0.08, 0.3, 0.2, 0.6, -0.12), // one arm resting, one on the lectern
+  ]));
+  const headGeo = groups([
+    new SphereGeometry(1, 18, 12) as unknown as BufferGeometry,
+    merge([
+      new SphereGeometry(0.09, 8, 6).translate(-0.32, 0.08, -0.93) as unknown as BoxGeometry,
+      new SphereGeometry(0.09, 8, 6).translate(0.32, 0.08, -0.93) as unknown as BoxGeometry,
+      unitBox(0.28, 0.04, 0.05, 0, -0.26, -0.94),
+    ]),
+  ]);
+  const headSkin = tracker.material(new MeshStandardMaterial({ color: 0xfbfbf8, roughness: 0.6 }));
+  const faceInk = tracker.material(new MeshStandardMaterial({ color: 0x1b1b1f, roughness: 0.5 }));
+  const clothes = tracker.material(new MeshStandardMaterial({ color: 0xffffff, roughness: 0.75 }));
+  const podium = groups([
+    merge([unitBox(0.6, 1.0, 0.42), unitBox(0.7, 0.05, 0.5, 0, 1.0, 0.02)]),
+    unitBox(0.3, 0.2, 0.02, 0, 0.62, -0.22), // school crest plate on the front
+  ]);
+  const crest = tracker.material(new MeshStandardMaterial({ color: 0x2c6fd6, roughness: 0.5 }));
 
   // Restroom: toilet and sink unit (absolute sizes, front on −Z), mirror and partition panels.
   const ceramic = tracker.material(new MeshStandardMaterial({ color: 0xf7f7f4, roughness: 0.2 }));
@@ -482,16 +515,17 @@ export function createFurnitureKit(tracker: ResourceTracker): FurnitureKit {
 
   return {
     signMaterial,
-    geometry: { shelf, table, chair, plinth: unit, stage: unit, riser: unit, screen: tracker.geometry(unitBox(1, 1, 1)), bed, whiteboard, bunk, loft, toilet, sink, mirror: tracker.geometry(unitBox(1, 1, 1)), partition: tracker.geometry(unitBox(1, 1, 1)), hydrant, bins, sign: signGeo, bracket: unit, vending: unit },
+    geometry: { shelf, table, chair, plinth: unit, stage: unit, riser: unit, screen: tracker.geometry(unitBox(1, 1, 1)), bed, whiteboard, bunk, loft, student, teacher, head: headGeo, podium, toilet, sink, mirror: tracker.geometry(unitBox(1, 1, 1)), partition: tracker.geometry(unitBox(1, 1, 1)), hydrant, bins, sign: signGeo, bracket: unit, vending: unit },
     material: {
       shelf: [wood, wood, wood, wood, books, books], table: laminate, chair: fabric, plinth, stage: stageFloor, riser: tierFloor, screen, bed: [wood, linen, linen],
-      whiteboard: [alu, boardFace], bunk: [wood, linen], loft: [wood, linen], toilet: ceramic, sink: [counter, ceramic, chrome], mirror, partition: panel,
+      whiteboard: [alu, boardFace], bunk: [wood, linen], loft: [wood, linen], student: clothes, teacher: clothes, head: [headSkin, faceInk], podium: [wood, crest], toilet: ceramic, sink: [counter, ceramic, chrome], mirror, partition: panel,
       hydrant: [red, red, red, red, red, cabinetFront], bins: [binColor(0x6e7275), binColor(0x2c6fd6), binColor(0x2f8f4a)], sign: panel, bracket: mountBlack,
       vending: [vendingBody, vendingBody, vendingTop, vendingTop, vendingBody, vendingFace], // front on −Z
     },
   };
 }
 
+const SHIRT_TINTS = [0x1f8f4a, 0x2c6fd6, 0xd8553a, 0xf2c230, 0x8a5bd6, 0x26a69a, 0x4a4f57, 0xf48fb1].map((c) => new Color(c));
 const CHAIR_TINTS = [new Color(0x2f5d50), new Color(0x8c3b2f), new Color(0x35507a), new Color(0x5c5c5c)];
 
 /** One InstancedMesh per furniture kind present in `items`. */
@@ -514,6 +548,7 @@ export function instanceFurniture(items: readonly FurnitureItem[], kit: Furnitur
       m.compose(p.set(it.x, it.y, it.z), q, s.set(it.sx, it.sy, it.sz));
       mesh.setMatrixAt(i, m);
       if (kind === 'chair') mesh.setColorAt(i, CHAIR_TINTS[Math.floor(it.tint * CHAIR_TINTS.length) % CHAIR_TINTS.length]!);
+      else if (kind === 'student' || kind === 'teacher') mesh.setColorAt(i, SHIRT_TINTS[Math.floor(it.tint * SHIRT_TINTS.length) % SHIRT_TINTS.length]!);
     });
     mesh.computeBoundingSphere();
     mesh.castShadow = false;

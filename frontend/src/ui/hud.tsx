@@ -4,6 +4,7 @@ import { actions, useGame } from '../state/store';
 import { ChatLog } from './chat';
 import { useApi } from './api';
 import { FullMap, Minimap } from './minimap';
+import { PhoneNotice } from './phone';
 
 function Coins(): ReactNode {
   const coins = useGame((s) => s.coins);
@@ -67,6 +68,7 @@ function RaceHud(): ReactNode {
       <b>{race.time.toFixed(1)}</b> 秒
       <span>檢查點 {race.gate}/{race.gates}</span>
       <span>{race.testing ? '不計成績' : `最佳 ${best === null ? '—' : best.toFixed(2)}`}</span>
+      {race.rival && <span>對手 阿凱 {race.rival.toFixed(1)} 秒</span>}
       {leave}
     </div>
   );
@@ -126,8 +128,11 @@ function SportPanel(): ReactNode {
   const s = useGame((st) => st.sport);
   if (!s) return null;
   return (
-    <div className="sport-hud">
+    <>
+    {s.fp && <div className="crosshair"><i /><b /></div>}
+    <div className={`sport-hud${s.fp ? ' big' : ''}`}>
       <div className="sport-head"><b>{s.title}</b><span className="sport-score">{s.score}</span></div>
+      {s.vs && <div className="sport-vs"><span>你 <b>{s.vs.you}</b></span><i>VS</i><span><b>{s.vs.them}</b> {s.vs.name}</span></div>}
       <div className="sport-info">{s.info}　最佳 {s.best}</div>
       {s.charge !== null && (
         <div className="sport-meter">
@@ -138,6 +143,7 @@ function SportPanel(): ReactNode {
       {s.message && <div className="sport-msg" key={s.message}>{s.message}</div>}
       <div className="sport-hint">{s.hint}</div>
     </div>
+    </>
   );
 }
 
@@ -153,6 +159,7 @@ export function Hud(): ReactNode {
       <SportPanel />
       <RaceHud />
       <AreaBannerView />
+      <PhoneNotice />
       <NavBar />
       {mapMode === 'mini' && <Minimap />}
       {mapMode === 'mini' && <div className="osm-credit">© OpenStreetMap contributors</div>}

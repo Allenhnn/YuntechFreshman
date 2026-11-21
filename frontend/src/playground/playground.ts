@@ -327,6 +327,11 @@ export function createPlayground(scene: Scene, physics: RAPIER.World, campus: Ca
     d -= curve;
     return { a: -S / 2 + d, b: -R, ha: 1, hb: 0 };
   };
+  /** Counter-clockwise seen from above (the way Taiwanese tracks are run): pathAt run backwards. */
+  const ccwAt = (s: number): { a: number; b: number; ha: number; hb: number } => {
+    const p = pathAt(lap - s);
+    return { a: p.a, b: p.b, ha: -p.ha, hb: -p.hb };
+  };
   const offLine = (a: number, b: number): number => {
     const ca = Math.max(-S / 2, Math.min(S / 2, a));
     return Math.abs(Math.hypot(a - ca, b) - R);
@@ -336,7 +341,7 @@ export function createPlayground(scene: Scene, physics: RAPIER.World, campus: Ca
   let run: Run | null = null;
 
   const placeGate = (k: number): void => {
-    const p = pathAt((lap * k) / GATES);
+    const p = ccwAt((lap * k) / GATES);
     gate.position.set(p.a, 0, p.b);
     gate.rotation.y = Math.atan2(-p.hb, p.ha);
     gate.visible = true;
@@ -355,9 +360,12 @@ export function createPlayground(scene: Scene, physics: RAPIER.World, campus: Ca
       gate: r.next,
       gates: GATES,
       testing: r.testing,
+      rival: RIVAL_TIME,
     });
   };
   const startPoint = toWorld(0, -R);
+  /** 阿凱's lap time: a steady 6.3 m/s (sprinting the whole lap beats it). */
+  const RIVAL_TIME = Math.round((lap / 6.3) * 10) / 10;
 
   return {
     get racing() { return run !== null; },
@@ -370,7 +378,7 @@ export function createPlayground(scene: Scene, physics: RAPIER.World, campus: Ca
     start(testing) {
       run = { phase: 'countdown', clock: 0, next: 1, off: 0, testing, shownTenth: -1, shownSec: -1 };
       publish(run);
-      return { x: startPoint[0], z: startPoint[1], facing: Math.atan2(ax, az) };
+      return { x: startPoint[0], z: startPoint[1], facing: Math.atan2(-ax, -az) };
     },
     cancel() {
       if (run) end(null);
@@ -397,7 +405,7 @@ export function createPlayground(scene: Scene, physics: RAPIER.World, campus: Ca
         end('離開跑道，計時賽取消');
         return 0;
       }
-      const target = pathAt((lap * run.next) / GATES);
+      const target = ccwAt((lap * run.next) / GATES);
       if (Math.hypot(a - target.a, b - target.b) < GATE_REACH) {
         if (run.next < GATES) {
           run.next++;
@@ -415,7 +423,8 @@ export function createPlayground(scene: Scene, physics: RAPIER.World, campus: Ca
         const best = gameStore.getState().raceBest;
         const record = best === null || t < best;
         if (record) actions.setRaceBest(t);
-        actions.toast(record ? `🏅 新紀錄 ${t.toFixed(2)} 秒！獲得 NT$ ${FINISH_REWARD + RECORD_REWARD}` : `完賽 ${t.toFixed(2)} 秒，獲得 NT$ ${FINISH_REWARD}`);
+        const vs = t < RIVAL_TIME ? `🏆 贏過阿凱（${RIVAL_TIME.toFixed(1)} 秒）！` : `😣 輸給阿凱（${RIVAL_TIME.toFixed(1)} 秒）`;
+        actions.toast(`${record ? `🏅 新紀錄 ${t.toFixed(2)} 秒！` : `完賽 ${t.toFixed(2)} 秒`}${vs}　NT$ +${FINISH_REWARD + (record ? RECORD_REWARD : 0)}`);
         return FINISH_REWARD + (record ? RECORD_REWARD : 0);
       }
       const tenth = Math.floor(run.clock * 10);

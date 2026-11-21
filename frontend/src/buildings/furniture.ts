@@ -9,7 +9,7 @@ import type { ColliderBox } from './buildingMesh';
  * walls, doors, voids, cores and neighbouring rooms without hand placement. Keep-out circles protect
  * elevator landings, signs and stair ends.
  */
-export type FurnitureKind = 'shelf' | 'table' | 'chair' | 'plinth' | 'stage' | 'riser' | 'screen' | 'bed' | 'whiteboard' | 'bunk' | 'toilet' | 'sink' | 'mirror' | 'partition' | 'hydrant' | 'bins' | 'sign' | 'bracket' | 'vending' | 'loft';
+export type FurnitureKind = 'shelf' | 'table' | 'chair' | 'plinth' | 'stage' | 'riser' | 'screen' | 'bed' | 'whiteboard' | 'bunk' | 'toilet' | 'sink' | 'mirror' | 'partition' | 'hydrant' | 'bins' | 'sign' | 'bracket' | 'vending' | 'loft' | 'podium' | 'student' | 'teacher' | 'head';
 
 export interface FurnitureItem {
   kind: FurnitureKind;
@@ -25,6 +25,8 @@ export interface FurnitureItem {
   tint: number;
   /** Hanging signs: the text on this face. */
   label?: string;
+  /** Chairs with a student figure on them (not offered as a seat). */
+  taken?: boolean;
 }
 
 export interface KeepOut {
@@ -187,12 +189,35 @@ function seating(ctx: Ctx, r: Rect, withDesks: boolean): void {
   ctx.items.push(alongX
     ? { ...board, x: screenAt, z: (y0 + y1) / 2, ry: Math.PI / 2, tint: 0 }
     : { ...board, x: (x0 + x1) / 2, z: screenAt, ry: 0, tint: 0 });
+  const at = (a: number, b: number): [number, number] => (alongX ? [x0 + a, y0 + b] : [x0 + b, y0 + a]);
+  if (withDesks && len > 6 && wid > 3.4) {
+    // 講台: a low platform across the front, a lectern on it and the professor behind it facing the class.
+    const mid = wid / 2;
+    const [sx, sy] = at(1.05, mid);
+    ctx.items.push({ kind: 'stage', x: sx, y: ctx.base, z: sy, ry: 0, sx: alongX ? 1.5 : Math.min(wid - 1.2, 4.5), sy: 0.18, sz: alongX ? Math.min(wid - 1.2, 4.5) : 1.5, tint: 0 });
+    ctx.colliders.push({ c: [sx, ctx.base + 0.09, sy], h: [alongX ? 0.75 : Math.min(wid - 1.2, 4.5) / 2, 0.09, alongX ? Math.min(wid - 1.2, 4.5) / 2 : 0.75] });
+    const toClass = alongX ? yawToward(1, 0) : yawToward(0, 1);
+    const [lx, ly] = at(1.55, mid + 0.9);
+    ctx.items.push({ kind: 'podium', x: lx, y: ctx.base + 0.18, z: ly, ry: toClass, sx: 1, sy: 1, sz: 1, tint: 0 });
+    ctx.colliders.push({ c: [lx, ctx.base + 0.18 + 0.55, ly], h: [0.32, 0.55, 0.32] });
+    const [tx, ty] = at(1.0, mid + 0.9);
+    ctx.items.push({ kind: 'teacher', x: tx, y: ctx.base + 0.18, z: ty, ry: toClass, sx: 1.25, sy: 1.25, sz: 1.25, tint: 0.62 });
+    ctx.items.push({ kind: 'head', x: tx, y: ctx.base + 0.18 + 0.98 * 1.25, z: ty, ry: toClass, sx: 0.34 * 1.25, sy: 0.34 * 1.25, sz: 0.34 * 1.25, tint: 0 });
+    ctx.colliders.push({ c: [tx, ctx.base + 1.0, ty], h: [0.3, 0.8, 0.3] });
+    ctx.occ.take(Math.min(lx, tx) - 0.5, Math.min(ly, ty) - 0.5, Math.max(lx, tx) + 0.5, Math.max(ly, ty) + 0.5);
+  }
   const pitch = withDesks ? 1.5 : 1.0;
   for (let a = 2.6; a < len - 1.0; a += pitch) {
     for (let b = 1.0; b < wid - 1.0; b += withDesks ? 1.3 : 0.6) {
       const px = alongX ? x0 + a : x0 + b, py = alongX ? y0 + b : y0 + a;
       if (!fits(ctx, px - 0.25, py - 0.25, px + 0.25, py + 0.25, 0.3)) continue;
-      ctx.items.push({ kind: 'chair', x: px, y: ctx.base, z: py, ry: facing, sx: 1, sy: 1, sz: 1, tint: 0.85 });
+      // Most classroom seats have a student in them; a few stay free (for you).
+      const student = withDesks && hash(px * 1.7, py * 2.3) < 0.7;
+      ctx.items.push({ kind: 'chair', x: px, y: ctx.base, z: py, ry: facing, sx: 1, sy: 1, sz: 1, tint: 0.85, ...(student ? { taken: true } : {}) });
+      if (student) {
+        ctx.items.push({ kind: 'student', x: px, y: ctx.base, z: py, ry: facing, sx: 1, sy: 1, sz: 1, tint: hash(py, px) });
+        ctx.items.push({ kind: 'head', x: px, y: ctx.base + 1.12, z: py, ry: facing, sx: 0.32, sy: 0.32, sz: 0.32, tint: 0 });
+      }
       if (withDesks) {
         const dx = alongX ? px - 0.4 : px, dy = alongX ? py : py - 0.4;
         ctx.items.push({ kind: 'table', x: dx, y: ctx.base, z: dy, ry: alongX ? Math.PI / 2 : 0, sx: 1.1, sy: 0.75, sz: 0.5, tint: 0 });
