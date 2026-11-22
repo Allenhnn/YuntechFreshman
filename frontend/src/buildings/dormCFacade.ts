@@ -569,7 +569,13 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
       push(P, 'pier'); push(L - 2 * P, 'windows'); push(P, 'pier');
     }
     for (const [a, c, k] of cols) {
-      if (k === 'blank') continue; // solid wall: the skin only
+      if (k === 'blank') {
+        // Solid wall, flush with the frame face (so the piers beside it don't stand out as loose fins).
+        b.put(span(a, c, WING.plinth, H, 0.02, Dw), concrete, 2);
+        b.put(span(a, c, -0.3, WING.plinth, 0.02, Dw + 0.04), plinthGrey, 2);
+        b.solid(a, c, 0, 2.6, 0.02, Dw + 0.04);
+        continue;
+      }
       if (k === 'pier') {
         b.put(span(a, c, WING.plinth, H, 0.02, Dw), concrete, 2);
         b.put(span(a, c, -0.3, WING.plinth, 0.02, Dw + 0.04), plinthGrey, 2);

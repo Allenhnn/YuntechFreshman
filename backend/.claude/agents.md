@@ -164,6 +164,13 @@ docker compose down             # 停止（加 -v 會連資料一起刪除）
 | `.env.example` 沒被 commit | 根目錄 `.gitignore` 有 `.env*`；需要時用 `git add -f backend/.env.example` |
 
 ## 變更紀錄
+### 2026-11-23（前端：學生宿舍C 北棟室內移除、東翼破圖修正）— 分支 `fix/dorm-c-front-gate`
+- 需求：把 C 棟的室內建模先刪除；修正截圖中 C 棟東翼的破圖
+- `frontend/src/campus/campusFixes.ts`：`splitDormC` 產生的三塊（中段、西翼、東翼）都設 `sealed`——沒有生成的室內、門畫成關著
+- 決定：只封北棟（使用者一直稱為 C 棟的這棟）；故事的寢室（起床、睡覺、衣櫃）在南邊那棟 C（296668592），保留它的室內，否則 Day 1 起床會壞
+- `frontend/src/buildings/dormCFacade.ts`：破圖原因是東翼南端牆花磚旁的柱子在平的素牆前凸出 0.5 m；`blank` 實心牆段改成與外框同深（含牆基與碰撞）
+- 測試：`tsc --noEmit`、`vite build` 通過；dev server 暫時除錯相機從使用者截圖視角看過、確認北棟沒有室內（已移除）
+
 ### 2026-11-23（前端：學生宿舍C 東翼依使用者手繪平面調整立面）— 分支 `fix/dorm-c-front-gate`
 - 需求：使用者畫了東翼平面（房間、曬衣間、浴室、戶廳），紅色斜線為實心牆無窗，window 處為戶廳
 - `frontend/src/buildings/dormCFacade.ts`：新增牆格 `blank`（只有外皮）與版型 `eastEast`；東翼南端牆＝轉角曬衣間大花磚＋其餘實心；東牆＝南角浴室實心＋三間房窗；戶廳高窗改在凹口的西向牆，凹口北面與南向短牆改實心
