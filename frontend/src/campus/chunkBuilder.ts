@@ -1,4 +1,4 @@
-import { CUSTOM_FACADE_EDGES } from './customFacades';
+import { CUSTOM_FACADE_EDGES, CUSTOM_FACADE_OPENINGS } from './customFacades';
 import { ShapeUtils, Vector2 } from 'three';
 import { mulberry32 } from '../core/math';
 import {
@@ -203,6 +203,8 @@ interface WindowCut {
   a1: number;
   y0: number;
   y1: number;
+  /** Left empty (no glass or frames): a hand-built module fills the opening (CUSTOM_FACADE_OPENINGS). */
+  open?: boolean;
 }
 
 const WIN_SILL = 0.9;
@@ -356,11 +358,12 @@ function addWalls(
     if (windows) {
       const set = -T * 0.4; // the glazing sits back in the wall
       for (const c of cuts) {
-        quad(windows.glass, c.a0, c.a1, c.y0, c.y1, set, 1);
         reveal(c.a0, c.y0, c.a1, c.y0); // sill
         reveal(c.a0, c.y1, c.a1, c.y1); // head
         reveal(c.a0, c.y0, c.a0, c.y1); // jambs
         reveal(c.a1, c.y0, c.a1, c.y1);
+        if (c.open) continue;
+        quad(windows.glass, c.a0, c.a1, c.y0, c.y1, set, 1);
         // Aluminium frame on both faces: sill, head, jambs and mullions every ~1.2 m.
         const bars: [number, number, number, number][] = [[c.a0, c.a1, c.y0 - 0.06, c.y0 + 0.04], [c.a0, c.a1, c.y1 - 0.05, c.y1 + 0.03]];
         const panes = Math.max(1, Math.round((c.a1 - c.a0) / 1.2));
@@ -618,7 +621,12 @@ export class ChunkBuilder {
       // Plan-traced interiors too: their rooms stop at a 0.25 m raster, so on curved or slanted walls
       // the gap to the outline would show the ground; the thick wall's inner face hides it.
       const thick = interior || (this.entrances[String(b.id)] && !b.sealed) ? { out: details, t: SHELL_WALL } : undefined;
-      const cuts = interior && buildingKind(b.name) === 'teaching' ? classroomWindows(b, interior, fallback, photoEdges) : null;
+      let cuts = interior && buildingKind(b.name) === 'teaching' ? classroomWindows(b, interior, fallback, photoEdges) : null;
+      const openings = CUSTOM_FACADE_OPENINGS[b.id];
+      if (openings?.length) {
+        cuts = new Map(cuts ?? []);
+        for (const o of openings) cuts.set(o.edge, [...(cuts.get(o.edge) ?? []), { a0: o.a0, a1: o.a1, y0: o.y0, y1: o.y1, open: true }]);
+      }
       addWalls(facade, b.outer, b.height, floors, style, shots && photoOut ? { edges: shots.edges, out: photoOut } : undefined, doors,
         cuts?.size ? { cuts, glass, frames: details } : undefined, thick);
       for (const h of b.holes) addWalls(facade, h, b.height, floors, style, undefined, [], undefined, thick);

@@ -164,6 +164,15 @@ docker compose down             # 停止（加 -v 會連資料一起刪除）
 | `.env.example` 沒被 commit | 根目錄 `.gitignore` 有 `.env*`；需要時用 `git add -f backend/.env.example` |
 
 ## 變更紀錄
+### 2026-11-22（前端：學生宿舍C 北棟中段洗衣陽台室內）— 分支 `fix/dorm-c-front-gate`
+- 需求：依使用者四張陽台室內照，重新建模建築中間的陽台
+- 發現：立面上的紅色是赤陶鏤空圓環花磚，不是磁磚；後面是長條洗衣陽台
+- `frontend/src/campus/customFacades.ts`：新增 `DORM_C_BALCONY`、`CUSTOM_FACADE_OPENINGS`（OSM 296668596 edge 13，2F–5F 每層開洞）
+- `frontend/src/campus/chunkBuilder.ts`：`WindowCut.open`，開洞只做牆厚收邊、不放玻璃與窗框
+- `frontend/src/buildings/dormCFacade.ts`：格柵改成 alpha 鏤空貼圖（`latticePanel`）、前緣改薄矮牆；新增 `laundryRoom`（地磚、白磁磚洗手台、木門、隔牆、洗衣機、鐵窗花窗、曬衣桿、日光燈、曬衣架）；一樓雨遮梁降低避免穿出 2F 地板
+- 決定：陽台往室內深 1.3 m（描圖平面在約 1.5 m 後就是寢室），只能從外面看、走不進去；兩扇門是裝飾
+- 測試：`tsc --noEmit`、`vite build` 通過；dev server 用暫時的除錯相機進陽台內對照四張照片（除錯碼已移除）
+
 ### 2026-11-22（前端：學生宿舍C 前門格柵與推開式鐵門、C 北棟中段南面重建）— 分支 `fix/dorm-c-front-gate`
 - 需求：依使用者遊戲截圖（紅框）在門樓兩側短牆補紅色格柵、鐵門改成像木門一樣推開；依實拍與小地圖紅色箭頭重建從 C 中庭往北看到的立面（被樹擋住的部分與另一半對稱）
 - `frontend/src/campus/dormYard.ts`：格柵依牆長能放幾片就放幾片（牆墩最窄 0.3 m），門樓兩側各兩片；`portal` 門改成兩扇以門框為軸往中庭內開的門（`SWING`，`SensorGate.swing`），其他宿舍門仍是橫拉

@@ -1,6 +1,7 @@
 import {
   BoxGeometry,
   CanvasTexture,
+  DoubleSide,
   CylinderGeometry,
   ExtrudeGeometry,
   Group,
@@ -25,9 +26,14 @@ import type { ResourceTracker } from '../core/resources';
 import { mulberry32 } from '../core/math';
 import type { CampusData, Ring } from '../campus/campusTypes';
 import { DOOR_HEIGHT, DOOR_WIDTH } from '../campus/entrances';
+import { DORM_C_BALCONY as BAL } from '../campus/customFacades';
 
 /**
  * 學生宿舍C 北棟（OSM 296668596，U 形）中段面向 C 中庭的南面，依使用者實拍＋遊戲截圖與小地圖（紅色箭頭：從中庭往北看，2026-11-22）：
+ *  - 2F–5F 中段兩片紅色花磚格柵（鏤空圓環磚）後面是一間洗衣陽台（使用者室內照）：外牆挖開（CUSTOM_FACADE_OPENINGS）、
+ *    往室內深 DORM_C_BALCONY.depth；白色方磚地、兩端牆下半白磁磚與磁磚洗手台（三個水龍頭）、後牆兩扇木門、
+ *    門旁矮隔牆、四台洗衣機（靠門那台墊高）、中間上下各兩扇窗（下排有鐵窗花）、天花板深藍色曬衣桿、日光燈、不鏽鋼曬衣架。
+ *    門是裝飾，陽台本身走不進去（描圖平面在這裡是寢室與儲藏室）。
  *  - 中段（edge 13，比兩側往中庭凸出約 2 m）：洗石子混凝土外框往外凸 0.9 m，由左到右
  *    端柱 | 窗列（每層深窗洞、冷氣機）| 柱 | 紅褐磁磚凹陽台（實心矮牆、內牆紅磚、落地門窗）| 中柱（細長窗）| 鏡射另一半。
  *    照片右半被樹擋住，依使用者說明與左半對稱。
@@ -58,7 +64,7 @@ const FLOORS = [3.6, 7.2, 10.8, 14.4]; // 2F–5F
 /** Centre bay: frame depth, column widths from the left end (mirrored about the middle). */
 const CENTRE = { depth: 0.9, endPier: 0.6, win: 1.8, pier: 0.8, middle: 0.8 };
 /** Ground floor of the centre bay: canopy beam (bottom, top, depth), the lobby glass set back by `lobby`. */
-const CANOPY = { y0: 3.0, y1: 3.8, depth: 1.5, lobby: 0.35 };
+const CANOPY = { y0: 2.85, y1: 3.58, depth: 1.5, lobby: 0.35 }; // top under the 2F balcony floor
 /** Wings: frame depth, pier width, target bay width, sunshade depth. */
 const WING = { depth: 0.45, pier: 0.6, bay: 3.4, shade: 0.8 };
 /** Entrance terrace in front of the centre bay: depth from the wall, steps (count, rise, tread). */
@@ -127,16 +133,32 @@ function aggregate(g: CanvasRenderingContext2D): void {
   g.fillStyle = 'rgba(70,66,60,0.06)';
   for (let k = 0; k < 10; k++) g.fillRect(rnd() * 256, 0, 3 + rnd() * 8, 256);
 }
-/** Red-brown tiles on the balcony back walls: stacked vertical tiles in dark mortar. */
-function redTiles(g: CanvasRenderingContext2D): void {
-  const rnd = mulberry32(3402);
-  g.fillStyle = '#3f221c';
-  g.fillRect(0, 0, 128, 128);
-  const tones = ['#7a3a2e', '#6f3329', '#843f31', '#6a3127', '#743628'];
-  for (let y = 0; y < 16; y++) for (let x = 0; x < 8; x++) {
-    g.fillStyle = tones[Math.floor(rnd() * tones.length)]!;
-    g.fillRect(x * 16 + 1, y * 8 + 1, 14, 6);
+/** Terracotta breeze blocks (使用者照片): rows of interlocking rings, see-through between them (alpha cut-out). */
+function latticeRings(g: CanvasRenderingContext2D): void {
+  g.clearRect(0, 0, 128, 128);
+  for (let r = -1; r <= 4; r++) for (let i = -1; i <= 2; i++) {
+    const cx = 32 + i * 64 + (r % 2 === 0 ? 0 : 32), cy = r * 32;
+    g.lineWidth = 9;
+    g.strokeStyle = '#9a4a35';
+    g.beginPath(); g.arc(cx, cy, 27, 0, Math.PI * 2); g.stroke();
+    g.lineWidth = 3;
+    g.strokeStyle = '#6d3224'; // shadowed inner lip
+    g.beginPath(); g.arc(cx, cy + 2, 21, 0.2, Math.PI - 0.2); g.stroke();
   }
+}
+/** Square floor tiles (0.3 m), pale grey with grout. */
+function floorTile(g: CanvasRenderingContext2D): void {
+  g.fillStyle = '#8f908c';
+  g.fillRect(0, 0, 64, 64);
+  const tones = ['#c9cbc7', '#c2c4c0', '#cfd0cc', '#bdbfbb'];
+  for (let y = 0; y < 2; y++) for (let x = 0; x < 2; x++) { g.fillStyle = tones[x + y * 2]!; g.fillRect(x * 32 + 1, y * 32 + 1, 30, 30); }
+}
+/** Small white wall tiles (0.15 m). */
+function wallTile(g: CanvasRenderingContext2D): void {
+  g.fillStyle = '#c9c9c4';
+  g.fillRect(0, 0, 64, 64);
+  g.fillStyle = '#f2f2ee';
+  for (let y = 0; y < 4; y++) for (let x = 0; x < 4; x++) g.fillRect(x * 16 + 1, y * 16 + 1, 14, 14);
 }
 /** Grey square pavers. */
 function pavers(g: CanvasRenderingContext2D): void {
@@ -168,7 +190,9 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
   const mat = (color: number, extra: ConstructorParameters<typeof MeshStandardMaterial>[0] = {}): MeshStandardMaterial =>
     tracker.material(new MeshStandardMaterial({ color, roughness: 0.85, ...extra }));
   const concrete = tracker.material(new MeshStandardMaterial({ map: canvasTexture(tracker, 256, 256, aggregate), roughness: 0.95 }));
-  const tiles = tracker.material(new MeshStandardMaterial({ map: canvasTexture(tracker, 128, 128, redTiles), roughness: 0.85 }));
+  const lattice = tracker.material(new MeshStandardMaterial({ map: canvasTexture(tracker, 128, 128, latticeRings), alphaTest: 0.5, side: DoubleSide, roughness: 0.9 }));
+  const floorTiles = tracker.material(new MeshStandardMaterial({ map: canvasTexture(tracker, 64, 64, floorTile), roughness: 0.6 }));
+  const wallTiles = tracker.material(new MeshStandardMaterial({ map: canvasTexture(tracker, 64, 64, wallTile), roughness: 0.4 }));
   const steps = tracker.material(new MeshStandardMaterial({ map: canvasTexture(tracker, 256, 256, aggregate), color: 0xd8d6d0, roughness: 0.95 }));
   const paving = tracker.material(new MeshStandardMaterial({
     map: canvasTexture(tracker, 128, 128, pavers), roughness: 0.95, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -6,
@@ -184,6 +208,15 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
   const pot = mat(0xb35a3c, { roughness: 0.8 });
   const leaf = mat(0x497a32, { roughness: 0.9, flatShading: true });
   const notice = mat(0xf1efe6, { roughness: 0.7 });
+  const paint = mat(0xe9e7e0, { roughness: 0.95 });
+  const navy = mat(0x2d3852, { metalness: 0.5, roughness: 0.5 });
+  const steel = mat(0xc4c8cc, { metalness: 0.7, roughness: 0.35 });
+  const wood = mat(0x9a5b36, { roughness: 0.6 });
+  const washer = mat(0xe6e6e0, { roughness: 0.45 });
+  const panelDark = mat(0x7d8288, { roughness: 0.5 });
+  const basin = mat(0xb9bcbc, { roughness: 0.4 });
+  const black = mat(0x26282b, { metalness: 0.4, roughness: 0.6 });
+  const tube = mat(0xffffff, { emissive: 0xf4f7ff, emissiveIntensity: 1.2 });
   const letter = tracker.material(new MeshStandardMaterial({ map: canvasTexture(tracker, 256, 256, letterC), transparent: true, roughness: 0.5 }));
 
   /** Per-frame geometry, merged into one mesh per material at the end. */
@@ -210,7 +243,8 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
           const geo = mergeGeometries(list.map((g) => (g.index ? g.toNonIndexed() : g)));
           if (!geo) continue;
           const mesh = new Mesh(tracker.geometry(geo), m);
-          mesh.castShadow = !(m as MeshStandardMaterial).transparent;
+          // Cut-out lattice would cast a solid shadow (no depth material), so it casts none.
+          mesh.castShadow = !(m as MeshStandardMaterial).transparent && !(m as MeshStandardMaterial).alphaTest;
           mesh.receiveShadow = true;
           grp.add(mesh);
         }
@@ -218,15 +252,29 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
     };
   };
 
-  /** Concrete skin over the OSM wall (2 cm out), leaving each real doorway open. */
-  const skin = (b: ReturnType<typeof build>, f: Frame, gaps: readonly [number, number][]): void => {
-    let x = 0;
-    for (const [g0, g1] of gaps) {
-      if (g0 > x) b.put(span(x, g0, -0.3, H, 0.02, 0.06), concrete, 2);
-      b.put(span(g0, g1, DOOR_HEIGHT, H, 0.02, 0.06), concrete, 2);
-      x = g1;
+  /** Concrete skin over the OSM wall (2 cm out), leaving holes (x0, x1, y0, y1): doorways, the balconies. */
+  const skin = (b: ReturnType<typeof build>, f: Frame, holes: readonly (readonly [number, number, number, number])[]): void => {
+    const xs = [...new Set([0, f.len, ...holes.flatMap((h) => [h[0], h[1]])].filter((x) => x >= 0 && x <= f.len))].sort((m, n) => m - n);
+    for (let k = 0; k + 1 < xs.length; k++) {
+      const s0 = xs[k]!, s1 = xs[k + 1]!, mid = (s0 + s1) / 2;
+      let y = -0.3;
+      for (const h of holes.filter((h) => h[0] <= mid && h[1] >= mid).sort((m, n) => m[2] - n[2])) {
+        if (h[2] > y) b.put(span(s0, s1, y, h[2], 0.02, 0.06), concrete, 2);
+        y = Math.max(y, h[3]);
+      }
+      if (y < H) b.put(span(s0, s1, y, H, 0.02, 0.06), concrete, 2);
     }
-    if (x < f.len) b.put(span(x, f.len, -0.3, H, 0.02, 0.06), concrete, 2);
+  };
+  /** Breeze-block screen between x0..x1, y0..y1, centred at depth z (two faces 6 cm apart). */
+  const latticePanel = (b: ReturnType<typeof build>, x0: number, x1: number, y0: number, y1: number, z: number): void => {
+    const w = x1 - x0, h = y1 - y0, CELL = 0.5; // one texture tile: 2 × 4 rings about 0.22 m across
+    for (const dz of [-0.03, 0.03]) {
+      const g = new PlaneGeometry(w, h).translate((x0 + x1) / 2, (y0 + y1) / 2, z + dz);
+      const uv = g.getAttribute('uv');
+      for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * w / CELL, uv.getY(i) * h / CELL);
+      b.put(g, lattice);
+    }
+    b.put(span(x0, x1, y0, y0 + 0.03, z - 0.05, z + 0.05), concrete, 2);
   };
   /** A window in a recess: frame, glass and a middle mullion on the wall plane. */
   const windowAt = (b: ReturnType<typeof build>, x0: number, x1: number, y0: number, y1: number): void => {
@@ -240,11 +288,78 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
   };
   const seeded = mulberry32(296668592);
 
+  /**
+   * One laundry balcony (室內照): x0..x1 between the inner piers, from the back wall (z = −depth) to the
+   * parapet (z = D − 0.2), floor at fy. Mirrored about the middle except the light and the drying rack.
+   */
+  const laundryRoom = (b: ReturnType<typeof build>, x0: number, x1: number, fy: number, D: number): void => {
+    const zb = -BAL.depth, zf = D - 0.2, top = fy + BAL.height, mid = (x0 + x1) / 2;
+    b.put(span(x0, x1, fy - 0.25, fy + 0.02, zb - 0.15, zf), floorTiles, 0.6);
+    b.put(span(x0, x1, top - 0.03, top + 0.25, zb - 0.15, zf), paint, 2);
+    b.put(span(x0, x1, fy, top, zb - 0.15, zb), paint, 2);
+    for (const side of [-1, 1] as const) {
+      // In this side's terms: `e` is the end wall, `at(d)` is d metres in from it.
+      const e = side < 0 ? x0 : x1, at = (d: number): number => e - side * d;
+      const sx = (d0: number, d1: number): [number, number] => [Math.min(at(d0), at(d1)), Math.max(at(d0), at(d1))];
+      const box = (d0: number, d1: number, y0: number, y1: number, z0: number, z1: number, m: Material, uv?: number): void => {
+        const [p, q] = sx(d0, d1);
+        b.put(span(p, q, y0, y1, z0, z1), m, uv);
+      };
+      // End wall behind the pier line, then white tiles to 1.3 m and paint above, 1.5 cm proud of the pier face.
+      box(-0.2, 0, fy, top, zb - 0.15, 0.02, paint, 2);
+      box(0, 0.015, fy, fy + 1.3, zb, zf, wallTiles, 0.6);
+      box(0, 0.012, fy + 1.3, top - 0.03, zb, zf, paint, 2);
+      // Tiled sink along the end wall: trough on two legs, three taps.
+      box(0.015, 0.6, fy + 0.55, fy + 0.82, zb + 0.05, zf - 0.3, wallTiles, 0.6);
+      box(0.09, 0.52, fy + 0.82, fy + 0.83, zb + 0.12, zf - 0.37, basin);
+      for (const z of [zb + 0.25, zf - 0.5]) box(0.25, 0.33, fy, fy + 0.55, z - 0.04, z + 0.04, steel);
+      for (let k = 0; k < 3; k++) {
+        const z = zb + 0.45 + k * ((zf - zb - 1.1) / 2);
+        box(0.015, 0.14, fy + 1.0, fy + 1.04, z - 0.02, z + 0.02, steel);
+        box(0.11, 0.14, fy + 0.94, fy + 1.04, z - 0.02, z + 0.02, steel);
+      }
+      // Wooden door into the building, a low partition, two washing machines (the one by the door on a stand).
+      box(0.7, 1.6, fy, fy + 2.1, zb, zb + 0.04, wood);
+      box(0.62, 1.68, fy + 2.1, fy + 2.16, zb, zb + 0.05, panelDark);
+      box(1.45, 1.5, fy + 0.95, fy + 1.05, zb + 0.04, zb + 0.08, steel);
+      box(1.75, 1.87, fy, fy + 1.15, zb, zb + 0.85, paint, 2);
+      for (const [d, lift] of [[2.25, 0.25], [2.95, 0]] as const) {
+        const y = fy + lift;
+        if (lift) box(d - 0.32, d + 0.32, fy, y, zb + 0.03, zb + 0.67, washer);
+        box(d - 0.3, d + 0.3, y, y + 0.85, zb + 0.05, zb + 0.65, washer);
+        box(d - 0.3, d + 0.3, y + 0.85, y + 0.97, zb + 0.05, zb + 0.2, panelDark);
+        box(d - 0.26, d + 0.26, y + 0.85, y + 0.86, zb + 0.24, zb + 0.61, basin);
+      }
+      // Back-wall windows over the machines: a lower pair with grilles, an upper pair.
+      for (const [y0, y1, grille] of [[fy + 1.05, fy + 2.05, true], [fy + 2.4, fy + 3.1, false]] as const) {
+        const [p, q] = sx(mid - x0 - 1.3, mid - x0 - 0.2);
+        b.put(span(p, q, y0, y1, zb, zb + 0.02), glass);
+        for (const yy of [y0, y1 - 0.05]) b.put(span(p, q, yy, yy + 0.05, zb, zb + 0.05), frameGrey);
+        for (const xx of [p, q - 0.05]) b.put(span(xx, xx + 0.05, y0, y1, zb, zb + 0.05), frameGrey);
+        if (grille) {
+          for (let xx = p + 0.14; xx < q - 0.1; xx += 0.14) b.put(span(xx - 0.01, xx + 0.01, y0, y1, zb + 0.05, zb + 0.07), black);
+          for (let yy = y0 + 0.14; yy < y1 - 0.1; yy += 0.14) b.put(span(p, q, yy - 0.01, yy + 0.01, zb + 0.05, zb + 0.07), black);
+        }
+      }
+    }
+    // Navy drying rails under the ceiling: three along the room, three across.
+    for (const z of [zb + 0.4, (zb + zf) / 2, zf - 0.45]) b.put(span(x0, x1, top - 0.38, top - 0.33, z - 0.025, z + 0.025), navy);
+    for (const x of [x0 + 1.2, mid, x1 - 1.2]) b.put(span(x - 0.03, x + 0.03, top - 0.33, top - 0.03, zb, zf), navy);
+    // Fluorescent tube on the right-hand end wall.
+    b.put(span(x1 - 0.07, x1 - 0.02, fy + 2.55, fy + 2.6, zb + 0.4, zb + 1.6), tube);
+    // Stainless drying rack in front of the left-hand screen.
+    const rz = zf - 0.55;
+    for (const y of [fy + 1.1, fy + 1.45]) b.put(span(x0 + 1.0, x0 + 2.7, y, y + 0.03, rz - 0.015, rz + 0.015), steel);
+    for (const x of [x0 + 1.05, x0 + 2.65]) for (const dz of [-0.2, 0.2]) b.put(span(x - 0.015, x + 0.015, fy, fy + 1.45, rz + dz - 0.015, rz + dz + 0.015), steel);
+  };
+
   // --- Centre bay (edge 2) ------------------------------------------------------------------------
   const centre = edgeFrame(campus, EDGES.centre);
   if (centre) {
     const f = centre, L = f.len, D = CENTRE.depth, b = build(f);
-    skin(b, f, []);
+    // Balcony room: frame x from the opening along the edge (a from vertex i → x = L − a).
+    const X0 = L - BAL.a1, X1 = L - BAL.a0;
+    skin(b, f, BAL.floors.map((y) => [X0, X1, y, y + BAL.height] as const));
     const { endPier: E, win: W, pier: P } = CENTRE;
     const B = (L - 2 * (E + W + P) - CENTRE.middle) / 2; // balcony width: the rest, with a slim middle column
     // Column layout from the left: [x0, x1, kind], mirrored about the middle.
@@ -271,19 +386,14 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
           windowAt(b, a, c, fy + 0.9, fy + 2.6);
           if (seeded() < 0.6) acUnit(b, (a + c) / 2, fy + 0.92);
         } else if (k === 'balcony') {
-          // Recessed balcony: solid parapet at the frame face, red tiles inside, a glass door and a window.
-          b.put(span(a, c, fy - 0.25, fy + 1.0, 0.02, D), concrete, 2);
-          b.put(span(a, c, fy + 1.0, fy + 3.35, 0.06, 0.08), tiles, 1);
-          const inner = a < L / 2 ? c : a; // the side toward the middle column
-          const s = a < L / 2 ? -1 : 1;
-          b.put(span(Math.min(inner, inner + s * 0.95), Math.max(inner, inner + s * 0.95), fy + 1.0, fy + 2.3, 0.08, 0.1), glass);
-          b.put(span(Math.min(inner, inner + s * 1.0), Math.max(inner, inner + s * 1.0), fy + 2.3, fy + 2.36, 0.08, 0.12), frameGrey);
-          const outer = a < L / 2 ? a + 0.25 : c - 1.15;
-          windowAt(b, outer, outer + 0.9, fy + 1.4, fy + 2.4);
-          // Balcony soffit (the next floor's slab underside) is the next parapet; the top floor gets the roof band.
+          // Laundry balcony front: a thin parapet with a tiled top, the breeze-block screen above it.
+          b.put(span(a, c, fy - 0.25, fy + 1.0, D - 0.2, D), concrete, 2);
+          b.put(span(a, c, fy + 1.0, fy + 1.03, D - 0.22, D + 0.01), wallTiles, 0.6);
+          latticePanel(b, a, c, fy + 1.03, fy + BAL.height, D - 0.1);
         }
       }
     }
+    for (const fy of BAL.floors) laundryRoom(b, X0, X1, fy, D);
     // Ground floor: side glass (green kick plates), the lobby set back, the canopy beam with the「C」.
     for (const [a, c, k] of cols) {
       if (k !== 'win') continue;
@@ -315,7 +425,7 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
     b.put(span(lob0 - 0.65, lob0 - 0.2, 1.3, 1.75, D, D + 0.03), notice);
     // Canopy beam across the whole bay.
     b.put(span(-0.05, L + 0.05, CANOPY.y0, CANOPY.y1, 0.02, CANOPY.depth), concrete, 2);
-    const sign = new PlaneGeometry(1.0, 1.0).translate(L / 2 - 1.5, (CANOPY.y0 + CANOPY.y1) / 2, CANOPY.depth + 0.01);
+    const sign = new PlaneGeometry(0.9, 0.9).translate(L / 2 - 1.5, (CANOPY.y0 + CANOPY.y1) / 2, CANOPY.depth + 0.01);
     b.put(sign, letter);
     // Top band and parapet over the whole bay.
     b.put(span(-0.05, L + 0.05, 17.6, TOP, 0.02, D + 0.05), concrete, 2);
@@ -365,7 +475,7 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
     // Doorways: metres from vertex i → this frame's x (from the left end).
     const gaps = (DOORS[e.i] ?? []).map((a) => [L - a - DOOR_WIDTH / 2, L - a + DOOR_WIDTH / 2] as [number, number]).sort((m, n) => m[0] - n[0]);
     const inGap = (x0: number, x1: number): boolean => gaps.some(([g0, g1]) => x1 > g0 && x0 < g1);
-    skin(b, f, gaps);
+    skin(b, f, gaps.map(([g0, g1]) => [g0, g1, -0.3, DOOR_HEIGHT] as const));
     const nBay = Math.max(1, Math.round((L - WING.pier) / WING.bay));
     const step = (L - WING.pier) / nBay;
     for (let k = 0; k <= nBay; k++) {
