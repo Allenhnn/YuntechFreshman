@@ -59,6 +59,7 @@ import { SHELL_WALL } from './interiors/generateInterior';
 import { createMgmtFeatures } from './buildings/mgmtFeatures';
 import { createYuntayExterior, yuntayTreeFree } from './buildings/yuntayExterior';
 import { createDormFeatures, dormTreeFree } from './buildings/dormFeatures';
+import { createDormCFacade, dormCFacadeTreeFree } from './buildings/dormCFacade';
 import { courtPit, createMgmtCourtyard } from './buildings/mgmtCourtyard';
 import { createDormCourtyard, dormCourtPit } from './buildings/dormCourtyard';
 import { createDormYard, dormRideables, dormYardClearings } from './campus/dormYard';
@@ -221,7 +222,7 @@ async function boot(): Promise<void> {
     : undefined;
   const bikeStations = placeBikeStations(campus);
   actions.setBikeStations(bikeStations);
-  const keepClear = [...buildingFootprintRings(librarySrc), ...handBuiltSrcs.flatMap(buildingFootprintRings), ...stationClearings(bikeStations), ...gateTreeExclusions(), ...SCOOTER_LOTS.map((l) => l.ring), ...(court ? [court.treeFree] : []), ...yuntayTreeFree(), ...dormTreeFree(), dormPit.treeFree, ...dormYardClearings(), ...PONDS.map((p) => p.ring)];
+  const keepClear = [...buildingFootprintRings(librarySrc), ...handBuiltSrcs.flatMap(buildingFootprintRings), ...stationClearings(bikeStations), ...gateTreeExclusions(), ...SCOOTER_LOTS.map((l) => l.ring), ...(court ? [court.treeFree] : []), ...yuntayTreeFree(), ...dormTreeFree(), ...dormCFacadeTreeFree(campus), dormPit.treeFree, ...dormYardClearings(), ...PONDS.map((p) => p.ring)];
   campus.water = PONDS.map((p) => ({ name: p.name, ring: p.ring }));
   const env = createCampusWorld(scene, physics, renderer, campus, sceneResources, {
     treeExclusions: keepClear,
@@ -249,6 +250,7 @@ async function boot(): Promise<void> {
   const mgmtFeatures = createMgmtFeatures(scene, physics, sceneResources, ma);
   const yuntayExterior = createYuntayExterior(scene, physics, sceneResources);
   const dormFeatures = createDormFeatures(scene, physics, campus, sceneResources, env.materials);
+  const dormCFacade = createDormCFacade(scene, physics, campus, sceneResources);
   const dormCourtyard = createDormCourtyard(scene, physics, sceneResources);
   const dormYard = createDormYard(scene, physics, campus, sceneResources);
   const hilife = createHilifeStore(scene, physics, campus, sceneResources);
@@ -1298,6 +1300,7 @@ async function boot(): Promise<void> {
     mgmtFeatures.dispose();
     yuntayExterior.dispose();
     dormFeatures.dispose();
+    dormCFacade.dispose();
     dormCourtyard.dispose();
     dormYard.dispose();
     hilife?.dispose();

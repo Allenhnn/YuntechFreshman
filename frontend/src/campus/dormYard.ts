@@ -191,6 +191,8 @@ function canvas(tracker: ResourceTracker, w: number, h: number, paint: (g: Canva
 const OPEN_R = 4.5;
 const CLOSE_R = 6.5;
 const GATE_SPEED = 2.2; // m/s of leaf travel
+/** How far the swing leaves of 學生宿舍C 前門 open (rad, just short of flat against the jambs). */
+const SWING = Math.PI * 0.48;
 
 export interface DormYard {
   /** Per frame (sensor gates); returns true on the frame a gate starts to open (for a sound). */
@@ -212,7 +214,8 @@ export function createDormYard(scene: Scene, physics: RAPIER.World, campus: Camp
   const dark = mat(0x2a2d31, { roughness: 0.5 });
   const sensorRed = mat(0xc62828, { emissive: 0xff3030, emissiveIntensity: 0.9 });
   const sensorGreen = mat(0x2e7d32, { emissive: 0x30ff60, emissiveIntensity: 0.9 });
-  interface SensorGate { x: number; z: number; leaf: Mesh; light: Mesh; block: RAPIER.Collider; open: number; target: number; travel: number }
+  /** `swing` (swing gates) sets the leaves for 0..1 open; sliding gates move `leaf` by `travel` instead. */
+  interface SensorGate { x: number; z: number; leaf: Mesh; light: Mesh; block: RAPIER.Collider; open: number; target: number; travel: number; swing: ((t: number) => void) | null }
   const gates: SensorGate[] = [];
   const pavers = tracker.material(new MeshStandardMaterial({
     map: canvas(tracker, 128, 128, (g) => {
@@ -472,6 +475,7 @@ export function createDormYard(scene: Scene, physics: RAPIER.World, campus: Camp
     const GW = g.portal ? PORTAL.open : GATE_W;
     const leafZ = g.portal ? 0 : 0.32;
     let leaf: Mesh, light: Mesh;
+    let swing: ((t: number) => void) | null = null;
     if (!g.portal) {
       // Wall segments either side of the opening, with pilasters every ~3 m and a grey coping.
       for (const [s0, s1] of [[-left, -GATE_W / 2 - 0.35], [GATE_W / 2 + 0.35, right]] as const) {
@@ -518,10 +522,14 @@ export function createDormYard(scene: Scene, physics: RAPIER.World, campus: Camp
         add(box(w, WALL_H, WALL_T, mid, WALL_H / 2, 0), cream);
         add(box(w, 0.2, WALL_T + 0.06, mid, 0.1, 0), plinth);
         add(box(w + 0.04, 0.13, WALL_T + 0.18, mid, WALL_H + 0.065, 0), plinth);
-        // Lattice panels from the gatehouse outward: panel, pier, panel, …
-        for (let k = 0; ; k++) {
-          const near = PW / 2 + 0.05 + k * (PP + PR), far = near + PP;
-          if (far > (dir < 0 ? -s0 : s1) - 0.25) break;
+        // Lattice panels from the gatehouse outward: panel, pier, panel, … As many panels as fit with
+        // piers of at least PIER_MIN (narrowing the piers below PR when needed), so the short walls
+        // either side of the gatehouse still get a second panel at their outer end (user screenshot).
+        const avail = w - 0.05 - 0.12, PIER_MIN = 0.3;
+        const n = Math.max(1, Math.floor((avail + PIER_MIN) / (PP + PIER_MIN)));
+        const pier = n > 1 ? Math.min(PR, (avail - n * PP) / (n - 1)) : 0;
+        for (let k = 0; k < n; k++) {
+          const near = PW / 2 + 0.05 + k * (PP + pier), far = near + PP;
           add(box(PP, 1.8, WALL_T + 0.03, dir * (near + far) / 2, 1.1, 0), lattice);
         }
         const [wx, wz] = world(mid, 0);
@@ -545,14 +553,34 @@ export function createDormYard(scene: Scene, physics: RAPIER.World, campus: Camp
         add(box(0.55, 0.3, 0.1, 0.75, PH - 0.5, face * (PD / 2 + 0.05)), lightBox);
         add(box(0.16, 0.24, 0.08, GO / 2 + 0.2, PL - 0.15, face * (PD / 2 + 0.04)), lightBox);
       }
-      // Pale-blue gate: a frame, a plated left half and a barred right half (slides as one leaf).
-      const parts: BufferGeometry[] = [
-        box(GO, 0.05, 0.05, 0, 0.1, 0), box(GO, 0.05, 0.05, 0, 1.95, 0),
-        box(0.05, 1.9, 0.05, -GO / 2 + 0.03, 1.02, 0), box(0.05, 1.9, 0.05, 0, 1.02, 0), box(0.05, 1.9, 0.05, GO / 2 - 0.03, 1.02, 0),
-        box(GO / 2 - 0.1, 1.6, 0.025, -GO / 4, 1.02, 0),
+      // Pale-blue gate (user, 2026-11-22: it swings open like a pair of doors, not sideways): two leaves
+      // hinged at the jambs, a plated left leaf and a barred right leaf, swinging into the courtyard.
+      // Each leaf is built in its hinge's frame, running from the hinge (x = 0) toward the middle.
+      const LW = GO / 2 - 0.06; // leaf width: a hinge gap at the jamb and a meeting gap in the middle
+      const frame = (dirX: 1 | -1): BufferGeometry[] => [
+        box(LW, 0.05, 0.05, dirX * LW / 2, 0.1, 0), box(LW, 0.05, 0.05, dirX * LW / 2, 1.95, 0),
+        box(0.05, 1.9, 0.05, dirX * 0.025, 1.02, 0), box(0.05, 1.9, 0.05, dirX * (LW - 0.025), 1.02, 0),
       ];
-      for (let x = 0.17; x < GO / 2 - 0.05; x += 0.17) parts.push(box(0.03, 1.85, 0.03, x, 1.02, 0));
-      leaf = add(merged(parts), paleBlue);
+      const leftParts = [...frame(1), box(LW - 0.1, 1.6, 0.025, LW / 2, 1.02, 0)];
+      const rightParts = frame(-1);
+      for (let x = 0.17; x < LW - 0.08; x += 0.17) rightParts.push(box(0.03, 1.85, 0.03, -x, 1.02, 0));
+      const inward = (g.a[0] - cx) * -uz + (g.a[1] - cz) * ux > 0 ? 1 : -1; // courtyard side (local +z = inward)
+      const hinge = GO / 2 - 0.04;
+      const leaves: { pivot: Group; sign: number }[] = [];
+      for (const [hx, parts, sign] of [[-hinge, leftParts, -inward], [hinge, rightParts, inward]] as const) {
+        const pivot = new Group();
+        pivot.position.set(hx, 0, 0);
+        grp.add(pivot);
+        const m = new Mesh(tracker.geometry(merged(parts)), paleBlue);
+        m.castShadow = true;
+        pivot.add(m);
+        // Hinge pins on the jamb.
+        for (const y of [0.35, 1.7]) add(box(0.06, 0.12, 0.06, hx + Math.sign(hx) * 0.01, y, 0), paleBlue);
+        leaves.push({ pivot, sign });
+      }
+      swing = (t) => { for (const l of leaves) l.pivot.rotation.y = l.sign * t * SWING; };
+      // `leaf` stays as the sliding-leaf handle for the shared code below; the swing replaces the slide.
+      leaf = new Mesh();
       light = add(box(0.12, 0.12, 0.05, -GO / 2 - 0.2, PL - 0.15, PD / 2 + 0.03), sensorRed);
     }
     leaf.position.set(0, 0, leafZ);
@@ -560,7 +588,8 @@ export function createDormYard(scene: Scene, physics: RAPIER.World, campus: Camp
     const block = physics.createCollider(RAPIER.ColliderDesc.cuboid(GW / 2, 1.0, 0.12).setTranslation(gx, 1.0, gz)
       .setRotation((() => { const q = new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), yaw); return { x: q.x, y: q.y, z: q.z, w: q.w }; })()));
     colliders.push(block);
-    gates.push({ x: cx, z: cz, leaf, light, block, open: 0, target: 0, travel: GW + 0.55 });
+    // Swing leaves travel about a quarter circle at their tips.
+    gates.push({ x: cx, z: cz, leaf, light, block, open: 0, target: 0, travel: swing ? (GW / 2) * SWING : GW + 0.55, swing });
     // Pavers through the gate (both sides); the portal gate's walk runs through instead.
     if (!g.portal) {
       const path = new Mesh(tracker.geometry(new PlaneGeometry(GATE_W - 0.4, 14).rotateX(-Math.PI / 2).translate(0, 0.035, 0)), pavers);
@@ -612,7 +641,8 @@ export function createDormYard(scene: Scene, physics: RAPIER.World, campus: Camp
         g.target = want;
         if (g.open === g.target) continue;
         g.open = g.target > g.open ? Math.min(1, g.open + (dt * GATE_SPEED) / g.travel) : Math.max(0, g.open - (dt * GATE_SPEED) / g.travel);
-        g.leaf.position.x = g.open * g.travel;
+        if (g.swing) g.swing(g.open);
+        else g.leaf.position.x = g.open * g.travel;
         g.light.material = g.open > 0 ? sensorGreen : sensorRed;
         // Passable once it is mostly open; blocks again as soon as it starts closing over the gap.
         g.block.setEnabled(g.open < 0.6);

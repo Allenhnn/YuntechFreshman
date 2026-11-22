@@ -1,3 +1,4 @@
+import { CUSTOM_FACADE_EDGES } from './customFacades';
 import { ShapeUtils, Vector2 } from 'three';
 import { mulberry32 } from '../core/math';
 import {
@@ -622,7 +623,9 @@ export class ChunkBuilder {
         cuts?.size ? { cuts, glass, frames: details } : undefined, thick);
       for (const h of b.holes) addWalls(facade, h, b.height, floors, style, undefined, [], undefined, thick);
       if (interior) addSlabs(details, slabs, b, interior);
-      addFacadeDetails(details, b, this.rawStyles[styleIndex]!, { wall: style.wall, trim: style.trim }, this.data.roads, photoEdges, b.sealed ? shut : doors);
+      const custom = CUSTOM_FACADE_EDGES[b.id];
+      const detailSkip = custom ? new Set([...photoEdges, ...custom]) : photoEdges;
+      addFacadeDetails(details, b, this.rawStyles[styleIndex]!, { wall: style.wall, trim: style.trim }, this.data.roads, detailSkip, b.sealed ? shut : doors);
       for (const e of shut) addShutDoor(details, b.outer, e);
       const photoMesh = photoOut?.build();
       if (shots && photoMesh) photoWalls.push({ building: b.id, atlas: shots.atlas, mesh: photoMesh });

@@ -164,6 +164,14 @@ docker compose down             # 停止（加 -v 會連資料一起刪除）
 | `.env.example` 沒被 commit | 根目錄 `.gitignore` 有 `.env*`；需要時用 `git add -f backend/.env.example` |
 
 ## 變更紀錄
+### 2026-11-22（前端：學生宿舍C 前門格柵與推開式鐵門、C 北棟中段南面重建）— 分支 `fix/dorm-c-front-gate`
+- 需求：依使用者遊戲截圖（紅框）在門樓兩側短牆補紅色格柵、鐵門改成像木門一樣推開；依實拍與小地圖紅色箭頭重建從 C 中庭往北看到的立面（被樹擋住的部分與另一半對稱）
+- `frontend/src/campus/dormYard.ts`：格柵依牆長能放幾片就放幾片（牆墩最窄 0.3 m），門樓兩側各兩片；`portal` 門改成兩扇以門框為軸往中庭內開的門（`SWING`，`SensorGate.swing`），其他宿舍門仍是橫拉
+- 新增 `frontend/src/buildings/dormCFacade.ts`：OSM 296668596（學生宿舍C 北棟，U 形）中段面向中庭的 edge 11–15；洗石子外框、窗列、紅磚凹陽台、雨遮梁與「C」、玻璃門廳、台階平台、花台盆栽、地磚紅磚帶；有碰撞
+- 新增 `frontend/src/campus/customFacades.ts`，`chunkBuilder.ts` 在列出的牆略過程序立面細節（遮陽板會穿出外皮）
+- 決定：箭頭指向的是 296668596（小地圖 +z 朝南），不是 296668592；中段門廳的門是裝飾，遊戲可進入的門依描圖資料仍在北面
+- 測試：`tsc --noEmit`、`vite build` 通過；dev server 實際走到門口與中庭看過
+
 ### 2026-11-22（前端：學生宿舍C 前門依近照重建門樓與圍牆）— 分支 `fix/dorm-c-front-gate`
 - 需求：依使用者的大門近照再重新建模
 - `frontend/src/campus/dormYard.ts`（只影響 `portal` 門＝學生宿舍C 前門）：
