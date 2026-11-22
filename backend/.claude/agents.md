@@ -164,6 +164,33 @@ docker compose down             # 停止（加 -v 會連資料一起刪除）
 | `.env.example` 沒被 commit | 根目錄 `.gitignore` 有 `.env*`；需要時用 `git add -f backend/.env.example` |
 
 ## 變更紀錄
+### 2026-11-23（前端：學生宿舍C 東翼依使用者手繪平面調整立面）— 分支 `fix/dorm-c-front-gate`
+- 需求：使用者畫了東翼平面（房間、曬衣間、浴室、戶廳），紅色斜線為實心牆無窗，window 處為戶廳
+- `frontend/src/buildings/dormCFacade.ts`：新增牆格 `blank`（只有外皮）與版型 `eastEast`；東翼南端牆＝轉角曬衣間大花磚＋其餘實心；東牆＝南角浴室實心＋三間房窗；戶廳高窗改在凹口的西向牆，凹口北面與南向短牆改實心
+- 測試：`tsc --noEmit`、`vite build` 通過；dev server 暫時除錯相機看過中庭側、東側與凹口（已移除）
+
+### 2026-11-23（前端：學生宿舍C 東翼回到原本格局）— 分支 `fix/dorm-c-front-gate`
+- 需求：使用者給地圖截圖，東翼格局要長那樣（原寬、內側有凹口）
+- `frontend/src/campus/campusFixes.ts`：`splitDormC` 取消東半鏡像，東翼回到 OSM 外形（分界點 S 在北面）；西側的房間外移保留
+- `frontend/src/campus/customFacades.ts`：`DORM_C_PIECES`、分界牆、手工立面邊號回到對應的編號；陽台在中段 edge 4、從 OSM vertex 13 量起
+- `frontend/src/buildings/dormCFacade.ts`：凸出段右側不再有房間列；東側凹口北面＝一間戶廳（3 層）、凹口另兩面加樓層帶；東翼南端牆變長，素牆段依長度放數扇小窗
+- 決定：凸出段只有西側一間房（東側凹口只有約 4.2 m，放不下房間＋戶廳）
+- 測試：`tsc --noEmit`、`vite build` 通過；dev server 暫時除錯相機空拍看過（已移除）
+
+### 2026-11-23（前端：學生宿舍C 東翼依轉角照重建、西翼內側牆改素牆）— 分支 `fix/dorm-c-front-gate`
+- 需求：使用者截圖藍框（東翼）依實拍轉角照重建、紅框（中段）不動；另一張截圖斜線處（西翼面向中庭的內側牆）改成一般牆面、什麼都不放
+- `frontend/src/buildings/dormCFacade.ts`：兩翼六面牆改用版型 `Layout`（`clothLeft`、`eastSouth`、`eastWest`、`side`、`plain`）；東翼長內側面＝窗戶＋冷氣、靠轉角深框白柱開口＋窄花磚；東翼南端牆＝轉角一大格花磚（`screen`）＋每層一扇小窗（`single`）；西翼內側牆 `plain`；移除先前按比例壓縮的東翼端牆
+- 追加（使用者：側面三個太多）：東翼長內側面改成只有一間房＋一間曬衣間，兩格各佔一半（新牆格 `room`）
+- 測試：`tsc --noEmit`、`vite build` 通過；dev server 暫時除錯相機從使用者兩張截圖的視角看過（已移除）
+
+### 2026-11-23（前端：學生宿舍C 北棟右半比照左半）— 分支 `fix/dorm-c-front-gate`
+- 需求：使用者截圖分紅（左半，已完成）藍（右半）兩邊，右半要跟左半一樣
+- `frontend/src/campus/campusFixes.ts`：`splitDormC` 改寫——凸出段西端照舊外移一間房寬，東半整個用陽台中線鏡像西半（房間、轉角、戶廳、分界）；東翼內側牆往東退到鏡像戶廳的端點（平行原內側牆，接到南端牆）
+- `frontend/src/campus/customFacades.ts`：`DORM_C_PIECES` 改成命名點；`DORM_C_BALCONY_SPAN`；陽台改在中段 edge 5、從頂點 i 量起多一間房寬；分界牆、手工立面邊號更新
+- `frontend/src/buildings/dormCFacade.ts`：凸出段兩側各一列房間、兩側戶廳都是一間高窗；東翼端牆較短時四格（戶廳、兩間房、曬衣間）按比例縮小、不掛冷氣；陽台端柱改用 `DORM_C_BALCONY_SPAN[0]`（修正端柱被算成 4.4 m 的錯誤）
+- 決定：OSM 的東翼比西翼偏內，鏡像後東翼變窄（約 8.3 m 寬）；中庭東側多出的空地維持草地
+- 測試：`tsc --noEmit`、`vite build` 通過；dev server 暫時除錯相機正面與東翼看過（已移除）
+
 ### 2026-11-23（前端：學生宿舍C 北棟依使用者標註調整房間配置）— 分支 `fix/dorm-c-front-gate`
 - 需求：依遊戲截圖標註，凸出段每層是一間房間＋曬衣間；退縮處是戶廳；兩翼端牆每層只有一間曬衣間、兩間房間，另一端是戶廳
 - `frontend/src/campus/customFacades.ts`：`DORM_C.roomWidth = 3.4`

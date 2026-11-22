@@ -375,19 +375,26 @@ export function splitDormC(campus: CampusData): void {
   const b = campus.buildings[i];
   if (!b || b.outer.length !== 40 || Math.hypot(b.outer[24]! + 8.9, b.outer[25]! - 308.8) > 0.3 || Math.hypot(b.outer[4]! + 29.0, b.outer[5]! - 303.0) > 0.3) return;
   const r = b.outer;
-  // S: where a line from vertex 12 along the east wing's inner face (vertex 8 → 9) meets the north face (3 → 4).
-  const p12 = [r[24]!, r[25]!], d = [r[18]! - r[16]!, r[19]! - r[17]!], a = [r[6]!, r[7]!], e = [r[8]! - r[6]!, r[9]! - r[7]!];
-  const det = d[0]! * -e[1]! - d[1]! * -e[0]!;
-  const t = ((a[0]! - p12[0]!) * -e[1]! - (a[1]! - p12[1]!) * -e[0]!) / det;
-  const S = [p12[0]! + d[0]! * t, p12[1]! + d[1]! * t];
-  const ring = (ids: readonly (number | 'S')[]): number[] => ids.flatMap((k) => (k === 'S' ? S : [r[k * 2]!, r[k * 2 + 1]!])) as number[];
-  const piece = (id: number, ids: readonly (number | 'S')[], levels: number) => ({ ...b, id, outer: ring(ids), holes: [], levels, height: Math.round(levels * 3.6 * 10) / 10 });
-  // The projecting front takes in one room west of the balcony: slide its west return (vertices 14, 15) west along the front.
-  const middle = piece(DORM_C.middle, DORM_C_PIECES.middle, DORM_C.middleLevels);
-  const fx = r[28]! - r[26]!, fz = r[29]! - r[27]!, fl = Math.hypot(fx, fz), w = DORM_C.roomWidth;
-  for (const k of [5, 6]) { middle.outer[k * 2] += (fx / fl) * w; middle.outer[k * 2 + 1] += (fz / fl) * w; }
+  type P = [number, number];
+  const V = (k: number): P => [r[k * 2]!, r[k * 2 + 1]!];
+  const add = (p: P, d: P, t: number): P => [p[0] + d[0] * t, p[1] + d[1] * t];
+  /** Where p + t·d meets the line through q along e. */
+  const meet = (p: P, d: P, q: P, e: P): P => {
+    const det = d[0] * -e[1] - d[1] * -e[0];
+    return add(p, d, ((q[0] - p[0]) * -e[1] - (q[1] - p[1]) * -e[0]) / det);
+  };
+  // Front (vertex 13 → 14), unit; the projecting front takes in one room west of the balcony:
+  // its west return (vertices 14, 15) slides west by `roomWidth` (使用者標註).
+  const f13 = V(13), fl = Math.hypot(r[28]! - f13[0], r[29]! - f13[1]);
+  const fu: P = [(r[28]! - f13[0]) / fl, (r[29]! - f13[1]) / fl];
+  const p14 = add(V(14), fu, DORM_C.roomWidth), p15 = add(V(15), fu, DORM_C.roomWidth);
+  // The east wing keeps its OSM footprint (使用者地圖): split from the middle by a line from vertex 12 along
+  // the east wing's inner face (vertex 8 → 9) to the north face (3 → 4).
+  const pts: Record<string, P> = { p14, p15, S: meet(V(12), [r[18]! - r[16]!, r[19]! - r[17]!], V(3), [r[8]! - r[6]!, r[9]! - r[7]!]) };
+  const ring = (ids: readonly (number | string)[]): number[] => ids.flatMap((k) => (typeof k === 'number' ? V(k) : pts[k]!));
+  const piece = (id: number, ids: readonly (number | string)[], levels: number) => ({ ...b, id, outer: ring(ids), holes: [], levels, height: Math.round(levels * 3.6 * 10) / 10 });
   campus.buildings.splice(i, 1,
-    middle,
+    piece(DORM_C.middle, DORM_C_PIECES.middle, DORM_C.middleLevels),
     piece(DORM_C.westWing, DORM_C_PIECES.westWing, DORM_C.wingLevels),
     piece(DORM_C.eastWing, DORM_C_PIECES.eastWing, DORM_C.wingLevels));
 }

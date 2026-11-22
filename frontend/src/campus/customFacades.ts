@@ -14,19 +14,19 @@ export const DORM_C = {
   middleLevels: 4,
   wingLevels: 3,
   /**
-   * 使用者標註（2026-11-23）：凸出段＝每層一間房間（西側）＋洗衣陽台，所以凸出段比 OSM 往西多一間房寬：
-   * 中段的轉角短牆（原 vertex 14、15）沿正面往西移這麼多 m，西側退縮的戶廳牆段跟著變短。
+   * 使用者標註（2026-11-23）：凸出段＝每層「房間＋洗衣陽台」，西側退縮處一間戶廳；凸出段比 OSM 往西多一間房寬
+   * （原 vertex 14、15 沿正面往西移這麼多 m）。東側照使用者的地圖維持 OSM：東翼原寬、內側有凹口（凹口當戶廳）。
    */
   roomWidth: 3.4,
 } as const;
 
 /**
- * The original ring's vertex numbers for each piece (CCW, as in OSM), and the split vertex S added on
- * the north face (vertex 3 → 4) straight up the east wing's inner face from vertex 12.
- * Edge k of a piece runs from its k-th to its (k+1)-th point.
+ * Each piece's ring (CCW): numbers are the OSM ring's vertices, names are points splitDormC makes —
+ * p14 / p15: the west return slid a room further west; S: on the north face (3 → 4) straight up the east
+ * wing's inner face from vertex 12. Edge k of a piece runs from its k-th to its (k+1)-th point.
  */
 export const DORM_C_PIECES = {
-  middle: [2, 3, 'S', 12, 13, 14, 15, 16],
+  middle: [2, 3, 'S', 12, 13, 'p14', 'p15', 16],
   eastWing: ['S', 4, 5, 6, 7, 8, 9, 10, 11, 12],
   westWing: [16, 17, 18, 19, 0, 1, 2],
 } as const;
@@ -55,17 +55,22 @@ export const STYLE_ALIAS: Readonly<Record<number, number>> = { [DORM_C.westWing]
 export const CUSTOM_FACADE_EDGES: Readonly<Record<number, readonly number[]>> = {
   // buildings/dormCFacade.ts
   [DORM_C.middle]: [2, 3, 4, 5, 6, 7],
-  [DORM_C.eastWing]: [3, 4, 5, 8, 9],
+  [DORM_C.eastWing]: [3, 4, 5, 6, 7, 8, 9],
   [DORM_C.westWing]: [0, 1, 2, 6],
 };
 
 /**
  * 學生宿舍C 北棟中段的洗衣陽台（使用者室內照與正面照，2026-11-22）：2F–4F 每層一間長條陽台，佔整個中段凸出部分
  * （兩端柱之間）：正面中間一大片紅色鏤空花磚、兩端各一段開口。
- * `a0` / `a1`：沿中段 edge 4 從頂點 i 量起的範圍（左右各留 1 m 端柱）；每層從樓板 `y` 開到上一層樓板下緣
+ * `a0` / `a1`：沿中段正面（edge 4）從頂點 i（OSM vertex 13）量起的範圍（陽台段左右各留 1 m 端柱）；每層從樓板 `y` 開到上一層樓板下緣
  * `y + height`；`depth`：從外牆面往室內挖多深——只挖外牆厚度（生成的室內房間緊貼外牆內面），陽台的深度靠中段外框往外凸出。
  */
-export const DORM_C_BALCONY = { building: DORM_C.middle, edge: 4, a0: 1.0, a1: 12.2, floors: [3.6, 7.2, 10.8], height: 3.35, depth: 0.4 } as const;
+export const DORM_C_BALCONY_SPAN = [1.0, 12.2] as const; // along the OSM front from vertex 13
+export const DORM_C_BALCONY = {
+  building: DORM_C.middle, edge: 4, // 13 → p14
+  a0: DORM_C_BALCONY_SPAN[0], a1: DORM_C_BALCONY_SPAN[1],
+  floors: [3.6, 7.2, 10.8], height: 3.35, depth: 0.4,
+} as const;
 
 /** Wall openings with nothing in them (no glass, no frames): the hand-built module fills them. */
 export interface FacadeOpening { edge: number; a0: number; a1: number; y0: number; y1: number }

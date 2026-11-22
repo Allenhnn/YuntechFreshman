@@ -25,7 +25,7 @@ import { RAPIER } from '../physics/physics';
 import type { ResourceTracker } from '../core/resources';
 import { mulberry32 } from '../core/math';
 import type { CampusData, Ring } from '../campus/campusTypes';
-import { DORM_C, DORM_C_BALCONY as BAL } from '../campus/customFacades';
+import { DORM_C, DORM_C_BALCONY as BAL, DORM_C_BALCONY_SPAN } from '../campus/customFacades';
 
 /**
  * 學生宿舍C 北棟（OSM 296668596，U 形），依使用者實拍＋遊戲截圖與小地圖（2026-11-22）。載入時切成三塊
@@ -48,12 +48,14 @@ import { DORM_C, DORM_C_BALCONY as BAL } from '../campus/customFacades';
 type Anchor = { id: number; i: number; a: readonly [number, number]; b: readonly [number, number] };
 /** Walls drawn here: building piece, edge, and its expected endpoints (vertex i, vertex i+1); skipped if the data moved. */
 const EDGES = {
-  // The front and west return as moved by splitDormC (one room further west than OSM).
-  centre: { id: DORM_C.middle, i: 4, a: [-8.4, 311.4], b: [-24.75, 314.29] },
-  westReturn: { id: DORM_C.middle, i: 5, a: [-24.75, 314.29], b: [-25.05, 312.39] },
-  westFlank: { id: DORM_C.middle, i: 6, a: [-25.05, 312.39], b: [-30.8, 313.4] },
+  // As splitDormC lays them out: the front a room longer to the west than OSM; the east side as in OSM (使用者地圖).
+  centre: { id: DORM_C.middle, i: 4, a: [-8.4, 311.4], b: [-24.72, 314.31] },
+  westReturn: { id: DORM_C.middle, i: 5, a: [-24.72, 314.31], b: [-25.07, 312.37] },
+  westFlank: { id: DORM_C.middle, i: 6, a: [-25.07, 312.37], b: [-30.8, 313.4] },
   eastReturn: { id: DORM_C.middle, i: 3, a: [-8.9, 308.8], b: [-8.4, 311.4] },
   eastFlank: { id: DORM_C.eastWing, i: 8, a: [-4.7, 308.1], b: [-8.9, 308.8] },
+  eastJogWest: { id: DORM_C.eastWing, i: 7, a: [-3.9, 312.5], b: [-4.7, 308.1] },
+  eastJogSouth: { id: DORM_C.eastWing, i: 6, a: [-6.1, 312.9], b: [-3.9, 312.5] },
   eastWingEast: { id: DORM_C.eastWing, i: 3, a: [5.9, 304.0], b: [8.6, 319.3] },
   eastWingSouth: { id: DORM_C.eastWing, i: 4, a: [8.6, 319.3], b: [-4.6, 321.6] },
   eastWingWest: { id: DORM_C.eastWing, i: 5, a: [-4.6, 321.6], b: [-6.1, 312.9] },
@@ -68,7 +70,7 @@ const MIDDLE = { H: DORM_C.middleLevels * STOREY, floors: [3.6, 7.2, 10.8] };
 const WINGS = { H: DORM_C.wingLevels * STOREY, floors: [3.6, 7.2] };
 const PARAPET = 1.0; // the band above the eaves (the procedural parapet is 1 m)
 /** Centre bay: frame depth, end piers, the open bays at both ends of the balcony front (the lattice fills the rest). */
-const CENTRE = { depth: 1.5, endPier: BAL.a0, open: 1.8 }; // the balcony's depth is the frame's (the room behind starts at the wall)
+const CENTRE = { depth: 1.5, endPier: DORM_C_BALCONY_SPAN[0], open: 1.8 }; // the balcony's depth is the frame's (the room behind starts at the wall)
 /** Ground floor of the centre bay: canopy beam (bottom, top, depth), the lobby glass set back by `lobby`. */
 const CANOPY = { y0: 2.85, y1: 3.58, depth: 2.1, lobby: 0.35 }; // top under the 2F balcony floor
 /** Flanks beside the centre bay: frame depth, pier width, target bay width, sunshade depth. */
@@ -83,7 +85,8 @@ const PLANTER = { width: 2.3, top: 0.75 };
 export function dormCFacadeTreeFree(campus: CampusData): Ring[] {
   const f = edgeFrame(campus, EDGES.centre);
   if (!f) return [];
-  return [[f.world(-3, 0), f.world(f.len + 4, 0), f.world(f.len + 4, 9), f.world(-3, 9)].flat()];
+  // Out to the halls either side (and the ground the east wing gave up).
+  return [[f.world(-7, 0), f.world(f.len + 7, 0), f.world(f.len + 7, 9), f.world(-7, 9)].flat()];
 }
 
 // ---------------------------------------------------------------- wall frames
@@ -377,23 +380,22 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
   const centre = edgeFrame(campus, EDGES.centre);
   if (centre) {
     const f = centre, L = f.len, D = CENTRE.depth, b = build(f), { H, floors } = MIDDLE, E = CENTRE.endPier;
-    // [0, C0]: the room bay (使用者標註); [C0, L]: the balcony bay, its balcony between end piers E wide.
-    const C0 = L - (BAL.a0 + BAL.a1);
+    // [0, C0]: the room bay (使用者標註); [C0, C1 = L]: the balcony bay, its balcony between end piers E wide.
+    const C1 = L, C0 = C1 - (BAL.a1 - BAL.a0 + 2 * E);
     // Balcony room between the end piers (the opening along the edge: a from vertex i → x = L − a).
     const X0 = L - BAL.a1, X1 = L - BAL.a0;
     skin(b, f, H, BAL.floors.map((y) => [X0, X1, y, y + BAL.height] as const));
-    for (const [a, c] of [[0, FLANK.pier], [C0, C0 + E], [L - E, L]] as const) {
+    for (const [a, c] of [[0, FLANK.pier], [C0, C0 + E], [C1 - E, C1]] as const) {
       b.put(span(a, c, 0, H, 0.02, D), concrete, 2);
       b.solid(a, c, 0, CANOPY.y0, 0.02, D);
     }
     // Room bay: one dorm room per floor, a deep window with an AC unit; dark glass with a green kick plate below.
-    {
-      const a = FLANK.pier, c = C0;
+    for (const [a, c] of [[FLANK.pier, C0]] as const) {
       for (const fy of floors) {
         b.put(span(a, c, fy - 0.25, fy + 0.9, 0.02, D), concrete, 2);
         b.put(span(a, c, fy + 2.6, fy + 3.35, 0.02, D), concrete, 2);
         windowAt(b, a + 0.15, c - 0.15, fy + 0.9, fy + 2.6);
-        acUnit(b, a + 0.7, fy + 0.92);
+        acUnit(b, a < L / 2 ? a + 0.7 : c - 0.7, fy + 0.92);
       }
       b.put(span(a, c, 0, CANOPY.y0, 0.06, 0.1), glass);
       b.put(span(a, c, 0, 0.55, 0.1, 0.12), kick);
@@ -402,17 +404,17 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
     for (const fy of BAL.floors) {
       // Front (正面照): thin parapet with a tiled top, one wide screen, an open bay at each end with a
       // white pipe on its outer side and a steel rail across.
-      b.put(span(C0 + E, L - E, fy - 0.25, fy + 0.95, D - 0.2, D), concrete, 2);
-      b.put(span(C0 + E, L - E, fy + 0.95, fy + 0.98, D - 0.22, D + 0.01), wallTiles, 0.6);
-      latticePanel(b, C0 + E + CENTRE.open, L - E - CENTRE.open, fy + 0.98, fy + BAL.height, D - 0.1);
-      for (const [o0, o1] of [[C0 + E, C0 + E + CENTRE.open], [L - E - CENTRE.open, L - E]] as const) {
+      b.put(span(C0 + E, C1 - E, fy - 0.25, fy + 0.95, D - 0.2, D), concrete, 2);
+      b.put(span(C0 + E, C1 - E, fy + 0.95, fy + 0.98, D - 0.22, D + 0.01), wallTiles, 0.6);
+      latticePanel(b, C0 + E + CENTRE.open, C1 - E - CENTRE.open, fy + 0.98, fy + BAL.height, D - 0.1);
+      for (const [o0, o1] of [[C0 + E, C0 + E + CENTRE.open], [C1 - E - CENTRE.open, C1 - E]] as const) {
         b.put(span(o0, o1, fy + 1.3, fy + 1.34, D - 0.14, D - 0.1), steel);
-        pipe(b, o0 < (C0 + L) / 2 ? o0 + 0.15 : o1 - 0.15, fy + 0.98, fy + BAL.height, D - 0.3);
+        pipe(b, o0 < (C0 + C1) / 2 ? o0 + 0.15 : o1 - 0.15, fy + 0.98, fy + BAL.height, D - 0.3);
       }
       laundryRoom(b, X0, X1, fy, D);
     }
     // Ground floor: one glass lobby between the piers, brown double doors left of centre, the canopy beam with the「C」.
-    const z = CANOPY.lobby, lob0 = C0 + E, lob1 = L - E;
+    const z = CANOPY.lobby, lob0 = C0 + E, lob1 = C1 - E;
     b.put(span(lob0, lob1, 0, CANOPY.y0, z, z + 0.04), glass);
     b.solid(lob0, lob1, 0, CANOPY.y0, 0.02, z + 0.04);
     b.put(span(lob0, lob1, 2.4, 2.46, z, z + 0.1), frameGrey);
@@ -435,7 +437,7 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
     // Notice board on the left pier (photo: white sign by the lobby).
     b.put(span(C0 + E - 0.75, C0 + E - 0.25, 1.3, 1.75, D, D + 0.03), notice);
     b.put(span(-0.05, L + 0.05, CANOPY.y0, CANOPY.y1, 0.02, CANOPY.depth), concrete, 2);
-    b.put(new PlaneGeometry(0.9, 0.9).translate((C0 + L) / 2, (CANOPY.y0 + CANOPY.y1) / 2, CANOPY.depth + 0.01), letter);
+    b.put(new PlaneGeometry(0.9, 0.9).translate((C0 + C1) / 2, (CANOPY.y0 + CANOPY.y1) / 2, CANOPY.depth + 0.01), letter);
     // Top band and parapet over the whole bay (starts where the top-floor screen ends).
     b.put(span(-0.05, L + 0.05, H - 0.25, H + PARAPET, 0.02, D + 0.05), concrete, 2);
 
@@ -471,13 +473,14 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
     const pave = new PlaneGeometry(L + 3, 6).rotateX(-Math.PI / 2).translate(L / 2 - 1, 0.03, reach + 3);
     pave.getAttribute('uv').array.forEach((_, i, arr) => { (arr as Float32Array)[i] *= i % 2 === 0 ? (L + 3) / 2 : 3; });
     b.put(pave, paving);
-    b.put(new PlaneGeometry(0.5, 6).rotateX(-Math.PI / 2).translate((C0 + L) / 2, 0.035, reach + 3), brickBand);
+    b.put(new PlaneGeometry(0.5, 6).rotateX(-Math.PI / 2).translate((C0 + C1) / 2, 0.035, reach + 3), brickBand);
     b.done();
   }
 
   // --- Flanks beside the centre bay, and the short returns -----------------------------------------
-  // West of the projecting front: the hall (戶廳，使用者標註) — one bay, a tall window per floor, no AC.
-  for (const [e, { H, floors }, hall] of [[EDGES.westFlank, MIDDLE, true], [EDGES.eastFlank, WINGS, false]] as const) {
+  // Each side of the projecting front: the hall (戶廳，使用者標註) — one bay, a tall window per floor, no AC.
+  // East: the hall's window is on the jog wall facing the notch (使用者平面圖).
+  for (const [e, { H, floors }, hall] of [[EDGES.westFlank, MIDDLE, true], [EDGES.eastJogWest, WINGS, true]] as const) {
     const f = edgeFrame(campus, e);
     if (!f) continue;
     const L = f.len, Dw = FLANK.depth, b = build(f);
@@ -508,12 +511,14 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
     b.put(span(-0.05, L + 0.05, H - 0.25, H + PARAPET, 0.02, Dw + 0.05), concrete, 2);
     b.done();
   }
-  for (const e of [EDGES.westReturn, EDGES.eastReturn]) {
+  // Short returns; the notch's other two faces (east wing, 3 storeys) are solid walls (使用者平面圖).
+  for (const [e, { H, floors }, solid] of [[EDGES.westReturn, MIDDLE, false], [EDGES.eastReturn, MIDDLE, false], [EDGES.eastFlank, WINGS, true], [EDGES.eastJogSouth, WINGS, true]] as const) {
     const f = edgeFrame(campus, e);
     if (!f) continue;
-    const L = f.len, b = build(f), { H, floors } = MIDDLE;
+    const L = f.len, b = build(f);
     skin(b, f, H, []);
-    for (const fy of [0, ...floors]) {
+    if (solid) b.put(span(-0.02, L + 0.02, -0.3, WING.plinth, 0.02, 0.16), plinthGrey, 2);
+    for (const fy of solid ? [] : [0, ...floors]) {
       if (fy > 0) b.put(span(0, L, fy - 0.25, fy + 0.1, 0.02, 0.3), concrete, 2);
       b.put(span(L / 2 - 0.35, L / 2 + 0.35, fy + 0.9, fy + 2.5, 0.06, 0.1), glass);
     }
@@ -522,28 +527,49 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
   }
 
   // --- The 3-storey wings (轉角照) -------------------------------------------------------------------
-  // End walls toward the courtyard (使用者標註，每層)：outer corner a deep lattice bay (the laundry), two rooms,
-  // inner corner the hall's big window. `cloth`: which end (seen from outside) the laundry is at.
-  // Long sides: windows with hoods, one ground-floor lattice bay at the left corner.
-  for (const [e, cloth] of [[EDGES.eastWingSouth, 'right'], [EDGES.westWingSouth, 'left'], [EDGES.eastWingEast, null], [EDGES.eastWingWest, null], [EDGES.westWingEast, null], [EDGES.westWingWest, null]] as const) {
-    const ends = cloth !== null;
+  // Layouts (使用者標註＋轉角照):
+  //  - clothLeft: the west wing's end wall — outer corner a deep lattice bay (the laundry), two rooms, inner corner the hall's big window;
+  //  - eastWest / eastSouth / eastEast: the east wing as in the user's plan sketch and corner photo — its inner face one
+  //    room (a window with AC) and one laundry (a deep bay with a white post and lattice at the corner), each half the
+  //    wall; its south end the laundry's big lattice bay at the corner, then solid wall (corridor and bathroom behind);
+  //    its east face three rooms, and solid wall at the south corner (the bathroom);
+  //  - side: windows with hoods, one ground-floor lattice bay at the left corner;
+  //  - plain: the west wing's inner face — a plain wall, nothing on it.
+  type Layout = 'clothLeft' | 'eastSouth' | 'eastWest' | 'eastEast' | 'side' | 'plain';
+  const wingWalls: [Anchor, Layout][] = [[EDGES.westWingSouth, 'clothLeft'], [EDGES.eastWingSouth, 'eastSouth'], [EDGES.eastWingWest, 'eastWest'], [EDGES.eastWingEast, 'eastEast'], [EDGES.westWingEast, 'plain'], [EDGES.westWingWest, 'side']];
+  for (const [e, layout] of wingWalls) {
     const f = edgeFrame(campus, e);
     if (!f) continue;
-    const L = f.len, Dw = WING.depth, b = build(f), { H, floors } = WINGS, P = WING.pier, LAT = WING.lattice;
+    const L = f.len, Dw = WING.depth, b = build(f), { H, floors } = WINGS;
+    const P = WING.pier, LAT = WING.lattice, SLOT = WING.slot;
     skin(b, f, H, []);
     // Grey concrete plinth along the foot of the wall.
     b.put(span(-0.02, L + 0.02, -0.3, WING.plinth, 0.02, 0.16), plinthGrey, 2);
-    type Kind = 'pier' | 'lattice' | 'hall' | 'groundLattice' | 'windows';
+    type Kind = 'pier' | 'lattice' | 'screen' | 'hall' | 'groundLattice' | 'windows' | 'single' | 'room' | 'blank';
     const cols: [number, number, Kind][] = [];
     const push = (w: number, k: Kind): void => { const x = cols.length ? cols[cols.length - 1]![1] : 0; cols.push([x, x + w, k]); };
-    if (ends && L > 2 * (2 * P + LAT) + 2) {
-      push(P, 'pier'); push(LAT, cloth === 'left' ? 'lattice' : 'hall'); push(P, 'pier'); push(L - 2 * (2 * P + LAT), 'windows'); push(P, 'pier'); push(LAT, cloth === 'left' ? 'hall' : 'lattice'); push(P, 'pier');
-    } else if (!ends && L > 2 * P + LAT + 3) {
+    if (layout === 'plain') {
+      // nothing on it
+    } else if (layout === 'clothLeft') {
+      push(P, 'pier'); push(LAT, 'lattice'); push(P, 'pier'); push(L - 2 * (2 * P + LAT), 'windows'); push(P, 'pier'); push(LAT, 'hall'); push(P, 'pier');
+    } else if (layout === 'eastSouth') {
+      // Seen from outside the laundry's corner is on the left; behind the rest are the corridor and the bathroom.
+      const scr = Math.max(2.6, L * 0.37 - 1.2);
+      push(0.7, 'pier'); push(scr, 'screen'); push(0.5, 'pier'); push(L - 0.7 - scr - 0.5, 'blank');
+    } else if (layout === 'eastEast') {
+      // Seen from outside the south corner (the bathroom) is on the left, solid; three rooms to the right.
+      push(0.6, 'pier'); push(3.0, 'blank'); push(P, 'pier'); push(L - 0.6 - 3.0 - P - P, 'windows'); push(P, 'pier');
+    } else if (layout === 'eastWest') {
+      // Seen from outside the corner is on the right. Only one room and one laundry (使用者): two equal bays.
+      const half = (L - P - P - 0.7) / 2;
+      push(P, 'pier'); push(half, 'room'); push(P, 'pier'); push(half, 'lattice'); push(0.7, 'pier');
+    } else if (L > 2 * P + LAT + 3) {
       push(P, 'pier'); push(LAT, 'groundLattice'); push(P, 'pier'); push(L - 3 * P - LAT, 'windows'); push(P, 'pier');
     } else {
       push(P, 'pier'); push(L - 2 * P, 'windows'); push(P, 'pier');
     }
     for (const [a, c, k] of cols) {
+      if (k === 'blank') continue; // solid wall: the skin only
       if (k === 'pier') {
         b.put(span(a, c, WING.plinth, H, 0.02, Dw), concrete, 2);
         b.put(span(a, c, -0.3, WING.plinth, 0.02, Dw + 0.04), plinthGrey, 2);
@@ -551,7 +577,7 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
         continue;
       }
       for (const fy of [0, ...floors]) {
-        const lat = k === 'lattice' || (k === 'groundLattice' && fy === 0);
+        const lat = k === 'lattice' || k === 'screen' || (k === 'groundLattice' && fy === 0);
         if (k === 'hall') {
           // The hall (戶廳): the same deep frame round one big window.
           const s0 = fy === 0 ? -0.3 : fy - 0.25, s1 = fy + 0.9, h0 = fy + 2.95, h1 = fy + STOREY - 0.25;
@@ -566,24 +592,26 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
           b.put(span(a, c, s0, s1, 0.02, Dw), fy === 0 ? plinthGrey : concrete, 2);
           if (fy + STOREY <= H) b.put(span(a, c, h0, h1, 0.02, Dw), concrete, 2);
           b.put(span(a, c, s1, h0, 0.06, 0.08), voidDark);
-          pipe(b, a + WING.slot / 2, s1, h0, Dw * 0.5);
-          latticePanel(b, a + WING.slot, c, s1, h0, Dw * 0.55);
+          const slot = k === 'screen' ? 0 : Math.min(SLOT, (c - a) * 0.4); // the big screen fills its bay
+          if (slot) pipe(b, a + slot / 2, s1, h0, Dw * 0.5);
+          latticePanel(b, a + slot, c, s1, h0, Dw * 0.55);
           continue;
         }
-        // Windows: one per bay, a concrete hood above, AC units on some upper ones.
-        const nb = ends ? 2 : Math.max(1, Math.round((c - a) / WING.bay)), st = (c - a) / nb; // end walls: two rooms
+        // Windows: one per bay (end walls: two rooms; `single`: one small window), a concrete hood above, AC on some upper ones.
+        const nb = k === 'room' ? 1 : k === 'single' ? Math.max(1, Math.round((c - a) / 3.2)) : layout === 'clothLeft' ? 2 : layout === 'eastEast' ? 3 : Math.max(1, Math.round((c - a) / WING.bay)), st = (c - a) / nb;
         for (let q = 0; q < nb; q++) {
-          const m = a + (q + 0.5) * st, w = Math.min(1.6, st - 0.8), y0 = fy + 1.05, y1 = fy + 2.25;
+          const small = k === 'single';
+          const m = a + (q + 0.5) * st, w = small ? Math.min(1.0, st - 0.4) : Math.min(1.6, st - (st < 2 ? 0.35 : 0.8)), y0 = fy + (small ? 1.15 : 1.05), y1 = fy + (small ? 2.05 : 2.25);
           windowAt(b, m - w / 2, m + w / 2, y0, y1);
           b.put(span(m - w / 2 - 0.2, m + w / 2 + 0.2, y1 + 0.1, y1 + 0.22, 0.02, WING.hood), concrete, 2);
           for (const s of [-1, 1]) b.put(span(m + s * (w / 2 + 0.1) - 0.1, m + s * (w / 2 + 0.1) + 0.1, y0 - 0.1, y1 + 0.22, 0.02, 0.22), concrete, 2);
-          if (fy > 0 && seeded() < 0.45) acUnit(b, m + (seeded() < 0.5 ? -1 : 1) * (w / 2 + 0.6), y0 - 0.2);
+          if (fy > 0 && !small && seeded() < 0.45) acUnit(b, m + (seeded() < 0.5 ? -1 : 1) * (w / 2 + 0.6), y0 - 0.2);
         }
         // Floor band between storeys.
         if (fy > 0) b.put(span(a, c, fy - 0.25, fy + 0.1, 0.02, 0.2), concrete, 2);
       }
       // Head band over the top floor's windows up to the parapet.
-      b.put(span(a, c, H - 0.25, H, 0.02, k === 'windows' ? 0.2 : Dw), concrete, 2);
+      b.put(span(a, c, H - 0.25, H, 0.02, k === 'windows' || k === 'single' || k === 'room' ? 0.2 : Dw), concrete, 2);
     }
     b.put(span(-0.05, L + 0.05, H, H + PARAPET, 0.02, Dw + 0.05), concrete, 2);
     b.done();
