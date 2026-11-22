@@ -1,4 +1,4 @@
-import { CUSTOM_FACADE_EDGES, CUSTOM_FACADE_OPENINGS } from './customFacades';
+import { CUSTOM_FACADE_EDGES, CUSTOM_FACADE_OPENINGS, PARTY_WALLS, STYLE_ALIAS } from './customFacades';
 import { ShapeUtils, Vector2 } from 'three';
 import { mulberry32 } from '../core/math';
 import {
@@ -274,6 +274,8 @@ function addWalls(
   windows?: { cuts: ReadonlyMap<number, WindowCut[]>; glass: GeoBuilder; frames: GeoBuilder },
   /** Heavy outer wall: an inner face `t` m inside the facade plus reveals round every opening. */
   thick?: { out: GeoBuilder; t: number },
+  /** Party walls (edge → height the wall starts at): the neighbouring piece's interior runs through below. */
+  wallFrom: Readonly<Record<number, number>> = {},
 ): void {
   const n = r.length / 2;
   let u = 0;
@@ -307,7 +309,8 @@ function addWalls(
         else { o.tri(v[0]!, v[1]!, v[2]!); o.tri(v[0]!, v[2]!, v[3]!); }
       }
     };
-    const shot = photo?.edges.get(i);
+    const party = wallFrom[i];
+    const shot = party === undefined ? photo?.edges.get(i) : undefined;
     if (shot && photo) {
       inner(0, len, 0, height);
       // Photo spans ground → roof; the strip below grade reuses the bottom row. Seen from outside,
@@ -338,7 +341,7 @@ function addWalls(
       g.tri(p0, p1, q1);
     };
     // A wall piece with this edge's window openings left out (strips between cut boundaries).
-    const cuts = windows?.cuts.get(i) ?? [];
+    const cuts = party === undefined ? windows?.cuts.get(i) ?? [] : [];
     const piece = (a0: number, a1: number, y0: number, y1: number, emit: (a0: number, a1: number, y0: number, y1: number) => void = panel): void => {
       const xs = [a0, a1];
       for (const c of cuts) if (c.a1 > a0 && c.a0 < a1) xs.push(Math.max(a0, c.a0), Math.min(a1, c.a1));
@@ -377,6 +380,14 @@ function addWalls(
           quad(windows.frames, Math.max(c.a0, a0), Math.min(c.a1, a1), y0, y1, set - 0.03, -1, FRAME_COLOR);
         }
       }
+    }
+    if (party !== undefined) {
+      if (party < height) {
+        piece(0, len, party, height);
+        piece(0, len, party, height, inner);
+      }
+      u = u0 + bays;
+      continue;
     }
     // Walls start below the ground plane so the wall/ground seam never forms a collision crease.
     const here = height > DOOR_HEIGHT + 0.2 ? doors.filter((d) => d.edge === i).sort((a, b) => a.along - b.along) : [];
@@ -602,8 +613,8 @@ export class ChunkBuilder {
     for (const b of this.buildings.get(k) ?? []) {
       if (b.replacedBy) continue; // drawn and collided by its hand-built model instead
       if (!b.inCampus) continue; // off campus: no-go zone, nothing built there
-      const styleIndex = this.facades.building[String(b.id)] ?? (b.inCampus ? 0 : 1);
-      const style = varied(this.styles[styleIndex]!, b.id);
+      const styleIndex = this.facades.building[String(STYLE_ALIAS[b.id] ?? b.id)] ?? (b.inCampus ? 0 : 1);
+      const style = varied(this.styles[styleIndex]!, STYLE_ALIAS[b.id] ?? b.id);
       const floors = Math.max(1, b.levels || Math.round(b.height / 3.6));
       const shots = this.photos.get(b.id);
       const photoOut = shots ? new GeoBuilder() : null;
@@ -628,7 +639,9 @@ export class ChunkBuilder {
         for (const o of openings) cuts.set(o.edge, [...(cuts.get(o.edge) ?? []), { a0: o.a0, a1: o.a1, y0: o.y0, y1: o.y1, open: true }]);
       }
       addWalls(facade, b.outer, b.height, floors, style, shots && photoOut ? { edges: shots.edges, out: photoOut } : undefined, doors,
-        cuts?.size ? { cuts, glass, frames: details } : undefined, thick);
+        // Party walls only open up for one traced plan running through the pieces; generated interiors are
+        // one per piece, so each keeps its own full wall.
+        cuts?.size ? { cuts, glass, frames: details } : undefined, thick, this.entrances[String(b.id)] ? PARTY_WALLS[b.id] : undefined);
       for (const h of b.holes) addWalls(facade, h, b.height, floors, style, undefined, [], undefined, thick);
       if (interior) addSlabs(details, slabs, b, interior);
       const custom = CUSTOM_FACADE_EDGES[b.id];

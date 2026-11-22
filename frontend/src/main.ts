@@ -69,7 +69,7 @@ import { createMbLobby } from './buildings/mbLobby';
 import { MAIN_GATE_GUARDHOUSE, createMainGate, gateTreeExclusions, inGateZone } from './campus/mainGate';
 import { addBoundaryZone } from './campus/boundaryZone';
 import { createBlockWallZone, createBlockWalls } from './campus/blockWall';
-import { applyBuildingFixes, divideLongtan, includeLongtanRoad, sealBuildings, streetscapeFixes, widenCampusRoads, widenCentralAxis } from './campus/campusFixes';
+import { applyBuildingFixes, divideLongtan, includeLongtanRoad, remapSplitTraced, sealBuildings, splitDormC, streetscapeFixes, widenCampusRoads, widenCentralAxis } from './campus/campusFixes';
 import { createLongtanSidewalks } from './campus/longtanRoad';
 import { createStreetscape, staffGateZone } from './campus/streetscape';
 import { SCOOTER_LOTS, createScooterLots } from './campus/scooterLots';
@@ -194,6 +194,7 @@ async function boot(): Promise<void> {
   divideLongtan(campus);
   sealBuildings(campus);
   applyBuildingFixes(campus);
+  splitDormC(campus); // 學生宿舍C 北棟：4 層中段＋3 層兩翼
   widenCampusRoads(campus);
   widenCentralAxis(campus);
   streetscapeFixes(campus);
@@ -220,6 +221,7 @@ async function boot(): Promise<void> {
         .then((t) => (t && !FLOORPLAN_INTERIORS ? onlyTraced(t, FLOORPLAN_INTERIOR_IDS) : t))
         .catch(() => undefined)
     : undefined;
+  remapSplitTraced(traced, campus);
   const bikeStations = placeBikeStations(campus);
   actions.setBikeStations(bikeStations);
   const keepClear = [...buildingFootprintRings(librarySrc), ...handBuiltSrcs.flatMap(buildingFootprintRings), ...stationClearings(bikeStations), ...gateTreeExclusions(), ...SCOOTER_LOTS.map((l) => l.ring), ...(court ? [court.treeFree] : []), ...yuntayTreeFree(), ...dormTreeFree(), ...dormCFacadeTreeFree(campus), dormPit.treeFree, ...dormYardClearings(), ...PONDS.map((p) => p.ring)];
@@ -274,7 +276,9 @@ async function boot(): Promise<void> {
   for (const b of campus.buildings) {
     if (!hasInterior(b)) continue;
     const photoEdges = new Set((facades?.photos[String(b.id)]?.edges ?? []).map((e) => e.edge));
-    const e = traced?.entrances[String(b.id)]?.[0] ?? buildingEntrance(b, campus.roads, photoEdges);
+    // Listed in the traced index (even with no doors): its doors are the plan's, no fallback door.
+    const listed = traced?.entrances[String(b.id)];
+    const e = listed ? listed[0] : buildingEntrance(b, campus.roads, photoEdges);
     if (!e) continue;
     const r = b.outer, n = r.length / 2, j = (e.edge + 1) % n;
     const dx = r[j * 2]! - r[e.edge * 2]!, dz = r[j * 2 + 1]! - r[e.edge * 2 + 1]!, len = Math.hypot(dx, dz);

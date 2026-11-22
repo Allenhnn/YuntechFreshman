@@ -5,6 +5,7 @@ import type { FacadeData } from '../campus/facadeTypes';
 import type { BuildingSource, TracedIndex } from '../buildings/buildingTypes';
 import { buildBuildingMeshes, type BuildingMeshes, type BuildingPart } from '../buildings/buildingMesh';
 import { dormVendingPart, generateInterior } from './generateInterior';
+import { clipToShells } from './clipToShells';
 
 /**
  * Off-main-thread interior generation: plan layout + the hand-built mesh pipeline take up to
@@ -48,6 +49,9 @@ const api = {
       const res = await fetch(new URL(plan.file, baseUrl));
       if (!res.ok) throw new Error(`${plan.file}: HTTP ${res.status}`);
       source = (await res.json()) as BuildingSource;
+      // Storeys above a lower shell (學生宿舍C's 3-storey wings) are cut off.
+      const shells = (campus?.buildings ?? []).filter((b) => plan.osmIds.includes(b.id));
+      source = clipToShells(source, shells);
     } else {
       const b = campus?.buildings.find((x) => String(x.id) === key);
       if (!campus || !b) return null;

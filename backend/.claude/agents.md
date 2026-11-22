@@ -164,6 +164,26 @@ docker compose down             # 停止（加 -v 會連資料一起刪除）
 | `.env.example` 沒被 commit | 根目錄 `.gitignore` 有 `.env*`；需要時用 `git add -f backend/.env.example` |
 
 ## 變更紀錄
+### 2026-11-23（前端：學生宿舍C 北棟依使用者標註調整房間配置）— 分支 `fix/dorm-c-front-gate`
+- 需求：依遊戲截圖標註，凸出段每層是一間房間＋曬衣間；退縮處是戶廳；兩翼端牆每層只有一間曬衣間、兩間房間，另一端是戶廳
+- `frontend/src/campus/customFacades.ts`：`DORM_C.roomWidth = 3.4`
+- `frontend/src/campus/campusFixes.ts`：`splitDormC` 把中段西轉角（原 vertex 14、15）沿正面往西移一間房寬
+- `frontend/src/buildings/dormCFacade.ts`：凸出段左邊加房間列；兩翼端牆改成「外側曬衣間花磚＋兩間房＋內側戶廳大窗」（西翼曬衣間在左、東翼在右）
+- 追加：凸出段西側的退縮處（藍框）只有一間戶廳：整面一格、每層一扇高窗、不掛冷氣
+- 測試：`tsc --noEmit`、`vite build` 通過；dev server 暫時除錯相機從使用者截圖視角與兩翼正面看過（已移除）
+
+### 2026-11-23（前端：學生宿舍C 北棟改成中段 4 層、兩翼 3 層，依照片重建兩翼與洗衣陽台正面）— 分支 `fix/dorm-c-front-gate`
+- 需求：使用者說中段 4 層、左右兩邊 3 層，依下方三張照片重建；中間曬衣間依上方兩張正面照再重建
+- `frontend/src/campus/campusFixes.ts`：`splitDormC` 把 OSM 296668596（原 5 層 18 m）載入時切成中段（原 id，4 層）與西翼 2966685961、東翼 2966685962（3 層）；`remapSplitTraced` 在描圖室內開啟時把殼體門洞搬到新分塊
+- `frontend/src/campus/customFacades.ts`：`DORM_C`、`DORM_C_PIECES`、`PARTY_WALLS`、`STYLE_ALIAS`；洗衣陽台改 2F–4F、整個凸出段寬（兩端各留 1 m 柱）、只挖外牆厚度 0.4 m
+- `frontend/src/campus/chunkBuilder.ts`：分界牆（只在描圖室內時拆）、分塊沿用原本的立面樣式與色調
+- `frontend/src/campus/entrances.ts`：備援入口跳過 `CUSTOM_FACADE_EDGES` 的牆，門不會被手工立面蓋住
+- 新增 `frontend/src/interiors/clipToShells.ts`（interiorWorker 用）：描圖室內超出較矮殼體的樓層剪掉、電梯落點移到最近走廊
+- `frontend/src/main.ts`：呼叫上面兩個 fix；在描圖索引中列出（即使沒有門）的建築不再補備援自動門
+- `frontend/src/buildings/dormCFacade.ts` 重寫：中段一整片格柵＋兩端開口（白水管、橫桿）、外框深 1.5 m、一樓整面玻璃門廳；兩翼六面牆（灰色牆基、深框花磚格柵列、窗戶遮陽板、冷氣）
+- 決定：目前 `FLOORPLAN_INTERIORS` 關閉，三塊各自有生成的室內與入口，分界牆保留；中段 4F 以上、兩翼 3F 以上都沒有室內
+- 測試：`tsc --noEmit`、`vite build` 通過；dev server 用暫時的除錯相機從中庭、空中與陽台內檢查（除錯碼已移除）
+
 ### 2026-11-22（前端：學生宿舍C 北棟中段洗衣陽台室內）— 分支 `fix/dorm-c-front-gate`
 - 需求：依使用者四張陽台室內照，重新建模建築中間的陽台
 - 發現：立面上的紅色是赤陶鏤空圓環花磚，不是磁磚；後面是長條洗衣陽台
