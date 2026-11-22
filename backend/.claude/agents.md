@@ -164,6 +164,22 @@ docker compose down             # 停止（加 -v 會連資料一起刪除）
 | `.env.example` 沒被 commit | 根目錄 `.gitignore` 有 `.env*`；需要時用 `git add -f backend/.env.example` |
 
 ## 變更紀錄
+### 2026-11-22（前端：學生宿舍C 前門依實拍修細節）— 分支 `fix/dorm-c-front-gate`（從 feat/login af24168 開出）
+- 需求：依使用者照片（紅色箭頭為視角，從 C 中庭往東看前門）修 C 棟門口細節
+- 先比對現況：門口由 `campus/dormYard.ts` 的 `DORM_GATES` 產生，全部宿舍門共用紅瓦門樓＋鐵色感應門；中庭全是草地
+- `frontend/src/campus/dormYard.ts`：
+  - `GateMark.portal`：只有「學生宿舍C 前門」用，其他門不變
+    - 門樓：紅瓦屋頂改成白色深門楣，柱頂兩側各一盞圓球燈（兩面都有）
+    - 圍牆：每跨嵌紅色花磚格柵，感應門改淡藍色
+  - 新增 `C_FRONT`，在中庭側鋪設：
+    - 從前門往西 6.9–30 m、寬 4 m 的灰色連鎖磚步道，每 3 m 一道紅色雙排磚帶，UV 沿步道方向
+    - 步道南側到 C 東翼（296668595）一片深紅褐色磚鋪廣場
+    - 東翼靠門的兩面牆前做入口平台（0.45 m），自由的三邊各三階，玻璃雙門＋玻璃店面（直框）
+    - 步道北側草地上一支黑色方頭路燈、一叢灌木
+  - `dormYardClearings` 加入步道與廣場範圍，避免撒樹
+- 測試：`tsc --noEmit`、`vite build` 通過；headless Chrome 從照片同一位置朝東看確認（截圖時把故事關掉，避免一開始躺在宿舍床上）
+- 備註：`fix/dorm-d-entry-terrace`（D 入口平台補到牆面）尚未合併進 feat/login
+
 ### 2026-11-20（前端：迴旋坡道往 D 側平移、與走廊欄杆相接、中間鏤空）— 分支 `feat/dorm-c-d-exterior`
 - 需求：把迴旋坡道平移到截圖紅線位置；坡道跟旁邊的圍欄（D 側走廊花磚欄杆）連在一起，中間連接處直接鏤空
 - `frontend/src/buildings/dormCourtyard.ts`：`RAMP` 全部往 D 側移 0.8 m，外牆外緣在 w −8.6（紅線）
