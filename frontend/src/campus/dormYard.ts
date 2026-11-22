@@ -40,9 +40,9 @@ interface GateMark {
   a: [number, number];
   b: [number, number];
   /**
-   * Street View style of 學生宿舍C 前門 (user photo, 2026-11-22): instead of the red-tile roof, a white
-   * portal (pillars and a deep lintel with a globe lamp each side), red breeze-block panels set in the
-   * walls, a pale-blue gate, and the approach on the courtyard side (see C_FRONT).
+   * Style of 學生宿舍C 前門 (user photos, 2026-11-22): instead of pillars and a red-tile roof, a solid
+   * cream gatehouse block (PORTAL) with brass dome lamps, cream walls with tall red lattice panels, a
+   * pale-blue gate, and the approach on the courtyard side (see C_FRONT).
    */
   portal?: boolean;
 }
@@ -135,13 +135,16 @@ export function dormRideables(): { x: number; z: number; yaw: number; kind: 'bik
  * `faces` are the east wing's outline corners from the gate corner southward (OSM 296668595).
  */
 const C_FRONT = {
-  walk: { from: 6.9, to: 30, half: 2.0 },
+  walk: { from: -7, to: 30, half: 2.0 }, // through the gate (replaces the shared gate pavers)
   plaza: [[10.7, 327.7], [11.4, 331.9], [7.2, 338.2], [2.6, 338.9], [-7.1, 337.5], [-9.0, 330.8], [9.8, 325.5]] as const,
   faces: [[10.9, 327.7], [11.6, 331.9], [7.3, 338.4]] as const,
   platform: { start: 0.25, end: 4.5, depth: 2.2, top: 0.45, rise: 0.15, tread: 0.35, steps: 3 },
   lamp: [5.0, 321.4] as const,
   shrub: [2.7, 322.4] as const,
 };
+
+/** 學生宿舍C 前門's gatehouse (close-up photo): opening, block width / height / depth, lintel underside, lattice panel and pier widths. */
+const PORTAL = { open: 2.7, width: 3.9, height: 3.15, depth: 0.8, lintel: 2.25, panel: 0.8, pier: 0.95 };
 
 const WALL_H = 2.1;
 const WALL_T = 0.28;
@@ -209,7 +212,7 @@ export function createDormYard(scene: Scene, physics: RAPIER.World, campus: Camp
   const dark = mat(0x2a2d31, { roughness: 0.5 });
   const sensorRed = mat(0xc62828, { emissive: 0xff3030, emissiveIntensity: 0.9 });
   const sensorGreen = mat(0x2e7d32, { emissive: 0x30ff60, emissiveIntensity: 0.9 });
-  interface SensorGate { x: number; z: number; leaf: Mesh; light: Mesh; block: RAPIER.Collider; open: number; target: number }
+  interface SensorGate { x: number; z: number; leaf: Mesh; light: Mesh; block: RAPIER.Collider; open: number; target: number; travel: number }
   const gates: SensorGate[] = [];
   const pavers = tracker.material(new MeshStandardMaterial({
     map: canvas(tracker, 128, 128, (g) => {
@@ -227,24 +230,31 @@ export function createDormYard(scene: Scene, physics: RAPIER.World, campus: Camp
   };
   const dorms = campus.buildings.filter((b) => b.name?.startsWith('學生宿舍'));
 
+  // Red-brown diamond lattice (breeze-block screen) over a dark, teal-lit void; one panel 0.8 × 1.8 m.
   const lattice = tracker.material(new MeshStandardMaterial({
-    map: (() => {
-      const t = canvas(tracker, 64, 64, (g) => {
-        g.fillStyle = '#9c4a36';
-        g.fillRect(0, 0, 64, 64);
-        g.fillStyle = '#3a2420';
-        for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) {
-          const x = i * 16 + 8, y = j * 16 + 8;
-          g.beginPath(); g.moveTo(x, y - 5); g.lineTo(x + 5, y); g.lineTo(x, y + 5); g.lineTo(x - 5, y); g.closePath(); g.fill();
-        }
-      });
-      t.repeat.set(3, 1.6);
-      return t;
-    })(),
+    map: canvas(tracker, 128, 288, (g) => {
+      g.fillStyle = '#1f2423';
+      g.fillRect(0, 0, 128, 288);
+      g.fillStyle = 'rgba(60,125,120,0.45)';
+      g.fillRect(0, 0, 128, 288);
+      g.strokeStyle = '#a3503b';
+      g.lineWidth = 6;
+      for (let k = -288; k < 416; k += 26) {
+        g.beginPath(); g.moveTo(k, 0); g.lineTo(k + 288, 288); g.stroke();
+        g.beginPath(); g.moveTo(k + 288, 0); g.lineTo(k, 288); g.stroke();
+      }
+      g.strokeStyle = '#8a8378';
+      g.lineWidth = 6;
+      g.strokeRect(3, 3, 122, 282);
+    }),
     roughness: 0.9,
   }));
+  const cream = mat(0xeee6d0, { roughness: 0.95 });
+  const plinth = mat(0x8d8b85, { roughness: 0.9 });
   const paleBlue = mat(0xa9d2e3, { metalness: 0.3, roughness: 0.5 });
-  const globe = tracker.geometry(new SphereGeometry(0.17, 14, 10));
+  const dome = tracker.geometry(new SphereGeometry(0.15, 14, 10).scale(1, 1, 0.6));
+  const brass = mat(0xc9a24d, { metalness: 0.6, roughness: 0.35, emissive: 0x6b5220, emissiveIntensity: 0.4 });
+  const lightBox = mat(0x6c6e70, { roughness: 0.6 });
   const globeMat = mat(0xfff6dc, { emissive: 0xffe6a8, emissiveIntensity: 0.8, roughness: 0.3 });
   const plazaPavers = tracker.material(new MeshStandardMaterial({
     map: (() => {
@@ -459,42 +469,27 @@ export function createDormYard(scene: Scene, physics: RAPIER.World, campus: Camp
       return mesh;
     };
     const world = (lx: number, lz: number): [number, number] => [cx + ux * lx - uz * lz, cz + uz * lx + ux * lz];
-    // Wall segments either side of the opening, with pilasters every ~3 m and a grey coping.
-    for (const [s0, s1] of [[-left, -GATE_W / 2 - 0.35], [GATE_W / 2 + 0.35, right]] as const) {
-      const w = s1 - s0;
-      if (w < 0.3) continue;
-      const mid = (s0 + s1) / 2;
-      add(box(w, WALL_H, WALL_T, mid, WALL_H / 2, 0), white);
-      add(box(w + 0.06, 0.08, WALL_T + 0.1, mid, WALL_H + 0.04, 0), coping);
-      for (let s = s0; s <= s1 + 0.01; s += Math.max(2.4, w / Math.max(1, Math.round(w / 3)))) add(box(0.42, WALL_H + 0.18, 0.42, s, (WALL_H + 0.18) / 2, 0), white);
-      const [wx, wz] = world(mid, 0);
-      solid(wx, WALL_H / 2, wz, w / 2, WALL_H / 2, WALL_T / 2 + 0.05, yaw);
-    }
-    // Gate pillars and the small red-tile roof (門樓) — or, for a portal gate, a deep white lintel with a
-    // globe lamp on each pillar (both faces) and red breeze-block panels in the walls.
-    for (const s of [-1, 1]) {
-      add(box(0.7, 2.9, 0.7, s * (GATE_W / 2 + 0.35), 1.45, 0), white);
-      const [px, pz] = world(s * (GATE_W / 2 + 0.35), 0);
-      solid(px, 1.45, pz, 0.35, 1.45, 0.35, yaw);
-    }
-    if (g.portal) {
-      add(box(GATE_W + 1.4, 0.62, 0.8, 0, 2.94, 0), white);
-      add(box(GATE_W + 1.55, 0.08, 0.92, 0, 3.29, 0), coping);
-      for (const s of [-1, 1]) for (const face of [-1, 1]) {
-        const lamp = new Mesh(globe, globeMat);
-        lamp.position.set(s * (GATE_W / 2 + 0.35), 2.62, face * 0.47);
-        grp.add(lamp);
-      }
+    const GW = g.portal ? PORTAL.open : GATE_W;
+    const leafZ = g.portal ? 0 : 0.32;
+    let leaf: Mesh, light: Mesh;
+    if (!g.portal) {
+      // Wall segments either side of the opening, with pilasters every ~3 m and a grey coping.
       for (const [s0, s1] of [[-left, -GATE_W / 2 - 0.35], [GATE_W / 2 + 0.35, right]] as const) {
         const w = s1 - s0;
-        if (w < 1.2) continue;
-        const n = Math.max(1, Math.round(w / 3)), bay = w / n;
-        for (let i = 0; i < n; i++) {
-          const a = s0 + i * bay + 0.45, b = s0 + (i + 1) * bay - 0.45;
-          if (b - a > 0.3) add(box(b - a, 1.15, WALL_T + 0.04, (a + b) / 2, 1.05, 0), lattice);
-        }
+        if (w < 0.3) continue;
+        const mid = (s0 + s1) / 2;
+        add(box(w, WALL_H, WALL_T, mid, WALL_H / 2, 0), white);
+        add(box(w + 0.06, 0.08, WALL_T + 0.1, mid, WALL_H + 0.04, 0), coping);
+        for (let s = s0; s <= s1 + 0.01; s += Math.max(2.4, w / Math.max(1, Math.round(w / 3)))) add(box(0.42, WALL_H + 0.18, 0.42, s, (WALL_H + 0.18) / 2, 0), white);
+        const [wx, wz] = world(mid, 0);
+        solid(wx, WALL_H / 2, wz, w / 2, WALL_H / 2, WALL_T / 2 + 0.05, yaw);
       }
-    } else {
+      // Gate pillars and the small red-tile roof (門樓).
+      for (const s of [-1, 1]) {
+        add(box(0.7, 2.9, 0.7, s * (GATE_W / 2 + 0.35), 1.45, 0), white);
+        const [px, pz] = world(s * (GATE_W / 2 + 0.35), 0);
+        solid(px, 1.45, pz, 0.35, 1.45, 0.35, yaw);
+      }
       add(box(GATE_W + 1.6, 0.22, 1.5, 0, 3.0, 0), white); // lintel
       const roofW = GATE_W + 2.4;
       for (const side of [-1, 1]) {
@@ -502,26 +497,77 @@ export function createDormYard(scene: Scene, physics: RAPIER.World, campus: Camp
         slope.rotation.x = side * 0.42;
       }
       add(box(roofW + 0.1, 0.12, 0.18, 0, 3.66, 0), mat(0x8c3a30)); // ridge
+      // Sensor sliding gate (感應門): closed across the opening, slides behind the right-hand wall
+      // when someone comes close; card reader and a sensor light by the left pillar.
+      const bars: BufferGeometry[] = [box(GATE_W, 0.06, 0.06, 0, 0.12, 0), box(GATE_W, 0.06, 0.06, 0, 1.75, 0)];
+      for (let i = 0; i <= 14; i++) bars.push(box(0.035, 1.7, 0.035, -GATE_W / 2 + (i * GATE_W) / 14, 0.93, 0));
+      leaf = add(merged(bars), iron);
+      add(box(0.14, 1.15, 0.14, -GATE_W / 2 - 0.9, 0.58, 0.6), iron);
+      add(box(0.22, 0.3, 0.1, -GATE_W / 2 - 0.9, 1.25, 0.63), dark);
+      light = add(box(0.16, 0.16, 0.06, -GATE_W / 2 - 0.35, 2.55, 0.38), sensorRed);
+    } else {
+      // 學生宿舍C 前門 (close-up photo, 2026-11-22): cream walls with a grey plinth and a heavy grey coping,
+      // tall red lattice panels (0.8 m) between plain piers; a solid cream gatehouse block standing above
+      // the walls with a door-sized opening, a brass dome lamp either side of it on both faces, a grey
+      // light box above the opening and a small card reader; a pale-blue gate in the opening.
+      const { open: GO, width: PW, height: PH, depth: PD, lintel: PL, panel: PP, pier: PR } = PORTAL;
+      for (const [s0, s1, dir] of [[-left, -PW / 2, -1], [PW / 2, right, 1]] as const) {
+        const w = s1 - s0;
+        if (w < 0.3) continue;
+        const mid = (s0 + s1) / 2;
+        add(box(w, WALL_H, WALL_T, mid, WALL_H / 2, 0), cream);
+        add(box(w, 0.2, WALL_T + 0.06, mid, 0.1, 0), plinth);
+        add(box(w + 0.04, 0.13, WALL_T + 0.18, mid, WALL_H + 0.065, 0), plinth);
+        // Lattice panels from the gatehouse outward: panel, pier, panel, …
+        for (let k = 0; ; k++) {
+          const near = PW / 2 + 0.05 + k * (PP + PR), far = near + PP;
+          if (far > (dir < 0 ? -s0 : s1) - 0.25) break;
+          add(box(PP, 1.8, WALL_T + 0.03, dir * (near + far) / 2, 1.1, 0), lattice);
+        }
+        const [wx, wz] = world(mid, 0);
+        solid(wx, WALL_H / 2, wz, w / 2, WALL_H / 2, WALL_T / 2 + 0.05, yaw);
+      }
+      const sideW = (PW - GO) / 2;
+      for (const s of [-1, 1]) {
+        add(box(sideW, PH, PD, s * (GO / 2 + sideW / 2), PH / 2, 0), cream);
+        const [px, pz] = world(s * (GO / 2 + sideW / 2), 0);
+        solid(px, PH / 2, pz, sideW / 2, PH / 2, PD / 2, yaw);
+      }
+      add(box(PW, PH - PL, PD, 0, (PL + PH) / 2, 0), cream);
+      add(box(PW + 0.08, 0.08, PD + 0.08, 0, PH + 0.04, 0), plinth);
+      add(box(GO + 0.3, 0.05, PD + 0.5, 0, 0.025, 0), plinth); // stone threshold
+      for (const face of [-1, 1]) {
+        for (const s of [-1, 1]) {
+          const lamp = new Mesh(dome, brass);
+          lamp.position.set(s * (PW / 2 - 0.4), PL + 0.2, face * (PD / 2));
+          grp.add(lamp);
+        }
+        add(box(0.55, 0.3, 0.1, 0.75, PH - 0.5, face * (PD / 2 + 0.05)), lightBox);
+        add(box(0.16, 0.24, 0.08, GO / 2 + 0.2, PL - 0.15, face * (PD / 2 + 0.04)), lightBox);
+      }
+      // Pale-blue gate: a frame, a plated left half and a barred right half (slides as one leaf).
+      const parts: BufferGeometry[] = [
+        box(GO, 0.05, 0.05, 0, 0.1, 0), box(GO, 0.05, 0.05, 0, 1.95, 0),
+        box(0.05, 1.9, 0.05, -GO / 2 + 0.03, 1.02, 0), box(0.05, 1.9, 0.05, 0, 1.02, 0), box(0.05, 1.9, 0.05, GO / 2 - 0.03, 1.02, 0),
+        box(GO / 2 - 0.1, 1.6, 0.025, -GO / 4, 1.02, 0),
+      ];
+      for (let x = 0.17; x < GO / 2 - 0.05; x += 0.17) parts.push(box(0.03, 1.85, 0.03, x, 1.02, 0));
+      leaf = add(merged(parts), paleBlue);
+      light = add(box(0.12, 0.12, 0.05, -GO / 2 - 0.2, PL - 0.15, PD / 2 + 0.03), sensorRed);
     }
-    // Sensor sliding gate (感應門): closed across the opening, slides behind the right-hand wall
-    // when someone comes close; card reader and a sensor light by the left pillar.
-    const bars: BufferGeometry[] = [box(GATE_W, 0.06, 0.06, 0, 0.12, 0), box(GATE_W, 0.06, 0.06, 0, 1.75, 0)];
-    for (let i = 0; i <= 14; i++) bars.push(box(0.035, 1.7, 0.035, -GATE_W / 2 + (i * GATE_W) / 14, 0.93, 0));
-    const leaf = add(merged(bars), g.portal ? paleBlue : iron);
-    leaf.position.set(0, 0, 0.32);
-    add(box(0.14, 1.15, 0.14, -GATE_W / 2 - 0.9, 0.58, 0.6), iron);
-    add(box(0.22, 0.3, 0.1, -GATE_W / 2 - 0.9, 1.25, 0.63), dark);
-    const light = add(box(0.16, 0.16, 0.06, -GATE_W / 2 - 0.35, 2.55, 0.38), sensorRed);
-    const [gx, gz] = world(0, 0.32);
-    const block = physics.createCollider(RAPIER.ColliderDesc.cuboid(GATE_W / 2, 1.0, 0.12).setTranslation(gx, 1.0, gz)
+    leaf.position.set(0, 0, leafZ);
+    const [gx, gz] = world(0, leafZ);
+    const block = physics.createCollider(RAPIER.ColliderDesc.cuboid(GW / 2, 1.0, 0.12).setTranslation(gx, 1.0, gz)
       .setRotation((() => { const q = new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), yaw); return { x: q.x, y: q.y, z: q.z, w: q.w }; })()));
     colliders.push(block);
-    gates.push({ x: cx, z: cz, leaf, light, block, open: 0, target: 0 });
-    // Pavers through the gate (both sides).
-    const path = new Mesh(tracker.geometry(new PlaneGeometry(GATE_W - 0.4, 14).rotateX(-Math.PI / 2).translate(0, 0.035, 0)), pavers);
-    (path.geometry.attributes.uv!.array as Float32Array).forEach((v, i, arr) => { arr[i] = v * (i % 2 === 0 ? 2 : 7); });
-    path.receiveShadow = true;
-    grp.add(path);
+    gates.push({ x: cx, z: cz, leaf, light, block, open: 0, target: 0, travel: GW + 0.55 });
+    // Pavers through the gate (both sides); the portal gate's walk runs through instead.
+    if (!g.portal) {
+      const path = new Mesh(tracker.geometry(new PlaneGeometry(GATE_W - 0.4, 14).rotateX(-Math.PI / 2).translate(0, 0.035, 0)), pavers);
+      (path.geometry.attributes.uv!.array as Float32Array).forEach((v, i, arr) => { arr[i] = v * (i % 2 === 0 ? 2 : 7); });
+      path.receiveShadow = true;
+      grp.add(path);
+    }
     if (g.portal) {
       // Way into the courtyard: the side of the wall the mark's start lies on.
       const nx = -uz, nz = ux, inward = (g.a[0] - cx) * nx + (g.a[1] - cz) * nz > 0 ? 1 : -1;
@@ -556,7 +602,6 @@ export function createDormYard(scene: Scene, physics: RAPIER.World, campus: Camp
     grp.add(slab);
   }
 
-  const travel = GATE_W + 0.55;
   return {
     update(dt, px, py, pz) {
       let started = false;
@@ -566,8 +611,8 @@ export function createDormYard(scene: Scene, physics: RAPIER.World, campus: Camp
         if (want === 1 && g.target === 0) started = true;
         g.target = want;
         if (g.open === g.target) continue;
-        g.open = g.target > g.open ? Math.min(1, g.open + (dt * GATE_SPEED) / travel) : Math.max(0, g.open - (dt * GATE_SPEED) / travel);
-        g.leaf.position.x = g.open * travel;
+        g.open = g.target > g.open ? Math.min(1, g.open + (dt * GATE_SPEED) / g.travel) : Math.max(0, g.open - (dt * GATE_SPEED) / g.travel);
+        g.leaf.position.x = g.open * g.travel;
         g.light.material = g.open > 0 ? sensorGreen : sensorRed;
         // Passable once it is mostly open; blocks again as soon as it starts closing over the gap.
         g.block.setEnabled(g.open < 0.6);
