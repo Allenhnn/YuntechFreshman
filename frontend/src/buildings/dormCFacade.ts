@@ -78,6 +78,8 @@ const CANOPY = { y0: 2.85, y1: 3.58, depth: 2.1, lobby: 0.35 }; // top under the
 const FLANK = { depth: 0.45, pier: 0.6, bay: 3.4, shade: 0.8 };
 /** The halls' windows (使用者：縮小): this wide at most, centred in the hall's wall. */
 const HALL_WINDOW = 2.4;
+/** The C3 storefront split across the lobby (正面照): fixed | shut double door | open double door | fixed. */
+const STOREFRONT = [0.157, 0.482, 0.813] as const;
 /** Wing faces: frame depth, pier, lattice bay width (incl. its open slot), slot width, window bay, hood depth, plinth top. */
 const WING = { depth: 0.5, pier: 0.6, lattice: 3.0, slot: 0.7, bay: 2.6, hood: 0.6, plinth: 0.9 };
 /** Entrance terrace in front of the centre bay: depth from the wall, steps (count, rise, tread). */
@@ -471,7 +473,7 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
     // dark-brown storefront set back SF: fixed glass | double door (shut) | double door (open outward) | fixed glass,
     // a row of transoms above; clear glass onto the lobby, whose floor is level with the landing.
     const lob0 = C0 + E, lob1 = C1 - E, W = lob1 - lob0, f0 = LOBBY.floor, top = LOBBY.top, dTop = f0 + 2.1, SF = 0.6;
-    const xs = [lob0, lob0 + W * 0.157, lob0 + W * 0.482, lob0 + W * 0.813, lob1]; // fixed | shut doors | open doors | fixed
+    const xs = [lob0, ...STOREFRONT.map((t) => lob0 + W * t), lob1]; // fixed | shut doors | open doors | fixed
     const [, dl0, dr0, dr1] = xs as [number, number, number, number, number];
     b.put(span(lob0, lob1, top, 3.35, 0.02, D - 0.3), concrete, 2); // lintel
     for (const [a, c] of [[C0, C0 + E], [C1 - E, C1]] as const) b.put(span(a - 0.06, c + 0.06, 0, 0.95, 0.02, D + 0.08), plinthGrey, 2); // rough stone pier bases
@@ -702,4 +704,19 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
       root.removeFromParent();
     },
   };
+}
+
+/**
+ * The C3 lobby's open double door (正面照), world: its middle on the storefront line, and the outward
+ * unit normal (toward the courtyard). For the 「進入宿舍」 prompt and where 「離開宿舍」 puts you back.
+ */
+export function dormCLobbyDoor(campus: CampusData): { x: number; z: number; outX: number; outZ: number; floor: number } | null {
+  const f = edgeFrame(campus, EDGES.centre);
+  if (!f) return null;
+  const E = CENTRE.endPier, L = f.len;
+  const C1 = L - DORM_C.roomWidth, C0 = C1 - (BAL.a1 - BAL.a0 + 2 * E);
+  const lob0 = C0 + E, W = C1 - E - lob0;
+  const mid = lob0 + W * (STOREFRONT[1] + STOREFRONT[2]) / 2; // the open double door
+  const [x, z] = f.world(mid, 0.6);
+  return { x, z, outX: f.nx, outZ: f.nz, floor: LOBBY.floor };
 }

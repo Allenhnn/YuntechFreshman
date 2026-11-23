@@ -59,7 +59,8 @@ import { SHELL_WALL } from './interiors/generateInterior';
 import { createMgmtFeatures } from './buildings/mgmtFeatures';
 import { createYuntayExterior, yuntayTreeFree } from './buildings/yuntayExterior';
 import { createDormFeatures, dormTreeFree } from './buildings/dormFeatures';
-import { createDormCFacade, dormCFacadeTreeFree } from './buildings/dormCFacade';
+import { createDormCFacade, dormCFacadeTreeFree, dormCLobbyDoor } from './buildings/dormCFacade';
+import { dormCUnit } from './buildings/dormCUnit';
 import { courtPit, createMgmtCourtyard } from './buildings/mgmtCourtyard';
 import { createDormCourtyard, dormCourtPit } from './buildings/dormCourtyard';
 import { createDormYard, dormRideables, dormYardClearings } from './campus/dormYard';
@@ -245,6 +246,19 @@ async function boot(): Promise<void> {
   const handBuilt = handBuiltSrcs.map((src) => createHandBuiltBuilding(src, scene, physics, renderer, env.materials, sceneResources, {
     facadeStyle: facadeStyleOf(facades, campus, src.osmReplaces[0] ?? src.name),
   }));
+  // 學生宿舍C 東翼的一戶寢室（buildings/dormCUnit.ts）: entered from the C3 lobby with 「進入宿舍」, left with 「離開宿舍」.
+  const unit = dormCUnit(campus);
+  const lobbyDoor = dormCLobbyDoor(campus);
+  const unitBuilding = unit ? createHandBuiltBuilding(unit.source, scene, physics, renderer, env.materials, sceneResources, {
+    facadeStyle: facadeStyleOf(facades, campus, '學生宿舍C'),
+  }) : null;
+  if (unitBuilding && unit && lobbyDoor) {
+    handBuilt.push(unitBuilding);
+    unitBuilding.interactables.push(
+      { id: 'dormC-unit:enter', prompt: '按 E 進入宿舍', x: lobbyDoor.x + lobbyDoor.outX * 1.0, y: lobbyDoor.floor, z: lobbyDoor.z + lobbyDoor.outZ * 1.0, radius: 2.4 },
+      (() => { const [x, z] = unitBuilding.planToWorld(unit.leave[0], unit.leave[1]); return { id: 'dormC-unit:leave', prompt: '按 E 離開宿舍', x, y: 0, z, radius: 1.6 }; })(),
+    );
+  }
   // 2F sky bridge 管理二館 → 管理一館: from the door at the north end of MB's east wing to MA's west corridor end.
   const byId = (id: string): HandBuiltBuilding | undefined => handBuilt.find((b) => b.source.id === id);
   const ma = byId('ma'), mb = byId('mb');
@@ -808,6 +822,31 @@ async function boot(): Promise<void> {
             actions.toast(refused);
             audio.play('close');
           } else audio.play('click');
+          return;
+        }
+        if ((target?.id === 'dormC-unit:enter' || target?.id === 'dormC-unit:leave') && unit && unitBuilding && lobbyDoor) {
+          // 學生宿舍C: straight into 寢室 1 by its door, or back out in front of the C3 lobby.
+          if (gameStore.getState().fading) return;
+          const entering = target.id === 'dormC-unit:enter';
+          actions.setFading(true);
+          window.setTimeout(() => {
+            let x: number, y: number, z: number, facing: number;
+            if (entering) {
+              [x, z] = unitBuilding.planToWorld(unit.arrive.at[0], unit.arrive.at[1]);
+              y = 0;
+              facing = unitBuilding.planFacing(unit.arrive.facing);
+            } else {
+              x = lobbyDoor.x + lobbyDoor.outX * 2.2;
+              z = lobbyDoor.z + lobbyDoor.outZ * 2.2;
+              y = lobbyDoor.floor;
+              facing = Math.atan2(lobbyDoor.outX, lobbyDoor.outZ);
+            }
+            teleport(x, y, z, facing);
+            renderSyncSystem(world, 1);
+            rig.snap(readFocus(), facing + Math.PI);
+            actions.setFading(false);
+            actions.toast(entering ? '回到宿舍了' : '離開宿舍');
+          }, 350);
           return;
         }
         if (target?.id.includes(':stairs:')) {

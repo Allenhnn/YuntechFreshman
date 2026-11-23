@@ -164,6 +164,19 @@ docker compose down             # 停止（加 -v 會連資料一起刪除）
 | `.env.example` 沒被 commit | 根目錄 `.gitignore` 有 `.env*`；需要時用 `git add -f backend/.env.example` |
 
 ## 變更紀錄
+### 2026-11-23（前端：學生宿舍C 東翼一戶寢室，C3 門口「進入宿舍」）— 分支 `fix/dorm-c-front-gate`
+- 需求：依使用者手繪平面與照片設計東翼裡的一戶寢室；靠近 C 棟大門跳出「進入宿舍」直接進房間；選項沿用之前的做法，由我先決定
+- 新增 `frontend/src/buildings/dormCUnit.ts`：一戶的平面（BuildingSource），位置由東翼外形算出（西南角、沿南端牆）
+  - 北排：浴室（2.2 m 寬）＋寢室 2、3、4（約 2.7 × 5.4 m）；走廊 1.8 m
+  - 南排：雜物間在走廊西端下方，曬衣間在東翼西南角（比北排往西凸出），寢室 1，交誼廳（與走廊打通，東牆一樘關著的門）
+  - 寢室用 `dormLoft`（四張上床下桌、衣櫃、書桌椅；可躺床、坐椅子），浴室 `restroom`，交誼廳 `discussion`
+  - 平面邊線都在家具規劃器的 0.1 m 格上（邊線落在格子中間會被當成牆，廁所隔間擺不進去）
+- `frontend/src/buildings/dormCFacade.ts`：`dormCLobbyDoor`、`STOREFRONT` 共用店面分割
+- `frontend/src/main.ts`：建立這一戶（手工建築）；「按 E 進入宿舍」在 C3 開著的那樘門前，淡出後站在寢室 1 兩排上床之間、面向房門；「按 E 離開宿舍」在交誼廳出入口，回到門廳前
+- `frontend/src/buildings/furniture.ts`：`restroom` 允許 2–2.8 m 寬（隔間 1.15 m、洗手台 0.45 m 深），2.8 m 以上不變
+- 決定：一戶放在東翼一樓（東翼外牆不開口，從外面看不到）；從外面走不進去，只能用 E 進出；曬衣間與雜物間先空著（陽台本身在北棟中段有做）
+- 測試：`tsc --noEmit`、`vite build` 通過；dev server 實際按 E 進入、看過寢室、浴室、交誼廳與東翼外觀（暫時除錯碼已移除）；「離開宿舍」沒有實際走到那個位置測試
+
 ### 2026-11-23（前端：學生宿舍C 北棟門口依正面照重建）— 分支 `fix/dorm-c-front-gate`
 - 需求：依使用者的門口照片重新建模 C 棟門口
 - `frontend/src/campus/customFacades.ts`：新增 `DORM_C_LOBBY`（陽台正下方那一段、高 3.2 m、往內 4.2 m、地板 0.56 m 與門前平台同高），外牆一樓開口
