@@ -566,7 +566,7 @@ export class ChunkBuilder {
     for (const [id, p] of Object.entries(facades.photos)) {
       this.photos.set(Number(id), { atlas: p.atlas, edges: new Map(p.edges.map((e) => [e.edge, e])) });
     }
-    this.exclusions = [...exclusions, ACTIVITY_COURT_RING, ACTIVITY_FORECOURT_RING].map((r) => ({ item: r, bounds: ringBounds(r) }));
+    this.exclusions = [...exclusions, ACTIVITY_COURT_RING, ACTIVITY_FORECOURT_RING, [65, 149, 64, 141, 89, 137, 91, 147]].map((r) => ({ item: r, bounds: ringBounds(r) }));
     this.marker = new RoadMarker(data);
     const key = (x: number, z: number): string => `${chunkOf(x)},${chunkOf(z)}`;
     const push = <T>(m: Map<string, T[]>, k: string, v: T): void => {
