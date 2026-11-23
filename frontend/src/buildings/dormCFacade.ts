@@ -377,10 +377,10 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
           for (let yy = y0 + 0.14; yy < y1 - 0.1; yy += 0.14) b.put(span(p, q, yy - 0.01, yy + 0.01, zb + 0.05, zb + 0.07), black);
         }
       }
-      // Stainless drying rack behind the screen, between the machines and the windows.
+      // Stainless drying rack behind the screen, between the machines and the windows (not on 2F: 使用者：窗戶旁邊的衣架移除).
       const rz = zf - 0.55;
-      for (const y of [fy + 1.1, fy + 1.45]) box(2.2, 3.6, y, y + 0.03, rz - 0.015, rz + 0.015, steel);
-      for (const d of [2.25, 3.55]) for (const dz of [-0.2, 0.2]) box(d - 0.015, d + 0.015, fy, fy + 1.45, rz + dz - 0.015, rz + dz + 0.015, steel);
+      for (const y of flat ? [] : [fy + 1.1, fy + 1.45]) box(2.2, 3.6, y, y + 0.03, rz - 0.015, rz + 0.015, steel);
+      for (const d of flat ? [] : [2.25, 3.55]) for (const dz of [-0.2, 0.2]) box(d - 0.015, d + 0.015, fy, fy + 1.45, rz + dz - 0.015, rz + dz + 0.015, steel);
     }
     // Navy drying rails under the ceiling: three along the room, five across (2F: the flat's laundry has its own, full depth).
     if (!flat) for (const z of [zb + 0.4, (zb + zf) / 2, zf - 0.45]) b.put(span(x0, x1, top - 0.38, top - 0.33, z - 0.025, z + 0.025), navy);

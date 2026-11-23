@@ -107,7 +107,7 @@ export function dormCUnit(campus: CampusData): DormCUnit | null {
   const bx0 = L - DORM_C_BALCONY.a1, bx1 = L - DORM_C_BALCONY.a0;
   const balcony: Rect = [bx0, FRONT_Y - DORM_C_BALCONY.depth - 0.02, bx1, FRONT_Y + 1.3];
   const clothOpen: [number, number] = [bx0 + 0.1, bx1 - 0.1]; // between the balcony's end walls
-  const clothDoor: [number, number] = [9.95, 11.35]; // the laundry's east door (the sketch's wide blue line), into the work room
+  const clothDoor: [number, number] = [9.8, 11.2]; // the laundry's east door (the sketch's wide blue line), into the work room
 
   const space = (id: string, name: string, kind: Space['kind'], rects: Rect[]): Space => ({
     id: `dormC-unit-${id}`, name, kind, ceiling: CEILING, rects,
