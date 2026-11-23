@@ -164,6 +164,17 @@ docker compose down             # 停止（加 -v 會連資料一起刪除）
 | `.env.example` 沒被 commit | 根目錄 `.gitignore` 有 `.env*`；需要時用 `git add -f backend/.env.example` |
 
 ## 變更紀錄
+### 2026-11-23（前端：學生宿舍C 北棟門口依正面照重建）— 分支 `fix/dorm-c-front-gate`
+- 需求：依使用者的門口照片重新建模 C 棟門口
+- `frontend/src/campus/customFacades.ts`：新增 `DORM_C_LOBBY`（陽台正下方那一段、高 3.2 m、往內 4.2 m、地板 0.56 m 與門前平台同高），外牆一樓開口
+- `frontend/src/buildings/dormCFacade.ts`：
+  - 拿掉出挑雨遮梁，改成內凹楣梁；房間列一樓上方補楣帶
+  - 「C3」藍綠色立體字掛在 2F 腰帶上；兩根粗柱底部粗石座
+  - 深咖啡色鋁框店面：固定玻璃｜關著的雙開門（把手、告示）｜往外開的雙開門｜固定玻璃，上排氣窗、石材踢腳；透明玻璃
+  - `lobbyRoom`：深色地板、白牆綠腰牆、後牆兩扇木門與布告欄、販賣機（亮面朝外）、兩支吊扇、燈；牆與地板有碰撞，可從開著的門走進門廳
+  - 外皮在門廳處挖空
+- 測試：`tsc --noEmit`、`vite build` 通過；dev server 暫時除錯相機從照片視角看過（已移除）
+
 ### 2026-11-23（前端：學生宿舍C 北棟門廳大門置中）— 分支 `fix/dorm-c-front-gate`
 - 需求：使用者說的「大門沒有置中」是北棟一樓門廳的棕框雙開門（截圖紅線，「C」字正下方），不是中庭的前門
 - `frontend/src/buildings/dormCFacade.ts`：雙開門改在門廳正中，對齊「C」字與地上紅磚帶

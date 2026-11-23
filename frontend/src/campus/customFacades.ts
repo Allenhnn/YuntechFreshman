@@ -76,8 +76,17 @@ export const DORM_C_BALCONY = {
   floors: [3.6, 7.2, 10.8], height: 3.35, depth: 0.4,
 } as const;
 
+/**
+ * 學生宿舍C 北棟一樓門廳（使用者正面照，2026-11-23）：陽台正下方、兩根粗柱之間（同一段 a0–a1）。
+ * 外牆從地面開到 `top`，往室內做一間 `depth` m 深的門廳（地板與門前平台同高 `floor`），從玻璃門看得到、右邊那樘開著的門走得進去。
+ */
+export const DORM_C_LOBBY = { edge: DORM_C_BALCONY.edge, a0: DORM_C_BALCONY.a0, a1: DORM_C_BALCONY.a1, top: 3.2, depth: 4.2, floor: 0.56 } as const;
+
 /** Wall openings with nothing in them (no glass, no frames): the hand-built module fills them. */
 export interface FacadeOpening { edge: number; a0: number; a1: number; y0: number; y1: number }
 export const CUSTOM_FACADE_OPENINGS: Readonly<Record<number, readonly FacadeOpening[]>> = {
-  [DORM_C_BALCONY.building]: DORM_C_BALCONY.floors.map((y) => ({ edge: DORM_C_BALCONY.edge, a0: DORM_C_BALCONY.a0, a1: DORM_C_BALCONY.a1, y0: y, y1: y + DORM_C_BALCONY.height })),
+  [DORM_C_BALCONY.building]: [
+    ...DORM_C_BALCONY.floors.map((y) => ({ edge: DORM_C_BALCONY.edge, a0: DORM_C_BALCONY.a0, a1: DORM_C_BALCONY.a1, y0: y, y1: y + DORM_C_BALCONY.height })),
+    { edge: DORM_C_LOBBY.edge, a0: DORM_C_LOBBY.a0, a1: DORM_C_LOBBY.a1, y0: 0, y1: DORM_C_LOBBY.top },
+  ],
 };

@@ -25,7 +25,7 @@ import { RAPIER } from '../physics/physics';
 import type { ResourceTracker } from '../core/resources';
 import { mulberry32 } from '../core/math';
 import type { CampusData, Ring } from '../campus/campusTypes';
-import { DORM_C, DORM_C_BALCONY as BAL, DORM_C_BALCONY_SPAN } from '../campus/customFacades';
+import { DORM_C, DORM_C_BALCONY as BAL, DORM_C_BALCONY_SPAN, DORM_C_LOBBY as LOBBY } from '../campus/customFacades';
 
 /**
  * 學生宿舍C 北棟（OSM 296668596，U 形），依使用者實拍＋遊戲截圖與小地圖（2026-11-22）。載入時切成三塊
@@ -184,13 +184,14 @@ function pavers(g: CanvasRenderingContext2D): void {
     g.fillRect(x * 32 + 1, y * 32 + 1, 30, 30);
   }
 }
+/** 「C3」 in teal-green raised letters (正面照): a big C, a smaller 3 at its lower right, a dark offset for depth. */
 function letterC(g: CanvasRenderingContext2D): void {
-  g.clearRect(0, 0, 256, 256);
-  g.fillStyle = '#4fa6b4';
-  g.textAlign = 'center';
-  g.textBaseline = 'middle';
-  g.font = "900 230px 'Arial Rounded MT Bold', system-ui, sans-serif";
-  g.fillText('C', 128, 140);
+  g.clearRect(0, 0, 360, 256);
+  g.textBaseline = 'alphabetic';
+  g.font = "800 230px 'Arial Rounded MT Bold', system-ui, sans-serif";
+  for (const [dx, col] of [[7, '#2f5f55'], [0, '#5c9c8a']] as const) { g.fillStyle = col; g.fillText('C', 20 + dx, 210 + dx); }
+  g.font = "800 130px 'Arial Rounded MT Bold', system-ui, sans-serif";
+  for (const [dx, col] of [[5, '#2f5f55'], [0, '#5c9c8a']] as const) { g.fillStyle = col; g.fillText('3', 205 + dx, 235 + dx); }
 }
 
 // ---------------------------------------------------------------- build
@@ -214,7 +215,6 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
   const brickBand = mat(0x9b4f42, { roughness: 0.95, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -8 });
   const glass = mat(0x26323a, { roughness: 0.12, metalness: 0.55 });
   const frameGrey = mat(0x50555b, { metalness: 0.4, roughness: 0.5 });
-  const doorBrown = mat(0x6b4a33, { roughness: 0.6 });
   const kick = mat(0x5d8b3d, { roughness: 0.7 });
   const acWhite = mat(0xd9d8d2, { roughness: 0.6 });
   const stone = mat(0x958f84, { roughness: 0.95, flatShading: true });
@@ -234,7 +234,14 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
   const plinthGrey = tracker.material(new MeshStandardMaterial({ map: canvasTexture(tracker, 256, 256, aggregate), color: 0x9a9890, roughness: 0.95 }));
   const voidDark = mat(0x2b2d2f, { roughness: 1 });
   const tube = mat(0xffffff, { emissive: 0xf4f7ff, emissiveIntensity: 1.2 });
-  const letter = tracker.material(new MeshStandardMaterial({ map: canvasTexture(tracker, 256, 256, letterC), transparent: true, roughness: 0.5 }));
+  const letter = tracker.material(new MeshStandardMaterial({ map: canvasTexture(tracker, 360, 256, letterC), transparent: true, roughness: 0.5 }));
+  // Lobby (正面照): clear glass you can see into, dark brown frames, green dado, dark polished floor.
+  const clearGlass = mat(0xa9bfc6, { transparent: true, opacity: 0.22, roughness: 0.05, metalness: 0.2, depthWrite: false });
+  const brownFrame = mat(0x3d2c22, { metalness: 0.3, roughness: 0.5 });
+  const dado = mat(0x7fb83a, { roughness: 0.6 });
+  const lobbyFloor = mat(0x3c3f42, { roughness: 0.25, metalness: 0.1 });
+  const boardGreen = mat(0x2f6b4f, { roughness: 0.8 });
+  const vendLit = mat(0xf4f8ff, { emissive: 0xdfefff, emissiveIntensity: 0.7, roughness: 0.2 });
 
   /** Per-frame geometry, merged into one mesh per material at the end. */
   const build = (f: Frame): { put(g: BufferGeometry, m: Material, uv?: number): void; solid(x0: number, x1: number, y0: number, y1: number, z0: number, z1: number): void; done(): void } => {
@@ -379,6 +386,48 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
     b.put(span(x1 - 0.07, x1 - 0.02, fy + 2.55, fy + 2.6, zb + 0.4, zb + 1.6), tube);
   };
 
+  /**
+   * The lobby seen through the storefront (正面照): dark floor level with the landing, white walls over a green dado,
+   * two brown doors and a notice board on the back wall, a lit vending machine behind the right-hand glass,
+   * two ceiling fans and a light. Walls and floor are solid; the open door lets you walk in.
+   */
+  const lobbyRoom = (b: ReturnType<typeof build>, x0: number, x1: number, f0: number, top: number, SF: number): void => {
+    const zb = -LOBBY.depth, mid = (x0 + x1) / 2, Wd = x1 - x0;
+    b.put(span(x0, x1, -0.3, f0, zb, SF), lobbyFloor);
+    b.solid(x0, x1, 0, f0, zb, SF);
+    b.put(span(x0, x1, top, top + 0.12, zb, SF), paint, 2);
+    b.put(span(x0, x1, f0, top, zb - 0.1, zb), paint, 2);
+    b.solid(x0, x1, f0, top, zb - 0.1, zb);
+    b.put(span(x0, x1, f0, f0 + 0.95, zb, zb + 0.015), dado);
+    for (const [a, c, inner] of [[x0 - 0.1, x0, x0], [x1, x1 + 0.1, x1]] as const) {
+      b.put(span(a, c, f0, top, zb, 0.02), paint, 2);
+      b.solid(a, c, f0, top, zb, 0.02);
+      const s = inner === x0 ? 1 : -1;
+      b.put(span(Math.min(inner, inner + s * 0.015), Math.max(inner, inner + s * 0.015), f0, f0 + 0.95, zb, 0.02), dado);
+    }
+    // Back wall: two brown doors and a green board.
+    for (const dx of [Wd * 0.33, Wd * 0.62]) {
+      b.put(span(x0 + dx - 0.45, x0 + dx + 0.45, f0, f0 + 2.1, zb, zb + 0.04), wood);
+      b.put(span(x0 + dx - 0.5, x0 + dx + 0.5, f0 + 2.1, f0 + 2.16, zb, zb + 0.05), brownFrame);
+    }
+    b.put(span(x0 + Wd * 0.12, x0 + Wd * 0.2, f0 + 1.0, f0 + 1.6, zb, zb + 0.03), boardGreen);
+    // Vending machine behind the right-hand fixed glass, its lit front to the street.
+    const vx0 = x1 - 1.05, vx1 = x1 - 0.15;
+    b.put(span(vx0, vx1, f0, f0 + 1.85, -1.1, -0.35), washer);
+    b.put(span(vx0 + 0.08, vx1 - 0.3, f0 + 0.6, f0 + 1.75, -0.35, -0.33), vendLit);
+    b.put(span(vx1 - 0.25, vx1 - 0.08, f0 + 0.9, f0 + 1.3, -0.35, -0.33), panelDark);
+    b.solid(vx0, vx1, f0, f0 + 1.85, -1.1, -0.35);
+    // Ceiling: two fans and a light.
+    for (const fx of [x0 + Wd * 0.35, x0 + Wd * 0.7]) {
+      b.put(new CylinderGeometry(0.02, 0.02, 0.35, 6).translate(fx, top - 0.18, zb / 2), black);
+      b.put(new CylinderGeometry(0.12, 0.12, 0.1, 10).translate(fx, top - 0.4, zb / 2), black);
+      for (let k = 0; k < 3; k++) {
+        b.put(new BoxGeometry(0.55, 0.015, 0.12).translate(0.35, 0, 0).rotateY((k * Math.PI * 2) / 3).translate(fx, top - 0.43, zb / 2), black);
+      }
+    }
+    b.put(span(mid - 0.6, mid + 0.6, top - 0.03, top, zb + 0.6, zb + 0.9), tube);
+  };
+
   // --- Centre bay (middle edge 4) -------------------------------------------------------------------
   const centre = edgeFrame(campus, EDGES.centre);
   if (centre) {
@@ -387,7 +436,8 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
     const C1 = L - DORM_C.roomWidth, C0 = C1 - (BAL.a1 - BAL.a0 + 2 * E);
     // Balcony room between the end piers (the opening along the edge: a from vertex i → x = L − a).
     const X0 = L - BAL.a1, X1 = L - BAL.a0;
-    skin(b, f, H, BAL.floors.map((y) => [X0, X1, y, y + BAL.height] as const));
+    // Holes: the balconies, and the lobby behind the storefront (the same span, from below ground to its lintel).
+    skin(b, f, H, [...BAL.floors.map((y) => [X0, X1, y, y + BAL.height] as const), [L - LOBBY.a1, L - LOBBY.a0, -0.3, LOBBY.top] as const]);
     for (const [a, c] of [[0, FLANK.pier], [C0, C0 + E], [C1 - E, C1], [L - FLANK.pier, L]] as const) {
       b.put(span(a, c, 0, H, 0.02, D), concrete, 2);
       b.solid(a, c, 0, CANOPY.y0, 0.02, D);
@@ -403,6 +453,7 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
       b.put(span(a, c, 0, CANOPY.y0, 0.06, 0.1), glass);
       b.put(span(a, c, 0, 0.55, 0.1, 0.12), kick);
       for (const xm of [a, (a + c) / 2 - 0.03, c - 0.06]) b.put(span(xm, xm + 0.06, 0, CANOPY.y0, 0.06, 0.15), frameGrey);
+      b.put(span(a, c, CANOPY.y0, 3.35, 0.02, D), concrete, 2); // head band up to the 2F spandrel
     }
     for (const fy of BAL.floors) {
       // Front (正面照): thin parapet with a tiled top, one wide screen, an open bay at each end with a
@@ -416,31 +467,47 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
       }
       laundryRoom(b, X0, X1, fy, D);
     }
-    // Ground floor: one glass lobby between the piers, brown double doors in the middle, the canopy beam with the「C」.
-    const z = CANOPY.lobby, lob0 = C0 + E, lob1 = C1 - E;
-    b.put(span(lob0, lob1, 0, CANOPY.y0, z, z + 0.04), glass);
-    b.solid(lob0, lob1, 0, CANOPY.y0, 0.02, z + 0.04);
-    b.put(span(lob0, lob1, 2.4, 2.46, z, z + 0.1), frameGrey);
-    b.put(span(lob0, lob1, 0, 0.12, z, z + 0.1), frameGrey);
-    const doorW = 2.0, dc = (lob0 + lob1) / 2; // centred under the「C」(使用者)
-    b.put(span(lob0, dc - doorW / 2, 0.12, 0.5, z - 0.03, z), kick);
-    b.put(span(dc + doorW / 2, lob1, 0.12, 0.5, z - 0.03, z), kick);
-    for (let xm = lob0; xm <= lob1 + 1e-6; xm += (lob1 - lob0) / 7) {
-      if (Math.abs(xm - dc) < doorW / 2 + 0.05) continue;
-      b.put(span(xm - 0.04, xm + 0.04, 0, CANOPY.y0, z, z + 0.1), frameGrey);
+    // Ground floor (正面照): no canopy — a recessed lintel, the「C3」 on the band above, and between the two piers a
+    // dark-brown storefront set back SF: fixed glass | double door (shut) | double door (open outward) | fixed glass,
+    // a row of transoms above; clear glass onto the lobby, whose floor is level with the landing.
+    const lob0 = C0 + E, lob1 = C1 - E, W = lob1 - lob0, f0 = LOBBY.floor, top = LOBBY.top, dTop = f0 + 2.1, SF = 0.6;
+    const xs = [lob0, lob0 + W * 0.157, lob0 + W * 0.482, lob0 + W * 0.813, lob1]; // fixed | shut doors | open doors | fixed
+    const [, dl0, dr0, dr1] = xs as [number, number, number, number, number];
+    b.put(span(lob0, lob1, top, 3.35, 0.02, D - 0.3), concrete, 2); // lintel
+    for (const [a, c] of [[C0, C0 + E], [C1 - E, C1]] as const) b.put(span(a - 0.06, c + 0.06, 0, 0.95, 0.02, D + 0.08), plinthGrey, 2); // rough stone pier bases
+    b.put(new PlaneGeometry(1.4, 1.0).translate((lob0 + lob1) / 2, 3.98, D + 0.012), letter);
+    // Glass: the fixed panes and transoms, the shut double door; frames round everything.
+    const pane = (x0: number, x1: number, y0: number, y1: number, z = SF): void => { b.put(span(x0, x1, y0, y1, z - 0.01, z + 0.01), clearGlass); };
+    const bar = (x0: number, x1: number, y0: number, y1: number, z = SF, t = 0.08): void => { b.put(span(x0, x1, y0, y1, z - t / 2, z + t / 2), brownFrame); };
+    pane(lob0, dl0, f0 + 0.3, dTop); pane(dr1, lob1, f0 + 0.3, dTop);
+    for (const [x0, x1] of [[lob0, dl0], [dr1, lob1]] as const) b.put(span(x0, x1, f0, f0 + 0.3, SF - 0.05, SF + 0.05), plinthGrey, 2); // stone kerb under the fixed panes
+    pane(lob0, lob1, dTop, top);
+    bar(lob0, lob1, dTop - 0.04, dTop + 0.04); bar(lob0, lob1, top - 0.08, top);
+    for (const x of xs) bar(x - 0.04, x + 0.04, f0, top);
+    for (let k = 1; k < 6; k++) { const x = lob0 + (W * k) / 6; bar(x - 0.03, x + 0.03, dTop, top); } // transom mullions
+    // Shut double door: two glazed leaves, mid rail, pull handles, a paper notice.
+    const dm = (dl0 + dr0) / 2;
+    for (const [x0, x1] of [[dl0, dm], [dm, dr0]] as const) {
+      pane(x0 + 0.06, x1 - 0.06, f0 + 0.1, dTop - 0.06);
+      bar(x0, x0 + 0.07, f0, dTop); bar(x1 - 0.07, x1, f0, dTop);
+      bar(x0, x1, f0, f0 + 0.1); bar(x0, x1, f0 + 1.0, f0 + 1.08);
     }
-    for (const s of [-1, 1]) {
-      const d0 = Math.min(dc, dc + s * doorW / 2), d1 = Math.max(dc, dc + s * doorW / 2);
-      b.put(span(d0, d0 + 0.08, 0, 2.4, z, z + 0.12), doorBrown);
-      b.put(span(d1 - 0.08, d1, 0, 2.4, z, z + 0.12), doorBrown);
-      b.put(span(d0, d1, 2.32, 2.4, z, z + 0.12), doorBrown);
-      b.put(span(d0, d1, 0.9, 0.98, z, z + 0.12), doorBrown);
-      b.put(span(dc + s * 0.15 - 0.02, dc + s * 0.15 + 0.02, 0.9, 1.6, z + 0.12, z + 0.16), frameGrey); // pull handles
+    for (const s of [-1, 1]) bar(dm + s * 0.12 - 0.02, dm + s * 0.12 + 0.02, f0 + 0.85, f0 + 1.5, SF + 0.07, 0.04);
+    b.put(span(dm - 0.45, dm - 0.2, f0 + 1.25, f0 + 1.55, SF + 0.02, SF + 0.025), notice);
+    b.put(span(dm + 0.06, dm + 0.3, f0 + 1.2, f0 + 1.5, SF + 0.02, SF + 0.025), notice);
+    b.solid(lob0, dr0, f0, top, SF - 0.05, SF + 0.05);
+    b.solid(dr1, lob1, f0, top, SF - 0.05, SF + 0.05);
+    // Open double door: both leaves swung right out, standing square to the front at the jambs.
+    const leafW = (dr1 - dr0) / 2;
+    for (const x of [dr0 + 0.04, dr1 - 0.04]) {
+      b.put(span(x - 0.025, x + 0.025, f0 + 0.1, dTop - 0.06, SF, SF + leafW), clearGlass);
+      for (const [y0, y1] of [[f0, f0 + 0.1], [f0 + 1.0, f0 + 1.08], [dTop - 0.06, dTop]] as const) b.put(span(x - 0.035, x + 0.035, y0, y1, SF, SF + leafW), brownFrame);
+      b.put(span(x - 0.035, x + 0.035, f0, dTop, SF + leafW - 0.07, SF + leafW), brownFrame);
+      b.solid(x - 0.04, x + 0.04, f0, dTop, SF, SF + leafW);
     }
-    // Notice board on the left pier (photo: white sign by the lobby).
+    lobbyRoom(b, lob0, lob1, f0, top, SF);
+    // Notice board on the left pier (photo: white box by the lobby).
     b.put(span(C0 + E - 0.75, C0 + E - 0.25, 1.3, 1.75, D, D + 0.03), notice);
-    b.put(span(-0.05, L + 0.05, CANOPY.y0, CANOPY.y1, 0.02, CANOPY.depth), concrete, 2);
-    b.put(new PlaneGeometry(0.9, 0.9).translate((C0 + C1) / 2, (CANOPY.y0 + CANOPY.y1) / 2, CANOPY.depth + 0.01), letter);
     // Top band and parapet over the whole bay (starts where the top-floor screen ends).
     b.put(span(-0.05, L + 0.05, H - 0.25, H + PARAPET, 0.02, D + 0.05), concrete, 2);
 
