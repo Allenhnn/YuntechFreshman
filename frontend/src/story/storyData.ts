@@ -129,10 +129,38 @@ export const LECTURE: readonly { who: string; text: string }[] = [
 ];
 export const COURSE = '管理學概論';
 
+/** A line of a visual-novel scene: a speaker (empty = narration), the text, and how it is shown. */
+export interface VnLine {
+  who: string;
+  text: string;
+  /** Shown as a chat bubble on a phone (a message that just came in). */
+  phone?: boolean;
+  /** The screen shakes (a shock). */
+  shake?: boolean;
+  /** The phone buzzes as the line appears. */
+  buzz?: boolean;
+}
+
 export const ROOMMATE = '室友阿凱';
 export const FRIEND = '同學小芳';
 /** Fine for missing a roll call (NT$). */
 export const ABSENT_FINE = 50;
+
+/** Day 1 morning, in bed: the phone, the roommate's message, the panic. */
+export const WAKE_VN: VnLine[] = [
+  { who: '', text: '嗡——嗡——嗡——', buzz: true },
+  { who: '你', text: '（手機怎麼一直震……好吵喔……）', buzz: true },
+  { who: '', text: '迷迷糊糊地摸到手機，螢幕上是室友傳來的訊息——' },
+  { who: ROOMMATE, text: '老師在點名了！你人咧？？快來管一！', phone: true },
+  { who: '你', text: '……點名？現在幾點……七點五十二？！' },
+  { who: '你', text: '糟糕！睡過頭了！趕快起床！', shake: true },
+];
+/** After the tutorial: back to the emergency. */
+export const TUTORIAL_DONE_VN: VnLine[] = [
+  { who: '你', text: '走路、跳、手機、背包……好，都會了。' },
+  { who: '你', text: '……等等，不對！現在不是新手教學的時候了！', shake: true },
+  { who: '你', text: '趕快去上課！管理一館 2 樓，MA214！' },
+];
 
 export const DAYS: Day[] = [
   {

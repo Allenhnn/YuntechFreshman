@@ -1,4 +1,4 @@
-import { BoxGeometry, CylinderGeometry, Mesh, MeshBasicMaterial, MeshStandardMaterial, TorusGeometry, type Scene } from 'three';
+import { BoxGeometry, CanvasTexture, ConeGeometry, CylinderGeometry, InstancedMesh, Matrix4, Mesh, MeshBasicMaterial, MeshStandardMaterial, PlaneGeometry, SRGBColorSpace, TorusGeometry, type Object3D, type Scene } from 'three';
 import { playerName, studentId } from '../state/playerName';
 import type { CampusData } from '../campus/campusTypes';
 import type { ResourceTracker } from '../core/resources';
@@ -7,8 +7,7 @@ import { actions, gameStore } from '../state/store';
 import { achievementById, sideById, storyActions, storyStore, type StoryProgress, type StoryScene } from '../state/story';
 import {
   ABSENT_FINE, ACTIVITY, LECTURE, RACE_ROUTE, TUTORIAL, CAFETERIA, DAYS, DIALOGS, DORM, FRIEND, PHOTO_SPOTS, ROOMMATE, STALL_IDS, TOUR_FACTS, TOUR_STOPS,
-  type SceneId, type SportKind, type Step,
-} from './storyData';
+  type SceneId, type SportKind, type Step, WAKE_VN, TUTORIAL_DONE_VN } from './storyData';
 import { createBeacons, type Beacon } from './beacons';
 import { createNpcs, type NpcSpec } from './npcs';
 import { insidePoint as insidePointOf } from '../campus/insidePoint';
@@ -35,7 +34,9 @@ export interface StoryDeps {
   navigate(x: number, z: number, name: string, quiet?: boolean): void;
   openStoryModal(): void;
   closeStoryModal(): void;
-  sound(name: 'coin' | 'open' | 'close' | 'click' | 'bell'): void;
+  sound(name: 'coin' | 'open' | 'close' | 'click' | 'bell' | 'buzz'): void;
+  /** Gets the player off a seat or out of bed (where they would step off). */
+  standUp(): void;
   bikeStations: readonly { name: string; x: number; z: number }[];
   /** Walkable surface height at (x, z) (raised plazas, steps). */
   groundAt(x: number, z: number): number;
@@ -49,6 +50,8 @@ export interface StoryDeps {
   walkSpeed: number;
   /** Nearest point on a campus road or walkway. */
   snapToRoad(x: number, z: number): { x: number; z: number };
+  /** Moves the player sideways by (dx, dz) (the race keeps you on its route). */
+  shove(dx: number, dz: number): void;
   /** Pops the phone up on a chat thread (a message the story wants you to read now). */
   openPhone(from: string): void;
 }
@@ -86,6 +89,7 @@ export type SceneResult =
   | { kind: 'clubFair' }
   | { kind: 'summary' }
   | { kind: 'stayAwake'; ok: boolean }
+  | { kind: 'vn'; id: string }
   | { kind: 'wardrobe' };
 
 export interface StoryRuntime {
@@ -96,6 +100,8 @@ export interface StoryRuntime {
   interact(f: StoryFrame): 'done' | 'hilife' | null;
   /** Refusal for opening a door into `room` of `building` right now (Day 1: only the class's room), or null. */
   roomGate(building: string, room: string | undefined): string | null;
+  /** True while the lecture holds you in your seat (seated in the class's room during the class). */
+  seatLocked(): boolean;
   /** Movement speed multiplier (race stamina). */
   readonly speedFactor: number;
   /** Navigate to the current objective. */
@@ -216,6 +222,9 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
   let wrongRoomToast = false;
   /** Day 1: told once that the class is upstairs, on entering 管理一館 on the ground floor. */
   let floorHint = false;
+  /** Day 1 wake-up visual novel: seconds lying in bed before it opens, and whether it has run. */
+  let wakeVnT = 0;
+  let wakeVnDone = false;
   /** The live countdown object, reused while it does not change (the store compares by identity). */
   let cdCache: { label: string; left: number; total: number; where: string } | null = null;
   const cdOf = (left: number, total: number, where: string): NonNullable<typeof cdCache> => {
@@ -231,7 +240,19 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
   /** Seconds of lecture heard in the classroom (the class gets going before drowsiness sets in). */
   let lectureT = 0;
   let bellRung = false;
-  let run: { points: { x: number; z: number }[]; next: number; t: number; started: boolean; stamina: number; tired: boolean } | null = null;
+  let run: {
+    points: { x: number; z: number }[];
+    next: number;
+    t: number;
+    started: boolean;
+    /** The whole course along the walkways (start, then every checkpoint): you may not leave it. */
+    path: { x: number; z: number }[];
+    /** Speed pads: where, which way, and the seconds until each works again. */
+    pads: { x: number; z: number; cool: number }[];
+    /** Seconds of boost left. */
+    boost: number;
+    outWarned: number;
+  } | null = null;
   let speedFactor = 1;
   let pendingScene: SceneId | null = null;
   const resetTransient = (): void => {
@@ -239,6 +260,8 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
     wakeFor = 0;
     wrongRoomToast = false;
     floorHint = false;
+    wakeVnT = 0;
+    wakeVnDone = false;
     tut = null;
     lectureT = 0;
     bellRung = false;
@@ -256,10 +279,44 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
   const nextMat = d.tracker.material(new MeshBasicMaterial({ color: 0x1f8f4a, transparent: true, opacity: 0.9 }));
   const archGeo = d.tracker.geometry(new TorusGeometry(3.2, 0.18, 8, 32, Math.PI));
   const markers: Mesh[] = [];
+  /** Cones along the course edge and the speed pads (scene objects of this run). */
+  const courseProps: Object3D[] = [];
   const clearRun = (): void => {
     for (const m of markers) d.scene.remove(m);
     markers.length = 0;
+    for (const o of courseProps) d.scene.remove(o);
+    courseProps.length = 0;
     run = null;
+  };
+  /** How far from the course centre line you may run (m). */
+  const COURSE_HALF = 10;
+  const coneGeo = d.tracker.geometry(new ConeGeometry(0.22, 0.7, 10));
+  coneGeo.translate(0, 0.35, 0);
+  const coneMat = d.tracker.material(new MeshStandardMaterial({ color: 0xff6d00, roughness: 0.6 }));
+  const padGeo = d.tracker.geometry(new PlaneGeometry(2.6, 3.4));
+  padGeo.rotateX(-Math.PI / 2);
+  const padMat = (() => {
+    const c = document.createElement('canvas');
+    c.width = 128; c.height = 168;
+    const g = c.getContext('2d')!;
+    g.fillStyle = 'rgba(20, 30, 25, 0.75)'; g.fillRect(0, 0, 128, 168);
+    g.strokeStyle = '#ffeb3b'; g.lineWidth = 16; g.lineJoin = 'round';
+    for (const y of [36, 84, 132]) { g.beginPath(); g.moveTo(22, y + 26); g.lineTo(64, y - 10); g.lineTo(106, y + 26); g.stroke(); }
+    const t = d.tracker.texture(new CanvasTexture(c));
+    t.colorSpace = SRGBColorSpace;
+    return d.tracker.material(new MeshBasicMaterial({ map: t, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }));
+  })();
+  /** Nearest point of the course to (x, z) and how far it is. */
+  const nearestOnCourse = (path: { x: number; z: number }[], x: number, z: number): { x: number; z: number; d: number } => {
+    let best = { x: path[0]!.x, z: path[0]!.z, d: Infinity };
+    for (let i = 0; i + 1 < path.length; i++) {
+      const a = path[i]!, b = path[i + 1]!;
+      const sx = b.x - a.x, sz = b.z - a.z, len2 = sx * sx + sz * sz || 1;
+      const t = Math.max(0, Math.min(1, ((x - a.x) * sx + (z - a.z) * sz) / len2));
+      const px = a.x + sx * t, pz = a.z + sz * t, dd = Math.hypot(x - px, z - pz);
+      if (dd < best.d) best = { x: px, z: pz, d: dd };
+    }
+    return best;
   };
   const startRun = (): void => {
     const start = d.placeOf('路跑起點');
@@ -273,7 +330,64 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
       from = end;
     }
     void from;
-    run = { points, next: 0, t: 0, started: false, stamina: 1, tired: false };
+    // The course: walkway routes from the start through every checkpoint.
+    const path: { x: number; z: number }[] = [{ x: start.x, z: start.z }];
+    let prev = { x: start.x, z: start.z };
+    for (const p of points) {
+      const r = d.route(prev.x, prev.z, p.x, p.z);
+      for (let k = 2; k + 1 < r.length; k += 2) path.push({ x: r[k]!, z: r[k + 1]! });
+      path.push(p);
+      prev = p;
+    }
+    // Cones every 5 m on both edges, except where the other edge of the course (it crosses and
+    // doubles back on itself) runs through them.
+    const cones: { x: number; z: number }[] = [];
+    for (let i = 0; i + 1 < path.length; i++) {
+      const a = path[i]!, b = path[i + 1]!;
+      const len = Math.hypot(b.x - a.x, b.z - a.z);
+      if (len < 0.5) continue;
+      const ux = (b.x - a.x) / len, uz = (b.z - a.z) / len;
+      for (let s = 0; s < len; s += 5) {
+        for (const side of [-1, 1]) {
+          const x = a.x + ux * s - uz * COURSE_HALF * side, z = a.z + uz * s + ux * COURSE_HALF * side;
+          if (nearestOnCourse(path, x, z).d < COURSE_HALF - 0.8) continue;
+          cones.push({ x, z });
+        }
+      }
+    }
+    const coneMesh = new InstancedMesh(coneGeo, coneMat, Math.max(1, cones.length));
+    const mtx = new Matrix4();
+    cones.forEach((c, i) => coneMesh.setMatrixAt(i, mtx.makeTranslation(c.x, d.groundAt(c.x, c.z), c.z)));
+    coneMesh.count = cones.length;
+    coneMesh.instanceMatrix.needsUpdate = true;
+    coneMesh.frustumCulled = false;
+    d.scene.add(coneMesh);
+    courseProps.push(coneMesh);
+    // Speed pads at random places along the course (not right at the start).
+    let total = 0;
+    const segs: { a: { x: number; z: number }; b: { x: number; z: number }; at: number; len: number }[] = [];
+    for (let i = 0; i + 1 < path.length; i++) {
+      const len = Math.hypot(path[i + 1]!.x - path[i]!.x, path[i + 1]!.z - path[i]!.z);
+      segs.push({ a: path[i]!, b: path[i + 1]!, at: total, len });
+      total += len;
+    }
+    const pads: { x: number; z: number; cool: number }[] = [];
+    const count = Math.max(6, Math.round(total / 220));
+    for (let k = 0; k < count; k++) {
+      const at = 60 + ((k + 0.25 + Math.random() * 0.5) / count) * (total - 90);
+      const sg = segs.find((g) => at >= g.at && at <= g.at + g.len) ?? segs[segs.length - 1]!;
+      const t = sg.len ? (at - sg.at) / sg.len : 0;
+      const ux = sg.len ? (sg.b.x - sg.a.x) / sg.len : 0, uz = sg.len ? (sg.b.z - sg.a.z) / sg.len : 1;
+      const off = (Math.random() - 0.5) * 6; // somewhere across the course
+      const x = sg.a.x + (sg.b.x - sg.a.x) * t - uz * off, z = sg.a.z + (sg.b.z - sg.a.z) * t + ux * off;
+      const m = new Mesh(padGeo, padMat);
+      m.position.set(x, d.groundAt(x, z) + 0.04, z);
+      m.rotation.y = Math.atan2(ux, uz) + Math.PI;
+      d.scene.add(m);
+      courseProps.push(m);
+      pads.push({ x, z, cool: 0 });
+    }
+    run = { points, next: 0, t: 0, started: false, path, pads, boost: 0, outWarned: 0 };
     points.forEach((p, i) => {
       const m = new Mesh(archGeo, i === 0 ? nextMat : ringMat);
       m.position.set(p.x, 0, p.z);
@@ -503,6 +617,10 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
           d.sound('close');
           window.setTimeout(() => { if (currentStep()?.cond.t === 'scene' && !st().scene) playScene('stayAwake'); }, 1400);
         }
+        return;
+      case 'vn':
+        if (r.id === 'wakeVn' && step?.cond.t === 'getUp') { d.standUp(); advance(); }
+        if (r.id === 'tutorialDoneVn' && step?.cond.t === 'tutorial') advance();
         return;
       case 'wardrobe':
         if (step?.cond.t === 'outfit') { advance(); toast('😎 帥！出發去聯誼'); }
@@ -754,7 +872,13 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
     }
     if (step?.cond.t === 'getUp') {
       if (!wakeTried) { wakeTried = true; wakeFor = 20; } // loaded a save on this step: back into bed
-      if (f.lying) wasLying = true;
+      // Day 1 opens as a visual novel once you are lying in bed; it gets you up when it ends.
+      if (step.id === '1-1' && !wakeVnDone) {
+        if (f.lying && !st().scene) {
+          wakeVnT += dt;
+          if (wakeVnT > 1.2) { wakeVnDone = true; d.sound('buzz'); open({ kind: 'vn', id: 'wakeVn', lines: WAKE_VN }); }
+        }
+      } else if (f.lying) wasLying = true;
       else if (wasLying && wakeFor <= 0) { wasLying = false; advance(); }
     }
     // Roll call: from where you are, the walk to the classroom (MA214) plus 5 seconds to sit down.
@@ -795,6 +919,8 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
     // 新手教學: walk, jump, phone, bag — each checked off as you do it.
     if (step?.cond.t === 'tutorial') {
       if (!tut) tut = { i: 0, x: f.x, z: f.z, walked: 0, jumps: f.jumps, hold: 0 };
+    }
+    if (step?.cond.t === 'tutorial' && tut && tut.i >= 0) {
       tut.walked += Math.min(1, Math.hypot(f.x - tut.x, f.z - tut.z)); // distance walked, any direction
       tut.x = f.x; tut.z = f.z;
       if (tut.hold > 0) {
@@ -803,8 +929,9 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
           tut.i++;
           if (tut.i >= TUTORIAL.length) {
             storyActions.setLive({ tutorial: null });
-            toast('🎉 新手教學完成！快去上課');
-            advance();
+            toast('🎉 新手教學完成！');
+            tut.i = -1; // finished: the visual novel ends the step
+            open({ kind: 'vn', id: 'tutorialDoneVn', lines: TUTORIAL_DONE_VN });
           } else storyActions.setLive({ tutorial: { i: tut.i, done: false } });
         }
       } else {
@@ -838,11 +965,26 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
       if (!run) startRun();
       if (run && run.started) {
         run.t += dt;
-        // Stamina: sprinting drains it; when empty you can only jog until it recovers.
-        run.stamina = Math.max(0, Math.min(1, run.stamina + (f.sprinting && !run.tired ? -dt / 14 : dt / 20)));
-        if (run.stamina <= 0) run.tired = true;
-        if (run.tired && run.stamina > 0.35) run.tired = false;
-        speedFactor = run.tired ? 0.6 : 1;
+        // Speed pads: run over one for a few seconds of boost.
+        run.boost = Math.max(0, run.boost - dt);
+        for (const p of run.pads) {
+          p.cool = Math.max(0, p.cool - dt);
+          if (p.cool <= 0 && Math.hypot(p.x - f.x, p.z - f.z) < 1.8) {
+            p.cool = 6;
+            run.boost = 3;
+            d.sound('coin');
+            toast('⚡ 加速帶！衝啊！');
+          }
+        }
+        speedFactor = run.boost > 0 ? 1.65 : 1;
+        // The course is fenced off: step past the cones and you are put back on it.
+        const near = nearestOnCourse(run.path, f.x, f.z);
+        if (near.d > COURSE_HALF) {
+          const k = (near.d - COURSE_HALF + 0.3) / near.d;
+          d.shove((near.x - f.x) * k, (near.z - f.z) * k);
+          run.outWarned -= dt;
+          if (run.outWarned <= 0) { run.outWarned = 3; toast('🚧 路跑路線外禁止進入！沿著三角錐內跑'); }
+        }
         const p = run.points[run.next];
         if (p && Math.hypot(p.x - f.x, p.z - f.z) < 9) {
           if (f.riding) {
@@ -888,8 +1030,8 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
         bearing: idx,
         timer,
         countdown: classTimer ? cdOf(Math.max(0, Math.ceil(cls.t)), cls.limit, `${step!.place} ${step!.room ?? ''}`.trim()) : null,
-        stamina: run ? Math.round(run.stamina * 20) / 20 : null,
-        note: run?.tired ? '跑不動了…慢慢跑恢復體力' : null,
+        stamina: null,
+        note: run && run.boost > 0 ? '⚡ 加速中！' : null,
         place: run && step!.cond.t === 'run' ? `檢查點 ${run.next + 1}/${run.points.length}`
           : step!.cond.t === 'talk' && npcsFor(step!.cond.scene)[0] ? npcsFor(step!.cond.scene)[0]!.name : step!.place,
       });
@@ -950,6 +1092,11 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
      * Day 1 遲到危機: only the class's own room may be entered (its doors open); any other classroom
      * door in the 管理學院 stays shut with a reminder. Returns the refusal, or null when allowed.
      */
+    seatLocked() {
+      const step = on() ? currentStep() : null;
+      const f = lastFrame;
+      return !!step && !!f && step.cond.t === 'scene' && !!step.room && f.seatedIn === step.place && f.seatedRoom === step.room;
+    },
     roomGate(building: string, room: string | undefined): string | null {
       const step = currentStep();
       if (!st().enabled || prog().day !== 1 || !step?.room || (step.cond.t !== 'class' && step.cond.t !== 'scene')) return null;

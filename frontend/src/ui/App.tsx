@@ -3,6 +3,7 @@ import { InspectView } from './inspect';
 import { createRoot, type Root } from 'react-dom/client';
 import type { GameApi } from '../game/session';
 import { useGame } from '../state/store';
+import { useStory } from '../state/story';
 import { ApiContext } from './api';
 import { Hud } from './hud';
 import { InventoryModal } from './inventory';
@@ -20,9 +21,12 @@ function App(): ReactNode {
   const phase = useGame((s) => s.phase);
   const modal = useGame((s) => s.modal);
   const account = useAuth((s) => s.status);
+  // A visual-novel scene takes the whole screen: the HUD steps aside.
+  const vn = useStory((s) => s.scene?.kind === 'vn');
+  const hud = phase === 'playing' && !vn;
   return (
     <>
-      {phase === 'playing' && modal !== 'camera' && <Hud />}
+      {hud && modal !== 'camera' && <Hud />}
       {phase === 'playing' && modal === 'camera' && <CameraOverlay />}
       {phase === 'playing' && modal === 'inventory' && <InventoryModal />}
       {phase === 'playing' && modal === 'inspect' && <InspectView />}
@@ -30,16 +34,16 @@ function App(): ReactNode {
       {phase === 'playing' && modal === 'elevator' && <ElevatorModal />}
       {phase === 'playing' && modal === 'shop' && <ShopModal />}
       {phase === 'playing' && modal === 'chat' && <ChatBox />}
-      {phase === 'playing' && modal !== 'camera' && <QuestTracker />}
+      {hud && modal !== 'camera' && <QuestTracker />}
       {phase === 'playing' && modal === 'story' && <StoryModal />}
       {phase === 'playing' && modal === 'quests' && <QuestLog />}
       {phase === 'playing' && <AchievementPopup />}
       {phase === 'playing' && <Celebration />}
       {phase === 'playing' && <BigCountdown />}
-      {phase === 'playing' && modal !== 'camera' && <TopCountdown />}
-      {phase === 'playing' && modal !== 'camera' && <TutorialCard />}
-      {phase === 'playing' && modal !== 'camera' && <LectureOverlay />}
-      {phase === 'playing' && <InteractPrompt />}
+      {hud && modal !== 'camera' && <TopCountdown />}
+      {hud && modal !== 'camera' && <TutorialCard />}
+      {hud && modal !== 'camera' && <LectureOverlay />}
+      {hud && <InteractPrompt />}
       <Fade />
       {phase === 'loading' && <LoadingScreen />}
       {phase === 'menu' && account === 'checking' && <LoadingScreen />}

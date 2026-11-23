@@ -291,7 +291,6 @@ export function SettingsPanel(): ReactNode {
   const pct = (v: number): string => `${Math.round(v * 100)}%`;
   return (
     <div className="settings">
-      <AccountSettings />
       <Slider label="畫面解析度" value={s.renderScale} {...SETTINGS_LIMITS.renderScale} format={pct} onChange={(v) => update({ renderScale: v })} />
       <div className="setting">
         <span>陰影品質</span>
@@ -323,52 +322,6 @@ export function SettingsPanel(): ReactNode {
           />
         </div>
       )}
-    </div>
-  );
-}
-
-/** 設定 → 帳號: rename the display name (everyone) and the username (registered accounts). */
-function AccountSettings(): ReactNode {
-  const api = useApi();
-  const user = useAuth((s) => s.user);
-  const status = useAuth((s) => s.status);
-  const [name, setName] = useState(user?.display_name ?? '');
-  const [username, setUsername] = useState(user?.username ?? '');
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const [busy, setBusy] = useState(false);
-  if (!user || status !== 'signedIn') return null;
-  const dirty = name.trim() !== user.display_name || (!user.is_guest && username.toLowerCase() !== user.username);
-  const save = async (): Promise<void> => {
-    if (!name.trim()) { setMsg({ ok: false, text: '顯示名稱不能空白' }); return; }
-    if (!user.is_guest && !/^[A-Za-z0-9_]{3,20}$/.test(username)) { setMsg({ ok: false, text: '使用者名稱需為 3–20 個英文、數字或底線' }); return; }
-    api.click();
-    setBusy(true);
-    const patch: { display_name?: string; username?: string } = {};
-    if (name.trim() !== user.display_name) patch.display_name = name.trim();
-    if (!user.is_guest && username.toLowerCase() !== user.username) patch.username = username;
-    const err = await auth.rename(patch);
-    setBusy(false);
-    setMsg(err ? { ok: false, text: err } : { ok: true, text: '已更新' });
-    if (!err) setUsername((u) => u.toLowerCase());
-  };
-  return (
-    <div className="account-settings">
-      <div className="setting">
-        <span>顯示名稱</span>
-        <input className="text-input" value={name} maxLength={64} onChange={(e) => { setName(e.currentTarget.value); setMsg(null); }} />
-        <span />
-      </div>
-      <div className="setting">
-        <span>使用者名稱</span>
-        {user.is_guest
-          ? <span className="muted">訪客帳號，註冊後才能設定</span>
-          : <input className="text-input" value={username} maxLength={20} onChange={(e) => { setUsername(e.currentTarget.value); setMsg(null); }} />}
-        <span />
-      </div>
-      <div className="account-save">
-        <span className={msg ? (msg.ok ? 'ok' : 'err') : ''}>{msg?.text ?? (user.has_password ? '' : user.is_guest ? '' : '此帳號用 Google 登入')}</span>
-        <button className="btn small primary" disabled={!dirty || busy} onClick={() => void save()}>{busy ? '儲存中…' : '儲存名稱'}</button>
-      </div>
     </div>
   );
 }

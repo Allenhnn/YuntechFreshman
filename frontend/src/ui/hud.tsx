@@ -1,4 +1,5 @@
 import { useEffect, type ReactNode } from 'react';
+import { useStory } from '../state/story';
 import { HOTBAR_SIZE, ITEMS } from '../state/items';
 import { actions, useGame } from '../state/store';
 import { ChatLog } from './chat';
@@ -42,12 +43,14 @@ function Hotbar(): ReactNode {
 
 function Toast(): ReactNode {
   const toast = useGame((s) => s.toast);
+  // The story countdown sits at the top centre too: messages go just below it.
+  const countdown = useStory((s) => !!s.live.countdown);
   useEffect(() => {
     if (!toast) return;
     const id = window.setTimeout(() => actions.clearToast(toast.id), 2600);
     return () => window.clearTimeout(id);
   }, [toast]);
-  return toast ? <div key={toast.id} className="toast"><Rich t={toast.text} /></div> : null;
+  return toast ? <div key={toast.id} className={`toast${countdown ? ' below-cd' : ''}`}><Rich t={toast.text} /></div> : null;
 }
 
 function RaceHud(): ReactNode {

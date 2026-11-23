@@ -1,4 +1,4 @@
-export type Sfx = 'click' | 'open' | 'close' | 'coin' | 'jump' | 'land' | 'robbed' | 'hit' | 'thud' | 'bell';
+export type Sfx = 'click' | 'open' | 'close' | 'coin' | 'jump' | 'land' | 'robbed' | 'hit' | 'thud' | 'bell' | 'buzz';
 
 /** Recorded sounds (public/sounds/): a random take of the list plays each time. */
 const SAMPLES: Partial<Record<Sfx, readonly string[]>> = {
@@ -42,6 +42,12 @@ const SOUNDS: Readonly<Record<Sfx, readonly Tone[]>> = {
     { type: 'sine', from: 659, to: 659, duration: 0.55, gain: 0.22, delay: 0.55 },
     { type: 'sine', from: 698, to: 698, duration: 0.55, gain: 0.22, delay: 1.1 },
     { type: 'sine', from: 523, to: 523, duration: 0.9, gain: 0.22, delay: 1.65 },
+  ],
+  // A phone vibrating on the desk: three low rattling pulses.
+  buzz: [
+    { type: 'square', from: 110, to: 104, duration: 0.32, gain: 0.16 },
+    { type: 'square', from: 110, to: 104, duration: 0.32, gain: 0.16, delay: 0.5 },
+    { type: 'square', from: 110, to: 104, duration: 0.32, gain: 0.16, delay: 1.0 },
   ],
   // A body hitting a car / the ground: a low knock with a short rattle.
   thud: [

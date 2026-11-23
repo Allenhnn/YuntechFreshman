@@ -290,7 +290,7 @@ export function createItemModel(id: ItemId, who?: CardInfo): ItemModel {
     case 'card': {
       const W = 1, H = 0.63, T = 0.02;
       const holder = id === 'lostCard' ? { name: '王小明', id: 'B11307418' } : who ?? { name: '新鮮人', id: 'B11412000' };
-      const front = cardTexture((g, w, h) => paintCardFront(g, w, h, holder, id === 'lostCard' ? '資訊管理系' : '企業管理系'));
+      const front = cardTexture((g, w, h) => paintCardFront(g, w, h, holder, id === 'lostCard' ? '企業管理系' : '資訊管理系'));
       const back = cardTexture(paintCardBack);
       owned.push(front, back);
       const body = new ExtrudeGeometry(roundedCard(W, H, 0.045), { depth: T, bevelEnabled: false, curveSegments: 6 });

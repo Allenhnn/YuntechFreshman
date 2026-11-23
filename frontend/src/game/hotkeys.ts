@@ -69,6 +69,7 @@ export function installHotkeys(api: GameApi, lock: PointerLock): () => void {
         api.toggleMap();
         return;
       case 'KeyJ':
+        if (s.sport) return; // J shoots / blocks in the 3v3 game
         api.toggleModal('quests');
         return;
       case 'KeyG':

@@ -1,6 +1,6 @@
 import { createStore } from 'zustand/vanilla';
 import { useStore } from 'zustand';
-import { ACHIEVEMENTS, DAYS, SIDE_QUESTS } from '../story/storyData';
+import { ACHIEVEMENTS, DAYS, SIDE_QUESTS, type VnLine } from '../story/storyData';
 import { notifySaveChanged } from './saveGame';
 
 /**
@@ -70,7 +70,9 @@ export type StoryScene =
   | { kind: 'clubFair' }
   | { kind: 'summary' }
   | { kind: 'stayAwake' }
-  | { kind: 'wardrobe' };
+  | { kind: 'wardrobe' }
+  /** Visual-novel scene (full screen, click through); ends like a dialog with its id. */
+  | { kind: 'vn'; id: string; lines: VnLine[] };
 
 export interface StoryState {
   progress: StoryProgress;

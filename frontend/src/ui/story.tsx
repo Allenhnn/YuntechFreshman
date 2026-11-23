@@ -1,8 +1,8 @@
-import { randomName, usePlayerName } from '../state/playerName';
+import { randomName, studentId, usePlayerName } from '../state/playerName';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { actions, useGame } from '../state/store';
 import { storyActions, useStory, type StoryProgress } from '../state/story';
-import { COURSE, LECTURE, TUTORIAL, ACHIEVEMENTS, CLUBS, DAYS, MIXER, MIXER_GOAL, MIXER_START, QUIZ, SIDE_QUESTS, PHOTO_SPOTS, TOUR_STOPS, type Step } from '../story/storyData';
+import { COURSE, LECTURE, TUTORIAL, ACHIEVEMENTS, CLUBS, DAYS, MIXER, MIXER_GOAL, MIXER_START, QUIZ, SIDE_QUESTS, PHOTO_SPOTS, TOUR_STOPS, type Step, type VnLine } from '../story/storyData';
 import { OUTFIT_ITEMS, OUTFIT_PARTS } from '../character/outfit';
 import { storyEvents } from '../story/storyRuntime';
 import { dispatch } from '../state/commands';
@@ -300,6 +300,7 @@ export function StoryModal(): ReactNode {
   const scene = useStory((s) => s.scene);
   if (!scene) return null;
   if (scene.kind === 'wardrobe') return <Wardrobe />;
+  if (scene.kind === 'vn') return <VisualNovel key={scene.id} id={scene.id} lines={scene.lines} />;
   return (
     <div className="screen story-screen">
       <div className="card story-card">
@@ -312,6 +313,61 @@ export function StoryModal(): ReactNode {
         {scene.kind === 'summary' && <Summary />}
         {scene.kind === 'stayAwake' && <StayAwake />}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Visual-novel scene: the game dimmed behind, a name plate and a text box at the bottom with the
+ * line typing itself out; a message line shows on a phone. Click, Space or Enter: finish the
+ * line, then the next one. 略過 jumps to the end.
+ */
+function VisualNovel({ id, lines }: { id: string; lines: VnLine[] }): ReactNode {
+  const api = useApi();
+  const [i, setI] = useState(0);
+  const [shown, setShown] = useState(0);
+  const line = lines[i]!;
+  const full = shown >= line.text.length;
+  useEffect(() => {
+    setShown(0);
+    const t = window.setInterval(() => setShown((n) => (n >= line.text.length ? n : n + 1)), 38);
+    return () => window.clearInterval(t);
+  }, [i, line.text.length]);
+  const finish = (): void => storyEvents.finishScene({ kind: 'vn', id });
+  const next = (): void => {
+    if (!full) { setShown(line.text.length); return; }
+    api.click();
+    if (i + 1 < lines.length) setI(i + 1);
+    else finish();
+  };
+  const nextRef = useRef(next);
+  nextRef.current = next;
+  useEffect(() => {
+    const k = (e: KeyboardEvent): void => {
+      if (e.repeat || (e.code !== 'Space' && e.code !== 'Enter' && e.code !== 'NumpadEnter')) return;
+      e.preventDefault();
+      nextRef.current();
+    };
+    window.addEventListener('keydown', k);
+    return () => window.removeEventListener('keydown', k);
+  }, []);
+  const text = line.text.slice(0, shown);
+  return (
+    <div className={`vn${line.shake ? ' shake' : ''}`} onClick={next}>
+      <div className="vn-shade" />
+      {line.buzz && <div className="vn-buzz" key={`b${i}`}><Icon name="phone" size={54} /><span>嗡——</span></div>}
+      {line.phone && (
+        <div className="vn-phone">
+          <div className="vn-phone-bar"><b>{line.who}</b><small>剛剛</small></div>
+          <div className="vn-bubble">{text}</div>
+        </div>
+      )}
+      <div className="vn-box">
+        {(line.phone ? '手機' : line.who) && <div className={`vn-name${line.who === '你' ? ' me' : ''}`}>{line.phone ? '手機' : line.who}</div>}
+        <p className={`vn-text${line.who ? '' : ' narration'}`}>{line.phone ? `「${line.who}」傳來一則訊息。` : text}<span className={`vn-caret${full ? ' done' : ''}`} /></p>
+        <div className="vn-hint">{full ? (i + 1 < lines.length ? '點擊或按 Space 繼續 ▼' : '點擊或按 Space 開始 ▶') : ''}</div>
+      </div>
+      <button className="vn-skip" onClick={(e) => { e.stopPropagation(); api.click(); finish(); }}>略過 ≫</button>
     </div>
   );
 }
@@ -424,12 +480,7 @@ function RollCall(): ReactNode {
         </div>
       )}
       {!done && idx !== mine && <div className={`rc-wait${early ? ' early' : ''}`}>{early ? '還沒叫到你！' : '等教授叫到你的名字…'}</div>}
-      {done === 'ok' && (
-        <>
-          <p className="story-text">你舉起手：「有！」<br />教授：「好，記你到。」</p>
-          <button className="btn primary" onClick={() => finish(true)}>放下手</button>
-        </>
-      )}
+      {done === 'ok' && <IdentityCheck me={me} onDone={finish} />}
       {done === 'late' && (
         <>
           <p className="story-text">教授：「{me} 沒來嗎？……記缺席。」（你忘了舉手）</p>
@@ -440,6 +491,79 @@ function RollCall(): ReactNode {
     </div>
   );
 }
+/**
+ * 確認身份: after your hand goes up the professor is suspicious and asks three questions about
+ * 雲科 and yourself; two right and you are marked present, otherwise it was a stand-in (absent).
+ */
+function IdentityCheck({ me, onDone }: { me: string; onDone: (ok: boolean) => void }): ReactNode {
+  const api = useApi();
+  const no = useStory((s) => s.progress.studentNo);
+  const qs = useMemo(() => {
+    const id = studentId(no);
+    const pool: { q: string; a: string; wrong: string[] }[] = [
+      { q: '雲科大在哪裡？', a: '雲林縣斗六市', wrong: ['雲林縣虎尾鎮', '嘉義縣民雄鄉', '彰化縣彰化市'] },
+      { q: '雲科大的英文簡稱是？', a: 'YunTech', wrong: ['NTUST', 'NCKU', 'NTHU'] },
+      { q: '你現在上課的這棟是？', a: '管理一館', wrong: ['工程一館', '設計學院', '圖書館'] },
+      { q: '你是哪一系的學生？', a: '資訊管理系', wrong: ['企業管理系', '財務金融系', '工業工程與管理系'] },
+      { q: '你的學號是？', a: id, wrong: [studentId(String((Number(no) + 37) % 1000)), id.replace('B114', 'B113'), id.replace('B11412', 'B11431')] },
+      { q: '這堂課是什麼課？', a: COURSE, wrong: ['微積分', '計算機概論', '會計學'] },
+      { q: '我們學校的吉祥物「雲寶寶」頭上有幾片葉子？', a: '3 片', wrong: ['1 片', '2 片', '4 片'] },
+    ];
+    return pool
+      .map((q) => ({ q, k: Math.random() }))
+      .sort((p, q) => p.k - q.k)
+      .slice(0, 3)
+      .map(({ q }) => ({ q: q.q, a: q.a, options: [q.a, ...q.wrong].map((o) => ({ o, k: Math.random() })).sort((p, q) => p.k - q.k).map(({ o }) => o) }));
+  }, [no]);
+  const [stage, setStage] = useState<'doubt' | number | 'pass' | 'fail'>('doubt');
+  const [right, setRight] = useState(0);
+  const [picked, setPicked] = useState<string | null>(null);
+  const answer = (o: string): void => {
+    if (typeof stage !== 'number' || picked) return;
+    api.click();
+    setPicked(o);
+    const ok = o === qs[stage]!.a;
+    const total = right + (ok ? 1 : 0);
+    window.setTimeout(() => {
+      setPicked(null);
+      setRight(total);
+      if (stage + 1 < qs.length) setStage(stage + 1);
+      else setStage(total >= 2 ? 'pass' : 'fail');
+    }, 900);
+  };
+  if (stage === 'doubt') {
+    return (
+      <>
+        <p className="story-text">你舉起手：「有！」<br />教授推了推眼鏡：「嗯？你確定你是 <b>{me}</b> 嗎？最近代點名的很多……那我問你幾個問題。」</p>
+        <button className="btn primary" onClick={() => { api.click(); setStage(0); }}>好，請問（答對 2 題就算到）</button>
+      </>
+    );
+  }
+  if (stage === 'pass' || stage === 'fail') {
+    return (
+      <>
+        <p className="story-text">
+          答對 {right} / {qs.length} 題。<br />
+          {stage === 'pass' ? '教授：「好，看來真的是你本人，記你到。」' : `教授：「連這都答不出來？你根本不是 ${me} 吧！代點名，記缺席！」`}
+        </p>
+        <button className="btn primary" onClick={() => onDone(stage === 'pass')}>{stage === 'pass' ? '放下手' : '糟了…'}</button>
+      </>
+    );
+  }
+  const q = qs[stage]!;
+  return (
+    <>
+      <div className="speaker">確認身份・第 {stage + 1}/{qs.length} 題</div>
+      <p className="story-text">教授：「{q.q}」</p>
+      <div className="quiz-options">
+        {q.options.map((o) => (
+          <button key={o} className={`btn${picked ? (o === q.a ? ' right' : o === picked ? ' wrong' : '') : ''}`} onClick={() => answer(o)}>{o}</button>
+        ))}
+      </div>
+    </>
+  );
+}
+
 const i18nOther = (i: number): string => (i % 2 ? '「有。」' : '「到。」');
 
 function Quiz(): ReactNode {

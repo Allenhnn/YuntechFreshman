@@ -404,6 +404,8 @@ async function boot(): Promise<void> {
     blocked: inPit,
     hilife: hilife ? { counter: hilife.counter, clerk: hilife.clerk } : null,
     putInBed: (place) => putInBed(place),
+    standUp: () => standUp(),
+    shove: (dx, dz) => shiftPlayer(dx, dz),
     openPhone: (from) => {
       storyActions.focusThread(from);
       actions.setPhonePage('chat');
@@ -519,6 +521,16 @@ async function boot(): Promise<void> {
     teleport(s0.standX, s0.standY, s0.standZ, s0.facing + (s0.s.kind === 'bed' ? 0 : Math.PI));
     renderSyncSystem(world, 1);
     storyEvents.stand(s0.s.kind);
+  };
+  /** Getting up on purpose (E or a move key): not while the professor is lecturing. */
+  let seatNagAt = 0;
+  const tryStandUp = (): void => {
+    if (story.seatLocked()) {
+      const now = performance.now();
+      if (now - seatNagAt > 2500) { seatNagAt = now; actions.toast('🙅 教授正在上課，請勿離開座位！'); }
+      return;
+    }
+    standUp();
   };
   // --- Bumping into people and vehicles; knocked down by a car --------------------------------
   /** Knocked down: thrown along (dx, dz), sliding until `speed` dies out or a wall stops it. */
@@ -843,7 +855,7 @@ async function boot(): Promise<void> {
           bikes.dismount();
           return;
         }
-        if (seat) { standUp(); return; }
+        if (seat) { tryStandUp(); return; }
         if (knock) return;
         const target = nearestInteractable();
         if (target?.id.includes(':stall:')) {
@@ -1147,7 +1159,7 @@ async function boot(): Promise<void> {
       const riding = bikes.ridden >= 0;
       moveMods.fly = ui.tester.fly && !riding;
       moveMods.noclip = ui.tester.noclip && !riding;
-      if (seat && (input.held() & MOVE_BITS)) standUp();
+      if (seat && (input.held() & MOVE_BITS)) tryStandUp();
       moveMods.speed = seat || knock || playground?.frozen || sports.frozen || (ui.countdown && ui.countdown.text !== '開始！') ? 0 : ui.tester.speed * story.speedFactor * sports.speedFactor * (bikes.riddenKind === 'scooter' ? SCOOTER_SPEED_FACTOR : 1) * (inWater ? 0.55 : 1);
       moveMods.noJump = sports.active || !!knock;
       moveMods.bike = riding;
