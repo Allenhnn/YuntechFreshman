@@ -1,4 +1,4 @@
-import { BoxGeometry, BufferGeometry, CanvasTexture, CylinderGeometry, DoubleSide, Float32BufferAttribute, Group, Mesh, MeshStandardMaterial, PlaneGeometry, RepeatWrapping, SRGBColorSpace, TextureLoader, type Scene } from 'three';
+import { BoxGeometry, BufferGeometry, CanvasTexture, CylinderGeometry, DoubleSide, Float32BufferAttribute, Group, Mesh, MeshStandardMaterial, PlaneGeometry, RepeatWrapping, SRGBColorSpace, type Scene } from 'three';
 import { mulberry32 } from '../core/math';
 import type { ResourceTracker } from '../core/resources';
 
@@ -9,13 +9,6 @@ export function addActivityCorner(scene: Scene, tracker: ResourceTracker) {
   wing.position.set(79.93, 0, 147.1);
   wing.rotation.y = Math.atan2(-7.52, -44.13);
   const mat = (color: number) => new MeshStandardMaterial({ color, roughness: .94 });
-  const loader = new TextureLoader();
-  const photo = (url: string) => {
-    const map = loader.load(url);
-    map.colorSpace = SRGBColorSpace;
-    map.anisotropy = 4;
-    return new MeshStandardMaterial({ map, roughness: 1, side: DoubleSide });
-  };
   const cement = mat(0x88867d), casing = mat(0xc2bcb0), vent = mat(0x585954);
   const cube = new BoxGeometry();
   const box = (x:number,y:number,z:number,w:number,h:number,d:number, material:MeshStandardMaterial) => {
@@ -25,10 +18,10 @@ export function addActivityCorner(scene: Scene, tracker: ResourceTracker) {
   // Follow the turn from the straight window bays to the courtyard. Both the
   // print and its concrete backing wrap around the same radius.
   const radius = 6.2, height = 11.42;
-  function arc(inner: number, outer: number, low: number, high: number, material: MeshStandardMaterial) {
+  function arc(inner: number, outer: number, low: number, high: number, material: MeshStandardMaterial, start=0, end=1) {
     const p:number[] = [], uv:number[] = [], indices:number[] = [];
     for (let i=0; i<=32; i++) {
-      const t=i/32, angle=t*Math.PI*.49;
+      const t=i/32, angle=(start+(end-start)*t)*Math.PI*.49;
       for (const [r,y,v] of [[inner,low,0],[outer,high,1]]) {
         p.push(-r!*Math.sin(angle),y!,r!*Math.cos(angle)-radius);
         uv.push(1-t,v!);
@@ -42,20 +35,41 @@ export function addActivityCorner(scene: Scene, tracker: ResourceTracker) {
     geo.setIndex(indices); geo.computeVertexNormals();
     wing.add(new Mesh(geo,material));
   }
-  arc(6.44,6.44,.02,height,photo(new URL('./activity-corner.webp',import.meta.url).href));
+  const wall = mat(0xa9a9a3), glass = mat(0x344650), trim = mat(0x787c79);
+  arc(6.44,6.44,.02,height,wall);
+  for (const y of [1.45,5.15]) {
+    arc(6.46,6.46,y,y+1.05,glass);
+    arc(6.49,6.49,y-.10,y,trim);
+    for(let i=0;i<6;i++) arc(6.49,6.49,y,y+1.05,trim,i/6,i/6+.012);
+  }
+  // A flat-colour welcome poster, painted to match the campus props.
+  const print=document.createElement('canvas'); print.width=256; print.height=320;
+  const ink=print.getContext('2d')!;
+  ink.fillStyle='#c6e5df'; ink.fillRect(0,0,256,320);
+  ink.fillStyle='#5c5791'; ink.font='bold 36px sans-serif'; ink.textAlign='center';
+  ink.fillText('YunTech',128,56); ink.font='bold 20px sans-serif'; ink.fillText('\u8fce\u65b0\u6d3b\u52d5',128,89);
+  for (const [x,y,r,c] of [[64,174,36,'#efb586'],[139,145,43,'#a7bfdc'],[182,216,42,'#edc1c8']] as const) {
+    ink.fillStyle=c; ink.beginPath(); ink.arc(x,y,r,0,2*Math.PI); ink.fill();
+    ink.fillStyle='#44505c'; for(const offset of [-.3,.3]) { ink.beginPath(); ink.arc(x+r*offset,y,3,0,2*Math.PI); ink.fill(); }
+  }
+  ink.fillStyle='#766a9b'; ink.fillRect(0,275,256,45);
+  ink.fillStyle='white'; ink.font='bold 16px sans-serif'; ink.fillText('STUDENT CENTER',128,304);
+  const map=new CanvasTexture(print); map.colorSpace=SRGBColorSpace;
+  arc(6.51,6.51,1.05,6.9,new MeshStandardMaterial({map,roughness:1}),.35,.91);
   cement.side=DoubleSide;
   arc(6.47,6.47,height-.13,height+.02,cement);
   arc(5.45,6.47,height+.02,height+.02,cement);
-  const width=13.2;
-  const front = new Mesh(new PlaneGeometry(width,height),photo(new URL('./activity-window-bays.webp',import.meta.url).href));
-  front.position.set(width/2,height/2,.24); wing.add(front);
-  // Projecting lower bay: carry the barred windows onto its outer face.
-  const bayStart=5.2, bayEnd=12.95, bayHeight=5.2;
-  const bayGeo=new PlaneGeometry(bayEnd-bayStart,bayHeight);
-  const bayUV=bayGeo.attributes.uv!;
-  for(let i=0;i<bayUV.count;i++) bayUV.setXY(i,(bayStart+bayUV.getX(i)*(bayEnd-bayStart))/width,bayUV.getY(i)*bayHeight/height);
-  const bay=new Mesh(bayGeo,front.material);
-  bay.position.set((bayStart+bayEnd)/2,bayHeight/2,1.05); wing.add(bay);
+  const width=13.2, bayStart=5.2, bayEnd=12.95, bayHeight=5.2;
+  box(width/2,height/2,.15,width,height,.2,wall);
+  box((bayStart+bayEnd)/2,bayHeight/2,.64,bayEnd-bayStart,bayHeight,.82,wall);
+  box((bayStart+bayEnd)/2,bayHeight,.64,bayEnd-bayStart+.16,.18,.94,cement);
+  for(const x of [2.15,6.55,10.95]) for(const y of [2,5.8,8.95]) {
+    const depth=x>5 && y<3 ? 1.07 : .27;
+    box(x,y,depth,3.58,1.24,.08,trim);
+    box(x,y,depth+.055,3.42,1.07,.04,glass);
+    box(x,y,depth+.09,.07,1.10,.045,trim);
+    if(y<3) for(let j=-3;j<=3;j++) box(x+j*.43,y,depth+.12,.045,1.08,.04,casing);
+  }
   for(const x of [bayStart,bayEnd]) box(x,bayHeight/2,.64,.14,bayHeight,.82,cement);
   box((bayStart+bayEnd)/2,bayHeight,.64,bayEnd-bayStart+.16,.18,.94,cement);
   for(const x of [bayStart,bayStart+2.6,bayStart+5.2,bayEnd]) box(x,bayHeight+.32,1.04,.045,.65,.045,vent);

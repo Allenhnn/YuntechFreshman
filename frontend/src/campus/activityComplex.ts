@@ -103,6 +103,36 @@ export function buildActivityComplex(b: CampusBuilding, solid: GeoBuilder, glass
       box(x+2.65,x+3.6,-27,-22.5,10.52,1.4);
       box(x,x+3.6,-27,-22.5,11.92,.62);
     }
+    // The west stairwell joins the canopy to the rounded wing. Its tapered
+    // end follows the surveyed corner instead of stopping at the canopy edge.
+    const linkSlab = (y:number, thickness:number, near:number, far:number) => {
+      const lower = [at(33,y,near),at(40.9,y,near),at(38.0,y,far),at(33,y,far)];
+      const upper = lower.map(([x,h,z]):Point => [x,h+thickness,z]);
+      quad(solid,upper,concrete);
+      quad(solid,[...lower].reverse(),concrete);
+      for(let i=0;i<4;i++) {
+        const j=(i+1)%4;
+        quad(solid,[lower[i]!,lower[j]!,upper[j]!,upper[i]!],concrete);
+      }
+    };
+    linkSlab(8.7,1.55,-28.8,-24);
+    linkSlab(10.25,.16,-28.8,-24);
+    box(33,36.2,-28.8,-24,10.41,.85);
+    box(37.25,38.15,-28.8,-26.6,10.41,.85);
+    box(38.15,40.8,-28.8,-28.4,10.41,.85);
+    linkSlab(11.26,.16,-28.8,-24);
+    // Leave the front face open over the flight; the gallery is reached
+    // at 3.6 m with a continuous landing onto its existing floor.
+    linkSlab(3.24,.36,-26,-22.6);
+    box(33,35.1,-26,-25.8,3.6,.58);
+    for(const y of [4.32,4.56]) box(33,35.1,-25.98,-25.92,y,.055,metal);
+    const rises=22, tread=.35, first=-26-rises*tread;
+    for(let i=0;i<rises;i++) {
+      const z=first+i*tread, top=(i+1)*3.6/rises;
+      box(35.1,37.45,z,z+tread,0,top,edge);
+      if(i%4===0) for(const x of [35.12,37.35]) box(x,x+.06,z+.1,z+.16,top,.91,metal);
+    }
+    for(const x of [35.12,37.35]) section(solid,at,x,x+.065,first,-26,1.03,4.58,.065,metal);
     // Central stair, level side bypasses and the paired stepped planting beds.
     for (let i=0;i<7;i++) box(12.5,23.5,-30.9+i*.43,-30.47+i*.43,.075,(i+1)*.15,edge);
     box(12.5,23.5,-27.89,-24,.075,1.05,edge);
