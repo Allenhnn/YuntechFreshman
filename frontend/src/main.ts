@@ -60,7 +60,8 @@ import { createMgmtFeatures } from './buildings/mgmtFeatures';
 import { createYuntayExterior, yuntayTreeFree } from './buildings/yuntayExterior';
 import { createDormFeatures, dormTreeFree } from './buildings/dormFeatures';
 import { createDormCFacade, dormCFacadeTreeFree, dormCLobbyDoor } from './buildings/dormCFacade';
-import { dormCUnit } from './buildings/dormCUnit';
+import { DORM_C_UNIT_FLOOR, dormCUnit } from './buildings/dormCUnit';
+import { createDormCUnitDecor } from './buildings/dormCUnitDecor';
 import { courtPit, createMgmtCourtyard } from './buildings/mgmtCourtyard';
 import { createDormCourtyard, dormCourtPit } from './buildings/dormCourtyard';
 import { createDormYard, dormRideables, dormYardClearings } from './campus/dormYard';
@@ -256,9 +257,10 @@ async function boot(): Promise<void> {
     handBuilt.push(unitBuilding);
     unitBuilding.interactables.push(
       { id: 'dormC-unit:enter', prompt: '按 E 進入宿舍', x: lobbyDoor.x + lobbyDoor.outX * 1.0, y: lobbyDoor.floor, z: lobbyDoor.z + lobbyDoor.outZ * 1.0, radius: 2.4 },
-      (() => { const [x, z] = unitBuilding.planToWorld(unit.leave[0], unit.leave[1]); return { id: 'dormC-unit:leave', prompt: '按 E 離開宿舍', x, y: 0, z, radius: 1.6 }; })(),
+      (() => { const [x, z] = unitBuilding.planToWorld(unit.leave[0], unit.leave[1]); return { id: 'dormC-unit:leave', prompt: '按 E 離開宿舍', x, y: DORM_C_UNIT_FLOOR, z, radius: 1.0 }; })(),
     );
   }
+  const unitDecor = unit && unitBuilding ? createDormCUnitDecor(scene, physics, sceneResources, unit.source) : null;
   // 2F sky bridge 管理二館 → 管理一館: from the door at the north end of MB's east wing to MA's west corridor end.
   const byId = (id: string): HandBuiltBuilding | undefined => handBuilt.find((b) => b.source.id === id);
   const ma = byId('ma'), mb = byId('mb');
@@ -825,7 +827,7 @@ async function boot(): Promise<void> {
           return;
         }
         if ((target?.id === 'dormC-unit:enter' || target?.id === 'dormC-unit:leave') && unit && unitBuilding && lobbyDoor) {
-          // 學生宿舍C: straight into 寢室 1 by its door, or back out in front of the C3 lobby.
+          // 學生宿舍C: into the flat's living room by its front door, or back out in front of the C3 lobby.
           if (gameStore.getState().fading) return;
           const entering = target.id === 'dormC-unit:enter';
           actions.setFading(true);
@@ -833,7 +835,7 @@ async function boot(): Promise<void> {
             let x: number, y: number, z: number, facing: number;
             if (entering) {
               [x, z] = unitBuilding.planToWorld(unit.arrive.at[0], unit.arrive.at[1]);
-              y = 0;
+              y = DORM_C_UNIT_FLOOR;
               facing = unitBuilding.planFacing(unit.arrive.facing);
             } else {
               x = lobbyDoor.x + lobbyDoor.outX * 2.2;
@@ -1344,6 +1346,7 @@ async function boot(): Promise<void> {
     yuntayExterior.dispose();
     dormFeatures.dispose();
     dormCFacade.dispose();
+    unitDecor?.dispose();
     dormCourtyard.dispose();
     dormYard.dispose();
     hilife?.dispose();

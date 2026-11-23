@@ -150,7 +150,7 @@ function aggregate(g: CanvasRenderingContext2D): void {
   for (let k = 0; k < 10; k++) g.fillRect(rnd() * 256, 0, 3 + rnd() * 8, 256);
 }
 /** Terracotta breeze blocks (使用者照片): rows of interlocking rings, see-through between them (alpha cut-out). */
-function latticeRings(g: CanvasRenderingContext2D): void {
+export function latticeRings(g: CanvasRenderingContext2D): void {
   g.clearRect(0, 0, 128, 128);
   for (let r = -1; r <= 4; r++) for (let i = -1; i <= 2; i++) {
     const cx = 32 + i * 64 + (r % 2 === 0 ? 0 : 32), cy = r * 32;
