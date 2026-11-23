@@ -6,7 +6,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RAPIER } from '../physics/physics';
 import type { ResourceTracker } from '../core/resources';
 import { createPlanTransform } from './planTransform';
-import { DORM_C_ROOM_DOOR, DORM_C_ROOMS, DORM_C_ROOMS_FLOOR, DORM_C_UNIT_FLOOR, DORM_C_UNIT_PLAN as R, type DormCUnit } from './dormCUnit';
+import { DORM_C_BATH, DORM_C_BATH_CURTAIN, DORM_C_WORK_WINDOW, DORM_C_ROOM_DOOR, DORM_C_ROOMS, DORM_C_ROOMS_FLOOR, DORM_C_UNIT_FLOOR, DORM_C_UNIT_PLAN as R, type DormCUnit } from './dormCUnit';
 import { DORM_C_BALCONY } from '../campus/customFacades';
 
 /**
@@ -68,7 +68,7 @@ function rng(seed: number): () => number {
 }
 
 export function createDormCUnitDecor(scene: Scene, physics: RAPIER.World, tracker: ResourceTracker, unit: DormCUnit): DormCUnitDecor {
-  const { source: src, balcony, balconyDoor, roomDoors } = unit;
+  const { source: src, balcony, clothOpen, roomDoors } = unit;
   const xf = createPlanTransform(src);
   const [ox, oz] = xf.toWorld(0, 0);
   const root = new Group();
@@ -195,6 +195,14 @@ export function createDormCUnitDecor(scene: Scene, physics: RAPIER.World, tracke
   const black = std(0x1d1e20, { roughness: 0.4 });
   const doorPink = std(0xeab4aa, { roughness: 0.55 });
   const doorEdge = std(0x3a3332, { roughness: 0.6 });
+  const curtainBlack = std(0x151517, { roughness: 1 });
+  const frameBrown = std(0x2e241e, { roughness: 0.6 });
+  const doorWood = std(0xc9a46a, { roughness: 0.6 });
+  const washerGrey = std(0xc9c8c0, { roughness: 0.5 });
+  const clearGlass = tracker.material(new MeshStandardMaterial({ color: 0xb8cfd8, transparent: true, opacity: 0.18, roughness: 0.05, metalness: 0.1, depthWrite: false }));
+  const washer2 = std(0xd9d6cb, { roughness: 0.45 });
+  const navyRail = std(0x2b3650, { metalness: 0.5, roughness: 0.5 });
+  const darkFloor = std(0xffffff, { map: tiles(3, [74, 62, 54], '#2f2823', 6, 8), roughness: 0.55 });
   const blue = std(0x5d8fc4, { roughness: 0.4 });
   const bookMats = [0xb03a2e, 0x2e6fb0, 0xe0b23a, 0x3c8d5a, 0xf0f0f0, 0x6b4a9a].map((c) => std(c, { roughness: 0.8 }));
 
@@ -267,6 +275,21 @@ export function createDormCUnitDecor(scene: Scene, physics: RAPIER.World, tracke
       for (const h of [h0 + (h1 - h0) / 3, h0 + ((h1 - h0) * 2) / 3]) box(f, black, u0, u1, h - 0.01, h + 0.01, gv0, gv1);
     }
   };
+  /**
+   * A black curtain hung in a doorway on the wall face at v = `at`, centred at u = `cu`, the room on the `dir` side
+   * (使用者：黑幕對黑幕按 E 傳送): a dark frame, the cloth in soft vertical folds, a rail on top.
+   */
+  const curtain = (f: Frame, cu: number, at: number, dir: 1 | -1, w = 1.05): void => {
+    const top = 2.45, u0 = cu - w / 2, u1 = cu + w / 2;
+    faceV(f, doorEdge, at, dir, u0 - 0.06, u1 + 0.06, 0, top + 0.08);
+    const n = 9;
+    for (let i = 0; i < n; i++) {
+      const a = u0 + (w * i) / n, b = a + w / n, bulge = (i % 2 ? 0.035 : 0.012) * dir;
+      box(f, curtainBlack, a, b, 0.02, top, Math.min(at + bulge, at + dir * 0.005), Math.max(at + bulge, at + dir * 0.005));
+    }
+    box(f, steel, u0 - 0.08, u1 + 0.08, top + 0.02, top + 0.06, Math.min(at, at + dir * 0.06), Math.max(at, at + dir * 0.06));
+  };
+
   // --- 寢室 × 4 ----------------------------------------------------------------------------------
   const room0 = DORM_C_ROOMS[0]!, RW = room0[2] - room0[0], RD = room0[3] - room0[1];
   const U0 = WALL, U1 = RW - WALL, V0 = WALL, V1 = RD - WALL;
@@ -454,8 +477,19 @@ export function createDormCUnitDecor(scene: Scene, physics: RAPIER.World, tracke
     box(f, white, sw, sw + 0.08, 1.15, 1.27, V1 - 0.02, V1);
   };
   DORM_C_ROOMS.forEach((q, k) => room(q, false, 11 + 10 * k));
-  // The same pink doors on the flat's corridor walls (the bedrooms behind them are reached with E).
+  // The same pink doors on the flat's walls (the bedrooms behind them are reached with E), and the bath's black curtain.
   for (const d of roomDoors) {
+    if (d.curtain) {
+      if (d.out[1] !== 0) {
+        const dir = d.out[1] > 0 ? 1 : -1;
+        curtain(PLAN, d.at[0], d.at[1] + dir * (WALL + 0.01), dir);
+      } else {
+        // On a wall across x: turn a quarter so the curtain helper's v axis runs along plan x.
+        const f: Frame = { m: new Matrix4().makeRotationY(Math.PI / 2), toPlan: (u, v) => [v, -u] };
+        curtain(f, -d.at[1], d.at[0] + d.out[0] * (WALL + 0.01), d.out[0] > 0 ? 1 : -1);
+      }
+      continue;
+    }
     const dir = d.out[1] > 0 ? 1 : -1, at = d.at[1] + dir * (WALL + 0.003), u0 = d.at[0] - 0.5, u1 = d.at[0] + 0.5, top = 2.4 - LIFT;
     faceV(PLAN, doorEdge, at, dir, u0 - 0.03, u1 + 0.03, 0, top + 0.03);
     faceV(PLAN, doorPink, at + dir * 0.002, dir, u0, u1, 0, top);
@@ -464,19 +498,20 @@ export function createDormCUnitDecor(scene: Scene, physics: RAPIER.World, tracke
     faceV(PLAN, black, at + dir * 0.004, dir, d.at[0] - 0.18, d.at[0] + 0.18, top + 0.12, top + 0.3);
   }
 
-  // --- 浴室 ---------------------------------------------------------------------------------------
+
+  // --- 浴室（地底，跟寢室同一棟；入口是一片黑幕） ------------------------------------------------
   {
-    const f = PLAN, [x0, y0, x1, y1] = R.bath;
+    const dyB = DORM_C_ROOMS_FLOOR - DORM_C_UNIT_FLOOR;
+    const f: Frame = { m: new Matrix4().makeTranslation(0, dyB, 0), toPlan: (u, v) => [u, v], dy: dyB };
+    const [x0, y0, x1, y1] = DORM_C_BATH;
     const X0 = x0 + WALL, X1 = x1 - WALL, Y0 = y0 + WALL, Y1 = y1 - WALL;
-    const door: [number, number] = [9.5, 10.4];
     floor(f, bathFloor, [X0, Y0, X1, Y1], 1);
     // White tiles floor to ceiling on every wall; grey grid ceiling.
     faceU(f, wallTile, X0 + 0.004, 1, Y0, Y1, 0, CEIL, 1);
     faceU(f, wallTile, X1 - 0.004, -1, Y0, Y1, 0, CEIL, 1);
     faceV(f, wallTile, Y0 + 0.004, 1, X0, X1, 0, CEIL, 1);
-    faceV(f, wallTile, Y1 - 0.004, -1, X0, door[0], 0, CEIL, 1);
-    faceV(f, wallTile, Y1 - 0.004, -1, door[1], X1, 0, CEIL, 1);
-    faceV(f, wallTile, Y1 - 0.004, -1, door[0], door[1], 2.4 - LIFT, CEIL, 1);
+    faceV(f, wallTile, Y1 - 0.004, -1, X0, X1, 0, CEIL, 1);
+    curtain(f, DORM_C_BATH_CURTAIN, Y1 - 0.01, -1);
     ceiling(f, ceilingGrid, [X0, Y0, X1, Y1], 0.6);
     ceilingPanel(f, (X0 + X1) / 2 + 0.3, Y0 + 1.4, 0.6, 1.2);
     ceilingPanel(f, (X0 + X1) / 2 + 0.3, Y1 - 1.4, 0.6, 1.2);
@@ -528,45 +563,127 @@ export function createDormCUnitDecor(scene: Scene, physics: RAPIER.World, tracke
     for (let h = 2.2; h < 2.78; h += 0.07) box(f, black, X1 - 0.07, X1, h, h + 0.035, Y0 + 2.0, Y0 + 3.4);
   }
 
-  // --- 曬衣間＝2 樓正面的花磚陽台 -----------------------------------------------------------------
-  // The facade module draws the balcony itself (dormCFacade laundryRoom); here only what you stand on and bump into
-  // on this floor: its floor, the parapet and screen, the end walls, and the back wall beside the store-room doorway.
+  // --- 2 樓正面的花磚陽台（曬衣間的前段） ---------------------------------------------------------
+  // The facade module draws the balcony itself (dormCFacade laundryRoom, no back wall on this floor); here only what you
+  // stand on and bump into: its floor, the parapet and screen, the end walls, and the step from the laundry room.
   {
-    const f = PLAN, [bx0, by0, bx1, by1] = balcony, [d0, d1] = balconyDoor, top = DORM_C_BALCONY.height;
+    const f = PLAN, [bx0, by0, bx1, by1] = balcony, top = DORM_C_BALCONY.height;
     const fl = -LIFT + 0.02; // the balcony's tiled floor (2 cm over the storey line)
     solid(f, bx0, bx1, fl - 0.3, fl, by0, by1 + 0.2);
     solid(f, bx0, bx1, fl, top, by1, by1 + 0.2);
     solid(f, bx0 - 0.25, bx0, fl, top, by0, by1 + 0.2);
     solid(f, bx1, bx1 + 0.25, fl, top, by0, by1 + 0.2);
-    solid(f, bx0, d0, fl, top, by0 - 0.05, by0);
-    solid(f, d1, bx1, fl, top, by0 - 0.05, by0);
-    solid(f, d0, d1, 2.4 - LIFT, top, by0 - 0.05, by0);
-    // Threshold between the store room's floor and the balcony's.
-    floor(f, clothFloor, [d0, R.other[3] - WALL, d1, by0 + 0.02], 0.9);
+    floor(f, clothFloor, [clothOpen[0], R.cloth[3] - WALL, clothOpen[1], by0 + 0.02], 0.9);
   }
 
-  // --- 雜物間 -------------------------------------------------------------------------------------
+  // --- 曬衣間（使用者草圖 cloth：整片寬的洗曬間，前面就是陽台） ---------------------------------------
+  {
+    const f = PLAN, [x0, y0, x1, y1] = R.cloth;
+    const X0 = x0 + WALL, X1 = x1 - WALL, Y0 = y0 + WALL;
+    floor(f, clothFloor, [X0, Y0, X1, y1], 0.9);
+    ceiling(f, ceilingPaint, [X0, Y0, X1, y1]);
+    for (const x of [2.5, 6.2, 9.9]) ceilingPanel(f, x, (Y0 + y1) / 2, 0.6, 1.2);
+    // White tile dado on the back wall (round the work room's doorway) and the west wall.
+    const wd0 = 9.95, wd1 = 11.35;
+    const [ww0, ww1] = DORM_C_WORK_WINDOW;
+    faceV(f, smallTile, Y0 + 0.004, 1, X0, ww0, 0, 1.1, 1);
+    faceV(f, smallTile, Y0 + 0.004, 1, ww0, ww1, 0, 1.0, 1); // under the work room's window
+    faceV(f, smallTile, Y0 + 0.004, 1, ww1, wd0 - 0.07, 0, 1.1, 1);
+    faceV(f, smallTile, Y0 + 0.004, 1, wd1 + 0.07, X1, 0, 1.1, 1);
+    faceU(f, smallTile, X0 + 0.004, 1, Y0, y1 - WALL, 0, 1.1, 1);
+    // The doorway from the work room: dark frame and louvred panel on this side.
+    const top = 2.4 - LIFT;
+    box(f, frameBrown, wd0 - 0.07, wd0, 0, top, Y0, Y0 + 0.04);
+    box(f, frameBrown, wd1, wd1 + 0.07, 0, top, Y0, Y0 + 0.04);
+    box(f, frameBrown, wd0 - 0.07, wd1 + 0.07, top, top + 0.07, Y0, Y0 + 0.04);
+    faceV(f, black, Y0 + 0.004, 1, wd0 - 0.07, wd1 + 0.07, top + 0.07, CEIL - 0.05);
+    for (let h = top + 0.12; h < CEIL - 0.08; h += 0.06) box(f, panelDark, wd0 - 0.05, wd1 + 0.05, h, h + 0.015, Y0 + 0.005, Y0 + 0.03);
+    // Washing machines along the back wall, a tiled sink counter with taps along the west wall.
+    for (const c of [1.6, 2.4, 3.2, 5.6, 6.4]) {
+      box(f, washer2, c - 0.3, c + 0.3, 0, 0.92, Y0 + 0.02, Y0 + 0.64);
+      box(f, panelDark, c - 0.26, c + 0.26, 0.92, 0.935, Y0 + 0.18, Y0 + 0.6);
+      box(f, washer2, c - 0.3, c + 0.3, 0.92, 1.1, Y0 + 0.02, Y0 + 0.16);
+      box(f, panelDark, c - 0.2, c + 0.2, 0.97, 1.06, Y0 + 0.16, Y0 + 0.17);
+      solid(f, c - 0.3, c + 0.3, 0, 1.1, Y0 + 0.02, Y0 + 0.64);
+    }
+    const s0 = Y0 + 0.9, s1 = y1 - 0.3;
+    box(f, smallTile, X0, X0 + 0.6, 0.62, 0.84, s0, s1, 1);
+    box(f, panelDark, X0 + 0.08, X0 + 0.54, 0.84, 0.845, s0 + 0.1, s1 - 0.1);
+    for (const y of [s0 + 0.5, (s0 + s1) / 2, s1 - 0.5]) {
+      box(f, steel, X0, X0 + 0.16, 1.0, 1.04, y - 0.015, y + 0.015);
+      box(f, steel, X0, X0 + 0.04, 0.96, 1.08, y - 0.02, y + 0.02);
+    }
+    solid(f, X0, X0 + 0.6, 0, 0.84, s0, s1);
+    // Navy steel drying frame under the ceiling, stainless racks on the floor.
+    for (const y of [Y0 + 1.0, (Y0 + y1) / 2 + 0.3, y1 - 0.4]) box(f, navyRail, X0 + 0.5, X1 - 0.3, 2.6, 2.66, y - 0.03, y + 0.03);
+    for (const x of [1.2, 4.6, 8.0, 11.4]) {
+      box(f, navyRail, x - 0.03, x + 0.03, 2.66, 2.72, Y0 + 0.9, y1 - 0.3);
+      for (const y of [Y0 + 1.0, y1 - 0.4]) box(f, navyRail, x - 0.01, x + 0.01, 2.72, CEIL, y - 0.01, y + 0.01);
+    }
+    for (const [ra, rb] of [[3.8, 5.6], [7.2, 9.0]] as const) {
+      const ry = (Y0 + y1) / 2 + 0.3;
+      for (const h of [0.95, 1.55]) for (const dy of [-0.28, 0.28]) tube(f, steel, [ra, h, ry + dy], [rb, h, ry + dy], 0.012);
+      for (const x of [ra, rb]) {
+        tube(f, steel, [x, 0, ry - 0.45], [x, 1.55, ry + 0.28], 0.013);
+        tube(f, steel, [x, 0, ry + 0.45], [x, 1.55, ry - 0.28], 0.013);
+      }
+    }
+  }
+
+  // --- 工作室（使用者照片＋草圖 work） ---------------------------------------------------------------
+  // From the corridor: a dark-framed doorway, the light wooden door standing open inside, a dark louvred panel over it, a
+  // grey breaker box on the wall beside. Inside: dark floor, white walls, a white-tiled counter with three taps along the
+  // west wall, a dark-framed window, and the doorway onto the laundry balcony (dark frame, louvred panel) in the far wall.
   {
     const f = PLAN, [x0, y0, x1, y1] = R.other;
     const X0 = x0 + WALL, X1 = x1 - WALL, Y0 = y0 + WALL, Y1 = y1 - WALL;
-    floor(f, clothFloor, [X0, Y0, X1, Y1], 0.9);
+    floor(f, darkFloor, [X0, Y0, X1, Y1], 0.9);
     ceiling(f, ceilingPaint, [X0, Y0, X1, Y1]);
-    ceilingPanel(f, (X0 + X1) / 2, (Y0 + Y1) / 2, 0.6, 0.6);
-    // Steel shelving with boxes along the west wall, a tiled mop sink in the south-east corner, a bucket and mop.
-    const s0 = Y0 + 0.6, s1 = Y0 + 3.0;
-    for (const y of [s0, s1 - 0.03]) for (const x of [X0 + 0.02, X0 + 0.43]) box(f, steel, x, x + 0.03, 0, 1.8, y, y + 0.03);
-    const r = rng(77);
-    for (const h of [0.15, 0.6, 1.05, 1.5]) {
-      box(f, steel, X0, X0 + 0.48, h, h + 0.02, s0, s1);
-      for (let y = s0 + 0.1; y < s1 - 0.4; y += 0.5) if (r() < 0.75) box(f, r() < 0.5 ? beige : pillow, X0 + 0.05, X0 + 0.42, h + 0.02, h + 0.2 + r() * 0.15, y, y + 0.38);
+    ceilingPanel(f, (X0 + X1) / 2, (Y0 + Y1) / 2, 0.6, 1.2);
+    // The north part beside the passage: same floor and ceiling; the counter runs on along its west wall (below).
+    {
+      const [nx0, ny0, nx1] = R.otherNorth, NX0 = nx0 + WALL, NY0 = ny0 + WALL;
+      floor(f, darkFloor, [NX0, NY0, nx1 - WALL, y0 + WALL], 0.9);
+      ceiling(f, ceilingPaint, [NX0, NY0, nx1 - WALL, y0 + WALL]);
+      ceilingPanel(f, (NX0 + nx1) / 2, (NY0 + y0) / 2, 0.6, 0.6);
     }
-    solid(f, X0, X0 + 0.48, 0, 1.8, s0, s1);
-    box(f, smallTile, X1 - 0.6, X1, 0, 0.42, Y1 - 0.7, Y1, 1);
-    box(f, panelDark, X1 - 0.54, X1 - 0.06, 0.42, 0.425, Y1 - 0.64, Y1 - 0.06);
-    box(f, steel, X1 - 0.14, X1, 0.75, 0.79, Y1 - 0.37, Y1 - 0.33);
-    solid(f, X1 - 0.6, X1, 0, 0.42, Y1 - 0.7, Y1);
-    put(f, new CylinderGeometry(0.15, 0.12, 0.3, 14).translate(X0 + 0.3, 0.15, s1 + 0.4), blue);
-    tube(f, woodDark, [X0 + 0.25, 0.05, s1 + 0.6], [X0 + 0.08, 1.35, s1 + 0.75], 0.012);
+    const top = 2.4 - LIFT;
+    // Entrance (north wall, 13.0–13.9): frame on both faces, louvred transom on the corridor side, door open against the east jamb.
+    const e0 = R.corridor[0] + 0.1, e1 = R.other[2] - 0.1;
+    for (const [at, dir] of [[y0 - WALL, -1], [y0 + WALL, 1]] as const) {
+      const v0 = Math.min(at, at + dir * 0.04), v1 = Math.max(at, at + dir * 0.04);
+      box(f, frameBrown, e0 - 0.07, e0, 0, top, v0, v1);
+      box(f, frameBrown, e1, e1 + 0.07, 0, top, v0, v1);
+      box(f, frameBrown, e0 - 0.07, e1 + 0.07, top, top + 0.07, v0, v1);
+    }
+    faceV(f, black, y0 - WALL - 0.004, -1, e0 - 0.07, e1 + 0.07, top + 0.07, CEIL - 0.05);
+    for (let h = top + 0.12; h < CEIL - 0.08; h += 0.06) box(f, panelDark, e0 - 0.05, e1 + 0.05, h, h + 0.015, y0 - WALL - 0.03, y0 - WALL - 0.005);
+    box(f, doorWood, e1 - 0.04, e1, 0, top - 0.02, Y0, Y0 + (e1 - e0) - 0.02); // the leaf, swung open against the wall
+    put(f, new CylinderGeometry(0.02, 0.02, 0.06, 10).rotateZ(Math.PI / 2).translate(e1 - 0.07, 0.98, Y0 + (e1 - e0) - 0.12), steel);
+    // Breaker box on the corridor wall east of the door.
+    box(f, washerGrey, 12.45, 13.0, 1.55, 2.15, y0 - WALL - 0.12, y0 - WALL);
+    box(f, panelDark, 12.55, 12.9, 1.8, 1.95, y0 - WALL - 0.125, y0 - WALL - 0.12);
+    // The counter (使用者照片): a white-tiled slab on the west wall, open underneath, three rows of tiles behind it and three
+    // beige power outlets in them.
+    // The whole west wall, from the north end wall to the window wall (使用者：檯面延伸到牆壁、深一點).
+    const c0 = R.otherNorth[1] + WALL, c1 = Y1, cd = 0.8;
+    box(f, smallTile, X0, X0 + cd, 0.74, 0.86, c0, c1, 1);
+    faceU(f, smallTile, X0 + 0.004, 1, c0, c1, 0.86, 1.48, 1);
+    for (let k = 0; k < 3; k++) {
+      const y = c0 + ((c1 - c0) * (k + 0.5)) / 3;
+      box(f, beige, X0, X0 + 0.025, 1.12, 1.2, y - 0.06, y + 0.06);
+      box(f, panelDark, X0 + 0.025, X0 + 0.03, 1.15, 1.17, y - 0.03, y + 0.03);
+    }
+    solid(f, X0, X0 + cd, 0.74, 0.86, c0, c1);
+    // The window into the laundry at the west end of the south wall: wall below and above built here (the plan leaves a gap),
+    // a dark frame round two panes of clear glass.
+    const [g0, g1] = DORM_C_WORK_WINDOW, wy = y1, s0 = 1.0, s1 = 2.1;
+    box(f, plaster, g0, g1, 0, s0, wy - WALL, wy + WALL);
+    box(f, plaster, g0, g1, s1, CEIL, wy - WALL, wy + WALL);
+    solid(f, g0, g1, 0, CEIL, wy - WALL, wy + WALL);
+    for (const [a, b] of [[g0, g0 + 0.06], [g1 - 0.06, g1], [(g0 + g1) / 2 - 0.03, (g0 + g1) / 2 + 0.03]] as const) box(f, frameBrown, a, b, s0, s1, wy - 0.06, wy + 0.06);
+    for (const h of [s0, s1 - 0.06]) box(f, frameBrown, g0, g1, h, h + 0.06, wy - 0.06, wy + 0.06);
+    box(f, clearGlass, g0 + 0.06, g1 - 0.06, s0 + 0.06, s1 - 0.06, wy - 0.005, wy + 0.005);
   }
 
   // --- 走廊 ---------------------------------------------------------------------------------------
@@ -574,54 +691,37 @@ export function createDormCUnitDecor(scene: Scene, physics: RAPIER.World, tracke
     const f = PLAN, [cx0, cy0, cx1, cy1] = R.corridor;
     floor(f, roomFloor, [cx0 + WALL, cy0 + WALL, cx1, cy1 - WALL], 0.9);
     ceiling(f, ceilingPaint, [cx0 + WALL, cy0 + WALL, cx1, cy1 - WALL]);
-    // Shoe racks: on the north wall between the bedroom doors, and along the south wall at the west end.
-    const r = rng(55);
-    const rack = (a: number, b: number, north: boolean): void => {
-      const w0 = north ? cy0 + WALL : cy1 - WALL - 0.34, w1 = w0 + 0.34, front = north ? w1 : w0, fd = north ? 1 : -1;
-      box(f, wood, a, b, 0, 0.85, w0, w1);
-      for (const h of [0.28, 0.56]) box(f, woodDark, a + 0.02, b - 0.02, h, h + 0.015, Math.min(front, front + fd * 0.015), Math.max(front, front + fd * 0.015));
-      for (let x = a + 0.1; x < b - 0.3; x += 0.32) if (r() < 0.6) {
-        box(f, bookMats[Math.floor(r() * bookMats.length)]!, x, x + 0.11, 0.85, 0.93, w0 + 0.06, w1 - 0.04);
-        box(f, bookMats[Math.floor(r() * bookMats.length)]!, x + 0.13, x + 0.24, 0.85, 0.93, w0 + 0.06, w1 - 0.04);
-      }
-      solid(f, a, b, 0, 0.93, w0, w1);
-    };
-    rack(13.0, 15.4, true);
-    rack(16.8, 19.2, true);
-    rack(cx0 + WALL + 0.1, 9.9, false);
-    for (const x of [10.0, 14.0, 18.0, 21.2]) ceilingPanel(f, x, (cy0 + cy1) / 2, 1.2, 0.3);
+    // No shoe rack: the corridor is short, with the bath curtain, the store-room door and two bedroom doors.
+    for (const x of [12.4, 14.4, 15.9]) ceilingPanel(f, x, (cy0 + cy1) / 2, 1.2, 0.3);
   }
 
   // --- 交誼廳 -------------------------------------------------------------------------------------
-  // Bigger now the bedrooms are elsewhere (使用者：增加戶廳空間): behind the room window right of the balcony (west part,
-  // deeper) and the recessed hall window (east part); open to the corridor along its north side.
+  // The recessed hall bay only (使用者標註：紅框＝戶廳的範圍), 7.6 m in from its window; open to the corridor
+  // on the west, rooms 3 and 4 off its north wall, the front door in its east wall.
   {
-    const f = PLAN, [wx0, wy0, wx1, wy1] = R.living, [, , ex1, ey1] = R.livingEast;
-    const X0 = wx0 + WALL, X1 = ex1 - WALL, YW = wy1 - WALL, YE = ey1 - WALL, Y0 = wy0;
-    floor(f, roomFloor, [X0, Y0, wx1, YW], 0.9);
-    floor(f, roomFloor, [wx1, Y0, X1, YE], 0.9);
-    ceiling(f, ceilingPaint, [X0, Y0, wx1, YW]);
-    ceiling(f, ceilingPaint, [wx1, Y0, X1, YE]);
-    windowV(f, YW, -1, X0 + 0.3, wx1 - 0.2, 0.9, 2.6, { blinds: 0.3 });
-    windowV(f, YE, -1, wx1 + 0.6, X1 - 0.5, 0.9, 2.6, { blinds: 0.3, mullions: 2 });
-    for (const [x, y] of [[15.2, 9.5], [15.2, 12.2], [18.2, 9.1], [21.0, 9.1]] as const) ceilingPanel(f, x, y, 0.6, 0.6);
-    // TV on a low cabinet against the west wall, coffee table, three-seat sofa facing it.
-    const tv0 = 8.6, tv1 = 10.8, tvm = (tv0 + tv1) / 2;
+    const f = PLAN, [x0, y0, x1, y1] = R.living;
+    const X0 = x0 + WALL, X1 = x1 - WALL, Y0 = y0 + WALL, Y1 = y1 - WALL;
+    floor(f, roomFloor, [x0, Y0, X1, Y1], 0.9);
+    ceiling(f, ceilingPaint, [x0, Y0, X1, Y1]);
+    windowV(f, Y1, -1, X0 + 0.5, X1 - 0.5, 0.9, 2.6, { blinds: 0.3, mullions: 2 });
+    for (const x of [18.0, 21.0]) for (const y of [5.3, 8.9]) ceilingPanel(f, x, y, 0.6, 0.6);
+    // Sitting corner: TV on a low cabinet against the west wall (room 1 behind it), coffee table, sofa facing it.
+    const tv0 = 7.0, tv1 = 9.2, tvm = (tv0 + tv1) / 2;
     box(f, wood, X0, X0 + 0.45, 0, 0.5, tv0, tv1);
     solid(f, X0, X0 + 0.45, 0, 0.5, tv0, tv1);
     box(f, black, X0 + 0.15, X0 + 0.3, 0.5, 0.56, tvm - 0.2, tvm + 0.2);
     box(f, black, X0 + 0.2, X0 + 0.26, 0.6, 1.3, tvm - 0.75, tvm + 0.75);
-    box(f, wood, X0 + 1.0, X0 + 1.8, 0.4, 0.45, tvm - 0.5, tvm + 0.5);
-    for (const [dx, dy] of [[1.05, -0.45], [1.75, -0.45], [1.05, 0.45], [1.75, 0.45]] as const) box(f, woodDark, X0 + dx - 0.025, X0 + dx + 0.025, 0, 0.4, tvm + dy - 0.025, tvm + dy + 0.025);
-    solid(f, X0 + 1.0, X0 + 1.8, 0, 0.45, tvm - 0.5, tvm + 0.5);
-    const sf0 = X0 + 2.4, sf1 = sf0 + 0.85, sa = tvm - 1.15, sb2 = tvm + 1.15;
+    box(f, wood, X0 + 1.1, X0 + 1.9, 0.4, 0.45, tvm - 0.5, tvm + 0.5);
+    for (const [dx, dy] of [[1.15, -0.45], [1.85, -0.45], [1.15, 0.45], [1.85, 0.45]] as const) box(f, woodDark, X0 + dx - 0.025, X0 + dx + 0.025, 0, 0.4, tvm + dy - 0.025, tvm + dy + 0.025);
+    solid(f, X0 + 1.1, X0 + 1.9, 0, 0.45, tvm - 0.5, tvm + 0.5);
+    const sf0 = X0 + 2.5, sf1 = sf0 + 0.85, sa = tvm - 1.15, sb2 = tvm + 1.15;
     box(f, fabric, sf0, sf1, 0.1, 0.42, sa, sb2);
     box(f, fabric, sf1 - 0.22, sf1, 0.42, 0.88, sa, sb2);
     for (const [a, b] of [[sa, sa + 0.18], [sb2 - 0.18, sb2]] as const) box(f, fabric, sf0, sf1 - 0.22, 0.42, 0.62, a, b);
     for (let i = 0; i < 3; i++) box(f, mattress, sf0 + 0.05, sf1 - 0.24, 0.42, 0.5, sa + 0.2 + i * 0.66, sa + 0.84 + i * 0.66);
     solid(f, sf0, sf1, 0, 0.88, sa, sb2);
-    // Dining table with four stools in the east part.
-    const tx0 = 18.6, tx1 = 19.8, ty0 = 8.6, ty1 = 9.8;
+    // Dining table with four stools in the north part, a notice board on the north wall between rooms 3 and 4.
+    const tx0 = 18.4, tx1 = 19.8, ty0 = 4.7, ty1 = 5.6;
     box(f, wood, tx0, tx1, 0.72, 0.76, ty0, ty1);
     for (const [x, y] of [[tx0 + 0.05, ty0 + 0.05], [tx1 - 0.05, ty0 + 0.05], [tx0 + 0.05, ty1 - 0.05], [tx1 - 0.05, ty1 - 0.05]] as const) box(f, steel, x - 0.02, x + 0.02, 0, 0.72, y - 0.02, y + 0.02);
     solid(f, tx0, tx1, 0, 0.76, ty0, ty1);
@@ -629,15 +729,19 @@ export function createDormCUnitDecor(scene: Scene, physics: RAPIER.World, tracke
       put(f, new CylinderGeometry(0.17, 0.17, 0.04, 14).translate(x, 0.45, y), blue);
       put(f, new CylinderGeometry(0.02, 0.02, 0.45, 6).translate(x, 0.225, y), steel);
     }
-    // Shoe cabinet by the front door, water dispenser.
-    const sc1 = 7.85;
-    box(f, wood, X1 - 0.38, X1, 0, 1.0, Y0 + 0.1, sc1);
-    box(f, woodDark, X1 - 0.385, X1 - 0.38, 0.05, 0.95, (Y0 + sc1) / 2 - 0.005, (Y0 + sc1) / 2 + 0.005);
-    solid(f, X1 - 0.38, X1, 0, 1.0, Y0 + 0.1, sc1);
-    box(f, white, X1 - 0.34, X1, 0, 1.05, YE - 0.75, YE - 0.4);
-    box(f, panelDark, X1 - 0.345, X1 - 0.34, 0.75, 0.95, YE - 0.7, YE - 0.45);
-    put(f, new CylinderGeometry(0.13, 0.13, 0.4, 14).translate(X1 - 0.17, 1.25, YE - 0.575), blue);
-    solid(f, X1 - 0.34, X1, 0, 1.45, YE - 0.75, YE - 0.4);
+    box(f, woodDark, 18.75, 20.0, 1.15, 1.95, Y0, Y0 + 0.03);
+    box(f, beige, 18.8, 19.95, 1.2, 1.9, Y0 + 0.03, Y0 + 0.04);
+    for (const [x, h, m] of [[18.9, 1.55, pillow], [19.3, 1.35, blue], [19.6, 1.6, pillow]] as const) box(f, m, x, x + 0.2, h, h + 0.25, Y0 + 0.04, Y0 + 0.045);
+    // Shoe cabinet by the front door (north of it), water dispenser against the north wall east of room 4's door.
+    const sc0 = 5.0, sc1 = 6.05;
+    box(f, wood, X1 - 0.38, X1, 0, 1.0, sc0, sc1);
+    box(f, woodDark, X1 - 0.385, X1 - 0.38, 0.05, 0.95, (sc0 + sc1) / 2 - 0.005, (sc0 + sc1) / 2 + 0.005);
+    solid(f, X1 - 0.38, X1, 0, 1.0, sc0, sc1);
+    const wd0 = 21.5, wd1 = 21.85;
+    box(f, white, wd0, wd1, 0, 1.05, Y0, Y0 + 0.34);
+    box(f, panelDark, wd0 + 0.05, wd1 - 0.05, 0.75, 0.95, Y0 + 0.34, Y0 + 0.345);
+    put(f, new CylinderGeometry(0.13, 0.13, 0.4, 14).translate((wd0 + wd1) / 2, 1.25, Y0 + 0.17), blue);
+    solid(f, wd0, wd1, 0, 1.45, Y0, Y0 + 0.34);
   }
 
   for (const [m, list] of parts) {
@@ -645,7 +749,7 @@ export function createDormCUnitDecor(scene: Scene, physics: RAPIER.World, tracke
     for (const g of list) g.dispose();
     if (!geo) continue;
     const mesh = new Mesh(tracker.geometry(geo), m);
-    const flat = m === view || m === light || m === blinds;
+    const flat = m === view || m === light || m === blinds || m === clearGlass;
     mesh.castShadow = !flat;
     mesh.receiveShadow = m !== view && m !== light;
     root.add(mesh);

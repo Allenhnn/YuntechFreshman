@@ -327,13 +327,9 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
     // Walls stop 2 cm behind the back wall's face: the dorm room on the other side starts there.
     b.put(span(x0, x1, fy - 0.25, fy + 0.02, zb - 0.02, zf), floorTiles, 0.6);
     b.put(span(x0, x1, top - 0.03, top + 0.25, zb - 0.02, zf), paint, 2);
-    // 2F: the east door is a real doorway into the dorm flat behind (dormCUnit.ts: the store room opens onto this balcony).
-    const flat = fy === BAL.floors[0], g0 = x1 - 1.6, g1 = x1 - 0.7;
-    if (flat) {
-      b.put(span(x0, g0, fy, top, zb - 0.02, zb), paint, 2);
-      b.put(span(g1, x1, fy, top, zb - 0.02, zb), paint, 2);
-      b.put(span(g0, g1, fy + 2.4, top, zb - 0.02, zb), paint, 2);
-    } else b.put(span(x0, x1, fy, top, zb - 0.02, zb), paint, 2);
+    // 2F: no back wall — the balcony is the front of the dorm flat's big laundry room behind it (dormCUnit.ts, 使用者草圖 cloth).
+    const flat = fy === BAL.floors[0];
+    if (!flat) b.put(span(x0, x1, fy, top, zb - 0.02, zb), paint, 2);
     for (const side of [-1, 1] as const) {
       // In this side's terms: `e` is the end wall, `at(d)` is d metres in from it.
       const e = side < 0 ? x0 : x1, at = (d: number): number => e - side * d;
@@ -356,12 +352,7 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
         box(0.11, 0.14, fy + 0.94, fy + 1.04, z - 0.02, z + 0.02, steel);
       }
       // Wooden door into the building, a low partition, two washing machines (the one by the door on a stand).
-      if (flat && side > 0) {
-        // Open doorway: a dark frame round it instead of the shut wooden door.
-        box(0.64, 0.7, fy, fy + 2.4, zb, zb + 0.05, panelDark);
-        box(1.6, 1.66, fy, fy + 2.4, zb, zb + 0.05, panelDark);
-        box(0.64, 1.66, fy + 2.4, fy + 2.46, zb, zb + 0.05, panelDark);
-      } else {
+      if (!flat) {
         box(0.7, 1.6, fy, fy + 2.1, zb, zb + 0.04, wood);
         box(0.62, 1.68, fy + 2.1, fy + 2.16, zb, zb + 0.05, panelDark);
         box(1.45, 1.5, fy + 0.95, fy + 1.05, zb + 0.04, zb + 0.08, steel);
@@ -374,8 +365,8 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
         box(d - 0.3, d + 0.3, y + 0.85, y + 0.97, zb + 0.05, zb + 0.2, panelDark);
         box(d - 0.26, d + 0.26, y + 0.85, y + 0.86, zb + 0.24, zb + 0.61, basin);
       }
-      // Back-wall windows toward the middle: a lower pair with grilles, an upper pair.
-      for (const [y0, y1, grille] of [[fy + 1.05, fy + 2.05, true], [fy + 2.4, fy + 3.1, false]] as const) {
+      // Back-wall windows toward the middle: a lower pair with grilles, an upper pair (not on 2F: no back wall there).
+      for (const [y0, y1, grille] of flat ? [] : [[fy + 1.05, fy + 2.05, true], [fy + 2.4, fy + 3.1, false]] as const) {
         const [p, q] = sx(mid - x0 - 1.3, mid - x0 - 0.2);
         b.put(span(p, q, y0, y1, zb, zb + 0.02), glass);
         for (const yy of [y0, y1 - 0.05]) b.put(span(p, q, yy, yy + 0.05, zb, zb + 0.05), frameGrey);
