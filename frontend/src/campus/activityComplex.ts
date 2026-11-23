@@ -5,6 +5,13 @@ export const STUDENT_CENTRE = 296668597;
 export const PERFORMANCE_HALL = 296668624;
 export const ACTIVITY_COURT_RING = [128.18,168.83,93.01,175.11,86.95,151.68,123.68,144.81];
 
+// Keep procedurally scattered trees out of the photographed north forecourt.
+export const ACTIVITY_FORECOURT_RING = [-2, 38].flatMap((x, i) =>
+  (i === 0 ? [-50, -24] : [-24, -50]).flatMap(z => {
+    const [wx, , wz] = frame(128.18,168.83,93.01,175.11)(x,0,z);
+    return [wx,wz];
+  }));
+
 type Point = [number, number, number];
 type Tint = readonly [number, number, number];
 const concrete: Tint = [0.44, 0.43, 0.39];
@@ -64,13 +71,50 @@ export function buildActivityComplex(b: CampusBuilding, solid: GeoBuilder, glass
       box(.1,35.5,z,z+.2,7.2,.95,edge);
       box(.1,35.5,z+2.1,z+2.3,7.2,.95,edge);
     }
-    for (const [z0,z1,h0,h1] of [[-24,-12,10.8,14],[-12,0,14,10.8]] as const) {
-      section(glass,at,.1,35.5,z0,z1,h0,h1,.06,metal);
-      for (let x=0; x<=35; x+=5) section(solid,at,x,x+.23,z0,z1,h0-.34,h1-.34,.34,steel);
-      for (let k=0; k<4; k++) {
-        const z=z0+(z1-z0)*k/4, h=h0+(h1-h0)*k/4;
-        box(.1,35.5,z,z+.12,h-.1,.13,steel);
+    // North facade: exposed coffered soffit, illustrated fascia and square piers.
+    const sand: Tint = [.47,.405,.31], shadow: Tint = [.25,.22,.18];
+    box(.1,35.5,-28.8,-21.8,9.53,.24,sand);
+    box(.1,35.5,-28.8,-28.42,8.7,1.55,sand);
+    for (let bay=0; bay<=12; bay++) {
+      const x=.2+bay*2.9;
+      box(x,x+.28,-28.5,-21.8,8.94,.6,sand);
+    }
+    for (const z of [-26.2,-23.8]) box(.1,35.5,z,z+.22,9.15,.41,sand);
+    for (const x of [2,11.6,23.7,33]) {
+      box(x,x+.65,-25.1,-24.35,0,9.54,shadow);
+      box(x-.42,x+1.07,-26.2,-23.5,8.64,.38,sand);
+    }
+    // The triangular glass gable presents its end to the entrance.
+    const roofAt = (a:number,y:number,o:number) => at(o,y,-a);
+    for (const [x0,x1,h0,h1] of [[8.5,17.8,10.1,13.55],[17.8,27.1,13.55,10.1]] as const) {
+      section(glass,roofAt,0,23.5,x0,x1,h0,h1,.07,metal);
+      for (let z=0;z<=24;z+=3.9) section(solid,roofAt,z,z+.16,x0,x1,h0-.2,h1-.2,.21,steel);
+      for(let k=0;k<5;k++) {
+        const x=x0+(x1-x0)*k/5, h=h0+(h1-h0)*k/5;
+        box(x,x+.08,-23.5,0,h-.08,.12,steel);
+        if(h>10.2) box(x,x+.08,-23.55,-23.43,10.07,h-10.07,steel);
       }
+    }
+    for (const [x0,x1] of [[.1,8.5],[27.1,35.5]] as const) box(x0,x1,-23.5,0,9.85,.28,sand);
+    // Shadowed square openings in the two high concrete returns framing the sign.
+    for (const x of [.1,31.9]) {
+      box(x,x+3.6,-27,-22.5,9.8,.72);
+      box(x,x+.75,-27,-22.5,10.52,1.4);
+      box(x+2.65,x+3.6,-27,-22.5,10.52,1.4);
+      box(x,x+3.6,-27,-22.5,11.92,.62);
+    }
+    // Central stair, level side bypasses and the paired stepped planting beds.
+    for (let i=0;i<7;i++) box(12.5,23.5,-30.9+i*.43,-30.47+i*.43,.075,(i+1)*.15,edge);
+    box(12.5,23.5,-27.89,-24,.075,1.05,edge);
+    for (let i=0;i<6;i++) box(12.5,23.5,-24+i*.43,-23.57+i*.43,.075,(6-i)*.15,edge);
+    for(const x of [1.6,24.1]) {
+      box(x,x+10.1,-29.4,-26.1,.08,.65);
+      box(x+.15,x+9.95,-28.85,-26.3,.73,.52);
+      box(x+.24,x+9.86,-28.65,-26.45,1.25,.28,[.12,.17,.064]);
+    }
+    for(const x of [12.45,23.45]) {
+      section(solid,at,x,x+.065,-30.78,-27.9,1.08,2.07,.065,metal);
+      for(const [z,y] of [[-30.7,.23],[-29.35,.68],[-27.95,1.08]]) box(x,x+.065,z,z+.065,y,.91,metal);
     }
     // Broad pond-side entrance steps and a raised viewing landing; the
     // flanking bays remain level with the plaza for step-free passage.

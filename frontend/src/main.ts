@@ -57,6 +57,7 @@ import { createAutoDoors, type DoorSpec } from './buildings/autoDoors';
 import { DOOR_HEIGHT, DOOR_WIDTH, buildingEntrance, hasInterior } from './campus/entrances';
 import { SHELL_WALL } from './interiors/generateInterior';
 import { createMgmtFeatures } from './buildings/mgmtFeatures';
+import { addActivityEntrance } from './buildings/activityEntrance';
 import { createYuntayExterior, yuntayTreeFree } from './buildings/yuntayExterior';
 import { createDormFeatures, dormTreeFree } from './buildings/dormFeatures';
 import { createDormCFacade, dormCFacadeTreeFree } from './buildings/dormCFacade';
@@ -250,6 +251,7 @@ async function boot(): Promise<void> {
   const ma = byId('ma'), mb = byId('mb');
   const skyBridge = ma && mb ? createSkyBridge(scene, physics, sceneResources, { building: mb, at: [50.95, -2.3] }, { building: ma, at: [76.5, 12.75] }, 3.6) : null;
   const mgmtFeatures = createMgmtFeatures(scene, physics, sceneResources, ma);
+  addActivityEntrance(scene, sceneResources);
   const yuntayExterior = createYuntayExterior(scene, physics, sceneResources);
   const dormFeatures = createDormFeatures(scene, physics, campus, sceneResources, env.materials);
   const dormCFacade = createDormCFacade(scene, physics, campus, sceneResources);
