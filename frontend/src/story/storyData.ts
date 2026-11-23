@@ -245,7 +245,7 @@ export const DIALOGS: Partial<Record<SceneId, Line[]>> = {
   ],
   nurse: [
     { who: '護理師', text: '新生嗎？資料表給我就好。' },
-    { who: '護理師', text: '這是你的學生證，上面有學號，點名會用到喔。' },
+    { who: '護理師', text: '這是你的學生證，進圖書館和宿舍都要用，別弄丟囉。' },
     { who: '護理師', text: '還沒吃早餐吧？學生餐廳就在附近。' },
   ],
   roommateD2: [

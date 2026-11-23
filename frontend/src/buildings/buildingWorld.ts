@@ -126,7 +126,8 @@ export interface HandBuiltBuilding {
   /** Stair curtain doorways; interactable `<id>:stairs:<index>` uses the entry at that index. */
   readonly stairPortals: StairPortal[];
   /** Opens or closes room door `<id>:door:<index>` (E); returns a message when it won't open. */
-  toggleDoor(index: number): string | null;
+  /** Opens / shuts a door; `gate` may refuse opening one into a room (returns why). */
+  toggleDoor(index: number, gate?: (room: string | undefined) => string | null): string | null;
   planToWorld(x: number, y: number): [number, number];
   /** Furniture and stair-flight colliders block the player but not the camera's spring arm. */
   isCameraTransparent(handle: number): boolean;
@@ -551,9 +552,11 @@ export function createHandBuiltBuilding(
     footprintRings,
     interactables,
     stairPortals: meshes.portals,
-    toggleDoor(i) {
+    toggleDoor(i, gate) {
       if (i < 0 || i >= doorOpen.length) return null;
       if (swingDoors[i]!.locked) return '實驗室上鎖了，非相關人員不可進入';
+      const refused = !doorOpen[i] && gate ? gate(swingDoors[i]!.roomId) : null;
+      if (refused) return refused;
       doorOpen[i] = !doorOpen[i];
       doorInteractables[i]!.prompt = doorOpen[i] ? '按 E 關門' : '按 E 開門';
       return null;

@@ -984,3 +984,17 @@ svg.ico-line { vertical-align: -0.2em; flex: none; }
 .inspect-panel > div { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .inspect-panel small { color: var(--ink-soft); font-size: 12px; }
 .inspect-panel .btn kbd { font-size: 10px; padding: 0 4px; }
+
+/* ---------- Name prompt (new game) ---------- */
+.name-card { display: flex; flex-direction: column; gap: 12px; width: min(440px, calc(100vw - 32px)); }
+.name-card h2 { margin: 6px 0 0; text-align: center; }
+.name-sub, .name-note { margin: 0; font-size: 13px; line-height: 1.6; color: var(--ink-soft); text-align: center; }
+.name-note { display: flex; gap: 6px; align-items: flex-start; justify-content: center; font-size: 12px; }
+.name-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+.name-row input { font: inherit; font-size: 22px; font-weight: 700; text-align: center; letter-spacing: 2px; padding: 12px 14px; border-radius: 14px; border: 2px solid #cfe3d3; background: #fff; color: var(--ink, #1d3326); outline: none; }
+.name-row input:focus { border-color: #2e9e3e; box-shadow: 0 0 0 4px rgba(46, 158, 62, 0.15); }
+.name-row .dice { width: 60px; font-size: 26px; padding: 0; display: grid; place-items: center; }
+.dice-face { display: inline-block; animation: dice-roll 0.45s ease-out; }
+@keyframes dice-roll { from { transform: rotate(-360deg) scale(0.6); } to { transform: rotate(0) scale(1); } }
+.name-card .btn.primary:disabled { opacity: 0.5; cursor: not-allowed; }
+.rc-no b { font-size: 16px; white-space: nowrap; }

@@ -1,3 +1,4 @@
+import { randomName, usePlayerName } from '../state/playerName';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { actions, useGame } from '../state/store';
 import { storyActions, useStory, type StoryProgress } from '../state/story';
@@ -354,15 +355,15 @@ function useEnterKey(fn: () => void): void {
 const HAND_WINDOW = 3.5;
 function RollCall(): ReactNode {
   const api = useApi();
-  const studentNo = useStory((s) => s.progress.studentNo);
+  const me = usePlayerName();
   const list = useMemo(() => {
     const others = new Set<string>();
-    while (others.size < 5) { const n = String(100 + Math.floor(Math.random() * 900)); if (n !== studentNo) others.add(n); }
+    while (others.size < 5) { const n = randomName(); if (n !== me) others.add(n); }
     const arr = [...others];
-    arr.splice(3, 0, studentNo); // you are fourth
+    arr.splice(3, 0, me); // you are fourth
     return arr;
-  }, [studentNo]);
-  const mine = list.indexOf(studentNo);
+  }, [me]);
+  const mine = 3;
   const [idx, setIdx] = useState(-1); // the number being read, -1 = about to start
   const [left, setLeft] = useState(HAND_WINDOW);
   const [done, setDone] = useState<'ok' | 'late' | null>(null);
@@ -413,7 +414,7 @@ function RollCall(): ReactNode {
       </div>
       {!done && (
         <p className="story-text">
-          {idx < 0 ? '教授翻開點名簿…' : <>教授：「學號末三碼 <b className="rc-call">{calling}</b>？」{idx !== mine && i18nOther(idx)}</>}
+          {idx < 0 ? '教授翻開點名簿…' : <>教授：「<b className="rc-call">{calling}</b>？」{idx !== mine && i18nOther(idx)}</>}
         </p>
       )}
       {!done && idx === mine && (
@@ -422,7 +423,7 @@ function RollCall(): ReactNode {
           <div className="countdown"><i style={{ width: `${(left / HAND_WINDOW) * 100}%` }} /></div>
         </div>
       )}
-      {!done && idx !== mine && <div className={`rc-wait${early ? ' early' : ''}`}>{early ? '還沒叫到你！' : '等教授叫到你的學號…'}</div>}
+      {!done && idx !== mine && <div className={`rc-wait${early ? ' early' : ''}`}>{early ? '還沒叫到你！' : '等教授叫到你的名字…'}</div>}
       {done === 'ok' && (
         <>
           <p className="story-text">你舉起手：「有！」<br />教授：「好，記你到。」</p>
@@ -431,7 +432,7 @@ function RollCall(): ReactNode {
       )}
       {done === 'late' && (
         <>
-          <p className="story-text">教授：「{studentNo} 沒來嗎？……記缺席。」（你忘了舉手）</p>
+          <p className="story-text">教授：「{me} 沒來嗎？……記缺席。」（你忘了舉手）</p>
           <button className="btn primary" onClick={() => finish(false)}>糟了</button>
         </>
       )}

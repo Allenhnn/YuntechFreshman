@@ -81,12 +81,21 @@ export function createSession(lock: PointerLock, audio: AudioBus): GameApi {
     if (locked) {
       actions.setNeedsRelock(false);
       if (get().phase !== 'playing') actions.setPhase('playing');
+      // A lock that lands after a window opened (closing one modal and the story opening the next in
+      // the same moment) is handed straight back: windows use the mouse, and Esc must not pause there.
+      if (get().modal !== 'none') {
+        expectUnlock = true;
+        lock.release();
+      }
       return;
     }
     if (expectUnlock) {
       expectUnlock = false;
       return;
     }
+    // A story scene (mini-game, dialog) is never paused from under itself: it would unmount and
+    // lose its state, leaving the story waiting on a scene that is gone.
+    if (get().modal === 'story') return;
     // Esc while locked: the browser releases the lock and swallows the key, so pause here.
     if (get().phase === 'playing') {
       actions.setPhase('paused');
@@ -135,7 +144,7 @@ export function createSession(lock: PointerLock, audio: AudioBus): GameApi {
     },
     resume: enterPlaying,
     pause() {
-      if (get().phase !== 'playing') return;
+      if (get().phase !== 'playing' || get().modal === 'story') return;
       lock.release();
       actions.setPhase('paused');
       audio.play('close');

@@ -7,7 +7,8 @@ export type Rect = [number, number, number, number]; // [x0, y0, x1, y1]
 export type Vec2 = [number, number];
 
 export type SpaceKind = 'room' | 'lobby' | 'corridor' | 'toilet' | 'stair' | 'elevator' | 'void';
-export type OpeningKind = 'door' | 'open' | 'exit' | 'closed' | 'elevator';
+/** rail: a waist-high glass railing with a full-height invisible barrier (looking into a stairwell). */
+export type OpeningKind = 'door' | 'open' | 'exit' | 'closed' | 'elevator' | 'rail';
 export type FurnishKind =
   | 'stacks'
   | 'periodicals'
@@ -150,6 +151,13 @@ export interface BuildingSource {
   stairs?: Stair[];
   /** Stair landings (walkable slabs inside stair cores). */
   landings?: { rect: Rect; elevation: number }[];
+  /**
+   * Hand-placed stair doorways in addition to the flight ends (e.g. at a railing beside the stairs):
+   * plan x / elevation / plan y, as StairPortal.
+   */
+  stairDoors?: { at: [number, number, number]; to: [number, number, number]; facing: Vec2; up: boolean; level: string }[];
+  /** Plan rects whose flight-end doorways are dropped (the landing is closed off, e.g. by an elevator). */
+  hidePortals?: Rect[];
   /** Level whose footprint replaces the campus ground collider (so stairs can lead below grade). */
   undergroundLevel?: string;
   /** Plan rects where the campus ground plane is cut open (looking down into a basement). */

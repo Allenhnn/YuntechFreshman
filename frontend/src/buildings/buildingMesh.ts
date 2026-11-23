@@ -46,6 +46,8 @@ export interface DoorPanel {
   room?: -1 | 1;
   /** swing: a lab door that stays shut. */
   locked?: boolean;
+  /** swing: id of the room it opens into (MA214). */
+  roomId?: string;
 }
 
 export interface PlateSpot {
@@ -269,6 +271,13 @@ function buildModelledFloor(
       continue;
     }
     if (voidEdge && kind === 'open') continue; // stair landing into the void
+    // Railing into a stairwell: glass to waist height, but nobody climbs over it.
+    if (kind === 'rail') {
+      for (const side of [-1, 1] as const) wallFace(part.glass, p, p.from, p.to, base, base + RAIL_H, side, false, floorH);
+      capTop(part.paint, p, p.from, p.to, base + RAIL_H);
+      part.colliders.push(wallBox(p, p.from, p.to, base, base + top));
+      continue;
+    }
 
     // Extend plain walls by half a thickness at free ends so corners close without gaps.
     let from = p.from, to = p.to;
@@ -300,7 +309,7 @@ function buildModelledFloor(
     const isRoom = (s?: Space): boolean => s?.kind === 'room';
     if (kind === 'door' && (isRoom(A) || isRoom(B))) {
       const room = isRoom(A) ? A! : B!;
-      doors.push({ kind: 'swing', axis: p.axis, at: p.at, from: p.from, to: p.to, base, room: isRoom(A) ? -1 : 1, ...(room.name.includes('實驗室') ? { locked: true } : {}) });
+      doors.push({ kind: 'swing', axis: p.axis, at: p.at, from: p.from, to: p.to, base, room: isRoom(A) ? -1 : 1, roomId: room.code ?? room.id, ...(room.name.includes('實驗室') ? { locked: true } : {}) });
     }
 
     // Walls stop under a mezzanine floor that passes over them (checked per ~1 m so partial overlaps split).
@@ -424,10 +433,50 @@ function buildShellLevel(rects: Rect[], below: Rect[], base: number, height: num
 }
 
 /**
- * Stairs are not walked: every flight end that meets a floor is a doorway in a black curtain wall.
- * Using it moves the player to the matching end on the next floor up or down (see StairPortal).
- * The wall spans the whole edge of the floor landing, so nobody steps into the empty shaft behind.
+ * Stairs are seen but not walked: every flight is drawn (treads, risers, the slab underneath, a glass
+ * balustrade), and every flight end that meets a floor is a doorway with an invisible barrier and a
+ * handrail. Using it (E) moves the player to the matching end on the next floor up or down (see
+ * StairPortal). The barrier spans the whole edge of the floor landing, so nobody steps into the shaft.
  */
+function drawFlight(part: PartBuilder, st: Stair): void {
+  const alongX = st.axis === 'x';
+  const [x0, y0, x1, y1] = st.rect;
+  const from = alongX ? x0 : y0, to = alongX ? x1 : y1, lat0 = alongX ? y0 : x0, lat1 = alongX ? y1 : x1;
+  const n = Math.max(2, Math.round((st.high - st.low) / 0.16));
+  const rise = (st.high - st.low) / n, run = (to - from) / n;
+  const dir = st.up === '+' ? 1 : -1;
+  const start = dir > 0 ? from : to;
+  const P = (a: number, y: number, l: number): V3 => (alongX ? [a, y, l] : [l, y, a]);
+  const back: V3 = alongX ? [-dir, 0, 0] : [0, 0, -dir];
+  const w = lat1 - lat0;
+  for (let i = 0; i < n; i++) {
+    const a0 = start + dir * i * run, a1 = start + dir * (i + 1) * run;
+    const yb = st.low + i * rise, yt = st.low + (i + 1) * rise;
+    quad(part.floor, [P(a0, yb, lat0), P(a0, yb, lat1), P(a0, yt, lat1), P(a0, yt, lat0)], back, [[0, 0], [w, 0], [w, rise], [0, rise]]);
+    quad(part.floor, [P(a0, yt, lat0), P(a1, yt, lat0), P(a1, yt, lat1), P(a0, yt, lat1)], [0, 1, 0], [[0, 0], [run, 0], [run, w], [0, w]]);
+  }
+  // The slab under the flight and its two side faces (a sawtooth edge is not worth it from afar).
+  const end = start + dir * (to - from), T = 0.18;
+  quad(part.ceiling, [P(start, st.low - T, lat0), P(end, st.high - T, lat0), P(end, st.high - T, lat1), P(start, st.low - T, lat1)], [0, -1, 0], [[0, 0], [1, 0], [1, 1], [0, 1]]);
+  for (const [l, s] of [[lat0, -1], [lat1, 1]] as const) {
+    const nrm: V3 = alongX ? [0, 0, s] : [s, 0, 0];
+    quad(part.paint, [P(start, st.low - T, l), P(end, st.high - T, l), P(end, st.high + 0.02, l), P(start, st.low + 0.02, l)], nrm, [[0, 0], [1, 0], [1, 0.2], [0, 0.2]]);
+    // Glass balustrade along both sides, following the slope.
+    quad(part.glass, [P(start, st.low, l), P(end, st.high, l), P(end, st.high + 0.95, l), P(start, st.low + 0.95, l)], nrm, [[0, 0], [1, 0], [1, 0.5], [0, 0.5]]);
+  }
+}
+
+/** Handrail bar on the barrier line of a stair doorway. */
+function handrail(part: PartBuilder, alongX: boolean, at: number, lat0: number, lat1: number, e: number, into: 1 | -1): void {
+  const P = (l: number, y: number, d: number): V3 => (alongX ? [at + d, y, l] : [l, y, at + d]);
+  const n: V3 = alongX ? [-into, 0, 0] : [0, 0, -into];
+  for (const y of [e + 0.95, e + 0.5]) {
+    quad(part.paint, [P(lat0, y - 0.03, 0), P(lat1, y - 0.03, 0), P(lat1, y + 0.03, 0), P(lat0, y + 0.03, 0)], n, [[0, 0], [1, 0], [1, 0.1], [0, 0.1]]);
+  }
+  for (const l of [lat0 + 0.03, lat1 - 0.03]) {
+    quad(part.paint, [P(l - 0.03, e, 0), P(l + 0.03, e, 0), P(l + 0.03, e + 0.98, 0), P(l - 0.03, e + 0.98, 0)], n, [[0, 0], [0.1, 0], [0.1, 1], [0, 1]]);
+  }
+}
 function buildStairCurtains(src: BuildingSource, levels: LevelMeshes[], part: PartBuilder): StairPortal[] {
   const stairs = src.stairs ?? [];
   const same = (p: number, q: number): boolean => Math.abs(p - q) < 0.01;
@@ -469,6 +518,13 @@ function buildStairCurtains(src: BuildingSource, levels: LevelMeshes[], part: Pa
 
   const portals: StairPortal[] = [];
   const walls = new Set<string>();
+  for (const st of stairs) drawFlight(part, st);
+  // Half landings between floors (the floor-level ones are walkable slabs, built by the caller).
+  for (const l of src.landings ?? []) {
+    if (elevations.some((e) => same(e, l.elevation))) continue;
+    horizontal(part.floor, l.rect, l.elevation + 0.01, true, 0.6);
+    horizontal(part.ceiling, l.rect, l.elevation - 0.18, false, 1.2);
+  }
   for (const st of stairs) {
     for (const high of [false, true]) {
       const end = endOf(st, high);
@@ -488,9 +544,7 @@ function buildStairCurtains(src: BuildingSource, levels: LevelMeshes[], part: Pa
       if (!walls.has(key)) {
         walls.add(key);
         const top = elevations.find((e) => e > end.e + 0.5) ?? end.e + src.floorHeight;
-        const at = end.c + end.into * 0.04;
-        const P = (lat: number, y: number): V3 => (alongX ? [at, y, lat] : [lat, y, at]);
-        quad(part.curtain, [P(lat0, end.e), P(lat1, end.e), P(lat1, top), P(lat0, top)], alongX ? [-end.into, 0, 0] : [0, 0, -end.into], [[0, 0], [1, 0], [1, 1], [0, 1]]);
+        handrail(part, alongX, end.c + end.into * 0.04, lat0, lat1, end.e, end.into);
         const mid = (lat0 + lat1) / 2, half = (lat1 - lat0) / 2, cy = (end.e + top) / 2, hy = (top - end.e) / 2, cc = end.c + end.into * 0.12;
         level.part.colliders.push({ c: alongX ? [cc, cy, mid] : [mid, cy, cc], h: alongX ? [0.1, hy, half] : [half, hy, 0.1] });
       }
@@ -498,6 +552,8 @@ function buildStairCurtains(src: BuildingSource, levels: LevelMeshes[], part: Pa
       const destLevel = dest ? floorAt(dest.e) : undefined;
       if (!dest || !destLevel || same(dest.e, end.e)) continue;
       const [ax, ay] = spot(end, 0.7), [tx, ty] = spot(dest, 0.9);
+      const closed = (x: number, y: number): boolean => (src.hidePortals ?? []).some(([a, b, c, d]) => x >= a && x <= c && y >= b && y <= d);
+      if (closed(ax, ay)) continue;
       const out: [number, number] = dest.st.axis === 'x' ? [-dest.into, 0] : [0, -dest.into];
       portals.push({ at: [ax, end.e, ay], to: [tx, dest.e, ty], facing: out, up: !high, level: destLevel.id });
       // A sign on the curtain over each doorway.
@@ -552,6 +608,12 @@ export function buildBuildingMeshes(src: BuildingSource): BuildingMeshes {
     belowAll = belowAll.concat(shell);
   }
   const portals = buildStairCurtains(src, levels, stairsPart);
+  for (const d of src.stairDoors ?? []) {
+    portals.push({ ...d });
+    // A hanging sign over the doorway, facing the way the player stands to use it.
+    const level = levels.find((l) => Math.abs(l.base - d.at[1]) < 0.01);
+    level?.furniture.push({ kind: 'sign', x: d.at[0] - d.facing[0] * 0.55, y: d.at[1] + 2.25, z: d.at[2] - d.facing[1] * 0.55, ry: Math.atan2(d.facing[0], d.facing[1]), sx: 1.2, sy: 0.34, sz: 1, tint: 0, label: `${d.up ? '▲ 上樓' : '▼ 下樓'} ${d.level}` });
+  }
   for (const l of src.landings ?? []) {
     if (!src.levels.some((lv) => Math.abs(lv.elevation - l.elevation) < 0.01)) continue; // half landings are behind the curtain
     horizontal(stairsPart.floor, l.rect, l.elevation + 0.02, true, 0.6);

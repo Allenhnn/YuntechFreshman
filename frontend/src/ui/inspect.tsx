@@ -12,7 +12,7 @@ function actionLabel(id: ItemId): string {
   if (DRINKS.has(id)) return '喝掉';
   if (FOODS.has(id)) return '吃掉';
   if (id === 'campusMap') return '打開地圖';
-  if (id === 'studentCard') return '看學號';
+  if (id === 'studentCard') return '看看證件';
   if (id === 'notebook') return '翻開看';
   return '使用';
 }

@@ -1,4 +1,5 @@
 import { BoxGeometry, CylinderGeometry, Mesh, MeshBasicMaterial, MeshStandardMaterial, TorusGeometry, type Scene } from 'three';
+import { playerName, studentId } from '../state/playerName';
 import type { CampusData } from '../campus/campusTypes';
 import type { ResourceTracker } from '../core/resources';
 import { ITEMS, type ItemId } from '../state/items';
@@ -54,6 +55,8 @@ export interface StoryDeps {
 
 export interface StoryFrame {
   x: number;
+  /** Height of the feet (floor level inside buildings). */
+  y: number;
   z: number;
   /** Area title (building name, 操場, 大門) or null outdoors. */
   area: string | null;
@@ -91,6 +94,8 @@ export interface StoryRuntime {
   prompt(f: StoryFrame): string | null;
   /** Handles E: 'done' when the story used it, 'hilife' to open the 萊爾富 shop, null when not. */
   interact(f: StoryFrame): 'done' | 'hilife' | null;
+  /** Refusal for opening a door into `room` of `building` right now (Day 1: only the class's room), or null. */
+  roomGate(building: string, room: string | undefined): string | null;
   /** Movement speed multiplier (race stamina). */
   readonly speedFactor: number;
   /** Navigate to the current objective. */
@@ -209,6 +214,8 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
   let wasLying = false;
   let wakeTried = false;
   let wrongRoomToast = false;
+  /** Day 1: told once that the class is upstairs, on entering 管理一館 on the ground floor. */
+  let floorHint = false;
   /** The live countdown object, reused while it does not change (the store compares by identity). */
   let cdCache: { label: string; left: number; total: number; where: string } | null = null;
   const cdOf = (left: number, total: number, where: string): NonNullable<typeof cdCache> => {
@@ -231,6 +238,7 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
     cls = { phase: 'idle', t: 0, limit: 0 };
     wakeFor = 0;
     wrongRoomToast = false;
+    floorHint = false;
     tut = null;
     lectureT = 0;
     bellRung = false;
@@ -527,7 +535,7 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
       actions.takeItem('healthForm');
       if (!actions.hasItem('studentCard')) actions.giveItem('studentCard');
       const no = prog().studentNo;
-      window.setTimeout(() => toast(`🪪 學生證上的學號末三碼是 ${no}，點名要用（背包裡使用學生證可再查看）`), 1800);
+      window.setTimeout(() => toast(`🪪 拿到學生證：${playerName()}・${studentId(no)}（背包裡可以拿出來看）`), 1800);
     }
     if (id === 'wakeD1') actions.giveItem('healthForm');
     if (id === 'study') d.setClock(gameStore.getState().gameMinutes + 30);
@@ -761,6 +769,10 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
         toast(`老師在點名了！${limit} 秒內到 ${step.room ?? step.place} 坐下`);
       } else if (cls.phase === 'timed') {
         cls.t -= dt;
+        if (!floorHint && step.room && inPlace(f, step.place) && f.y < 2) {
+          floorHint = true;
+          toast(`📍 上課教室是 ${step.room}，在 2 樓！搭電梯或走樓梯上 2F`);
+        }
         const here = f.seatedIn === step.place;
         if (here && step.room && f.seatedRoom !== step.room) {
           if (!wrongRoomToast) { wrongRoomToast = true; toast(`這裡不是 ${step.room}！到管理一館 2F 的 ${step.room} 教室`); }
@@ -934,6 +946,17 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
     prompt,
     interact,
     get speedFactor() { return speedFactor; },
+    /**
+     * Day 1 遲到危機: only the class's own room may be entered (its doors open); any other classroom
+     * door in the 管理學院 stays shut with a reminder. Returns the refusal, or null when allowed.
+     */
+    roomGate(building: string, room: string | undefined): string | null {
+      const step = currentStep();
+      if (!st().enabled || prog().day !== 1 || !step?.room || (step.cond.t !== 'class' && step.cond.t !== 'scene')) return null;
+      if (building !== 'ma' && building !== 'mb') return null;
+      if (!room || room === step.room) return null;
+      return `🚫 快遲到了，別亂跑！要上課的教室是 ${step.room}（管理一館 2 樓）`;
+    },
     guide() {
       const step = currentStep();
       if (!step) { toast('目前沒有主線任務'); return; }

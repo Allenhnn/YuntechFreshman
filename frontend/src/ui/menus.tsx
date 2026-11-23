@@ -7,6 +7,7 @@ import { storyActions, useStory } from '../state/story';
 import { dispatch } from '../state/commands';
 import { StoryAdmin } from './story';
 import { Icon, Rich } from './icons';
+import { NAME_MAX, nameStore, randomName, setPlayerName } from '../state/playerName';
 
 export function Brand(): ReactNode {
   return (
@@ -39,6 +40,46 @@ export function LoadingScreen(): ReactNode {
   );
 }
 
+/** 取名字: what the player is called in the story (roll call, student card), with a dice for a name. */
+function NameScreen({ onDone, onBack }: { onDone: (name: string) => void; onBack: () => void }): ReactNode {
+  const api = useApi();
+  const [name, setName] = useState(() => nameStore.getState().name);
+  const [spin, setSpin] = useState(0);
+  const ok = name.trim().length > 0;
+  const roll = (): void => {
+    api.click();
+    setName((n) => randomName(n));
+    setSpin((k) => k + 1);
+  };
+  return (
+    <div className="screen">
+      <form
+        className="card name-card"
+        onSubmit={(e) => { e.preventDefault(); if (ok) onDone(name); }}
+      >
+        <Brand />
+        <h2>你叫什麼名字？</h2>
+        <p className="name-sub">在雲寶寶上學趣裡，教授點名、學生證上都會用這個名字。</p>
+        <div className="name-row">
+          <input
+            autoFocus
+            value={name}
+            maxLength={NAME_MAX}
+            placeholder="輸入名字"
+            onChange={(e) => setName(e.currentTarget.value)}
+          />
+          <button type="button" className="btn dice" title="隨機產生一個名字" onClick={roll}>
+            <span key={spin} className="dice-face">🎲</span>
+          </button>
+        </div>
+        <p className="name-note"><Icon name="lock" /> 名字只存在這台裝置，不會上傳或外流。骰子會挑台灣最常撞名的名字。</p>
+        <button type="submit" className="btn primary" disabled={!ok}>就是這個名字，出發！</button>
+        <button type="button" className="btn back" onClick={onBack}>返回</button>
+      </form>
+    </div>
+  );
+}
+
 /** Shared by the main menu and the pause menu: root buttons, controls, settings. */
 export function MenuScreen({ paused }: { paused: boolean }): ReactNode {
   const api = useApi();
@@ -46,7 +87,14 @@ export function MenuScreen({ paused }: { paused: boolean }): ReactNode {
   const hint = useGame((s) => s.menuHint);
   const hasSave = useGame((s) => s.hasSave);
   const [confirmingNew, setConfirmingNew] = useState(false);
+  /** Asking for the player's name before a new game (or a save that has none yet). */
+  const [naming, setNaming] = useState<null | 'new' | 'continue'>(null);
   const account = useAuth((s) => s.status);
+  const startNew = (): void => { api.click(); setConfirmingNew(false); setNaming('new'); };
+  const continueSave = (): void => {
+    if (nameStore.getState().name) api.continueGame();
+    else { api.click(); setNaming('continue'); }
+  };
   const open = (p: 'root' | 'controls' | 'settings'): void => {
     api.click();
     actions.setMenuPanel(p);
@@ -74,6 +122,19 @@ export function MenuScreen({ paused }: { paused: boolean }): ReactNode {
       </div>
     );
   }
+  if (!paused && naming) {
+    return (
+      <NameScreen
+        onBack={() => { api.click(); setNaming(null); }}
+        onDone={(name) => {
+          setPlayerName(name);
+          setNaming(null);
+          if (naming === 'new') api.startGame();
+          else api.continueGame();
+        }}
+      />
+    );
+  }
   if (!paused) {
     return (
       <div className="title-screen">
@@ -85,15 +146,15 @@ export function MenuScreen({ paused }: { paused: boolean }): ReactNode {
               <div className="confirm-box">
                 <p>確定要開始新遊戲嗎？目前的進度會被清除，無法復原。</p>
                 <div>
-                  <button className="btn primary" onClick={api.startGame}>清除進度並開始</button>
+                  <button className="btn primary" onClick={startNew}>清除進度並開始</button>
                   <button className="btn" onClick={() => setConfirmingNew(false)}>取消</button>
                 </div>
               </div>
             ) : (
               <>
                 {hasSave
-                  ? <MenuItem primary icon="▶" label="繼續遊戲" sub="回到上次離開的地方" onClick={api.continueGame} />
-                  : <MenuItem primary icon="▶" label="開始遊戲" sub="從宿舍區的道路出發" onClick={api.startGame} />}
+                  ? <MenuItem primary icon="▶" label="繼續遊戲" sub="回到上次離開的地方" onClick={continueSave} />
+                  : <MenuItem primary icon="▶" label="開始遊戲" sub="從宿舍區的道路出發" onClick={startNew} />}
                 {hasSave && <MenuItem icon="✦" label="新遊戲" sub="清除進度重新開始" onClick={() => { api.click(); setConfirmingNew(true); }} />}
                 <MenuItem icon="⌨" label="操作介紹" sub="移動、互動與快捷鍵" onClick={() => open('controls')} />
                 <MenuItem icon="⚙" label="設定" sub="畫質、音量、滑鼠" onClick={() => open('settings')} />

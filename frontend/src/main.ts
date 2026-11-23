@@ -1,4 +1,5 @@
 import { ACESFilmicToneMapping, Euler, PCFShadowMap, PerspectiveCamera, Quaternion, Scene, SRGBColorSpace, Vector3, WebGLRenderer } from 'three';
+import { playerName, studentId } from './state/playerName';
 import { createPhoneCamera } from './game/phoneCamera';
 import { addPhoto } from './state/album';
 import { createWorld } from 'bitecs';
@@ -421,7 +422,7 @@ async function boot(): Promise<void> {
   let swimStroke = 0;
   let lastWake = 0;
   let lastNight = -1;
-  const storyFrame: StoryFrame = { x: 0, z: 0, area: null, minutes: 0, riding: false, sprinting: false, playing: false, viewYaw: 0, seatedIn: null, seatedRoom: null, lying: false, jumps: 0, modal: 'none' };
+  const storyFrame: StoryFrame = { x: 0, y: 0, z: 0, area: null, minutes: 0, riding: false, sprinting: false, playing: false, viewYaw: 0, seatedIn: null, seatedRoom: null, lying: false, jumps: 0, modal: 'none' };
   const insideBuilding = createBuildingTest(campus);
   const moveMods: MoveModifiers = { fly: false, noclip: false, speed: 1, bike: false, blocked: null };
   const joints = findMascotJoints(model.root);
@@ -819,7 +820,7 @@ async function boot(): Promise<void> {
         const item = gameStore.getState().inventory[cmd.slot]?.id;
         useItem(cmd.slot, api);
         if (item && FOOD.has(item)) storyEvents.eat(item);
-        if (item === 'studentCard') actions.toast(`🪪 國立雲林科技大學・新鮮人　學號末三碼 ${storyStore.getState().progress.studentNo}`);
+        if (item === 'studentCard') actions.toast(`🪪 國立雲林科技大學・${playerName()}　學號 ${studentId(storyStore.getState().progress.studentNo)}`);
         return;
       }
       case 'storyGuide':
@@ -861,7 +862,7 @@ async function boot(): Promise<void> {
         }
         if (target?.id.includes(':door:')) {
           const [buildingId, index] = target.id.split(':door:');
-          const refused = buildingById(buildingId ?? '')?.toggleDoor(Number(index));
+          const refused = buildingById(buildingId ?? '')?.toggleDoor(Number(index), (room) => story.roomGate(buildingId ?? '', room));
           if (refused) {
             actions.toast(refused);
             audio.play('close');
@@ -1274,6 +1275,7 @@ async function boot(): Promise<void> {
       wasRiding = riding;
       storyFrame.x = px;
       storyFrame.z = pz;
+      storyFrame.y = Transform.y[eid]!;
       storyFrame.area = areaAt(px, Transform.y[eid]!, pz)?.title ?? null;
       storyFrame.minutes = ui.gameMinutes;
       storyFrame.riding = riding;
@@ -1298,7 +1300,7 @@ async function boot(): Promise<void> {
       const insp = playing && ui.modal === 'inspect' ? ui.inspect : null;
       if (!insp || (held && held.id !== insp.id)) dropHeld();
       if (insp && !held) {
-        const extra = `學號末三碼 ${storyStore.getState().progress.studentNo}`;
+        const extra = { name: playerName(), id: studentId(storyStore.getState().progress.studentNo) };
         held = { id: insp.id, view: createItemModel(insp.id, extra), hand: createItemModel(insp.id, extra) };
         held.view.group.renderOrder = 10;
         scene.add(held.view.group);
