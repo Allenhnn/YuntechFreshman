@@ -87,15 +87,37 @@ export function buildActivityComplex(b: CampusBuilding, solid: GeoBuilder, glass
     // The triangular glass gable presents its end to the entrance.
     const roofAt = (a:number,y:number,o:number) => at(o,y,-a);
     for (const [x0,x1,h0,h1] of [[8.5,17.8,10.1,13.55],[17.8,27.1,13.55,10.1]] as const) {
-      section(glass,roofAt,0,23.5,x0,x1,h0,h1,.07,metal);
-      for (let z=0;z<=24;z+=3.9) section(solid,roofAt,z,z+.16,x0,x1,h0-.2,h1-.2,.21,steel);
+      // Short entrance gable in front of the transverse atrium lantern.
+      section(glass,roofAt,20,23.5,x0,x1,h0,h1,.07,metal);
+      section(solid,roofAt,23.3,23.5,x0,x1,h0-.2,h1-.2,.21,steel);
       for(let k=0;k<5;k++) {
         const x=x0+(x1-x0)*k/5, h=h0+(h1-h0)*k/5;
-        box(x,x+.08,-23.5,0,h-.08,.12,steel);
+        box(x,x+.08,-23.5,-20,h-.08,.12,steel);
         if(h>10.2) box(x,x+.08,-23.55,-23.43,10.07,h-10.07,steel);
       }
     }
-    for (const [x0,x1] of [[.1,8.5],[27.1,35.5]] as const) box(x0,x1,-23.5,0,9.85,.28,sand);
+    for(const [a,b] of [[.1,8.5],[27.1,35.5]] as const) box(a,b,-23.5,-20,9.85,.28,sand);
+    box(.1,35.5,-3,0,9.85,.28,sand);
+    for(const [z0,z1,h0,h1] of [[-20,-11.5,10.7,13.45],[-11.5,-3,13.45,10.7]] as const) {
+      section(glass,at,.1,35.5,z0,z1,h0,h1,.07,metal);
+      for(let x=.2;x<35.5;x+=1.75) section(solid,at,x,x+.085,z0,z1,h0-.1,h1-.1,.11,steel);
+      for(let k=0;k<5;k++) {
+        const z=z0+(z1-z0)*k/5, h=h0+(h1-h0)*k/5;
+        box(.1,35.5,z,z+.085,h-.1,.11,steel);
+      }
+    }
+    for(const z of [-20,-3]) {
+      section(glass,at,.1,35.5,z,z+.045,9.3,9.3,1.4,metal);
+      for(let x=.25;x<35.5;x+=1.75) box(x,x+.09,z-.05,z+.07,9.3,1.4,steel);
+    }
+    // Ceiling and column lines over the two covered ends of the level hall.
+    for(const [a,b] of [[.1,6],[28,35.7]] as const) box(a,b,-20,-3,6.82,.38,concrete);
+    // Backing wall and fixed display doors by room 107 (plan right).
+    box(35.47,35.8,-11.55,-4.05,1.125,3.5,concrete);
+    for(const x of [6,25.5]) {
+      box(x,x+2.3,-2.15,-1.55,1.46,.12,[.36,.24,.15]);
+      for(const offset of [.18,1.9]) box(x+offset,x+offset+.17,-2.1,-1.6,1.125,.34,edge);
+    }
     // Shadowed square openings in the two high concrete returns framing the sign.
     for (const x of [.1,31.9]) {
       box(x,x+3.6,-27,-22.5,9.8,.72);
@@ -166,8 +188,11 @@ export function buildActivityComplex(b: CampusBuilding, solid: GeoBuilder, glass
     }
     // Central stair, level side bypasses and the paired stepped planting beds.
     for (let i=0;i<7;i++) box(12.5,23.5,-30.9+i*.43,-30.47+i*.43,.075,(i+1)*.15,edge);
-    box(12.5,23.5,-27.89,-24,.075,1.05,edge);
-    for (let i=0;i<6;i++) box(12.5,23.5,-24+i*.43,-23.57+i*.43,.075,(6-i)*.15,edge);
+    // Both exterior stairs terminate on one continuous first-floor platform.
+    box(1.8,32.5,-27.89,.55,0,1.125,concrete);
+    box(32.5,35.8,-20,-3,0,1.125,concrete);
+    section(solid,at,.15,1.8,-27.89,-14.9,0,1.05,.075,edge);
+    box(.15,1.8,-14.9,.55,0,1.125,concrete);
     for(const x of [1.6,24.1]) {
       box(x,x+10.1,-29.4,-26.1,.08,.65);
       box(x+.15,x+9.95,-28.85,-26.3,.73,.52);
@@ -177,11 +202,7 @@ export function buildActivityComplex(b: CampusBuilding, solid: GeoBuilder, glass
       section(solid,at,x,x+.065,-30.78,-27.9,1.08,2.07,.065,metal);
       for(const [z,y] of [[-30.7,.23],[-29.35,.68],[-27.95,1.08]]) box(x,x+.065,z,z+.065,y,.91,metal);
     }
-    // Broad pond-side entrance steps and a raised viewing landing; the
-    // flanking bays remain level with the plaza for step-free passage.
-    for (let i=0; i<6; i++) box(9,26,2.8-i*.45,3.25-i*.45,0,(i+1)*.15);
-    box(9,26,-2,.55,0,.9);
-    for (let i=0; i<5; i++) box(9,26,-2.45-i*.45,-2-i*.45,0,(5-i)*.15);
+    for (let i=0; i<6; i++) box(9,26,2.8-i*.45,3.25-i*.45,0,(i+1)*1.125/6,edge);
   } else {
     // Photos 40–44: the east return has a concrete flight against the
     // solid auditorium wall, a projecting landing, and pale metal rails.
