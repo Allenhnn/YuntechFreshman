@@ -126,7 +126,7 @@ export function buildActivityComplex(b: CampusBuilding, solid: GeoBuilder, glass
       box(x,x+3.6,-27,-22.5,11.92,.62);
     }
     // North-west stair tower. Its projecting balcony screens the recessed
-    // stair from the plaza; the lower flight climbs left, then turns indoors.
+    // stair from the plaza; one straight flight climbs into the first-floor hall.
     const strip = (x0:number,x1:number,z0:number,z1:number,depth:number,y:number,h:number,c:Tint) => {
       const bottom=[at(x0,y,z0),at(x1,y,z1),at(x1,y,z1+depth),at(x0,y,z0+depth)];
       const top=bottom.map(([x,base,z]):Point=>[x,base+h,z]);
@@ -158,38 +158,42 @@ export function buildActivityComplex(b: CampusBuilding, solid: GeoBuilder, glass
     box(33.6,41.5,face,back,11.31,1.05);
     box(33.6,41.5,face+.04,-24.6,12.36,.16,edge);
     // Recessed walls behind the open balcony mouth, against the adjoining wing.
-    box(36.55,40.65,-27.05,-26.77,0,7.43,edge);
+    box(37.65,40.65,-27.05,-26.77,0,7.43,edge);
     box(40.75,41.5,-31.4,-27.0,0,7.82,concrete);
     box(36.55,37.10,-27.55,-27.05,4.4,.1,steel);
     box(36.57,37.08,-27.52,-27.08,4.35,.05,[.8,.79,.64]);
-    // Both flights have equal risers and share a level quarter-turn landing.
-    const rise=3.6/22;
-    for(let i=0;i<10;i++) {
-      const x=39.55-(i+1)*.32;
-      box(x,x+.32,-30.35,-28.7,0,(i+1)*rise,edge);
+    // Looking in from the forecourt the flight climbs left and away.
+    // Use the central stair's landing elevation for the whole side approach.
+    const platformY = 1.125;
+    const stairAt = (a:number,y:number,t:number) =>
+      at(37.9 + .8*a - .6*t, y, -29.45 + .6*a + .8*t);
+    const count = 7, tread = .43, run = count*tread, halfWidth = .85;
+    for(let i=0;i<count;i++) {
+      section(solid,stairAt,-halfWidth,halfWidth,i*tread,(i+1)*tread,0,0,
+        (i+1)*platformY/count,edge);
     }
-    box(34.65,36.35,-30.35,-27.1,0,10*rise,edge);
-    for(let i=0;i<12;i++) {
-      const z=-27.1+i*.35;
-      box(34.65,36.35,z,z+.35,0,(11+i)*rise,edge);
+    // Splay the level landing into the existing slab. The two inside
+    // corners land on its x=32.5 edge, so walking straight reaches the hall.
+    const join = (a:number) => (37.9 + .8*a - 32.5)/.6;
+    const plan = [[-halfWidth,run],[halfWidth,run],[halfWidth,join(halfWidth)],[-halfWidth,join(-halfWidth)]];
+    const lower=plan.map(([a,t])=>stairAt(a!,0,t!));
+    const upper=plan.map(([a,t])=>stairAt(a!,platformY,t!));
+    quad(solid,upper,concrete);
+    for(let i=0;i<4;i++) {
+      const j=(i+1)%4;
+      quad(solid,[lower[i]!,lower[j]!,upper[j]!,upper[i]!],concrete);
     }
-    box(32.6,36.35,-22.9,-21.85,3.28,.32);
-    const [sx,,sz]=at(39.55,0,-28.7), [ex,,ez]=at(39.55,0,-27.7);
-    const railFrame=frame(sx,sz,ex,ez);
-    section(solid,railFrame,0,.065,0,3.2,.99,10*rise+.91,.06,metal);
-    section(solid,at,36.27,36.34,-27.1,-22.9,10*rise+.97,4.51,.06,metal);
-    for(const i of [0,4,8]) {
-      const x=39.55-(i+.5)*.32;
-      box(x,x+.05,-28.7,-28.64,(i+1)*rise,.89,metal);
-    }
-    for(const i of [0,5,11]) {
-      const z=-27.1+(i+.5)*.35;
-      box(36.27,36.33,z,z+.05,(11+i)*rise,.91,metal);
+    // A recessed cheek wall and a continuous handrail frame the small opening.
+    section(solid,stairAt,.94,1.09,0,run+.4,0,0,3.25,concrete);
+    section(solid,stairAt,.79,.85,.12,run,.99,platformY+.88,.055,metal);
+    for(const i of [0,3,6]) {
+      const t=(i+.5)*tread, y=(i+1)*platformY/count;
+      section(solid,stairAt,.79,.85,t,t+.055,y,y,.86,metal);
     }
     // Central stair, level side bypasses and the paired stepped planting beds.
     for (let i=0;i<7;i++) box(12.5,23.5,-30.9+i*.43,-30.47+i*.43,.075,(i+1)*.15,edge);
     // Both exterior stairs terminate on one continuous first-floor platform.
-    box(1.8,32.5,-27.89,.55,0,1.125,concrete);
+    box(1.8,32.5,-27.89,.55,0,platformY,concrete);
     box(32.5,35.8,-20,-3,0,1.125,concrete);
     section(solid,at,.15,1.8,-27.89,-14.9,0,1.05,.075,edge);
     box(.15,1.8,-14.9,.55,0,1.125,concrete);
