@@ -388,9 +388,14 @@ export function splitDormC(campus: CampusData): void {
   const f13 = V(13), fl = Math.hypot(r[28]! - f13[0], r[29]! - f13[1]);
   const fu: P = [(r[28]! - f13[0]) / fl, (r[29]! - f13[1]) / fl];
   const p14 = add(V(14), fu, DORM_C.roomWidth), p15 = add(V(15), fu, DORM_C.roomWidth);
-  // The east wing keeps its OSM footprint (使用者地圖): split from the middle by a line from vertex 12 along
-  // the east wing's inner face (vertex 8 → 9) to the north face (3 → 4).
-  const pts: Record<string, P> = { p14, p15, S: meet(V(12), [r[18]! - r[16]!, r[19]! - r[17]!], V(3), [r[8]! - r[6]!, r[9]! - r[7]!]) };
+  // The east wing keeps its OSM shape (使用者地圖) but moves `eastShift` m further east along the front, so the
+  // hall beside the balcony (the old notch, now part of the 4-storey middle) shows about as wide as the west hall
+  // (使用者：右側戶廳 4 層、露出比例跟左側差不多). The middle ends on a line from the moved vertex 11 along the
+  // east wing's inner face (vertex 8 → 9) up to the north face (3 → 4).
+  const sh = (k: number): P => add(V(k), fu, -DORM_C.eastShift);
+  const pts: Record<string, P> = { p14, p15 };
+  for (const k of [4, 5, 6, 7, 8, 9, 10, 11]) pts[`${k}s`] = sh(k);
+  pts.Q = meet(pts['11s']!, [r[18]! - r[16]!, r[19]! - r[17]!], V(3), [r[8]! - r[6]!, r[9]! - r[7]!]);
   const ring = (ids: readonly (number | string)[]): number[] => ids.flatMap((k) => (typeof k === 'number' ? V(k) : pts[k]!));
   // 使用者（2026-11-23）：北棟的室內先整個拿掉——三塊都封起來（門畫成關著的，沒有室內）。故事的寢室在南邊那棟 C（296668592），不受影響。
   const piece = (id: number, ids: readonly (number | string)[], levels: number) => ({ ...b, id, outer: ring(ids), holes: [], levels, height: Math.round(levels * 3.6 * 10) / 10, sealed: true });

@@ -45,11 +45,17 @@ interface GateMark {
    * pale-blue gate, and the approach on the courtyard side (see C_FRONT).
    */
   portal?: boolean;
+  /**
+   * Fixed wall ends (campus metres) instead of probing the nearest wings. 學生宿舍C 前門 stays where it was
+   * before 學生宿舍C 東翼 moved 1.6 m east (campusFixes.ts splitDormC) — 使用者：改回原本的位置; the wall now
+   * meets that wing's south wall about 1.6 m short of its corner.
+   */
+  ends?: readonly [readonly [number, number], readonly [number, number]];
 }
 
 export const DORM_GATES: readonly GateMark[] = [
   { name: '學生宿舍C 後門', a: [-52.0, 341.5], b: [-28.1, 331.7] },
-  { name: '學生宿舍C 前門', a: [1.8, 327.5], b: [27.9, 319.9], portal: true },
+  { name: '學生宿舍C 前門', a: [1.8, 327.5], b: [27.9, 319.9], portal: true, ends: [[10.92, 327.66], [8.57, 319.27]] },
   { name: '學生宿舍B 前門', a: [38.3, 319.9], b: [62.2, 313.4] },
   { name: '學生宿舍B 後門', a: [92.7, 311.2], b: [117.7, 303.6] },
   { name: '學生宿舍A 前門', a: [143.8, 296.0], b: [164.5, 289.5] },
@@ -452,7 +458,7 @@ export function createDormYard(scene: Scene, physics: RAPIER.World, campus: Camp
 
   for (const g of DORM_GATES) {
     const mx = (g.a[0] + g.b[0]) / 2, mz = (g.a[1] + g.b[1]) / 2;
-    const br = bridge(mx, mz);
+    const br = g.ends ? { p: [g.ends[0][0], g.ends[0][1]] as [number, number], q: [g.ends[1][0], g.ends[1][1]] as [number, number] } : bridge(mx, mz);
     if (!br) continue;
     const span = Math.hypot(br.q[0] - br.p[0], br.q[1] - br.p[1]);
     if (span < GATE_W + 1.5) continue;

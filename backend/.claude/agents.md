@@ -164,6 +164,33 @@ docker compose down             # 停止（加 -v 會連資料一起刪除）
 | `.env.example` 沒被 commit | 根目錄 `.gitignore` 有 `.env*`；需要時用 `git add -f backend/.env.example` |
 
 ## 變更紀錄
+### 2026-11-23（前端：學生宿舍C 北棟門廳大門置中）— 分支 `fix/dorm-c-front-gate`
+- 需求：使用者說的「大門沒有置中」是北棟一樓門廳的棕框雙開門（截圖紅線，「C」字正下方），不是中庭的前門
+- `frontend/src/buildings/dormCFacade.ts`：雙開門改在門廳正中，對齊「C」字與地上紅磚帶
+- 中庭前門（dormYard）：前兩輪因誤會而移到東翼轉角與旁棟缺口正中，使用者要求改回原本的位置——`ends` 改回東翼東移前的原端點（10.92, 327.66）–（8.57, 319.27）
+- 測試：`tsc --noEmit`、`vite build` 通過；dev server 暫時除錯相機從使用者截圖視角看過（已移除）
+
+### 2026-11-23（前端：學生宿舍C 前門位置固定、東翼凹口牆改實心）— 分支 `fix/dorm-c-front-gate`
+- 需求：C 棟大門位置飄掉；地圖上紅框處（東翼面向戶廳的凹口牆）的戶廳窗不要、換成牆
+- 原因：前門的圍牆端點是執行時找兩翼最近點；東翼東移 1.6 m 後，門的中心往東 1.4 m 並轉了角度，跟固定位置的步道、廣場錯開
+- `frontend/src/campus/dormYard.ts`：`GateMark.ends`，C 前門固定牆端點；先固定回原端點，使用者說沒有置中，改成從東翼轉角（10.15, 318.99）沿原圍牆角度到旁棟南牆（12.52, 327.43），門在缺口正中、步道跟著門
+- `frontend/src/buildings/dormCFacade.ts`：東翼凹口的西向牆改實心
+- 測試：`tsc --noEmit`、`vite build` 通過；dev server 暫時除錯相機看過前門與凹口（已移除）
+
+### 2026-11-23（前端：學生宿舍C 右側戶廳改 4 層、整棟往東加長 1.6 m）— 分支 `fix/dorm-c-front-gate`
+- 需求：右側戶廳要 4 層，露出比例跟左側差不多；可以增加整體長度、不必完全照平面，但不要超出太多
+- `frontend/src/campus/customFacades.ts`：`DORM_C.eastShift = 1.6`；`DORM_C_PIECES` 東翼改用移動後的點（4s…11s、Q）；分界牆、手工立面邊號、陽台邊號（edge 5）更新
+- `frontend/src/campus/campusFixes.ts`：`splitDormC` 東翼頂點沿正面往東移 1.6 m；原凹口北面併入中段（4 層戶廳，約 5.9 m，左側約 5.75 m）
+- `frontend/src/buildings/dormCFacade.ts`：錨點更新；右側戶廳用中段 4 層高度
+- 檢查：東翼東牆離腳踏車棚至少約 1.7 m、C 前門圍牆仍接在東翼東南角
+- 測試：`tsc --noEmit`、`vite build` 通過；dev server 暫時除錯相機看過正面與空拍（已移除）
+
+### 2026-11-23（前端：學生宿舍C 北棟正面右側加房間、縮小戶廳與曬衣間）— 分支 `fix/dorm-c-front-gate`
+- 需求：截圖紅框（左側戶廳＋房間）複製到右邊藍框；戶廳和洗衣間縮小，房間窗戶比例不動
+- `frontend/src/campus/customFacades.ts`：`DORM_C_BALCONY.a0 = roomWidth + 1`，陽台東端讓出一間房
+- `frontend/src/buildings/dormCFacade.ts`：凸出段右端加房間列（同左側）；陽台開口端 1.3 m；戶廳窗 `HALL_WINDOW` 2.4 m 置中、兩旁實牆；東側凹口朝中庭那面改回戶廳；曬衣架縮短配合較短的陽台
+- 測試：`tsc --noEmit`、`vite build` 通過；dev server 暫時除錯相機從使用者截圖視角看過（已移除）
+
 ### 2026-11-23（前端：學生宿舍C 北棟室內移除、東翼破圖修正）— 分支 `fix/dorm-c-front-gate`
 - 需求：把 C 棟的室內建模先刪除；修正截圖中 C 棟東翼的破圖
 - `frontend/src/campus/campusFixes.ts`：`splitDormC` 產生的三塊（中段、西翼、東翼）都設 `sealed`——沒有生成的室內、門畫成關著

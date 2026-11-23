@@ -18,16 +18,19 @@ export const DORM_C = {
    * （原 vertex 14、15 沿正面往西移這麼多 m）。東側照使用者的地圖維持 OSM：東翼原寬、內側有凹口（凹口當戶廳）。
    */
   roomWidth: 3.4,
+  /** The east wing moves this far east (m) so the east hall shows as wide as the west one (使用者). */
+  eastShift: 1.6,
 } as const;
 
 /**
  * Each piece's ring (CCW): numbers are the OSM ring's vertices, names are points splitDormC makes —
- * p14 / p15: the west return slid a room further west; S: on the north face (3 → 4) straight up the east
- * wing's inner face from vertex 12. Edge k of a piece runs from its k-th to its (k+1)-th point.
+ * p14 / p15: the west return slid a room further west; 4s … 11s: the east wing's vertices moved `eastShift`
+ * east; Q: on the north face (3 → 4) straight up the east wing's inner face from 11s.
+ * Edge k of a piece runs from its k-th to its (k+1)-th point.
  */
 export const DORM_C_PIECES = {
-  middle: [2, 3, 'S', 12, 13, 'p14', 'p15', 16],
-  eastWing: ['S', 4, 5, 6, 7, 8, 9, 10, 11, 12],
+  middle: [2, 3, 'Q', '11s', 12, 13, 'p14', 'p15', 16],
+  eastWing: ['Q', '4s', '5s', '6s', '7s', '8s', '9s', '10s', '11s'],
   westWing: [16, 17, 18, 19, 0, 1, 2],
 } as const;
 
@@ -38,8 +41,8 @@ export const DORM_C_PIECES = {
  * generated interiors (one per piece) every piece keeps its full walls.
  */
 export const PARTY_WALLS: Readonly<Record<number, Readonly<Record<number, number>>>> = {
-  [DORM_C.middle]: { 2: DORM_C.wingLevels * 3.6, 7: DORM_C.wingLevels * 3.6 }, // S→12 (east wing side), 16→2 (west wing side)
-  [DORM_C.eastWing]: { 9: 99 }, // 12→S
+  [DORM_C.middle]: { 2: DORM_C.wingLevels * 3.6, 8: DORM_C.wingLevels * 3.6 }, // Q→11s (east wing side), 16→2 (west wing side)
+  [DORM_C.eastWing]: { 8: 99 }, // 11s→Q
   [DORM_C.westWing]: { 6: 99 }, // 2→16
 };
 
@@ -54,21 +57,22 @@ export const STYLE_ALIAS: Readonly<Record<number, number>> = { [DORM_C.westWing]
  */
 export const CUSTOM_FACADE_EDGES: Readonly<Record<number, readonly number[]>> = {
   // buildings/dormCFacade.ts
-  [DORM_C.middle]: [2, 3, 4, 5, 6, 7],
-  [DORM_C.eastWing]: [3, 4, 5, 6, 7, 8, 9],
+  [DORM_C.middle]: [2, 3, 4, 5, 6, 7, 8],
+  [DORM_C.eastWing]: [3, 4, 5, 6, 7, 8],
   [DORM_C.westWing]: [0, 1, 2, 6],
 };
 
 /**
  * 學生宿舍C 北棟中段的洗衣陽台（使用者室內照與正面照，2026-11-22）：2F–4F 每層一間長條陽台，佔整個中段凸出部分
  * （兩端柱之間）：正面中間一大片紅色鏤空花磚、兩端各一段開口。
- * `a0` / `a1`：沿中段正面（edge 4）從頂點 i（OSM vertex 13）量起的範圍（陽台段左右各留 1 m 端柱）；每層從樓板 `y` 開到上一層樓板下緣
+ * `a0` / `a1`：沿中段正面（edge 5）從頂點 i（OSM vertex 13）量起的範圍（陽台段左右各留 1 m 端柱）；每層從樓板 `y` 開到上一層樓板下緣
  * `y + height`；`depth`：從外牆面往室內挖多深——只挖外牆厚度（生成的室內房間緊貼外牆內面），陽台的深度靠中段外框往外凸出。
  */
 export const DORM_C_BALCONY_SPAN = [1.0, 12.2] as const; // along the OSM front from vertex 13
 export const DORM_C_BALCONY = {
-  building: DORM_C.middle, edge: 4, // 13 → p14
-  a0: DORM_C_BALCONY_SPAN[0], a1: DORM_C_BALCONY_SPAN[1],
+  building: DORM_C.middle, edge: 5, // 13 → p14
+  // 使用者（2026-11-23）：陽台右邊也要一間房，曬衣間縮小——東端讓出一間房寬。
+  a0: DORM_C.roomWidth + DORM_C_BALCONY_SPAN[0], a1: DORM_C_BALCONY_SPAN[1],
   floors: [3.6, 7.2, 10.8], height: 3.35, depth: 0.4,
 } as const;
 

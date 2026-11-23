@@ -48,17 +48,18 @@ import { DORM_C, DORM_C_BALCONY as BAL, DORM_C_BALCONY_SPAN } from '../campus/cu
 type Anchor = { id: number; i: number; a: readonly [number, number]; b: readonly [number, number] };
 /** Walls drawn here: building piece, edge, and its expected endpoints (vertex i, vertex i+1); skipped if the data moved. */
 const EDGES = {
-  // As splitDormC lays them out: the front a room longer to the west than OSM; the east side as in OSM (使用者地圖).
-  centre: { id: DORM_C.middle, i: 4, a: [-8.4, 311.4], b: [-24.72, 314.31] },
-  westReturn: { id: DORM_C.middle, i: 5, a: [-24.72, 314.31], b: [-25.07, 312.37] },
-  westFlank: { id: DORM_C.middle, i: 6, a: [-25.07, 312.37], b: [-30.8, 313.4] },
-  eastReturn: { id: DORM_C.middle, i: 3, a: [-8.9, 308.8], b: [-8.4, 311.4] },
-  eastFlank: { id: DORM_C.eastWing, i: 8, a: [-4.7, 308.1], b: [-8.9, 308.8] },
-  eastJogWest: { id: DORM_C.eastWing, i: 7, a: [-3.9, 312.5], b: [-4.7, 308.1] },
-  eastJogSouth: { id: DORM_C.eastWing, i: 6, a: [-6.1, 312.9], b: [-3.9, 312.5] },
-  eastWingEast: { id: DORM_C.eastWing, i: 3, a: [5.9, 304.0], b: [8.6, 319.3] },
-  eastWingSouth: { id: DORM_C.eastWing, i: 4, a: [8.6, 319.3], b: [-4.6, 321.6] },
-  eastWingWest: { id: DORM_C.eastWing, i: 5, a: [-4.6, 321.6], b: [-6.1, 312.9] },
+  // As splitDormC lays them out: the front a room longer to the west than OSM; the east wing moved 1.6 m east,
+  // the hall between them part of the 4-storey middle.
+  centre: { id: DORM_C.middle, i: 5, a: [-8.4, 311.4], b: [-24.72, 314.31] },
+  westReturn: { id: DORM_C.middle, i: 6, a: [-24.72, 314.31], b: [-25.07, 312.37] },
+  westFlank: { id: DORM_C.middle, i: 7, a: [-25.07, 312.37], b: [-30.8, 313.4] },
+  eastReturn: { id: DORM_C.middle, i: 4, a: [-8.9, 308.8], b: [-8.4, 311.4] },
+  eastFlank: { id: DORM_C.middle, i: 3, a: [-3.12, 307.82], b: [-8.9, 308.8] },
+  eastJogWest: { id: DORM_C.eastWing, i: 7, a: [-2.32, 312.22], b: [-3.12, 307.82] },
+  eastJogSouth: { id: DORM_C.eastWing, i: 6, a: [-4.52, 312.62], b: [-2.32, 312.22] },
+  eastWingEast: { id: DORM_C.eastWing, i: 3, a: [7.47, 303.68], b: [10.15, 318.99] },
+  eastWingSouth: { id: DORM_C.eastWing, i: 4, a: [10.15, 318.99], b: [-3.02, 321.32] },
+  eastWingWest: { id: DORM_C.eastWing, i: 5, a: [-3.02, 321.32], b: [-4.52, 312.62] },
   westWingEast: { id: DORM_C.westWing, i: 0, a: [-30.8, 313.4], b: [-29.4, 321.3] },
   westWingSouth: { id: DORM_C.westWing, i: 1, a: [-29.4, 321.3], b: [-42.3, 323.6] },
   westWingWest: { id: DORM_C.westWing, i: 2, a: [-42.3, 323.6], b: [-44.6, 310.4] },
@@ -70,11 +71,13 @@ const MIDDLE = { H: DORM_C.middleLevels * STOREY, floors: [3.6, 7.2, 10.8] };
 const WINGS = { H: DORM_C.wingLevels * STOREY, floors: [3.6, 7.2] };
 const PARAPET = 1.0; // the band above the eaves (the procedural parapet is 1 m)
 /** Centre bay: frame depth, end piers, the open bays at both ends of the balcony front (the lattice fills the rest). */
-const CENTRE = { depth: 1.5, endPier: DORM_C_BALCONY_SPAN[0], open: 1.8 }; // the balcony's depth is the frame's (the room behind starts at the wall)
+const CENTRE = { depth: 1.5, endPier: DORM_C_BALCONY_SPAN[0], open: 1.3 }; // the balcony's depth is the frame's (the room behind starts at the wall)
 /** Ground floor of the centre bay: canopy beam (bottom, top, depth), the lobby glass set back by `lobby`. */
 const CANOPY = { y0: 2.85, y1: 3.58, depth: 2.1, lobby: 0.35 }; // top under the 2F balcony floor
 /** Flanks beside the centre bay: frame depth, pier width, target bay width, sunshade depth. */
 const FLANK = { depth: 0.45, pier: 0.6, bay: 3.4, shade: 0.8 };
+/** The halls' windows (使用者：縮小): this wide at most, centred in the hall's wall. */
+const HALL_WINDOW = 2.4;
 /** Wing faces: frame depth, pier, lattice bay width (incl. its open slot), slot width, window bay, hood depth, plinth top. */
 const WING = { depth: 0.5, pier: 0.6, lattice: 3.0, slot: 0.7, bay: 2.6, hood: 0.6, plinth: 0.9 };
 /** Entrance terrace in front of the centre bay: depth from the wall, steps (count, rise, tread). */
@@ -362,8 +365,8 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
       }
       // Stainless drying rack behind the screen, between the machines and the windows.
       const rz = zf - 0.55;
-      for (const y of [fy + 1.1, fy + 1.45]) box(2.2, 3.9, y, y + 0.03, rz - 0.015, rz + 0.015, steel);
-      for (const d of [2.25, 3.85]) for (const dz of [-0.2, 0.2]) box(d - 0.015, d + 0.015, fy, fy + 1.45, rz + dz - 0.015, rz + dz + 0.015, steel);
+      for (const y of [fy + 1.1, fy + 1.45]) box(2.2, 3.6, y, y + 0.03, rz - 0.015, rz + 0.015, steel);
+      for (const d of [2.25, 3.55]) for (const dz of [-0.2, 0.2]) box(d - 0.015, d + 0.015, fy, fy + 1.45, rz + dz - 0.015, rz + dz + 0.015, steel);
     }
     // Navy drying rails under the ceiling: three along the room, five across.
     for (const z of [zb + 0.4, (zb + zf) / 2, zf - 0.45]) b.put(span(x0, x1, top - 0.38, top - 0.33, z - 0.025, z + 0.025), navy);
@@ -380,17 +383,17 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
   const centre = edgeFrame(campus, EDGES.centre);
   if (centre) {
     const f = centre, L = f.len, D = CENTRE.depth, b = build(f), { H, floors } = MIDDLE, E = CENTRE.endPier;
-    // [0, C0]: the room bay (使用者標註); [C0, C1 = L]: the balcony bay, its balcony between end piers E wide.
-    const C1 = L, C0 = C1 - (BAL.a1 - BAL.a0 + 2 * E);
+    // [0, C0] and [C1, L]: a room bay each side (使用者標註); [C0, C1]: the balcony bay, its balcony between end piers E wide.
+    const C1 = L - DORM_C.roomWidth, C0 = C1 - (BAL.a1 - BAL.a0 + 2 * E);
     // Balcony room between the end piers (the opening along the edge: a from vertex i → x = L − a).
     const X0 = L - BAL.a1, X1 = L - BAL.a0;
     skin(b, f, H, BAL.floors.map((y) => [X0, X1, y, y + BAL.height] as const));
-    for (const [a, c] of [[0, FLANK.pier], [C0, C0 + E], [C1 - E, C1]] as const) {
+    for (const [a, c] of [[0, FLANK.pier], [C0, C0 + E], [C1 - E, C1], [L - FLANK.pier, L]] as const) {
       b.put(span(a, c, 0, H, 0.02, D), concrete, 2);
       b.solid(a, c, 0, CANOPY.y0, 0.02, D);
     }
-    // Room bay: one dorm room per floor, a deep window with an AC unit; dark glass with a green kick plate below.
-    for (const [a, c] of [[FLANK.pier, C0]] as const) {
+    // Room bays: one dorm room per floor, a deep window with an AC unit (outer side); dark glass with a green kick plate below.
+    for (const [a, c] of [[FLANK.pier, C0], [C1, L - FLANK.pier]] as const) {
       for (const fy of floors) {
         b.put(span(a, c, fy - 0.25, fy + 0.9, 0.02, D), concrete, 2);
         b.put(span(a, c, fy + 2.6, fy + 3.35, 0.02, D), concrete, 2);
@@ -413,13 +416,13 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
       }
       laundryRoom(b, X0, X1, fy, D);
     }
-    // Ground floor: one glass lobby between the piers, brown double doors left of centre, the canopy beam with the「C」.
+    // Ground floor: one glass lobby between the piers, brown double doors in the middle, the canopy beam with the「C」.
     const z = CANOPY.lobby, lob0 = C0 + E, lob1 = C1 - E;
     b.put(span(lob0, lob1, 0, CANOPY.y0, z, z + 0.04), glass);
     b.solid(lob0, lob1, 0, CANOPY.y0, 0.02, z + 0.04);
     b.put(span(lob0, lob1, 2.4, 2.46, z, z + 0.1), frameGrey);
     b.put(span(lob0, lob1, 0, 0.12, z, z + 0.1), frameGrey);
-    const doorW = 2.0, dc = lob0 + (lob1 - lob0) * 0.32;
+    const doorW = 2.0, dc = (lob0 + lob1) / 2; // centred under the「C」(使用者)
     b.put(span(lob0, dc - doorW / 2, 0.12, 0.5, z - 0.03, z), kick);
     b.put(span(dc + doorW / 2, lob1, 0.12, 0.5, z - 0.03, z), kick);
     for (let xm = lob0; xm <= lob1 + 1e-6; xm += (lob1 - lob0) / 7) {
@@ -479,8 +482,8 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
 
   // --- Flanks beside the centre bay, and the short returns -----------------------------------------
   // Each side of the projecting front: the hall (戶廳，使用者標註) — one bay, a tall window per floor, no AC.
-  // East: the hall's window is on the jog wall facing the notch (使用者平面圖).
-  for (const [e, { H, floors }, hall] of [[EDGES.westFlank, MIDDLE, true], [EDGES.eastJogWest, WINGS, true]] as const) {
+  // East: the hall (4 storeys, part of the middle) faces the courtyard beside the east wing (使用者：紅框複製到右邊).
+  for (const [e, { H, floors }, hall] of [[EDGES.westFlank, MIDDLE, true], [EDGES.eastFlank, MIDDLE, true]] as const) {
     const f = edgeFrame(campus, e);
     if (!f) continue;
     const L = f.len, Dw = FLANK.depth, b = build(f);
@@ -499,7 +502,10 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
         b.put(span(a, c, fy - 0.25, w0, 0.02, Dw), concrete, 2);
         b.put(span(a, c, w1, fy + 3.35, 0.02, Dw), concrete, 2);
         b.put(span(a - 0.1, c + 0.1, w1, w1 + 0.1, Dw, FLANK.shade), concrete, 2); // sunshade
-        windowAt(b, a, c, w0, w1);
+        // The hall's window (使用者：縮小): at most HALL_WINDOW wide, solid wall either side at the frame face.
+        const half = hall ? Math.min(HALL_WINDOW, c - a) / 2 : (c - a) / 2, m = (a + c) / 2;
+        windowAt(b, m - half, m + half, w0, w1);
+        if (m - half > a + 0.01) for (const [p, q] of [[a, m - half], [m + half, c]] as const) b.put(span(p, q, w0, w1, 0.02, Dw), concrete, 2);
         if (!hall && seeded() < 0.5) acUnit(b, a + 0.6 + seeded() * (c - a - 1.2), fy + 0.92);
       }
       // Ground floor: dark shop glass with a green kick plate.
@@ -511,8 +517,8 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
     b.put(span(-0.05, L + 0.05, H - 0.25, H + PARAPET, 0.02, Dw + 0.05), concrete, 2);
     b.done();
   }
-  // Short returns; the notch's other two faces (east wing, 3 storeys) are solid walls (使用者平面圖).
-  for (const [e, { H, floors }, solid] of [[EDGES.westReturn, MIDDLE, false], [EDGES.eastReturn, MIDDLE, false], [EDGES.eastFlank, WINGS, true], [EDGES.eastJogSouth, WINGS, true]] as const) {
+  // Short returns; the east wing's two jog faces beside the hall (3 storeys) are solid walls (使用者平面圖；戶廳窗不要了).
+  for (const [e, { H, floors }, solid] of [[EDGES.westReturn, MIDDLE, false], [EDGES.eastReturn, MIDDLE, false], [EDGES.eastJogSouth, WINGS, true], [EDGES.eastJogWest, WINGS, true]] as const) {
     const f = edgeFrame(campus, e);
     if (!f) continue;
     const L = f.len, b = build(f);
