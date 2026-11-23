@@ -12,6 +12,7 @@ import {
   type MeshBuffers,
   type Ring,
 } from './campusTypes';
+import { ACTIVITY_COURT_RING, buildActivityComplex, PERFORMANCE_HALL, STUDENT_CENTRE } from './activityComplex';
 import { addFacadeDetails } from './facadeDetails';
 import { DOOR_HEIGHT, DOOR_WIDTH, buildingEntrance, enterableShape, hasInterior, type Entrance } from './entrances';
 import { SHELL_WALL, buildingKind, generateInterior } from '../interiors/generateInterior';
@@ -565,7 +566,7 @@ export class ChunkBuilder {
     for (const [id, p] of Object.entries(facades.photos)) {
       this.photos.set(Number(id), { atlas: p.atlas, edges: new Map(p.edges.map((e) => [e.edge, e])) });
     }
-    this.exclusions = exclusions.map((r) => ({ item: r, bounds: ringBounds(r) }));
+    this.exclusions = [...exclusions, ACTIVITY_COURT_RING].map((r) => ({ item: r, bounds: ringBounds(r) }));
     this.marker = new RoadMarker(data);
     const key = (x: number, z: number): string => `${chunkOf(x)},${chunkOf(z)}`;
     const push = <T>(m: Map<string, T[]>, k: string, v: T): void => {
@@ -647,6 +648,15 @@ export class ChunkBuilder {
       const custom = CUSTOM_FACADE_EDGES[b.id];
       const detailSkip = custom ? new Set([...photoEdges, ...custom]) : photoEdges;
       addFacadeDetails(details, b, this.rawStyles[styleIndex]!, { wall: style.wall, trim: style.trim }, this.data.roads, detailSkip, b.sealed ? shut : doors);
+      if (b.id === STUDENT_CENTRE || b.id === PERFORMANCE_HALL) {
+        const vertexStart = details.pos.length / 3;
+        const indexStart = details.idx.length;
+        buildActivityComplex(b, details, glass);
+        // Use the same geometry for the visible steps, galleries and their colliders.
+        const indexOffset = slabs.pos.length / 3 - vertexStart;
+        slabs.pos.push(...details.pos.slice(vertexStart * 3));
+        for (let i = indexStart; i < details.idx.length; i++) slabs.idx.push(details.idx[i]! + indexOffset);
+      }
       for (const e of shut) addShutDoor(details, b.outer, e);
       const photoMesh = photoOut?.build();
       if (shots && photoMesh) photoWalls.push({ building: b.id, atlas: shots.atlas, mesh: photoMesh });
