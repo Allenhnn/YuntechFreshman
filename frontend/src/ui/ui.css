@@ -929,3 +929,58 @@ svg.ico-line { vertical-align: -0.2em; flex: none; }
 /* the top-centre countdown takes the top edge: guide bar and phone banner sit under it */
 .top-cd ~ .nav-bar, .hud:has(~ .top-cd) .nav-bar { top: 112px; }
 .phone-notice { top: 168px; }
+
+/* ---------- HUD quest panel v2: main quest only, green ---------- */
+.qt { width: min(330px, calc(100vw - 236px)); gap: 6px; }
+.qt-main { border: 2px solid rgba(255, 255, 255, 0.7); }
+.qt section.qt-main { background: linear-gradient(180deg, rgba(246, 252, 247, 0.95), rgba(232, 245, 236, 0.93)); }
+.qt-main header { background: linear-gradient(110deg, #1f8f4a 0%, #146b37 70%, #0f5a2d 100%); padding: 8px 12px; position: relative; overflow: hidden; }
+.qt-main header::after { content: ''; position: absolute; right: -20px; top: -30px; width: 90px; height: 90px; border-radius: 50%; background: rgba(255, 255, 255, 0.08); }
+.qt-main .qt-tag { color: var(--green-dark); background: #e8f7ed; font-weight: 700; }
+.qt-day { color: #d6f5df; }
+.qt-steps { padding: 10px 12px 0; gap: 5px; }
+.qt-steps i { height: 6px; background: #d5e6da; }
+.qt-steps i.done { background: #7fcf9a; }
+.qt-steps i.now { background: #1f8f4a; box-shadow: 0 0 0 2px rgba(31, 143, 74, 0.22); }
+.qt-icon { background: linear-gradient(160deg, #e8f7ed, #c9ebd5); box-shadow: inset 0 0 0 2px #9fd8b2; color: var(--green-dark); }
+.qt-objective b { color: #10351f; }
+.qt-objective small { color: #2f7a4b; }
+.chip-dist { background: #ddf2e4; color: #146b37; }
+.chip-here { background: #1f8f4a; color: #fff; }
+.chip-nav { background: #eef6f0; color: #1f8f4a; border: 1px solid #b9dfc6; }
+.chip-nav.on { background: #146b37; color: #fff; border-color: #146b37; }
+.qt footer { background: rgba(15, 70, 36, 0.72); }
+
+/* ---------- Tutorial ---------- */
+.tutorial { position: absolute; left: 50%; bottom: 120px; transform: translateX(-50%); min-width: 360px; padding: 14px 20px 12px; border-radius: 20px; background: rgba(12, 52, 28, 0.88); color: #fff; text-align: center; box-shadow: var(--shadow); animation: pop-in 0.3s ease; pointer-events: none; }
+.tutorial.done { background: rgba(31, 143, 74, 0.95); }
+.tut-head { display: flex; justify-content: space-between; font-size: 13px; opacity: 0.85; }
+.tut-keys { display: flex; justify-content: center; gap: 8px; margin: 10px 0 6px; }
+.tut-keys kbd { min-width: 46px; height: 46px; padding: 0 10px; border-radius: 10px; background: #fff; color: #14532d; font-size: 22px; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 4px 0 #9fd8b2; animation: key-bob 1.2s ease-in-out infinite; }
+.tut-keys kbd.wide { min-width: 96px; font-size: 18px; }
+@keyframes key-bob { 50% { transform: translateY(3px); box-shadow: 0 1px 0 #9fd8b2; } }
+.tutorial p { margin: 4px 0 8px; font-size: 18px; }
+.tutorial ol { display: flex; justify-content: center; gap: 6px; margin: 0; padding: 0; list-style: none; font-size: 11px; }
+.tutorial li { padding: 2px 8px; border-radius: 999px; background: rgba(255, 255, 255, 0.15); }
+.tutorial li.now { background: #fff; color: #14532d; }
+.tutorial li.ok { background: #4cc27a; }
+
+/* ---------- 上課中 ---------- */
+.lecture-banner { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 8px 16px; border-radius: 999px; background: rgba(12, 52, 28, 0.85); color: #fff; box-shadow: var(--shadow); pointer-events: none; }
+.lecture-live { color: #ff6b6b; font-size: 12px; animation: qt-pulse 1.2s infinite; }
+.lecture-banner small { opacity: 0.75; font-size: 12px; }
+.lecture-bar { width: 90px; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.2); overflow: hidden; }
+.lecture-bar i { display: block; height: 100%; background: #7fe0a0; }
+.lecture-sub { position: absolute; left: 50%; bottom: 140px; transform: translateX(-50%); max-width: min(720px, calc(100vw - 40px)); padding: 10px 18px; border-radius: 14px; background: rgba(0, 0, 0, 0.72); color: #fff; font-size: 18px; text-align: center; animation: fade-in 0.4s ease; pointer-events: none; }
+.lecture-sub em { margin-right: 10px; font-style: normal; color: #7fe0a0; }
+.lecture-sub.whisper { font-size: 15px; color: #ddd; background: rgba(0, 0, 0, 0.5); }
+.lecture-sub.whisper em { color: #ffd54f; }
+
+/* ---------- Inspect view (item in hand) ---------- */
+.inspect-layer { position: absolute; inset: 0; pointer-events: auto; cursor: grab; }
+.inspect-hint { position: absolute; top: 18px; left: 50%; transform: translateX(-50%); padding: 6px 14px; border-radius: 999px; background: rgba(12, 52, 28, 0.75); color: #fff; font-size: 13px; }
+.inspect-panel { position: absolute; left: 50%; bottom: 28px; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; width: min(620px, calc(100vw - 32px)); padding: 12px 16px; border-radius: 18px; background: var(--glass); box-shadow: var(--shadow); cursor: default; animation: pop-in 0.25s ease; }
+.inspect-panel > i { font-size: 32px; font-style: normal; flex: none; }
+.inspect-panel > div { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.inspect-panel small { color: var(--ink-soft); font-size: 12px; }
+.inspect-panel .btn kbd { font-size: 10px; padding: 0 4px; }

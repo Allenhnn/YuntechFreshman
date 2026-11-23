@@ -5,7 +5,18 @@ import type { CampusData, Ring } from '../campus/campusTypes';
  * edges; vertices closer than SNAP are merged and dead ends within BRIDGE of another vertex are
  * joined, which closes the small gaps OSM leaves between paths. Routes run A* between the points
  * on the network nearest the start and the goal, with straight legs to and from it.
+ *
+ * Obstacles (building footprints, ponds; the campus edge) keep routes honest:
+ *  - a goal inside a building is reached through its entrance (never straight through a wall), and
+ *    a start inside one leaves through its entrance;
+ *  - where the straight line is clear the route takes it, and the network route is pulled tight
+ *    (corners dropped wherever a straight cut stays clear), so open ground is not a detour.
  */
+export interface NavObstacle {
+  ring: Ring;
+  /** Walkable point just outside its entrance (buildings), or null (ponds, closed buildings). */
+  door: { x: number; z: number } | null;
+}
 const SNAP = 1.5;
 const BRIDGE = 8;
 
@@ -23,7 +34,63 @@ export interface NavGraph {
   route(sx: number, sz: number, tx: number, tz: number): number[];
 }
 
-export function buildNavGraph(campus: CampusData): NavGraph {
+interface Blocker { ring: Ring; x0: number; z0: number; x1: number; z1: number; solid: boolean; door: { x: number; z: number } | null }
+
+const bbox = (r: Ring): [number, number, number, number] => {
+  let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
+  for (let i = 0; i < r.length; i += 2) { x0 = Math.min(x0, r[i]!); x1 = Math.max(x1, r[i]!); z0 = Math.min(z0, r[i + 1]!); z1 = Math.max(z1, r[i + 1]!); }
+  return [x0, z0, x1, z1];
+};
+
+/** Proper crossing of segments ab and cd. */
+function crosses(ax: number, az: number, bx: number, bz: number, cx: number, cz: number, dx: number, dz: number): boolean {
+  const o = (px: number, pz: number, qx: number, qz: number, rx: number, rz: number): number => (qx - px) * (rz - pz) - (qz - pz) * (rx - px);
+  const d1 = o(ax, az, bx, bz, cx, cz), d2 = o(ax, az, bx, bz, dx, dz), d3 = o(cx, cz, dx, dz, ax, az), d4 = o(cx, cz, dx, dz, bx, bz);
+  return d1 * d2 < 0 && d3 * d4 < 0;
+}
+
+export function buildNavGraph(campus: CampusData, obstacles: readonly NavObstacle[] = []): NavGraph {
+  let clearFn: (ax: number, az: number, bx: number, bz: number) => boolean = () => true;
+  const blockers: Blocker[] = [
+    ...obstacles.map((o) => { const [x0, z0, x1, z1] = bbox(o.ring); return { ring: o.ring, x0, z0, x1, z1, solid: true, door: o.door }; }),
+    (() => { const [x0, z0, x1, z1] = bbox(campus.boundary); return { ring: campus.boundary, x0, z0, x1, z1, solid: false, door: null }; })(),
+  ];
+  /** The obstacle (building / pond) containing (x, z), or null. */
+  const insideOf = (x: number, z: number): Blocker | null => {
+    for (const b of blockers) if (b.solid && x >= b.x0 && x <= b.x1 && z >= b.z0 && z <= b.z1 && pointInRing(x, z, b.ring)) return b;
+    return null;
+  };
+  /** Nothing in the way of a straight walk from a to b (`skip`: an obstacle the walk starts / ends in). */
+  clearFn = (ax, az, bx, bz) => clear(ax, az, bx, bz);
+  const clear = (ax: number, az: number, bx: number, bz: number, skip: readonly (Blocker | null)[] = []): boolean => {
+    const lx = Math.min(ax, bx), hx = Math.max(ax, bx), lz = Math.min(az, bz), hz = Math.max(az, bz);
+    for (const b of blockers) {
+      if (skip.includes(b) || b.x1 < lx || b.x0 > hx || b.z1 < lz || b.z0 > hz) continue;
+      const r = b.ring;
+      for (let i = 0, n = r.length / 2, j = n - 1; i < n; j = i++) {
+        if (crosses(ax, az, bx, bz, r[j * 2]!, r[j * 2 + 1]!, r[i * 2]!, r[i * 2 + 1]!)) return false;
+      }
+      if (b.solid && pointInRing((ax + bx) / 2, (az + bz) / 2, r)) return false;
+    }
+    return true;
+  };
+  /** Just outside the obstacle, nearest its wall to (x, z) (a building without an entrance). */
+  const outsideOf = (b: Blocker, x: number, z: number): { x: number; z: number } => {
+    let best = { x, z }, bestD = Infinity;
+    const r = b.ring;
+    for (let i = 0, n = r.length / 2; i < n; i++) {
+      const j = (i + 1) % n, ax = r[i * 2]!, az = r[i * 2 + 1]!, dx = r[j * 2]! - ax, dz = r[j * 2 + 1]! - az, l = Math.hypot(dx, dz) || 1;
+      const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / (l * l)));
+      const px = ax + dx * t, pz = az + dz * t, d = Math.hypot(px - x, pz - z);
+      if (d < bestD) {
+        bestD = d;
+        // Step out of the ring: try both normals, keep the one that lands outside.
+        const nx = dz / l, nz = -dx / l;
+        best = !pointInRing(px + nx * 1.5, pz + nz * 1.5, r) ? { x: px + nx * 1.5, z: pz + nz * 1.5 } : { x: px - nx * 1.5, z: pz - nz * 1.5 };
+      }
+    }
+    return best;
+  };
   const xs: number[] = [], zs: number[] = [];
   const adj: Map<number, number>[] = [];
   const cell = new Map<string, number[]>();
@@ -74,27 +141,26 @@ export function buildNavGraph(campus: CampusData): NavGraph {
   }
 
   /** Nearest point on any edge: its position and the edge's ends. */
+  // (Declared below the obstacle helpers; `clear` is hoisted through the closure.)
   const nearest = (x: number, z: number): { x: number; z: number; a: number; b: number } | null => {
-    let best: { x: number; z: number; a: number; b: number } | null = null;
-    let bestD = Infinity;
+    // The closest point on the network that can be walked to in a straight line (not through a
+    // building); the plain closest one if none of the nearest dozen can.
+    const cands: { x: number; z: number; a: number; b: number; d: number }[] = [];
     for (const [a, b] of edges) {
       const ax = xs[a]!, az = zs[a]!, dx = xs[b]! - ax, dz = zs[b]! - az;
       const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz || 1)));
       const px = ax + dx * t, pz = az + dz * t;
-      const d = Math.hypot(x - px, z - pz);
-      if (d < bestD) { bestD = d; best = { x: px, z: pz, a, b }; }
+      cands.push({ x: px, z: pz, a, b, d: Math.hypot(x - px, z - pz) });
     }
-    return best;
+    cands.sort((p, q) => p.d - q.d);
+    return cands.slice(0, 12).find((c) => clearFn(x, z, c.x, c.z)) ?? cands[0] ?? null;
   };
 
-  return {
-    route(sx, sz, tx, tz) {
+  const network = (sx: number, sz: number, tx: number, tz: number): number[] => {
+    {
       const s = nearest(sx, sz), t = nearest(tx, tz);
       const direct = [sx, sz, tx, tz];
       if (!s || !t) return direct;
-      // Straight there when walking the network would not help (close, or both far from it).
-      const straight = Math.hypot(tx - sx, tz - sz);
-      if (straight < 25) return direct;
       // A* from the start projection (virtual node −1) to the goal projection (−2).
       const S = -1, T = -2;
       const pos = (i: number): [number, number] => (i === S ? [s.x, s.z] : i === T ? [t.x, t.z] : [xs[i]!, zs[i]!]);
@@ -144,6 +210,35 @@ export function buildNavGraph(campus: CampusData): NavGraph {
         if (Math.hypot(out[i]! - clean[clean.length - 2]!, out[i + 1]! - clean[clean.length - 1]!) > 0.3) clean.push(out[i]!, out[i + 1]!);
       }
       return clean;
+    }
+  };
+
+  /** Drops every corner a straight cut can skip (string pulling). */
+  const pull = (p: number[]): number[] => {
+    const n = p.length / 2;
+    if (n <= 2) return p;
+    const out = [p[0]!, p[1]!];
+    let i = 0;
+    while (i < n - 1) {
+      let j = n - 1;
+      while (j > i + 1 && !clear(p[i * 2]!, p[i * 2 + 1]!, p[j * 2]!, p[j * 2 + 1]!)) j--;
+      out.push(p[j * 2]!, p[j * 2 + 1]!);
+      i = j;
+    }
+    return out;
+  };
+
+  return {
+    route(sx, sz, tx, tz) {
+      const from = insideOf(sx, sz), to = insideOf(tx, tz);
+      if (from && from === to) return [sx, sz, tx, tz]; // within one building
+      // Leave / enter buildings through their entrances.
+      const a = from ? from.door ?? outsideOf(from, sx, sz) : { x: sx, z: sz };
+      const b = to ? to.door ?? outsideOf(to, tx, tz) : { x: tx, z: tz };
+      const head = from ? [sx, sz] : [];
+      const tail = to ? [tx, tz] : [];
+      const middle = clear(a.x, a.z, b.x, b.z) ? [a.x, a.z, b.x, b.z] : pull(network(a.x, a.z, b.x, b.z));
+      return [...head, ...middle, ...tail];
     },
   };
 }

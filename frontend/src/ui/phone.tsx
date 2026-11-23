@@ -5,6 +5,7 @@ import { storyEvents } from '../story/storyRuntime';
 import { FRIEND, ROOMMATE } from '../story/storyData';
 import { deletePhoto, listPhotos, type Photo } from '../state/album';
 import { useApi } from './api';
+import { useEscape } from './escape';
 import { SettingsPanel } from './menus';
 import { Icon, Rich } from './icons';
 
@@ -89,6 +90,7 @@ function Chat(): ReactNode {
   const end = useRef<HTMLDivElement>(null);
   const names = [...new Set([ROOMMATE, FRIEND, ...Object.keys(phone.threads)])];
   useEffect(() => { if (phone.focus) { setOpen(phone.focus); storyActions.focusThread(null); } }, [phone.focus]);
+  useEscape(() => { if (!open) return false; setOpen(null); return true; }, 2); // Esc: thread → list
   useEffect(() => { if (open) storyActions.readThread(open); }, [open, phone.threads]);
   useEffect(() => { end.current?.scrollIntoView({ block: 'end' }); }, [open, phone.threads]);
   if (open) {
@@ -162,19 +164,28 @@ function Rollcall(): ReactNode {
   );
 }
 
-/** Newest phone message as a banner at the top of the screen for a few seconds. */
+/**
+ * Newest phone message as a banner at the top of the screen for a few seconds after it arrives.
+ * Shown once: remounting the HUD (closing a window) or opening the phone never brings it back.
+ */
+let noticeSeen = 0;
+const NOTICE_MS = 5000;
 export function PhoneNotice(): ReactNode {
   const api = useApi();
   const note = useStory((s) => s.phone.note);
   const phoneOpen = useGame((s) => s.modal === 'phone');
-  const [shown, setShown] = useState<number | null>(null);
+  const [, redraw] = useState(0);
+  useEffect(() => {
+    if (phoneOpen && note) noticeSeen = Math.max(noticeSeen, note.at); // read on the phone
+  }, [phoneOpen, note]);
   useEffect(() => {
     if (!note) return;
-    setShown(note.at);
-    const t = window.setTimeout(() => setShown(null), 5000);
+    const left = note.at + NOTICE_MS - Date.now();
+    if (left <= 0) return;
+    const t = window.setTimeout(() => { noticeSeen = Math.max(noticeSeen, note.at); redraw((n) => n + 1); }, left);
     return () => window.clearTimeout(t);
   }, [note]);
-  if (!note || shown !== note.at || phoneOpen) return null;
+  if (!note || phoneOpen || note.at <= noticeSeen || Date.now() - note.at > NOTICE_MS) return null;
   return (
     <button className="phone-notice interactive" key={note.at} onClick={() => { api.click(); actions.setPhonePage('chat'); api.toggleModal('phone'); }}>
       <i><Rich t={AVATAR[note.from] ?? '💬'} /></i>
@@ -189,6 +200,7 @@ export function PhoneDrawer(): ReactNode {
   const minutes = useGame((s) => s.gameMinutes);
   const page = useGame((s) => s.phonePage);
   const unread = useStory((s) => Object.values(s.phone.unread).reduce((a, b) => a + b, 0));
+  useEscape(() => { if (page === 'home') return false; actions.setPhonePage('home'); return true; }); // Esc: app → home
   const rcOpen = useStory((s) => !!s.phone.rollcall);
   const setPage = (p: typeof page): void => {
     api.click();

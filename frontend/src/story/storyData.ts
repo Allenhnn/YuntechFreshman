@@ -44,6 +44,8 @@ export type Cond =
   | { t: 'phoneRollcall' }
   /** Press E in the dorm to change clothes at the wardrobe. */
   | { t: 'outfit' }
+  /** First-time controls: move, jump, open the phone, open the bag. */
+  | { t: 'tutorial' }
   /** Press E in the dorm to sleep until `until` (minutes of the day) or the next morning. */
   | { t: 'sleep'; until: number | 'nextDay' }
   /** The road race (checkpoints). */
@@ -71,6 +73,8 @@ export interface Step {
   wake?: boolean;
   /** A phone message when the step begins. */
   msg?: { from: string; text: string };
+  /** Show the message as a notification instead of popping the phone open (the tutorial asks for P). */
+  quietMsg?: boolean;
 }
 
 export interface Day {
@@ -102,6 +106,29 @@ export const RACE_ROUTE: readonly { x: number; z: number; name: string }[] = [
   { x: 227.4, z: 208.6, name: '檢終・終點' },
 ];
 
+/** 新手教學 tasks, in order. */
+export const TUTORIAL: readonly { key: string[]; text: string }[] = [
+  { key: ['W', 'A', 'S', 'D'], text: '用 W A S D 前後左右走動' },
+  { key: ['Space'], text: '按空白鍵跳一下' },
+  { key: ['P'], text: '按 P 打開手機，看看室友傳了什麼' },
+  { key: ['Tab'], text: '按 Tab 打開背包看看帶了什麼' },
+];
+
+/** 上課中: what the professor says while you sit in class (one line every few seconds). */
+export const LECTURE: readonly { who: string; text: string }[] = [
+  { who: '教授', text: '好，我們開始上課。今天講「管理的四大功能」。' },
+  { who: '教授', text: '規劃、組織、領導、控制——這四個字期末一定考。' },
+  { who: '同學', text: '（小聲）欸，你剛剛是不是差點遲到…' },
+  { who: '教授', text: '規劃就是先想清楚目標，再決定要怎麼做。' },
+  { who: '教授', text: '就像你們早上設三個鬧鐘，結果還是睡過頭，這就是規劃失敗。' },
+  { who: '同學', text: '（全班笑）' },
+  { who: '教授', text: '組織，是把人和資源放在對的位置上。' },
+  { who: '教授', text: '這一頁的圖大家抄一下，下週小考會出。' },
+  { who: '同學', text: '（小聲）好想睡…' },
+  { who: '教授', text: '領導呢，不只是下命令，而是讓大家願意跟著你走。' },
+];
+export const COURSE = '管理學概論';
+
 export const ROOMMATE = '室友阿凱';
 export const FRIEND = '同學小芳';
 /** Fine for missing a roll call (NT$). */
@@ -111,7 +138,8 @@ export const DAYS: Day[] = [
   {
     title: '遲到危機與翹課日常',
     steps: [
-      { id: '1-1', text: '睡過頭了！快下床（看手機訊息）', place: DORM, cond: { t: 'getUp' }, at: hm(7, 52), wake: true, msg: { from: ROOMMATE, text: '老師正準備點名！你人咧？？快來管一！' } },
+      { id: '1-1', text: '睡過頭了！快下床', place: DORM, cond: { t: 'getUp' }, at: hm(7, 52), wake: true, quietMsg: true, msg: { from: ROOMMATE, text: '老師正準備點名！你人咧？？快來管一！' } },
+      { id: '1-T', text: '新手教學：學會基本操作', place: DORM, cond: { t: 'tutorial' } },
       { id: '1-2', text: '衝去管理一館 2F 的 MA214 教室，找空位坐下，被點到時舉手', place: CLASS1, room: 'MA214', cond: { t: 'class' } },
       { id: '1-3', text: '教授開始上課…撐住別睡著！', place: CLASS1, room: 'MA214', cond: { t: 'scene', scene: 'stayAwake' } },
       { id: '1-4', text: '下課了，去學生餐廳買午餐', place: CAFETERIA, cond: { t: 'buy', shop: 'cafeteria' }, at: hm(12, 0) },

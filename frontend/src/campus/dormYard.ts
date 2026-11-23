@@ -159,6 +159,8 @@ const CLOSE_R = 6.5;
 const GATE_SPEED = 2.2; // m/s of leaf travel
 
 export interface DormYard {
+  /** Footprints (rectangles) of every solid piece — walls, gate posts, sheds — for route planning. */
+  readonly blockers: number[][];
   /** Per frame (sensor gates); returns true on the frame a gate starts to open (for a sound). */
   update(dt: number, px: number, py: number, pz: number): boolean;
   dispose(): void;
@@ -190,8 +192,13 @@ export function createDormYard(scene: Scene, physics: RAPIER.World, campus: Camp
     }),
     roughness: 0.95, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -8,
   }));
+  const blockers: number[][] = [];
   const solid = (x: number, y: number, z: number, hx: number, hy: number, hz: number, yaw: number): void => {
     const q = new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), yaw);
+    // Ground rectangle (local x along yaw's x axis, z along its z axis), counter-clockwise.
+    const c = Math.cos(yaw), sn = Math.sin(yaw);
+    const corner = (a: number, b: number): [number, number] => [x + a * c + b * sn, z - a * sn + b * c];
+    if (hy > 0.4) blockers.push([...corner(-hx, -hz), ...corner(hx, -hz), ...corner(hx, hz), ...corner(-hx, hz)]);
     colliders.push(physics.createCollider(RAPIER.ColliderDesc.cuboid(hx, hy, hz).setTranslation(x, y, z).setRotation({ x: q.x, y: q.y, z: q.z, w: q.w })));
   };
   const dorms = campus.buildings.filter((b) => b.name?.startsWith('學生宿舍'));
@@ -350,6 +357,7 @@ export function createDormYard(scene: Scene, physics: RAPIER.World, campus: Camp
 
   const travel = GATE_W + 0.55;
   return {
+    blockers,
     update(dt, px, py, pz) {
       let started = false;
       for (const g of gates) {

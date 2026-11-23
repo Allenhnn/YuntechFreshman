@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { actions, useGame } from '../state/store';
 import { storyActions, useStory, type StoryProgress } from '../state/story';
-import { ACHIEVEMENTS, CLUBS, DAYS, MIXER, MIXER_GOAL, MIXER_START, QUIZ, SIDE_QUESTS, PHOTO_SPOTS, TOUR_STOPS, type Step } from '../story/storyData';
+import { COURSE, LECTURE, TUTORIAL, ACHIEVEMENTS, CLUBS, DAYS, MIXER, MIXER_GOAL, MIXER_START, QUIZ, SIDE_QUESTS, PHOTO_SPOTS, TOUR_STOPS, type Step } from '../story/storyData';
 import { OUTFIT_ITEMS, OUTFIT_PARTS } from '../character/outfit';
 import { storyEvents } from '../story/storyRuntime';
 import { dispatch } from '../state/commands';
@@ -26,8 +26,7 @@ function sideText(id: string, p: StoryProgress): string {
   return q.text.replace('{n}', String(s.done.length)).replace('{total}', String(q.total)).replace('{target}', s.target ?? next);
 }
 
-const STEP_ICON: Record<string, string> = { talk: '💬', buy: '🛒', eat: '🍱', sport: '🏀', class: '📚', sleep: '🛏️', run: '🏁', quiz: '📝', enter: '📍', scene: '📚', getUp: '⏰', phoneRollcall: '📱', outfit: '👕' };
-const SIDE_ICON: Record<string, string> = { lostFound: '🪪', bikeReturn: '🚲', tour: '🚩', photo: '📸', athlete: '🏅', foodie: '🍱' };
+const STEP_ICON: Record<string, string> = { talk: '💬', buy: '🛒', eat: '🍱', sport: '🏀', class: '📚', sleep: '🛏️', run: '🏁', quiz: '📝', enter: '📍', scene: '📚', getUp: '⏰', phoneRollcall: '📱', outfit: '👕', tutorial: '🎮' };
 const WHO: Record<string, string> = {
   wakeD1: '書桌', nurse: '健康中心護理師', roommateD2: '室友阿凱', bibD3: '室友阿凱', summary: '室友阿凱', mixer: '聯誼的同學',
   assembly: '週會座位', clubFair: '社團攤位', study: '圖書館的座位',
@@ -44,6 +43,7 @@ function howTo(step: Step): string {
       : c.kind === 'soccer' ? '走到足球場罰球點，按 E 開始 PK 大賽' : c.kind === 'volleyball' ? '走進排球場，按 E 開始墊球比賽' : '走到跑道起點，按 E 開始逆時針計時賽';
     case 'class': return `跟著導航到${step.place}，在時間內走到教室空位按 E 坐下（遲到扣錢）`;
     case 'scene': return `在${step.place}的座位坐好（按 E 坐下），上課就開始了`;
+    case 'tutorial': return '照著畫面下方的提示操作';
     case 'getUp': return '按 E 或任一移動鍵下床';
     case 'phoneRollcall': return '按 P 打開手機 →「聊天室」問小芳點名碼 →「點名系統」輸入';
     case 'outfit': return `在${step.place}按 E 打開衣櫃，至少穿上 3 件再出門`;
@@ -63,7 +63,6 @@ export function QuestTracker(): ReactNode {
   if (!enabled) return null;
   const day = DAYS[p.day - 1];
   const step = day?.steps[p.step];
-  const sides = Object.keys(p.side).filter((k) => p.side[k]!.state === 'active');
   return (
     <div className="qt">
       <section className="qt-main">
@@ -94,27 +93,46 @@ export function QuestTracker(): ReactNode {
           <div className="qt-objective"><span className="qt-icon"><Icon name="grad" size={26} /></span><div><b>主線全部完成！</b><small>繼續完成支線和成就，或在校園裡自由探索</small></div></div>
         )}
       </section>
-      <section className="qt-side">
-        <header><span className="qt-tag">支線</span><span className="qt-count">{sides.length ? `${sides.length} 個進行中` : '尚無進行中'}</span></header>
-        {sides.slice(0, 2).map((id) => {
-          const q = SIDE_QUESTS.find((x) => x.id === id)!;
-          const st = p.side[id]!;
-          return (
-            <div key={id} className="qt-side-row">
-              <span className="qt-side-icon"><Rich t={SIDE_ICON[id] ?? '📌'} /></span>
-              <div>
-                <b>{q.title}<em>{st.done.length}/{q.total}</em></b>
-                <small>{sideText(id, p)}</small>
-                <span className="qt-bar"><i style={{ width: `${(st.done.length / q.total) * 100}%` }} /></span>
-              </div>
-            </div>
-          );
-        })}
-        {!sides.length && <small className="qt-empty">在校園裡逛逛會觸發支線（按 J 查看提示）</small>}
-        {sides.length > 2 && <small className="qt-empty">還有 {sides.length - 2} 個支線，按 J 查看</small>}
-      </section>
-      <footer><kbd>J</kbd> 任務清單・<kbd>G</kbd> 導航到主線</footer>
+      <footer><kbd>J</kbd> 任務・<kbd>G</kbd> 導航</footer>
     </div>
+  );
+}
+
+/** 新手教學: the current task with its keys, a checklist of all four, centred low on screen. */
+export function TutorialCard(): ReactNode {
+  const tut = useStory((s) => s.live.tutorial);
+  if (!tut) return null;
+  const cur = TUTORIAL[tut.i];
+  if (!cur) return null;
+  return (
+    <div className={`tutorial${tut.done ? ' done' : ''}`} key={tut.i}>
+      <div className="tut-head"><b>新手教學</b><span>{tut.i + 1} / {TUTORIAL.length}</span></div>
+      <div className="tut-keys">{cur.key.map((k) => <kbd key={k} className={k.length > 1 ? 'wide' : ''}>{k}</kbd>)}</div>
+      <p>{tut.done ? '✓ 很好！' : cur.text}</p>
+      <ol>{TUTORIAL.map((t, i) => <li key={i} className={i < tut.i || (i === tut.i && tut.done) ? 'ok' : i === tut.i ? 'now' : ''}>{t.key.join(' ')}</li>)}</ol>
+    </div>
+  );
+}
+
+/** 上課中: the course banner with the lesson's progress, and the professor's words as subtitles. */
+export function LectureOverlay(): ReactNode {
+  const lec = useStory((s) => s.live.lecture);
+  const scene = useStory((s) => s.scene);
+  if (!lec) return null;
+  const line = LECTURE[lec.line]!;
+  return (
+    <>
+      <div className="lecture-banner">
+        <span className="lecture-live">● 上課中</span>
+        <b>{COURSE}</b><small>MA214・教授講課</small>
+        <span className="lecture-bar"><i style={{ width: `${Math.min(100, (lec.t / Math.max(1, lec.total)) * 100)}%` }} /></span>
+      </div>
+      {!scene && (
+        <div className={`lecture-sub${line.who === '同學' ? ' whisper' : ''}`} key={lec.line}>
+          <em>{line.who}</em>{line.text}
+        </div>
+      )}
+    </>
   );
 }
 

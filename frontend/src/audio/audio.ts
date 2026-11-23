@@ -1,4 +1,4 @@
-export type Sfx = 'click' | 'open' | 'close' | 'coin' | 'jump' | 'land' | 'robbed' | 'hit' | 'thud';
+export type Sfx = 'click' | 'open' | 'close' | 'coin' | 'jump' | 'land' | 'robbed' | 'hit' | 'thud' | 'bell';
 
 /** Recorded sounds (public/sounds/): a random take of the list plays each time. */
 const SAMPLES: Partial<Record<Sfx, readonly string[]>> = {
@@ -36,6 +36,13 @@ const SOUNDS: Readonly<Record<Sfx, readonly Tone[]>> = {
   land: [{ type: 'triangle', from: 180, to: 70, duration: 0.12, gain: 0.35 }],
   robbed: [],
   hit: [],
+  // School bell: ding-dong-ding-dong.
+  bell: [
+    { type: 'sine', from: 784, to: 784, duration: 0.55, gain: 0.22 },
+    { type: 'sine', from: 659, to: 659, duration: 0.55, gain: 0.22, delay: 0.55 },
+    { type: 'sine', from: 698, to: 698, duration: 0.55, gain: 0.22, delay: 1.1 },
+    { type: 'sine', from: 523, to: 523, duration: 0.9, gain: 0.22, delay: 1.65 },
+  ],
   // A body hitting a car / the ground: a low knock with a short rattle.
   thud: [
     { type: 'triangle', from: 140, to: 45, duration: 0.22, gain: 0.5 },

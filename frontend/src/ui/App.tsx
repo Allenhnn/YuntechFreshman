@@ -1,4 +1,5 @@
 import { StrictMode, type ReactNode } from 'react';
+import { InspectView } from './inspect';
 import { createRoot, type Root } from 'react-dom/client';
 import type { GameApi } from '../game/session';
 import { useGame } from '../state/store';
@@ -12,7 +13,7 @@ import { PhoneDrawer } from './phone';
 import { ElevatorModal, Fade, InteractPrompt, ShopModal } from './elevator';
 import { ChatBox } from './chat';
 import { CameraOverlay } from './camera';
-import { AchievementPopup, BigCountdown, Celebration, QuestLog, QuestTracker, StoryModal, TopCountdown } from './story';
+import { AchievementPopup, BigCountdown, Celebration, QuestLog, QuestTracker, StoryModal, TopCountdown, TutorialCard, LectureOverlay } from './story';
 import './ui.css';
 
 function App(): ReactNode {
@@ -24,6 +25,7 @@ function App(): ReactNode {
       {phase === 'playing' && modal !== 'camera' && <Hud />}
       {phase === 'playing' && modal === 'camera' && <CameraOverlay />}
       {phase === 'playing' && modal === 'inventory' && <InventoryModal />}
+      {phase === 'playing' && modal === 'inspect' && <InspectView />}
       {phase === 'playing' && modal === 'phone' && <PhoneDrawer />}
       {phase === 'playing' && modal === 'elevator' && <ElevatorModal />}
       {phase === 'playing' && modal === 'shop' && <ShopModal />}
@@ -35,6 +37,8 @@ function App(): ReactNode {
       {phase === 'playing' && <Celebration />}
       {phase === 'playing' && <BigCountdown />}
       {phase === 'playing' && modal !== 'camera' && <TopCountdown />}
+      {phase === 'playing' && modal !== 'camera' && <TutorialCard />}
+      {phase === 'playing' && modal !== 'camera' && <LectureOverlay />}
       {phase === 'playing' && <InteractPrompt />}
       <Fade />
       {phase === 'loading' && <LoadingScreen />}

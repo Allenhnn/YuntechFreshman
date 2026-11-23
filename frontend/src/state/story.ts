@@ -80,7 +80,7 @@ export interface StoryState {
   /** Open story scene (dialog / mini-game), shown in the story modal. */
   scene: StoryScene | null;
   /** Live objective details: distance (m) and direction to the target, timers. */
-  live: { countdown?: { label: string; left: number; total: number; where: string } | null; distance: number | null; bearing: number | null; timer: string | null; stamina: number | null; note: string | null; place: string | null; photoSpot?: string | null };
+  live: { tutorial?: { i: number; done: boolean } | null; lecture?: { line: number; t: number; total: number } | null; countdown?: { label: string; left: number; total: number; where: string } | null; distance: number | null; bearing: number | null; timer: string | null; stamina: number | null; note: string | null; place: string | null; photoSpot?: string | null };
   /** Achievements waiting for their popup (first = showing). */
   unlockQueue: string[];
   /** Quest targets for the minimap and full map (same as the beacons). */

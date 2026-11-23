@@ -16,7 +16,7 @@ import { clearProgress, loadProgress, notifySaveChanged, type SaveData } from '.
  */
 export type GamePhase = 'loading' | 'menu' | 'playing' | 'paused';
 export type MenuPanel = 'root' | 'controls' | 'settings';
-export type Modal = 'none' | 'inventory' | 'phone' | 'elevator' | 'shop' | 'chat' | 'camera' | 'story' | 'quests';
+export type Modal = 'none' | 'inventory' | 'phone' | 'elevator' | 'shop' | 'chat' | 'camera' | 'story' | 'quests' | 'inspect';
 export type PhonePage = 'home' | 'settings' | 'album' | 'chat' | 'rollcall';
 export type MapMode = 'mini' | 'full';
 export type LookMode = 'pointerLock' | 'drag';
@@ -163,6 +163,8 @@ export interface GameState {
   hotbarIndex: number;
   /** Inventory slot picked up for moving, or null. */
   heldSlot: number | null;
+  /** Item being looked at in the hand (inspect view), by inventory slot. */
+  inspect: { slot: number; id: ItemId } | null;
   toast: Toast | null;
   areaBanner: AreaBanner | null;
   nav: NavState | null;
@@ -220,6 +222,7 @@ export const gameStore = createStore<GameState>()(() => ({
   inventory: starterInventory(),
   hotbarIndex: 0,
   heldSlot: null,
+  inspect: null,
   toast: null,
   areaBanner: null,
   nav: null,
@@ -339,7 +342,10 @@ export const actions = {
     set({ menuHint });
   },
   setModal(modal: Modal): void {
-    set({ modal, heldSlot: null });
+    set({ modal, heldSlot: null, ...(modal !== 'inspect' ? { inspect: null } : {}) });
+  },
+  setInspect(inspect: GameState['inspect']): void {
+    set({ inspect });
   },
   setLookMode(lookMode: LookMode): void {
     set({ lookMode });

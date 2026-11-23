@@ -3,6 +3,7 @@ import { HOTBAR_SIZE } from '../state/items';
 import { TESTER_AVAILABLE, TESTER_SPEEDS, actions, gameStore } from '../state/store';
 import type { GameApi } from './session';
 import type { PointerLock } from '../input/pointerLock';
+import { runEscape } from '../ui/escape';
 
 /**
  * UI hotkeys (not gameplay actions, which go through input.ts at the fixed step):
@@ -84,7 +85,10 @@ export function installHotkeys(api: GameApi, lock: PointerLock): () => void {
         api.interact();
         return;
       case 'Escape':
-        if (s.modal === 'story') return; // finish the scene with its buttons
+        // Innermost first: a story scene must be finished with its buttons; then a window's own
+        // back step (chat thread → app → phone home), the window, the full map; pausing is last.
+        if (s.modal === 'story') return;
+        if (s.modal !== 'none' && runEscape()) return;
         if (s.modal !== 'none') api.closeModal();
         else if (s.mapMode === 'full') api.toggleMap();
         else if (!lock.isLocked()) api.pause();

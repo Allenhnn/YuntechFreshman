@@ -1,4 +1,4 @@
-import { ACESFilmicToneMapping, PCFShadowMap, PerspectiveCamera, Scene, SRGBColorSpace, Vector3, WebGLRenderer } from 'three';
+import { ACESFilmicToneMapping, Euler, PCFShadowMap, PerspectiveCamera, Quaternion, Scene, SRGBColorSpace, Vector3, WebGLRenderer } from 'three';
 import { createPhoneCamera } from './game/phoneCamera';
 import { addPhoto } from './state/album';
 import { createWorld } from 'bitecs';
@@ -78,6 +78,8 @@ import { UNLABELLED_NAMES } from './campus/placeNames';
 import { createBuildingTest, placeBikeStations, stationClearings } from './bikes/bikeStations';
 import { findMascotJoints } from './character/mascot';
 import { createOutfitter } from './character/outfit';
+import { createItemModel, type ItemModel } from './items/itemModels';
+import { inspectView } from './items/inspectView';
 import { RACE_ROUTE } from './story/storyData';
 import { BODY_REST_Y, CLOCK_RATE, applyPose, computeFallPose, computeLiePose, computeRidePose, computeSitPose, computeSwimPose, createPose } from './character/pose';
 import { safeTeleportTarget } from './game/teleport';
@@ -324,7 +326,24 @@ async function boot(): Promise<void> {
   const longtanSidewalks = createLongtanSidewalks(scene, physics, campus, sceneResources);
   const streetscape = createStreetscape(scene, physics, campus, sceneResources, keepClear);
   const sensorGates = createSensorGates(scene, physics, sceneResources);
-  const navGraph = buildNavGraph(campus);
+  // Navigation obstacles: every building (entered through its door) and the ponds.
+  const navObstacles = [
+    ...campus.buildings.map((b) => {
+      const photoEdges = new Set((facades?.photos[String(b.id)]?.edges ?? []).map((e) => e.edge));
+      const e = b.sealed ? null : traced?.entrances[String(b.id)]?.[0] ?? (hasInterior(b) ? buildingEntrance(b, campus.roads, photoEdges) : null);
+      let door: { x: number; z: number } | null = null;
+      if (e) {
+        const r = b.outer, n = r.length / 2, j = (e.edge + 1) % n;
+        const dx = r[j * 2]! - r[e.edge * 2]!, dz = r[j * 2 + 1]! - r[e.edge * 2 + 1]!, len = Math.hypot(dx, dz) || 1;
+        const ux = dx / len, uz = dz / len; // rings are CCW: (uz, −ux) points out of the building
+        door = { x: r[e.edge * 2]! + ux * e.along + uz * 1.6, z: r[e.edge * 2 + 1]! + uz * e.along - ux * 1.6 };
+      }
+      return { ring: b.outer, door };
+    }),
+    ...PONDS.map((p) => ({ ring: p.ring, door: null })),
+    ...dormYard.blockers.map((ring) => ({ ring, door: null })), // dorm courtyard walls: through the gates
+  ];
+  const navGraph = buildNavGraph(campus, navObstacles);
   const navLine = createNavLine(scene, sceneResources);
   const bikes = createBikeSystem(scene, bikeStations, sceneResources, dormRideables());
   const inPit = (x: number, z: number): boolean => dormPit.contains(x, z) || !!court?.contains(x, z) || !!pondAt(x, z);
@@ -402,10 +421,22 @@ async function boot(): Promise<void> {
   let swimStroke = 0;
   let lastWake = 0;
   let lastNight = -1;
-  const storyFrame: StoryFrame = { x: 0, z: 0, area: null, minutes: 0, riding: false, sprinting: false, playing: false, viewYaw: 0, seatedIn: null, seatedRoom: null, lying: false };
+  const storyFrame: StoryFrame = { x: 0, z: 0, area: null, minutes: 0, riding: false, sprinting: false, playing: false, viewYaw: 0, seatedIn: null, seatedRoom: null, lying: false, jumps: 0, modal: 'none' };
   const insideBuilding = createBuildingTest(campus);
   const moveMods: MoveModifiers = { fly: false, noclip: false, speed: 1, bike: false, blocked: null };
   const joints = findMascotJoints(model.root);
+  // Inspect view: the item held up in front of the camera (turned with the mouse) and in the hand.
+  let held: { id: string; view: ItemModel; hand: ItemModel } | null = null;
+  const heldTurn = { yaw: 0, pitch: 0, zoom: 1 };
+  const heldEuler = new Euler(0, 0, 0, 'YXZ');
+  const heldQ = new Quaternion();
+  const viewDir = new Vector3();
+  const dropHeld = (): void => {
+    if (!held) return;
+    held.view.dispose();
+    held.hand.dispose();
+    held = null;
+  };
   // Wardrobe clothes follow the saved outfit; opening the wardrobe turns the camera to face you.
   const outfitter = createOutfitter(model.root);
   outfitter.apply(storyStore.getState().progress.outfit ?? {});
@@ -455,17 +486,19 @@ async function boot(): Promise<void> {
     return best;
   };
   /** Free floor beside a bed (the room side): the longer clear ray of the two sideways. */
+  /** A free standing spot on the floor (nothing overlapping a body-sized probe). */
+  const standProbe = new RAPIER.Capsule(0.45, 0.3);
+  const freeAt = (x: number, base: number, z: number): boolean =>
+    !physics.intersectionWithShape({ x, y: base + 0.82, z }, { x: 0, y: 0, z: 0, w: 1 }, standProbe, RAPIER.QueryFilterFlags.EXCLUDE_SENSORS, undefined, colliders[eid]);
+  /** Where to stand after getting out of bed: the first free spot beside it (room side first), else its foot end. */
   const besideBed = (st: Seat): { x: number; z: number } => {
-    const lx = Math.cos(st.yaw), lz = -Math.sin(st.yaw);
-    let best = { x: st.x + lx * 0.9, z: st.z + lz * 0.9 }, bestFree = -1;
-    for (const side of [1, -1]) {
-      const ray = new RAPIER.Ray({ x: st.x, y: st.base + 0.25, z: st.z }, { x: lx * side, y: 0, z: lz * side });
-      const hit = physics.castRay(ray, 3, true, RAPIER.QueryFilterFlags.EXCLUDE_SENSORS, undefined, colliders[eid], undefined,
-        (c) => Math.hypot(c.translation().x - st.x, c.translation().z - st.z) > 0.6); // skip the bed's own box
-      const free = hit ? hit.timeOfImpact : 3;
-      if (free > bestFree) { bestFree = free; const d = Math.min(1.05, Math.max(0.6, free - 0.35)); best = { x: st.x + lx * side * d, z: st.z + lz * side * d }; }
-    }
-    return best;
+    const lx = Math.cos(st.yaw), lz = -Math.sin(st.yaw), hx = Math.sin(st.yaw), hz = Math.cos(st.yaw);
+    const spots: [number, number][] = [];
+    for (const d of [0.95, 1.25, 1.6]) for (const side of [1, -1]) for (const along of [0, -0.6, 0.6]) spots.push([lx * side * d + hx * along, lz * side * d + hz * along]);
+    for (const d of [1.4, 1.8]) spots.push([-hx * d, -hz * d], [hx * d, hz * d]);
+    const free = spots.find(([dx, dz]) => freeAt(st.x + dx, st.base, st.z + dz));
+    const [dx, dz] = free ?? [lx * 0.95, lz * 0.95];
+    return { x: st.x + dx, z: st.z + dz };
   };
   const sitOn = (st: Seat, stand?: { x: number; y: number; z: number }): void => {
     const up = stand ?? (st.kind === 'bed' ? { ...besideBed(st), y: st.base } : { x: Transform.x[eid]!, y: Transform.y[eid]!, z: Transform.z[eid]! });
@@ -475,6 +508,7 @@ async function boot(): Promise<void> {
       : { s: st, x: st.x, y: st.base, z: st.z, facing: st.yaw, standX: up.x, standY: up.y, standZ: up.z };
     teleport(seat.x, seat.y, seat.z, seat.facing);
     renderSyncSystem(world, 1);
+    if (st.kind === 'chair') rig.snap(readFocus(), st.yaw + Math.PI); // look where the seat faces (the board)
     storyEvents.sit(st.kind, st.building);
   };
   const standUp = (): void => {
@@ -1249,6 +1283,8 @@ async function boot(): Promise<void> {
       storyFrame.seatedIn = seat && seat.s.kind === 'chair' ? seat.s.building : null;
       storyFrame.seatedRoom = seat && seat.s.kind === 'chair' ? seat.s.room : null;
       storyFrame.lying = !!seat && seat.s.kind === 'bed';
+      storyFrame.jumps = CharacterMotor.jumpSeq[eid]!;
+      storyFrame.modal = ui.modal;
       story.update(dt, storyFrame);
       // On-screen pointer: the navigation goal, else the main objective.
       const sst = storyStore.getState();
@@ -1256,6 +1292,36 @@ async function boot(): Promise<void> {
       const target = ui.nav ? { x: ui.nav.x, z: ui.nav.z, name: ui.nav.name, color: '#2f6fd0', icon: '🏁' }
         : mainPin && sst.enabled ? { x: mainPin.x, z: mainPin.z, name: sst.live.place ?? '主線目標', color: '#f08a24', icon: mainPin.icon } : null;
       navPointer.update(camera, target, px, pz, playing && ui.modal === 'none' && ui.mapMode === 'mini');
+    }
+    // Held item (inspect view): in front of the camera, turned by the mouse; a small copy in the hand.
+    {
+      const insp = playing && ui.modal === 'inspect' ? ui.inspect : null;
+      if (!insp || (held && held.id !== insp.id)) dropHeld();
+      if (insp && !held) {
+        const extra = `學號末三碼 ${storyStore.getState().progress.studentNo}`;
+        held = { id: insp.id, view: createItemModel(insp.id, extra), hand: createItemModel(insp.id, extra) };
+        held.view.group.renderOrder = 10;
+        scene.add(held.view.group);
+        const hand = model.root.getObjectByName('armR');
+        held.hand.group.scale.setScalar(0.14);
+        held.hand.group.position.set(0, -0.34, 0.05);
+        hand?.add(held.hand.group);
+        heldTurn.yaw = inspectView.yaw; heldTurn.pitch = inspectView.pitch; heldTurn.zoom = inspectView.zoom;
+      }
+      if (held) {
+        const k = Math.min(1, dt * 10);
+        heldTurn.yaw += (inspectView.yaw - heldTurn.yaw) * k;
+        heldTurn.pitch += (inspectView.pitch - heldTurn.pitch) * k;
+        heldTurn.zoom += (inspectView.zoom - heldTurn.zoom) * k;
+        camera.getWorldDirection(viewDir);
+        const g = held.view.group;
+        g.position.copy(camera.position).addScaledVector(viewDir, 0.62 / heldTurn.zoom);
+        g.position.y -= 0.03;
+        heldEuler.set(heldTurn.pitch, heldTurn.yaw, 0);
+        g.quaternion.copy(camera.quaternion).multiply(heldQ.setFromEuler(heldEuler));
+        g.scale.setScalar(0.26);
+        if (joints) joints.armR.rotation.x = -1.3; // holding it up
+      }
     }
     const f = readFocus();
     rig.setFirstPerson(playing && sports.firstPerson);
@@ -1364,6 +1430,7 @@ async function boot(): Promise<void> {
     traffic.dispose();
     story.dispose();
     unsubOutfit();
+    dropHeld();
     outfitter.dispose();
     navPointer.dispose();
     sportFinished.delete(onSport);

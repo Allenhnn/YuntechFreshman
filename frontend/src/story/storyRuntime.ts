@@ -5,7 +5,7 @@ import { ITEMS, type ItemId } from '../state/items';
 import { actions, gameStore } from '../state/store';
 import { achievementById, sideById, storyActions, storyStore, type StoryProgress, type StoryScene } from '../state/story';
 import {
-  ABSENT_FINE, ACTIVITY, RACE_ROUTE, CAFETERIA, DAYS, DIALOGS, DORM, FRIEND, PHOTO_SPOTS, ROOMMATE, STALL_IDS, TOUR_FACTS, TOUR_STOPS,
+  ABSENT_FINE, ACTIVITY, LECTURE, RACE_ROUTE, TUTORIAL, CAFETERIA, DAYS, DIALOGS, DORM, FRIEND, PHOTO_SPOTS, ROOMMATE, STALL_IDS, TOUR_FACTS, TOUR_STOPS,
   type SceneId, type SportKind, type Step,
 } from './storyData';
 import { createBeacons, type Beacon } from './beacons';
@@ -34,7 +34,7 @@ export interface StoryDeps {
   navigate(x: number, z: number, name: string, quiet?: boolean): void;
   openStoryModal(): void;
   closeStoryModal(): void;
-  sound(name: 'coin' | 'open' | 'close' | 'click'): void;
+  sound(name: 'coin' | 'open' | 'close' | 'click' | 'bell'): void;
   bikeStations: readonly { name: string; x: number; z: number }[];
   /** Walkable surface height at (x, z) (raised plazas, steps). */
   groundAt(x: number, z: number): number;
@@ -65,6 +65,10 @@ export interface StoryFrame {
   viewYaw: number;
   /** Building whose chair you sit on, or null. */
   seatedIn: string | null;
+  /** Jumps so far (the tutorial counts one). */
+  jumps: number;
+  /** Open window ('none', 'phone', 'inventory', …). */
+  modal: string;
   lying: boolean;
   /** Code of the room whose chair you sit on (MA214), or null. */
   seatedRoom: string | null;
@@ -127,6 +131,8 @@ export const storyEvents = {
 };
 
 const dayStart = (day: number, minuteOfDay: number): number => (day - 1) * 1440 + minuteOfDay;
+/** Seconds of lecture before the stay-awake game starts. */
+const LECTURE_INTRO = 14;
 
 export function createStoryRuntime(d: StoryDeps): StoryRuntime {
   const st = () => storyStore.getState();
@@ -165,10 +171,10 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
     if (step.msg) {
       const m = step.msg;
       window.setTimeout(() => {
-        storyActions.message(m.from, m.text, false);
+        storyActions.message(m.from, m.text, !!step.quietMsg); // quiet: a notification only (the tutorial asks for P)
         d.sound('open');
         if (m.from === ROOMMATE) storyActions.setReplies(ROOMMATE, [{ id: 'otw', text: '馬上到！' }, { id: 'ok', text: '收到 👍' }]);
-        d.openPhone(m.from); // the phone pops up on the chat, not a message over the game
+        if (!step.quietMsg) d.openPhone(m.from); // the phone pops up on the chat, not a message over the game
       }, step.wake ? 1500 : 400);
     }
   };
@@ -213,6 +219,11 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
   let rcCode: string | null = null;
   /** The step the automatic navigation was started for. */
   let autoNavFor: string | null = null;
+  /** 新手教學 progress: the task index and where it started. */
+  let tut: { i: number; x: number; z: number; walked: number; jumps: number; hold: number } | null = null;
+  /** Seconds of lecture heard in the classroom (the class gets going before drowsiness sets in). */
+  let lectureT = 0;
+  let bellRung = false;
   let run: { points: { x: number; z: number }[]; next: number; t: number; started: boolean; stamina: number; tired: boolean } | null = null;
   let speedFactor = 1;
   let pendingScene: SceneId | null = null;
@@ -220,6 +231,10 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
     cls = { phase: 'idle', t: 0, limit: 0 };
     wakeFor = 0;
     wrongRoomToast = false;
+    tut = null;
+    lectureT = 0;
+    bellRung = false;
+    storyActions.setLive({ tutorial: null, lecture: null });
     wakeTried = false;
     wasLying = false;
     rcCode = null;
@@ -765,8 +780,39 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
         }
       }
     }
-    // A scene that starts by itself: the stay-awake game once you sit in the classroom.
-    if (step?.cond.t === 'scene' && !st().scene && f.seatedIn === step.place && (!step.room || f.seatedRoom === step.room)) playScene(step.cond.scene);
+    // 新手教學: walk, jump, phone, bag — each checked off as you do it.
+    if (step?.cond.t === 'tutorial') {
+      if (!tut) tut = { i: 0, x: f.x, z: f.z, walked: 0, jumps: f.jumps, hold: 0 };
+      tut.walked += Math.min(1, Math.hypot(f.x - tut.x, f.z - tut.z)); // distance walked, any direction
+      tut.x = f.x; tut.z = f.z;
+      if (tut.hold > 0) {
+        tut.hold -= dt;
+        if (tut.hold <= 0) {
+          tut.i++;
+          if (tut.i >= TUTORIAL.length) {
+            storyActions.setLive({ tutorial: null });
+            toast('🎉 新手教學完成！快去上課');
+            advance();
+          } else storyActions.setLive({ tutorial: { i: tut.i, done: false } });
+        }
+      } else {
+        const done = tut.i === 0 ? tut.walked > 4
+          : tut.i === 1 ? f.jumps > tut.jumps
+          : tut.i === 2 ? f.modal === 'phone'
+          : f.modal === 'inventory';
+        if (done) { tut.hold = 0.9; d.sound('coin'); }
+        storyActions.setLive({ tutorial: { i: tut.i, done } });
+      }
+    }
+    // 上課中: seated in the classroom the lecture runs (subtitles, the bell); drowsiness comes later.
+    const inClass = (step?.cond.t === 'scene' || step?.cond.t === 'class') && f.seatedIn === step.place && (!step.room || f.seatedRoom === step.room);
+    if (inClass && step?.cond.t === 'scene') {
+      if (!bellRung) { bellRung = true; d.sound('bell'); }
+      lectureT += dt;
+      storyActions.setLive({ lecture: { line: Math.floor(lectureT / 4.5) % LECTURE.length, t: Math.floor(lectureT), total: LECTURE_INTRO } });
+    } else if (st().live.lecture && !st().scene) storyActions.setLive({ lecture: null });
+    // A scene that starts by itself: the stay-awake game once the lecture has been going a while.
+    if (step?.cond.t === 'scene' && !st().scene && inClass && lectureT >= LECTURE_INTRO) playScene(step.cond.scene);
     // Digital roll call: the code lives in the chat with your friend.
     if (step?.cond.t === 'phoneRollcall' && !rcCode) {
       rcCode = String(1000 + Math.floor(Math.random() * 9000));
@@ -881,7 +927,7 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
     return null;
   };
 
-  if (import.meta.env.DEV) (window as unknown as { __story: unknown }).__story = () => ({ cls, run, pendingScene, step: currentStep()?.id, frame: lastFrame && { ...lastFrame }, card: cardAt });
+  if (import.meta.env.DEV) (window as unknown as { __story: unknown }).__story = () => ({ cls, run, pendingScene, tut, lectureT, step: currentStep()?.id, frame: lastFrame && { ...lastFrame }, card: cardAt });
   if (import.meta.env.DEV) (window as unknown as { __spawnCard: unknown }).__spawnCard = () => { if (!cardAt) placeCard(lastX, lastZ); return cardAt; };
   return {
     update,

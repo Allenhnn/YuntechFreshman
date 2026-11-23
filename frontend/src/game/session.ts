@@ -42,6 +42,8 @@ export interface GameApi {
   /** Drag and drop in the inventory. */
   moveSlot(from: number, to: number): void;
   useItem(slot: number): void;
+  /** Takes the item out to look at (in hand, turned with the mouse); its use is offered there. */
+  inspectItem(slot: number): void;
   /** Starts navigation to a map place; closes the full map. */
   navigateTo(x: number, z: number, name: string): void;
   /** Ends navigation (button or X). */
@@ -250,6 +252,17 @@ export function createSession(lock: PointerLock, audio: AudioBus): GameApi {
       if (get().race) {
         audio.play('close');
         dispatch({ type: 'leaveRace' });
+      }
+    },
+    inspectItem(slot) {
+      const id = get().inventory[slot]?.id;
+      if (!id || get().phase !== 'playing') return;
+      actions.setModal('inspect');
+      actions.setInspect({ slot, id });
+      audio.play('open');
+      if (lock.isLocked()) {
+        expectUnlock = true;
+        lock.release();
       }
     },
     useItem(slot) {
