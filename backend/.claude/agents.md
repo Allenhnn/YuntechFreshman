@@ -164,6 +164,11 @@ docker compose down             # 停止（加 -v 會連資料一起刪除）
 | `.env.example` 沒被 commit | 根目錄 `.gitignore` 有 `.env*`；需要時用 `git add -f backend/.env.example` |
 
 ## 變更紀錄
+### 2026-11-23（前端：學生宿舍C 寢室書架相連、窗下櫃改成貼牆材質）— 分支 `fix/dorm-c-front-gate`
+- 需求：兩個座位上方的書櫃連在一起；窗下共 4 個櫃子，左右同樣的木頭延伸到書桌下方；櫃子不要凸出牆面——再調整：只做材質、全部跟牆壁貼平
+- `frontend/src/buildings/dormCUnitDecor.ts`：`desks` 上方改成一整座 6 欄 × 2 層（每人 3 × 2）；窗下矮櫃拿掉（原本的 `WIN_CAB` 箱體與加厚牆都不用），改成窗牆面上一層木紋貼面（0–0.7 m、整面牆寬、延伸到兩側書桌下），窗下畫出 4 扇櫃門的分縫，完全平貼牆面、沒有碰撞
+- 測試：`tsc --noEmit`、`vite build` 通過；遊戲裡看過寢室（暫時除錯碼已移除）
+
 ### 2026-11-23（前端：學生宿舍C 寢室書桌與窗下櫃）— 分支 `fix/dorm-c-front-gate`
 - 需求：一個人的書桌上方書櫃只有六格、桌下抽屜只有兩個；窗下的櫃子內嵌在牆邊、左右延伸到書桌下方
 - `frontend/src/buildings/dormCUnitDecor.ts`：`desks` 改成兩人一組——每人上方 3 × 2 格子書架、桌下兩個抽屜、中間隔板；窗下矮櫃改成貼窗牆、整面牆寬（`WIN_CAB` 0.3 m 深、0.68 m 高），一路伸到兩側書桌下方，靠窗那段不放抽屜

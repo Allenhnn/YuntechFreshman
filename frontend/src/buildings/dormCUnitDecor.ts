@@ -350,22 +350,20 @@ export function createDormCUnitDecor(scene: Scene, physics: RAPIER.World, tracke
       sb(f, side, woodDark, 0.63, 0.634, 0.58, 0.72, mid - 0.004, mid + 0.004);
       for (const c of [(a0 + mid) / 2, (mid + a1) / 2]) sb(f, side, steel, 0.63, 0.65, 0.64, 0.66, c - 0.03, c + 0.03);
     }
-    // Over each desk: three columns, two rows.
-    const c0 = 1.0, c1 = DECK_LO - 0.04, cd = 0.32, rows = 2, cols = 3;
-    for (const [p0, p1] of [[v0, half], [half, v1]] as const) {
-      const q0 = p0 + 0.05, q1 = p1 - 0.05;
-      for (let k = 0; k <= rows; k++) { const h = c0 + ((c1 - c0 - 0.02) * k) / rows; sb(f, side, wood, 0, cd, h, h + 0.02, q0, q1); }
-      for (let i = 0; i <= cols; i++) { const v = q0 + ((q1 - q0) * i) / cols; sb(f, side, wood, 0, cd, c0, c1, v - 0.01, v + 0.01); }
-      for (let i = 0; i < cols; i++) for (let row = 0; row < rows; row++) {
-        if (r() < 0.4) continue;
-        const cv0 = q0 + ((q1 - q0) * i) / cols + 0.03, h = c0 + 0.02 + ((c1 - c0) / rows) * row;
-        const end = cv0 + (q1 - q0) / cols - 0.06;
-        let v = cv0;
-        while (v < end - 0.03) {
-          const t = 0.025 + r() * 0.03;
-          sb(f, side, bookMats[Math.floor(r() * bookMats.length)]!, 0.04, 0.24 + r() * 0.05, h, h + 0.15 + r() * 0.1, v, v + t);
-          v += t + 0.004;
-        }
+    // Over the two desks: one shelf unit, joined (使用者：兩個座位上方的櫃子連在一起) — three columns × two rows per person.
+    const c0 = 1.0, c1 = DECK_LO - 0.04, cd = 0.32, rows = 2, cols = 6;
+    const q0 = v0 + 0.05, q1 = v1 - 0.05;
+    for (let k = 0; k <= rows; k++) { const h = c0 + ((c1 - c0 - 0.02) * k) / rows; sb(f, side, wood, 0, cd, h, h + 0.02, q0, q1); }
+    for (let i = 0; i <= cols; i++) { const v = q0 + ((q1 - q0) * i) / cols; sb(f, side, wood, 0, cd, c0, c1, v - 0.01, v + 0.01); }
+    for (let i = 0; i < cols; i++) for (let row = 0; row < rows; row++) {
+      if (r() < 0.4) continue;
+      const cv0 = q0 + ((q1 - q0) * i) / cols + 0.03, h = c0 + 0.02 + ((c1 - c0) / rows) * row;
+      const end = cv0 + (q1 - q0) / cols - 0.06;
+      let v = cv0;
+      while (v < end - 0.03) {
+        const t = 0.025 + r() * 0.03;
+        sb(f, side, bookMats[Math.floor(r() * bookMats.length)]!, 0.04, 0.24 + r() * 0.05, h, h + 0.15 + r() * 0.1, v, v + t);
+        v += t + 0.004;
       }
     }
     sSolid(f, side, 0, 0.66, 0, 0.78, v0, v1);
@@ -403,7 +401,6 @@ export function createDormCUnitDecor(scene: Scene, physics: RAPIER.World, tracke
     }
     sSolid(f, side, 0, foot, 0, DECK_HI, v0, v1);
   };
-  const WIN_CAB = 0.3;
   const room = (r: Rect, turned: boolean, seed: number): void => {
     const f = roomFrame(r, turned);
     floor(f, roomFloor, [U0, V0, U1, V1], 0.9);
@@ -414,18 +411,19 @@ export function createDormCUnitDecor(scene: Scene, physics: RAPIER.World, tracke
     for (const side of [-1, 1] as const) {
       const k = side < 0 ? 0 : 3;
       loft(f, side, V0, LADDER[0], true, seed + k);
-      desks(f, side, V0, LADDER[0], seed + k + 2, WIN_CAB);
+      desks(f, side, V0, LADDER[0], seed + k + 2);
       ladder(f, side);
       loft(f, side, LADDER[1], V1, false, seed + k + 1);
       wardrobes(f, side, LADDER[1], V1, side < 0 ? 'mirror' : 'shelf');
     }
-    // Window at the end of the aisle: blinds half down, low cabinet under it, the air conditioner above.
+    // Under the window (使用者：窗下 4 個櫃子、左右同樣木頭延伸到書桌下方；不要凸出，做材質就好、全部跟牆壁貼平): only a
+    // wood finish on the wall face, four cabinet doors drawn under the window, the same wood on under both desks.
     const wu0 = U0 + DECK + 0.15, wu1 = U1 - DECK - 0.15;
     windowV(f, V0, 1, wu0, wu1, 0.95, 2.15, { blinds: 0.55 });
-    // Low cabinet built into the window wall, running the whole width — on under both desks (使用者：窗下書櫃內嵌牆壁、左右延伸到書桌下方).
-    box(f, wood, U0, U1, 0, 0.68, V0, V0 + WIN_CAB);
-    for (let u = U0 + 0.5; u < U1 - 0.2; u += 0.5) box(f, woodDark, u - 0.004, u + 0.004, 0.05, 0.63, V0 + WIN_CAB, V0 + WIN_CAB + 0.005);
-    solid(f, U0, U1, 0, 0.68, V0, V0 + WIN_CAB);
+    faceV(f, wood, V0 + 0.004, 1, U0, U1, 0, 0.7, 1);
+    const d0 = wu0 - 0.05, d1 = wu1 + 0.05, dw = (d1 - d0) / 4;
+    for (let i = 0; i <= 4; i++) { const u = d0 + dw * i; faceV(f, woodDark, V0 + 0.006, 1, u - 0.005, u + 0.005, 0.05, 0.62); }
+    faceV(f, woodDark, V0 + 0.006, 1, d0, d1, 0.62, 0.63);
     const ac0 = (U0 + U1) / 2 - 0.45;
     box(f, white, ac0, ac0 + 0.9, 2.42, 2.72, V0, V0 + 0.22);
     box(f, panelDark, ac0 + 0.05, ac0 + 0.85, 2.44, 2.48, V0 + 0.2, V0 + 0.225);
