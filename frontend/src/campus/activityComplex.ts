@@ -103,36 +103,67 @@ export function buildActivityComplex(b: CampusBuilding, solid: GeoBuilder, glass
       box(x+2.65,x+3.6,-27,-22.5,10.52,1.4);
       box(x,x+3.6,-27,-22.5,11.92,.62);
     }
-    // The west stairwell joins the canopy to the rounded wing. Its tapered
-    // end follows the surveyed corner instead of stopping at the canopy edge.
-    const linkSlab = (y:number, thickness:number, near:number, far:number) => {
-      const lower = [at(33,y,near),at(40.9,y,near),at(38.0,y,far),at(33,y,far)];
-      const upper = lower.map(([x,h,z]):Point => [x,h+thickness,z]);
-      quad(solid,upper,concrete);
-      quad(solid,[...lower].reverse(),concrete);
+    // North-west stair tower. Its projecting balcony screens the recessed
+    // stair from the plaza; the lower flight climbs left, then turns indoors.
+    const strip = (x0:number,x1:number,z0:number,z1:number,depth:number,y:number,h:number,c:Tint) => {
+      const bottom=[at(x0,y,z0),at(x1,y,z1),at(x1,y,z1+depth),at(x0,y,z0+depth)];
+      const top=bottom.map(([x,base,z]):Point=>[x,base+h,z]);
+      quad(solid,top,c); quad(solid,[...bottom].reverse(),c);
       for(let i=0;i<4;i++) {
         const j=(i+1)%4;
-        quad(solid,[lower[i]!,lower[j]!,upper[j]!,upper[i]!],concrete);
+        quad(solid,[bottom[i]!,bottom[j]!,top[j]!,top[i]!],c);
       }
     };
-    linkSlab(8.7,1.55,-28.8,-24);
-    linkSlab(10.25,.16,-28.8,-24);
-    box(33,36.2,-28.8,-24,10.41,.85);
-    box(37.25,38.15,-28.8,-26.6,10.41,.85);
-    box(38.15,40.8,-28.8,-28.4,10.41,.85);
-    linkSlab(11.26,.16,-28.8,-24);
-    // Leave the front face open over the flight; the gallery is reached
-    // at 3.6 m with a continuous landing onto its existing floor.
-    linkSlab(3.24,.36,-26,-22.6);
-    box(33,35.1,-26,-25.8,3.6,.58);
-    for(const y of [4.32,4.56]) box(33,35.1,-25.98,-25.92,y,.055,metal);
-    const rises=22, tread=.35, first=-26-rises*tread;
-    for(let i=0;i<rises;i++) {
-      const z=first+i*tread, top=(i+1)*3.6/rises;
-      box(35.1,37.45,z,z+tread,0,top,edge);
-      if(i%4===0) for(const x of [35.12,37.35]) box(x,x+.06,z+.1,z+.16,top,.91,metal);
+    const front = (x:number) => {
+      const t=Math.min(1,(x-32.5)/3);
+      return -28.8-2.7*Math.sqrt(Math.max(0,1-(1-t)*(1-t)));
+    };
+    for(let i=0;i<18;i++) {
+      const x=32.5+i*.5, next=x+.5, z=front(x), end=front(next);
+      strip(x,next,z,end,1.05,3.28,.32,concrete);
+      strip(x,next,z,end,.18,3.6,.61,concrete);
+      for(const y of [4.31,4.53]) strip(x,next,z+.05,end+.05,.055,y,.055,steel);
+      if(i%3===0) box(x,x+.055,z+.05,z+.11,4.21,.37,steel);
+      strip(x,next,z,end,3.9,7.42,.4,concrete);
     }
-    for(const x of [35.12,37.35]) section(solid,at,x,x+.065,first,-26,1.03,4.58,.065,metal);
+    box(32.5,33.45,-29.5,-22.4,3.28,.32);
+    box(39.9,41.5,-30.55,-28.7,3.28,.32);
+    // Square opening cut through the high front wall, with deep reveals.
+    const face=-30.0, back=-27.5;
+    box(33.6,41.5,face,back,7.82,1.64);
+    box(33.6,36.1,face,back,9.46,1.85);
+    box(38.0,41.5,face,back,9.46,1.85);
+    box(33.6,41.5,face,back,11.31,1.05);
+    box(33.6,41.5,face+.04,-24.6,12.36,.16,edge);
+    // Recessed walls behind the open balcony mouth, against the adjoining wing.
+    box(36.55,40.65,-27.05,-26.77,0,7.43,edge);
+    box(40.75,41.5,-31.4,-27.0,0,7.82,concrete);
+    box(36.55,37.10,-27.55,-27.05,4.4,.1,steel);
+    box(36.57,37.08,-27.52,-27.08,4.35,.05,[.8,.79,.64]);
+    // Both flights have equal risers and share a level quarter-turn landing.
+    const rise=3.6/22;
+    for(let i=0;i<10;i++) {
+      const x=39.55-(i+1)*.32;
+      box(x,x+.32,-30.35,-28.7,0,(i+1)*rise,edge);
+    }
+    box(34.65,36.35,-30.35,-27.1,0,10*rise,edge);
+    for(let i=0;i<12;i++) {
+      const z=-27.1+i*.35;
+      box(34.65,36.35,z,z+.35,0,(11+i)*rise,edge);
+    }
+    box(32.6,36.35,-22.9,-21.85,3.28,.32);
+    const [sx,,sz]=at(39.55,0,-28.7), [ex,,ez]=at(39.55,0,-27.7);
+    const railFrame=frame(sx,sz,ex,ez);
+    section(solid,railFrame,0,.065,0,3.2,.99,10*rise+.91,.06,metal);
+    section(solid,at,36.27,36.34,-27.1,-22.9,10*rise+.97,4.51,.06,metal);
+    for(const i of [0,4,8]) {
+      const x=39.55-(i+.5)*.32;
+      box(x,x+.05,-28.7,-28.64,(i+1)*rise,.89,metal);
+    }
+    for(const i of [0,5,11]) {
+      const z=-27.1+(i+.5)*.35;
+      box(36.27,36.33,z,z+.05,(11+i)*rise,.91,metal);
+    }
     // Central stair, level side bypasses and the paired stepped planting beds.
     for (let i=0;i<7;i++) box(12.5,23.5,-30.9+i*.43,-30.47+i*.43,.075,(i+1)*.15,edge);
     box(12.5,23.5,-27.89,-24,.075,1.05,edge);
