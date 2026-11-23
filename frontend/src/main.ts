@@ -258,6 +258,11 @@ async function boot(): Promise<void> {
     unitBuilding.interactables.push(
       { id: 'dormC-unit:enter', prompt: '按 E 進入宿舍', x: lobbyDoor.x + lobbyDoor.outX * 1.0, y: lobbyDoor.floor, z: lobbyDoor.z + lobbyDoor.outZ * 1.0, radius: 2.4 },
       (() => { const [x, z] = unitBuilding.planToWorld(unit.leave[0], unit.leave[1]); return { id: 'dormC-unit:leave', prompt: '按 E 離開宿舍', x, y: DORM_C_UNIT_FLOOR, z, radius: 1.0 }; })(),
+      // Bedroom doors don't open: E at one walks you through (使用者：門不要做開關，靠近門按 E 進入房間).
+      ...unit.roomDoors.flatMap((d, i) => ([['in', 1, `按 E 進入${d.name}`], ['out', -1, `按 E 離開${d.name}`]] as const).map(([way, s, prompt]) => {
+        const [x, z] = unitBuilding.planToWorld(d.at[0] + d.out[0] * 0.7 * s, d.at[1] + d.out[1] * 0.7 * s);
+        return { id: `dormC-room:${way}:${i}`, prompt, x, y: DORM_C_UNIT_FLOOR, z, radius: 0.9 };
+      })),
     );
   }
   const unitDecor = unit && unitBuilding ? createDormCUnitDecor(scene, physics, sceneResources, unit.source) : null;
@@ -824,6 +829,24 @@ async function boot(): Promise<void> {
             actions.toast(refused);
             audio.play('close');
           } else audio.play('click');
+          return;
+        }
+        if (target?.id.startsWith('dormC-room:') && unit && unitBuilding) {
+          // 學生宿舍C bedroom door: fade, then stand just through it on the other side, facing on.
+          const [, way, index] = target.id.split(':');
+          const d = unit.roomDoors[Number(index)];
+          if (!d || gameStore.getState().fading) return;
+          const s = way === 'in' ? -1 : 1; // into the room is against `out`
+          actions.setFading(true);
+          window.setTimeout(() => {
+            const [x, z] = unitBuilding.planToWorld(d.at[0] + d.out[0] * 1.7 * s, d.at[1] + d.out[1] * 1.7 * s);
+            const facing = unitBuilding.planFacing([d.out[0] * s, d.out[1] * s]);
+            teleport(x, DORM_C_UNIT_FLOOR, z, facing);
+            renderSyncSystem(world, 1);
+            rig.snap(readFocus(), facing + Math.PI);
+            actions.setFading(false);
+            audio.play('click');
+          }, 300);
           return;
         }
         if ((target?.id === 'dormC-unit:enter' || target?.id === 'dormC-unit:leave') && unit && unitBuilding && lobbyDoor) {

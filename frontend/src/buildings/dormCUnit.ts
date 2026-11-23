@@ -44,6 +44,7 @@ export const DORM_C_UNIT_PLAN = {
 export const DORM_C_ROOM_DOOR = [1.6, 2.6] as const;
 const R = DORM_C_UNIT_PLAN;
 
+const doorMid = (DORM_C_ROOM_DOOR[0] + DORM_C_ROOM_DOOR[1]) / 2;
 const door = (ax: number, ay: number, bx: number, by: number, kind: Opening['kind'] = 'door'): Opening => ({ kind, a: [ax, ay], b: [bx, by] });
 
 export interface DormCUnit {
@@ -52,6 +53,8 @@ export interface DormCUnit {
   arrive: { at: [number, number]; facing: [number, number] };
   /** The 「離開宿舍」 spot in the living room (plan). */
   leave: [number, number];
+  /** Bedroom doors: centre on the wall line (plan) and the unit normal pointing out of the room into the corridor. */
+  roomDoors: { name: string; at: [number, number]; out: [number, number] }[];
 }
 
 export function dormCUnit(campus: CampusData): DormCUnit | null {
@@ -71,18 +74,16 @@ export function dormCUnit(campus: CampusData): DormCUnit | null {
     space('room3', '寢室 3', 'room', [R.room3]),
     space('room4', '寢室 4', 'room', [R.room4]),
     space('corridor', '走廊', 'corridor', [R.corridor, R.corridorNook]),
-    space('other', '雜物間', 'room', [R.other]),
+    space('other', '雜物間', 'corridor', [R.other]), // not a 'room': its doorways stay plain gaps, no door leaves
     space('cloth', '曬衣間', 'room', [R.cloth]),
     space('room1', '寢室 1', 'room', [R.room1]),
     space('living', '交誼廳', 'lobby', [R.living]),
   ];
-  const [d0, d1] = DORM_C_ROOM_DOOR;
   const openings: Opening[] = [
     // North row: doors in their south walls onto the corridor (where the sketch draws the swings).
+    // The bedroom doors are not openings at all (使用者：門不要做開關，靠近門按 E 進入房間): solid wall with a flat
+    // painted door drawn on it (dormCUnitDecor.ts), and 「進入寢室」／「離開寢室」 at each one (`roomDoors`, main.ts).
     door(8.7, 8.0, 9.6, 8.0),
-    ...[R.room2, R.room3, R.room4].map((r) => door(r[0] + d0, 8.0, r[0] + d1, 8.0)),
-    // Room 1, turned round: its door in its north wall, the same place in the room.
-    door(R.room1[2] - d1, R.room1[1], R.room1[2] - d0, R.room1[1]),
     // Other: off the corridor (its east wall), and on to the laundry (its south wall).
     door(8.6, 9.2, 8.6, 10.2),
     door(7.4, 12.2, 8.4, 12.2),
@@ -99,7 +100,7 @@ export function dormCUnit(campus: CampusData): DormCUnit | null {
     osmReplaces: [],
     transform: { angleDeg, planCentroid: [0, R.cloth[3]], worldCentroid: [r[10]!, r[11]!] },
     floorHeight: HEIGHT,
-    style: { windows: false }, // windows are modelled (with an outside view) in the decor
+    style: { windows: false }, // windows are modelled (with an outside view) in the decor // windows are modelled (with an outside view) in the decor
     levels: [{ id: '1F', elevation: DORM_C_UNIT_FLOOR, built: true }],
     shell: {},
     floors: { '1F': { bandTop: HEIGHT, spaces, openings, signs: [] } },
@@ -112,5 +113,9 @@ export function dormCUnit(campus: CampusData): DormCUnit | null {
     // In the living room (使用者：進入宿舍是進入戶廳), just inside its front door, facing into the flat.
     arrive: { at: [21.0, 14.6], facing: [-1, 0] }, // by the front door, clear of the 「離開宿舍」 spot (1 m) and the furniture
     leave: [21.6, 13.1],
+    roomDoors: [
+      ...([['寢室 2', R.room2], ['寢室 3', R.room3], ['寢室 4', R.room4]] as const).map(([name, r]) => ({ name, at: [r[0] + doorMid, r[3]] as [number, number], out: [0, 1] as [number, number] })),
+      { name: '寢室 1', at: [R.room1[2] - doorMid, R.room1[1]], out: [0, -1] },
+    ],
   };
 }

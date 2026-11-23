@@ -196,6 +196,8 @@ export function createDormCUnitDecor(scene: Scene, physics: RAPIER.World, tracke
   const chairSeat = std(0x6a6d70, { roughness: 0.6 });
   const fabric = std(0x5a6a7c, { roughness: 0.95 });
   const black = std(0x1d1e20, { roughness: 0.4 });
+  const doorPink = std(0xeab4aa, { roughness: 0.55 });
+  const doorEdge = std(0x3a3332, { roughness: 0.6 });
   const blue = std(0x5d8fc4, { roughness: 0.4 });
   const bookMats = [0xb03a2e, 0x2e6fb0, 0xe0b23a, 0x3c8d5a, 0xf0f0f0, 0x6b4a9a].map((c) => std(c, { roughness: 0.8 }));
 
@@ -289,6 +291,9 @@ export function createDormCUnitDecor(scene: Scene, physics: RAPIER.World, tracke
   const loft = (f: Frame, side: -1 | 1, v0: number, v1: number, bedAtStart: boolean, seed: number): void => {
     sb(f, side, wood, 0, DECK, DECK_LO, DECK_HI, v0, v1); // deck, held by the walls (使用者：床沒有另外的支撐條)
     sb(f, side, wood, DECK - 0.04, DECK, DECK_LO - 0.12, DECK_HI + 0.1, v0, v1); // thick front fascia
+    // Raised end board where the bed meets the ladder (使用者：床連接到樓梯的地方一樣會有凸起來的擋板).
+    const le = bedAtStart ? v1 - 0.03 : v0;
+    sb(f, side, wood, 0, DECK, DECK_LO - 0.12, DECK_HI + 0.32, le, le + 0.03);
     sSolid(f, side, 0, DECK, DECK_LO - 0.12, DECK_HI + 0.15, v0, v1);
     // Mattress, pillow and a folded quilt.
     const m0 = bedAtStart ? v0 + 0.08 : v1 - 2.08, m1 = m0 + 2.0;
@@ -419,19 +424,41 @@ export function createDormCUnitDecor(scene: Scene, physics: RAPIER.World, tracke
     // Under the window (使用者：窗下 4 個櫃子、左右同樣木頭延伸到書桌下方；不要凸出，做材質就好、全部跟牆壁貼平): only a
     // wood finish on the wall face, four cabinet doors drawn under the window, the same wood on under both desks.
     const wu0 = U0 + DECK + 0.15, wu1 = U1 - DECK - 0.15;
-    windowV(f, V0, 1, wu0, wu1, 0.95, 2.15, { blinds: 0.55 });
+    // Two window bands across the end wall (使用者照片): one over the desks running from desk to desk, one over the bed
+    // heads running wall to wall; blinds in both.
+    windowV(f, V0, 1, U0 + 0.4, U1 - 0.4, 0.82, 1.6, { blinds: 0.7 });
+    windowV(f, V0, 1, U0 + 0.08, U1 - 0.08, 2.02, 2.52, { blinds: 0.85 });
     faceV(f, wood, V0 + 0.004, 1, U0, U1, 0, 0.7, 1);
+    box(f, plaster, U0 + 0.4, U1 - 0.4, 0.7, 0.76, V0, V0 + 0.06); // sill ledge
     const d0 = wu0 - 0.05, d1 = wu1 + 0.05, dw = (d1 - d0) / 4;
     for (let i = 0; i <= 4; i++) { const u = d0 + dw * i; faceV(f, woodDark, V0 + 0.006, 1, u - 0.005, u + 0.005, 0.05, 0.62); }
     faceV(f, woodDark, V0 + 0.006, 1, d0, d1, 0.62, 0.63);
     const ac0 = (U0 + U1) / 2 - 0.45;
-    box(f, white, ac0, ac0 + 0.9, 2.42, 2.72, V0, V0 + 0.22);
-    box(f, panelDark, ac0 + 0.05, ac0 + 0.85, 2.44, 2.48, V0 + 0.2, V0 + 0.225);
+    box(f, white, ac0, ac0 + 0.9, 2.6, CEIL - 0.04, V0, V0 + 0.22);
+    box(f, panelDark, ac0 + 0.05, ac0 + 0.85, 2.62, 2.66, V0 + 0.2, V0 + 0.225);
     // Ceiling lights, wiring trunk along the west wall, light switch by the door.
     ceilingPanel(f, RW / 2, RD * 0.32, 0.6, 0.6);
     ceilingPanel(f, RW / 2, RD * 0.7, 0.6, 0.6);
     box(f, white, U0, U0 + 0.08, 2.84, 2.92, V0, V1);
     box(f, white, U1 - 0.08, U1, 2.84, 2.92, V0, V1);
+    // The door itself (使用者照片：粉紅色平板門): painted flat on both faces of the solid wall, a thin dark edge, a round knob.
+    const [dq0, dq1] = DORM_C_ROOM_DOOR, dqTop = 2.4 - LIFT;
+    for (const [at, dir] of [[V1 - 0.003, -1], [RD + WALL + 0.003, 1]] as const) {
+      faceV(f, doorEdge, at, dir, dq0 - 0.03, dq1 + 0.03, 0, dqTop + 0.03);
+      faceV(f, doorPink, at + dir * 0.002, dir, dq0, dq1, 0, dqTop);
+      const kv = at + dir * 0.03;
+      put(f, new CylinderGeometry(0.028, 0.028, 0.05, 12).rotateX(Math.PI / 2).translate(dir < 0 ? dq1 - 0.1 : dq0 + 0.1, 0.98, kv), steel);
+    }
+    // Over the door (使用者照片): a dark louvred vent with a white exhaust fan in it; a wall lamp and the switches beside it.
+    const [dr0, dr1] = DORM_C_ROOM_DOOR, dTop = 2.4 - LIFT;
+    faceV(f, black, V1 - 0.004, -1, dr0, dr1, dTop + 0.02, CEIL - 0.04);
+    for (let h = dTop + 0.06; h < CEIL - 0.06; h += 0.05) box(f, panelDark, dr0 + 0.02, dr1 - 0.02, h, h + 0.012, V1 - 0.02, V1 - 0.005);
+    const fc = (dr0 + dr1) / 2 + 0.05, fh = (dTop + CEIL) / 2;
+    box(f, white, fc - 0.2, fc + 0.2, fh - 0.2, fh + 0.2, V1 - 0.09, V1 - 0.01);
+    put(f, new CylinderGeometry(0.16, 0.16, 0.01, 20).rotateX(Math.PI / 2).translate(fc, fh, V1 - 0.095), black);
+    put(f, new CylinderGeometry(0.04, 0.04, 0.02, 12).rotateX(Math.PI / 2).translate(fc, fh, V1 - 0.1), white);
+    box(f, light, dr0 - 0.32, dr0 - 0.2, 2.0, 2.18, V1 - 0.1, V1 - 0.01);
+    box(f, white, dr0 - 0.2, dr0 - 0.12, 1.15, 1.27, V1 - 0.02, V1);
     const sw = DORM_C_ROOM_DOOR[1] + 0.2;
     box(f, white, sw, sw + 0.08, 1.15, 1.27, V1 - 0.02, V1);
   };

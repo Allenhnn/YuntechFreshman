@@ -164,6 +164,24 @@ docker compose down             # 停止（加 -v 會連資料一起刪除）
 | `.env.example` 沒被 commit | 根目錄 `.gitignore` 有 `.env*`；需要時用 `git add -f backend/.env.example` |
 
 ## 變更紀錄
+### 2026-11-23（前端：學生宿舍C 寢室門改成畫在牆上的門＋按 E 進出）— 分支 `fix/dorm-c-front-gate`
+- 需求（附照片）：門的樣子照照片、要跟牆壁貼齊；門片還是有縫 → 門不要做開關，人物靠近門時一樣按 E 進入房間
+- `frontend/src/buildings/dormCUnit.ts`：寢室 1–4 的門洞拿掉（實心牆）；新增 `roomDoors`（門中心與朝走廊的法向）；雜物間改成 `corridor` 類型，門口只是門洞、沒有門片
+- `frontend/src/buildings/dormCUnitDecor.ts`：寢室門畫在牆的兩面——粉紅色平板門、深色細邊、圓把手，完全貼平；門上黑色百葉通風口＋白色排風扇，門旁壁燈與開關
+- `frontend/src/main.ts`：每扇寢室門兩側各一個互動點（「按 E 進入寢室 N」／「按 E 離開寢室 N」，半徑 0.9 m），淡出後站到門的另一側 1.7 m、面向前進方向
+- 測試：`tsc --noEmit`、`vite build` 通過；遊戲裡從走廊按 E 進入寢室 4、再按 E 離開回走廊；看過門的兩面（暫時除錯碼已移除）
+
+### 2026-11-23（前端：學生宿舍C 寢室窗戶改成上下兩排）— 分支 `fix/dorm-c-front-gate`
+- 需求（附照片）：窗戶分兩部分——書桌上方一整面延伸到對面書桌；床頭上方一樣延伸到另一邊
+- `frontend/src/buildings/dormCUnitDecor.ts` `room`：窗牆改成兩排橫向長窗（下排 0.82–1.6 m、兩側書桌之間；上排 2.02–2.52 m、牆到牆、在床頭上方），都有百葉；下排窗下一條窗台；冷氣移到上排窗上方
+- 同一輪也在 `loft` 床靠樓梯端加凸起擋板（使用者：床連接到樓梯的地方有擋板）
+- 測試：`tsc --noEmit`、`vite build` 通過；遊戲裡看過（暫時除錯碼已移除）
+
+### 2026-11-23（前端：學生宿舍C 寢室床靠樓梯端加擋板）— 分支 `fix/dorm-c-front-gate`
+- 需求：床連接到樓梯的地方一樣有凸起來的擋板
+- `frontend/src/buildings/dormCUnitDecor.ts` `loft`：靠樓梯那一端加一塊整個床深的木擋板（從床板下緣到床面上 0.32 m）
+- 測試：`tsc --noEmit`、`vite build` 通過；遊戲裡看過（暫時除錯碼已移除）
+
 ### 2026-11-23（前端：學生宿舍C 寢室書架相連、窗下櫃改成貼牆材質）— 分支 `fix/dorm-c-front-gate`
 - 需求：兩個座位上方的書櫃連在一起；窗下共 4 個櫃子，左右同樣的木頭延伸到書桌下方；櫃子不要凸出牆面——再調整：只做材質、全部跟牆壁貼平
 - `frontend/src/buildings/dormCUnitDecor.ts`：`desks` 上方改成一整座 6 欄 × 2 層（每人 3 × 2）；窗下矮櫃拿掉（原本的 `WIN_CAB` 箱體與加厚牆都不用），改成窗牆面上一層木紋貼面（0–0.7 m、整面牆寬、延伸到兩側書桌下），窗下畫出 4 扇櫃門的分縫，完全平貼牆面、沒有碰撞
