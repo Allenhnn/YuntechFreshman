@@ -164,6 +164,11 @@ docker compose down             # 停止（加 -v 會連資料一起刪除）
 | `.env.example` 沒被 commit | 根目錄 `.gitignore` 有 `.env*`；需要時用 `git add -f backend/.env.example` |
 
 ## 變更紀錄
+### 2026-11-23（前端：學生宿舍C 寢室書桌與窗下櫃）— 分支 `fix/dorm-c-front-gate`
+- 需求：一個人的書桌上方書櫃只有六格、桌下抽屜只有兩個；窗下的櫃子內嵌在牆邊、左右延伸到書桌下方
+- `frontend/src/buildings/dormCUnitDecor.ts`：`desks` 改成兩人一組——每人上方 3 × 2 格子書架、桌下兩個抽屜、中間隔板；窗下矮櫃改成貼窗牆、整面牆寬（`WIN_CAB` 0.3 m 深、0.68 m 高），一路伸到兩側書桌下方，靠窗那段不放抽屜
+- 測試：`tsc --noEmit`、`vite build` 通過；遊戲裡看過寢室（暫時除錯碼已移除）
+
 ### 2026-11-23（前端：學生宿舍C 寢室照片手工建模、平面等比例放大）— 分支 `fix/dorm-c-front-gate`
 - 需求：不要現在的寢室模型；一樣在門口跳出進入選項；平面圖等比例放大，照照片建模、越像越好
 - `frontend/src/buildings/dormCUnit.ts`：平面以每像素 0.042 m 等比例放大（一間寢室 4.2 × 8.0、浴室 3.5 × 8.0、走廊 2.7、交誼廳 8.4 × 6.7、曬衣間 9.8 × 6.5、雜物間）；寢室 1 是同一間轉 180°；不再用生成家具（拿掉 `furnish`）、`windows: false`；曬衣間西端與南側改成開口（`open`）；`DORM_C_ROOM_DOOR`
