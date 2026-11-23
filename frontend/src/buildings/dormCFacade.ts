@@ -327,7 +327,8 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
     // Walls stop 2 cm behind the back wall's face: the dorm room on the other side starts there.
     b.put(span(x0, x1, fy - 0.25, fy + 0.02, zb - 0.02, zf), floorTiles, 0.6);
     b.put(span(x0, x1, top - 0.03, top + 0.25, zb - 0.02, zf), paint, 2);
-    // 2F: no back wall — the balcony is the front of the dorm flat's big laundry room behind it (dormCUnit.ts, 使用者草圖 cloth).
+    // 2F: no back wall — the balcony is the front of the dorm flat's laundry, which goes on deeper behind it (dormCUnit.ts);
+    // its back wall, doors, partitions, washers, windows, sinks and rails are built there (dormCUnitDecor.ts).
     const flat = fy === BAL.floors[0];
     if (!flat) b.put(span(x0, x1, fy, top, zb - 0.02, zb), paint, 2);
     for (const side of [-1, 1] as const) {
@@ -343,10 +344,10 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
       box(0, 0.015, fy, fy + 1.3, zb, zf, wallTiles, 0.6);
       box(0, 0.012, fy + 1.3, top - 0.03, zb, zf, paint, 2);
       // Tiled sink along the end wall (behind the open bay): trough on two legs, three taps.
-      box(0.015, 0.6, fy + 0.55, fy + 0.82, zb + 0.05, zf - 0.3, wallTiles, 0.6);
-      box(0.09, 0.52, fy + 0.82, fy + 0.83, zb + 0.12, zf - 0.37, basin);
-      for (const z of [zb + 0.25, zf - 0.5]) box(0.25, 0.33, fy, fy + 0.55, z - 0.04, z + 0.04, steel);
-      for (let k = 0; k < 3; k++) {
+      if (!flat) box(0.015, 0.6, fy + 0.55, fy + 0.82, zb + 0.05, zf - 0.3, wallTiles, 0.6);
+      if (!flat) box(0.09, 0.52, fy + 0.82, fy + 0.83, zb + 0.12, zf - 0.37, basin);
+      for (const z of flat ? [] : [zb + 0.25, zf - 0.5]) box(0.25, 0.33, fy, fy + 0.55, z - 0.04, z + 0.04, steel);
+      for (let k = 0; k < (flat ? 0 : 3); k++) {
         const z = zb + 0.45 + k * ((zf - zb - 1.1) / 2);
         box(0.015, 0.14, fy + 1.0, fy + 1.04, z - 0.02, z + 0.02, steel);
         box(0.11, 0.14, fy + 0.94, fy + 1.04, z - 0.02, z + 0.02, steel);
@@ -357,8 +358,8 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
         box(0.62, 1.68, fy + 2.1, fy + 2.16, zb, zb + 0.05, panelDark);
         box(1.45, 1.5, fy + 0.95, fy + 1.05, zb + 0.04, zb + 0.08, steel);
       }
-      box(1.75, 1.87, fy, fy + 1.15, zb, zb + 0.85, paint, 2);
-      for (const [d, lift] of [[2.25, 0.25], [2.95, 0]] as const) {
+      if (!flat) box(1.75, 1.87, fy, fy + 1.15, zb, zb + 0.85, paint, 2);
+      for (const [d, lift] of flat ? [] : [[2.25, 0.25], [2.95, 0]] as const) {
         const y = fy + lift;
         if (lift) box(d - 0.32, d + 0.32, fy, y, zb + 0.03, zb + 0.67, washer);
         box(d - 0.3, d + 0.3, y, y + 0.85, zb + 0.05, zb + 0.65, washer);
@@ -381,9 +382,9 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
       for (const y of [fy + 1.1, fy + 1.45]) box(2.2, 3.6, y, y + 0.03, rz - 0.015, rz + 0.015, steel);
       for (const d of [2.25, 3.55]) for (const dz of [-0.2, 0.2]) box(d - 0.015, d + 0.015, fy, fy + 1.45, rz + dz - 0.015, rz + dz + 0.015, steel);
     }
-    // Navy drying rails under the ceiling: three along the room, five across.
-    for (const z of [zb + 0.4, (zb + zf) / 2, zf - 0.45]) b.put(span(x0, x1, top - 0.38, top - 0.33, z - 0.025, z + 0.025), navy);
-    for (let k = 0; k < 5; k++) {
+    // Navy drying rails under the ceiling: three along the room, five across (2F: the flat's laundry has its own, full depth).
+    if (!flat) for (const z of [zb + 0.4, (zb + zf) / 2, zf - 0.45]) b.put(span(x0, x1, top - 0.38, top - 0.33, z - 0.025, z + 0.025), navy);
+    for (let k = 0; k < (flat ? 0 : 5); k++) {
       const x = x0 + 1.2 + (k * (x1 - x0 - 2.4)) / 4;
       b.put(span(x - 0.025, x + 0.025, top - 0.33, top - 0.28, zb, zf), navy);
       for (const z of [zb + 0.15, zf - 0.15]) b.put(span(x - 0.012, x + 0.012, top - 0.28, top - 0.03, z - 0.012, z + 0.012), navy); // hangers

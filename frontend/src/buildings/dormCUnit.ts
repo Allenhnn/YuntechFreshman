@@ -46,7 +46,8 @@ export const DORM_C_UNIT_PLAN = {
   other: [7.8, 6.5, 12.2, 9.6],
   otherNorth: [7.8, 3.6, 10.8, 6.5],
   // 曬衣間 (cloth): the whole width of the sketch — an indoor laundry 12 m wide, open along its south side onto the 2F
-  // balcony (whose back wall is gone on this floor), so the two are one room with the lattice in front.
+  // balcony (whose back wall is gone on this floor), so the two are one room with the lattice in front; furnished from the
+  // user's photos (dormCUnitDecor.ts).
   cloth: [0.2, 9.6, 12.2, 13.4],
   living: [16.55, 3.6, 22.3, 11.2], // the recessed hall bay, 7.6 m in from its window (使用者：戶廳太寬，縮小一點)
 } satisfies Record<string, Rect>;
@@ -92,6 +93,8 @@ export interface DormCUnit {
   balcony: Rect;
   /** Where the laundry room opens onto the balcony (plan x range along its south wall). */
   clothOpen: [number, number];
+  /** The laundry's east door, into the work room (plan x range in their shared wall). */
+  clothDoor: [number, number];
 }
 
 export function dormCUnit(campus: CampusData): DormCUnit | null {
@@ -105,6 +108,7 @@ export function dormCUnit(campus: CampusData): DormCUnit | null {
   const bx0 = L - DORM_C_BALCONY.a1, bx1 = L - DORM_C_BALCONY.a0;
   const balcony: Rect = [bx0, FRONT_Y - DORM_C_BALCONY.depth - 0.02, bx1, FRONT_Y + 1.3];
   const clothOpen: [number, number] = [bx0 + 0.1, bx1 - 0.1]; // between the balcony's end walls
+  const clothDoor: [number, number] = [9.95, 11.35]; // the laundry's east door (the sketch's wide blue line), into the work room
 
   const space = (id: string, name: string, kind: Space['kind'], rects: Rect[]): Space => ({
     id: `dormC-unit-${id}`, name, kind, ceiling: CEILING, rects,
@@ -124,7 +128,7 @@ export function dormCUnit(campus: CampusData): DormCUnit | null {
     // 工作室: off the passage at the corridor's west end (使用者草圖的藍線).
     door(R.corridor[0] + 0.05, R.other[1], R.other[2] - 0.05, R.other[1]),
     // Work room → laundry (the sketch's wide blue line, near the east end), and the laundry open onto the balcony.
-    door(9.95, R.other[3], 11.35, R.other[3]),
+    door(clothDoor[0], R.other[3], clothDoor[1], R.other[3]),
     // The work room's window into the laundry, at the west corner (使用者照片): a gap in the wall, the decor builds the sill,
     // the glass and the frame in it.
     door(DORM_C_WORK_WINDOW[0], R.other[3], DORM_C_WORK_WINDOW[1], R.other[3], 'open'),
@@ -174,5 +178,6 @@ export function dormCUnit(campus: CampusData): DormCUnit | null {
     }),
     balcony,
     clothOpen,
+    clothDoor,
   };
 }
