@@ -79,7 +79,7 @@ import { createBuildingTest, placeBikeStations, stationClearings } from './bikes
 import { findMascotJoints } from './character/mascot';
 import { createOutfitter } from './character/outfit';
 import { RACE_ROUTE } from './story/storyData';
-import { BODY_REST_Y, CLOCK_RATE, applyPose, computeLiePose, computeRidePose, computeSitPose, computeSwimPose, createPose } from './character/pose';
+import { BODY_REST_Y, CLOCK_RATE, applyPose, computeFallPose, computeLiePose, computeRidePose, computeSitPose, computeSwimPose, createPose } from './character/pose';
 import { safeTeleportTarget } from './game/teleport';
 import { buildNavGraph, pathAhead, progressOn } from './game/navGraph';
 import { createNavLine } from './game/navLine';
@@ -485,6 +485,35 @@ async function boot(): Promise<void> {
     renderSyncSystem(world, 1);
     storyEvents.stand(s0.s.kind);
   };
+  // --- Bumping into people and vehicles; knocked down by a car --------------------------------
+  /** Knocked down: thrown along (dx, dz), sliding until `speed` dies out or a wall stops it. */
+  let knock: { t: number; total: number; dx: number; dz: number; speed: number; facing: number } | null = null;
+  const KNOCK_TIME = 2.4;
+  const shiftPlayer = (dx: number, dz: number): void => {
+    const b = bodies[eid];
+    if (!b) return;
+    const p = b.translation();
+    b.setTranslation({ x: p.x + dx, y: p.y, z: p.z + dz }, true);
+    Transform.x[eid] = Transform.x[eid]! + dx;
+    Transform.z[eid] = Transform.z[eid]! + dz;
+  };
+  /** Free distance along (dx, dz) at waist height before a wall or object. */
+  const clearAhead = (dx: number, dz: number, max: number): number => {
+    const ray = new RAPIER.Ray({ x: Transform.x[eid]!, y: Transform.y[eid]! + 0.5, z: Transform.z[eid]! }, { x: dx, y: 0, z: dz });
+    const hit = physics.castRay(ray, max, true, RAPIER.QueryFilterFlags.EXCLUDE_SENSORS, undefined, colliders[eid], undefined, groundFilter);
+    return hit ? hit.timeOfImpact : max;
+  };
+  const knockDown = (k: { dx: number; dz: number; speed: number }): void => {
+    if (bikes.ridden >= 0) bikes.dismount();
+    if (seat) standUp();
+    const facing = Math.atan2(-k.dx, -k.dz); // facing what hit you, falling away from it
+    knock = { t: 0, total: KNOCK_TIME, dx: k.dx, dz: k.dz, speed: Math.min(9, 2 + k.speed * 0.8), facing };
+    Transform.rotY[eid] = Transform.prevRotY[eid] = facing;
+    audio.play('thud');
+    audio.play('hit');
+    actions.toast(k.speed > 4 ? '💥 被車撞飛了！' : '💥 撞到車，跌倒了！');
+  };
+
   /** Story: wake up in a bed of `place` (a dorm); false until its interior has streamed in. */
   const putInBed = (place: string): boolean => {
     const px = Transform.x[eid]!, pz = Transform.z[eid]!;
@@ -780,6 +809,7 @@ async function boot(): Promise<void> {
           return;
         }
         if (seat) { standUp(); return; }
+        if (knock) return;
         const target = nearestInteractable();
         if (target?.id.includes(':stall:')) {
           const [buildingId, , levelId, index] = target.id.split(':');
@@ -862,7 +892,7 @@ async function boot(): Promise<void> {
             teleport(robbed.x, Transform.y[eid]!, robbed.z, robbed.yaw);
             bikes.mount(i);
             storyEvents.robBike();
-            audio.play('close');
+            audio.play('robbed');
             return;
           }
         }
@@ -1083,13 +1113,31 @@ async function boot(): Promise<void> {
       moveMods.fly = ui.tester.fly && !riding;
       moveMods.noclip = ui.tester.noclip && !riding;
       if (seat && (input.held() & MOVE_BITS)) standUp();
-      moveMods.speed = seat || playground?.frozen || sports.frozen || (ui.countdown && ui.countdown.text !== '開始！') ? 0 : ui.tester.speed * story.speedFactor * sports.speedFactor * (bikes.riddenKind === 'scooter' ? SCOOTER_SPEED_FACTOR : 1) * (inWater ? 0.55 : 1);
-      moveMods.noJump = sports.active;
+      moveMods.speed = seat || knock || playground?.frozen || sports.frozen || (ui.countdown && ui.countdown.text !== '開始！') ? 0 : ui.tester.speed * story.speedFactor * sports.speedFactor * (bikes.riddenKind === 'scooter' ? SCOOTER_SPEED_FACTOR : 1) * (inWater ? 0.55 : 1);
+      moveMods.noJump = sports.active || !!knock;
       moveMods.bike = riding;
       moveMods.blocked = riding ? insideBuilding : null;
       controller.update(world, FIXED_DT, input.consumePressed(), rig.yaw, groundFilter, moveMods);
       physics.step();
       if (seat) teleport(seat.x, seat.y, seat.z, seat.facing); // held in place while seated
+      if (knock) {
+        // Thrown: slide along the ground, slowing, stopped by walls; then get up.
+        knock.t += FIXED_DT;
+        const step = knock.speed * FIXED_DT;
+        if (step > 0.001) {
+          const free = clearAhead(knock.dx, knock.dz, step + 0.45);
+          if (free > step + 0.4) shiftPlayer(knock.dx * step, knock.dz * step);
+          else knock.speed = 0;
+        }
+        knock.speed *= Math.exp(-3.2 * FIXED_DT);
+        Transform.rotY[eid] = Transform.prevRotY[eid] = knock.facing;
+        if (knock.t >= knock.total) knock = null;
+      } else if (playing && !seat && !ui.tester.noclip && !ui.tester.fly) {
+        // People and vehicles are solid; a moving vehicle (or running into one fast) knocks you down.
+        const c = traffic.collide(Transform.x[eid]!, Transform.z[eid]!, bikes.ridden >= 0 ? 0.55 : 0.32, Velocity.x[eid]!, Velocity.z[eid]!);
+        if (c.push) shiftPlayer(c.push[0], c.push[1]);
+        if (c.knock) knockDown(c.knock);
+      }
       // Safety net: anything that drops the player out of the world (a missed collider) respawns them.
       if (playing && Transform.y[eid]! < -40) {
         handleCommand({ type: 'respawn' });
@@ -1127,7 +1175,9 @@ async function boot(): Promise<void> {
     // Variable-rate presentation.
     renderSyncSystem(world, accumulator / FIXED_DT);
     animationSystem(world, dt, time);
-    if (seat && joints) {
+    if (knock && joints) {
+      applyPose(joints, computeFallPose(knock.t, knock.total, ridePose));
+    } else if (seat && joints) {
       applyPose(joints, seat.s.kind === 'bed' ? computeLiePose(time, ridePose) : computeSitPose(time, ridePose, storyStore.getState().handUp));
     } else if (bikes.ridden >= 0 && objects[eid]) {
       const o = objects[eid]!;
@@ -1180,7 +1230,11 @@ async function boot(): Promise<void> {
       if (riding && playing) {
         const moved = Math.hypot(px - storyFrame.x, pz - storyFrame.z);
         if (moved < 5) storyEvents.bikeMoved(moved);
-        if (Math.hypot(Velocity.x[eid]!, Velocity.z[eid]!) > 2.5 && traffic.hit(px, pz, 0.9)) storyEvents.bikeHit();
+        if (Math.hypot(Velocity.x[eid]!, Velocity.z[eid]!) > 2.5 && traffic.hit(px, pz, 0.9)) {
+          storyEvents.bikeHit();
+          audio.play('thud', 0.7);
+          audio.play('hit');
+        }
       }
       if (wasRiding && !riding) storyEvents.dismount(px, pz);
       wasRiding = riding;
@@ -1241,6 +1295,7 @@ async function boot(): Promise<void> {
     }
     actions.setInteractPrompt(
       !playing || playground?.racing ? null
+        : knock ? null
         : bikes.ridden >= 0 ? (bikes.riddenKind === 'scooter' ? '按 E 停車下來' : '按 E 下車')
           : seat ? (seat.s.kind === 'bed' ? '按 E 或移動鍵下床' : '按 E 或移動鍵起身')
           : nearestInteractable()?.prompt

@@ -42,6 +42,12 @@ export interface Traffic {
   robCyclist(x: number, z: number, r: number): { x: number; z: number; yaw: number } | null;
   /** A walker within `r` of (x, z) is knocked over; true when someone was hit. */
   hit(x: number, z: number, r: number): boolean;
+  /**
+   * The player (circle radius `r` at x, z, moving at vx, vz) against walkers, cyclists, scooters and
+   * cars: `push` moves the player out of anyone they overlap; `knock` is set when a moving vehicle
+   * hits the player (or the player runs into one fast): the direction to be thrown and the speed.
+   */
+  collide(x: number, z: number, r: number, vx: number, vz: number): { push: [number, number] | null; knock: { dx: number; dz: number; speed: number } | null };
   update(dt: number, px: number, pz: number): void;
   dispose(): void;
 }
@@ -101,6 +107,9 @@ interface Agent {
 }
 
 const RANGE = 175; // m: fog is opaque from 190 m
+/** Collision shapes: people are circles; vehicles boxes (half width, half length) around their centre. */
+const BODY_R: Partial<Record<Kind, number>> = { walker: 0.3, cyclist: 0.45 };
+const BOX: Partial<Record<Kind, [number, number]>> = { scooter: [0.4, 1.0], car: [1.0, 2.3] };
 const RESPAWN_MIN = 120;
 const COUNTS: Record<Kind, number> = { walker: 70, cyclist: 16, scooter: 22, car: 12 };
 const SPEED: Record<Kind, [number, number]> = { walker: [1.0, 1.5], cyclist: [3.2, 4.8], scooter: [7, 10], car: [7, 11] };
@@ -384,7 +393,7 @@ export function createTraffic(scene: Scene, campus: CampusData, tracker: Resourc
     (window as unknown as { __traffic: unknown }).__traffic = {
       walkers: () => agents.filter((a) => a.kind === 'walker' && !a.hidden && a.edge >= 0).map((a) => ({ x: a.x, z: a.z, yaw: a.yaw, fall: a.fall })),
       cyclists: () => agents.filter((a) => a.kind === 'cyclist' && !a.hidden && a.edge >= 0).map((a) => ({ x: a.x, z: a.z, yaw: a.yaw })),
-      vehicles: () => agents.filter((a) => (a.kind === 'car' || a.kind === 'scooter') && !a.hidden && a.edge >= 0).map((a) => ({ kind: a.kind, x: a.x, z: a.z })),
+      vehicles: () => agents.filter((a) => (a.kind === 'car' || a.kind === 'scooter') && !a.hidden && a.edge >= 0).map((a) => ({ kind: a.kind, x: a.x, z: a.z, yaw: a.yaw, cur: a.cur })),
       inCampus: (x: number, z: number) => inRing(x, z, campus.boundary),
     };
   }
@@ -445,6 +454,46 @@ export function createTraffic(scene: Scene, campus: CampusData, tracker: Resourc
         }
       }
       return false;
+    },
+    collide(x, z, r, vx, vz) {
+      let pushX = 0, pushZ = 0;
+      let knock: { dx: number; dz: number; speed: number } | null = null;
+      const pSpeed = Math.hypot(vx, vz);
+      for (const a of agents) {
+        if (a.hidden || a.edge < 0 || Number.isNaN(a.x)) continue;
+        const ox = x - a.x, oz = z - a.z;
+        if (ox * ox + oz * oz > 16) continue;
+        const circle = BODY_R[a.kind];
+        if (circle !== undefined) {
+          if (a.fall > 0) continue; // lying on the ground: step over
+          const d = Math.hypot(ox, oz), min = circle + r;
+          if (d < min && d > 1e-4) { pushX += (ox / d) * (min - d); pushZ += (oz / d) * (min - d); }
+          continue;
+        }
+        const box = BOX[a.kind];
+        if (!box) continue;
+        // Vehicle frame: f along its heading, l to its right.
+        const fx = Math.sin(a.yaw), fz = Math.cos(a.yaw);
+        const lf = ox * fx + oz * fz, ll = ox * fz - oz * fx;
+        const hw = box[0] + r, hl = box[1] + r;
+        if (Math.abs(lf) >= hl || Math.abs(ll) >= hw) continue;
+        // Out along the shallower side.
+        const penF = hl - Math.abs(lf), penL = hw - Math.abs(ll);
+        if (penF < penL) { const sgn = Math.sign(lf) || 1; pushX += fx * sgn * penF; pushZ += fz * sgn * penF; }
+        else { const sgn = Math.sign(ll) || 1; pushX += fz * sgn * penL; pushZ += -fx * sgn * penL; }
+        if (knock) continue;
+        if (a.cur > 1.5 && lf > 0) {
+          // Hit by its front: thrown ahead of it (and a bit to the side you were on).
+          const side = Math.sign(ll) * 0.35;
+          const dx = fx + fz * side, dz = fz - fx * side, dl = Math.hypot(dx, dz);
+          knock = { dx: dx / dl, dz: dz / dl, speed: a.cur };
+          a.cur = 0; // the driver brakes
+        } else if (pSpeed > 4.5) {
+          // You ran (or rode) into it: bounce back off it.
+          knock = { dx: -vx / pSpeed, dz: -vz / pSpeed, speed: pSpeed * 0.6 };
+        }
+      }
+      return { push: pushX || pushZ ? [pushX, pushZ] : null, knock };
     },
     update(dt, px, pz) {
       const jumped = !(Math.hypot(px - lastPx, pz - lastPz) < 60); // first frame or a teleport

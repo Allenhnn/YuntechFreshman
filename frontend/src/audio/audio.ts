@@ -1,4 +1,10 @@
-export type Sfx = 'click' | 'open' | 'close' | 'coin' | 'jump' | 'land';
+export type Sfx = 'click' | 'open' | 'close' | 'coin' | 'jump' | 'land' | 'robbed' | 'hit' | 'thud';
+
+/** Recorded sounds (public/sounds/): a random take of the list plays each time. */
+const SAMPLES: Partial<Record<Sfx, readonly string[]>> = {
+  robbed: ['robbed.m4a'],
+  hit: ['hit1.m4a', 'hit2.m4a', 'hit3.m4a'],
+};
 
 export interface AudioBus {
   /** Creates / resumes the AudioContext; call from a user gesture. */
@@ -28,6 +34,13 @@ const SOUNDS: Readonly<Record<Sfx, readonly Tone[]>> = {
   ],
   jump: [{ type: 'sine', from: 300, to: 620, duration: 0.14, gain: 0.25 }],
   land: [{ type: 'triangle', from: 180, to: 70, duration: 0.12, gain: 0.35 }],
+  robbed: [],
+  hit: [],
+  // A body hitting a car / the ground: a low knock with a short rattle.
+  thud: [
+    { type: 'triangle', from: 140, to: 45, duration: 0.22, gain: 0.5 },
+    { type: 'square', from: 90, to: 60, duration: 0.08, gain: 0.12, delay: 0.03 },
+  ],
 };
 
 /**
@@ -39,6 +52,20 @@ export function createAudioBus(): AudioBus {
   let master: GainNode | null = null;
   let sfxBus: GainNode | null = null;
   let volumes = { master: 0.8, sfx: 0.8 };
+  const buffers = new Map<string, AudioBuffer | null>();
+  /** Last start per sound: a voice line does not restart over itself. */
+  const playing = new Map<Sfx, number>();
+  const load = (c: AudioContext): void => {
+    for (const file of Object.values(SAMPLES).flat()) {
+      if (buffers.has(file)) continue;
+      buffers.set(file, null);
+      void fetch(`${import.meta.env.BASE_URL}sounds/${file}`)
+        .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(String(r.status)))))
+        .then((b) => c.decodeAudioData(b))
+        .then((buf) => { buffers.set(file, buf); })
+        .catch((err: unknown) => console.warn(`[audio] ${file}`, err));
+    }
+  };
 
   const apply = (): void => {
     if (!ctx || !master || !sfxBus) return;
@@ -54,6 +81,7 @@ export function createAudioBus(): AudioBus {
         sfxBus = ctx.createGain();
         sfxBus.connect(master).connect(ctx.destination);
         apply();
+        load(ctx);
       }
       if (ctx.state === 'suspended') void ctx.resume();
     },
@@ -64,6 +92,20 @@ export function createAudioBus(): AudioBus {
     play(sfx, intensity = 1) {
       if (!ctx || !sfxBus || ctx.state !== 'running') return;
       const t0 = ctx.currentTime;
+      const takes = SAMPLES[sfx];
+      if (takes) {
+        const ready = takes.map((f) => buffers.get(f)).filter((b): b is AudioBuffer => !!b);
+        const buf = ready[Math.floor(Math.random() * ready.length)];
+        if (!buf || t0 - (playing.get(sfx) ?? -Infinity) < buf.duration * 0.8) return;
+        playing.set(sfx, t0);
+        const src = ctx.createBufferSource();
+        const env = ctx.createGain();
+        src.buffer = buf;
+        env.gain.value = Math.min(1.5, intensity);
+        src.connect(env).connect(sfxBus);
+        src.start(t0);
+        return;
+      }
       for (const tone of SOUNDS[sfx]) {
         const start = t0 + (tone.delay ?? 0);
         const osc = ctx.createOscillator();

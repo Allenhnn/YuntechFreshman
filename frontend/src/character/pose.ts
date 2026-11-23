@@ -209,6 +209,26 @@ export function computeLiePose(clock: number, out: Pose): Pose {
   return out;
 }
 
+/**
+ * Knocked down: tip over backwards (first 0.25 s), lie flat with limbs thrown out, then sit up and
+ * stand (last 0.6 s). `t` is the time since the hit, `total` how long it lasts.
+ */
+export function computeFallPose(t: number, total: number, out: Pose): Pose {
+  const down = Math.min(1, t / 0.25);
+  const up = Math.min(1, Math.max(0, (total - t) / 0.6));
+  const k = Math.min(down, up);
+  const ease = k * k * (3 - 2 * k);
+  out.lean = -1.45 * ease;
+  out.bob = -0.17 * ease;
+  out.legL = 0.35 * ease; out.legR = -0.25 * ease;
+  out.armLX = -1.4 * ease; out.armRX = -1.1 * ease;
+  out.armSpread = 0.35 + 0.6 * ease;
+  out.squash = 1;
+  out.headTilt = 0.25 * ease;
+  out.leaf0 = -0.5 * ease; out.leaf1 = -0.4 * ease; out.leaf2 = -0.6 * ease;
+  return out;
+}
+
 export function applyPose(j: PoseJoints, p: Pose): void {
   j.legL.rotation.x = p.legL;
   j.legR.rotation.x = p.legR;
