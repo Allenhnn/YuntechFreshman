@@ -107,6 +107,58 @@ export function addFacadeDetails(
   const floors = Math.max(1, b.levels || Math.round(b.height / 3.6));
   const fh = b.height / floors;
   const ws = walls(b.outer);
+  // The two Lotus Pond buildings meet at the east end of the student centre.
+  // Edge indices follow the surveyed campus footprints, with outward depth positive.
+  if (b.id === 296668597) {
+    const court = ws[1]!;
+    const depth = 3.8;
+    for (const y of [fh, 2 * fh, b.height]) {
+      wallBox(g, court, 0, court.len, 0, depth, y - 0.35, y, colors.wall);
+      wallBox(g, court, 0, court.len, depth - 0.22, depth, y, y + 0.7, colors.trim);
+    }
+    for (let bay = 0; bay <= 6; bay++) {
+      const a = 0.4 + (court.len - 0.8) * bay / 6;
+      wallBox(g, court, a - 0.32, a + 0.32, depth - 0.7, depth, 0, b.height, colors.wall);
+    }
+    // Raised pitched skylight above the central circulation hall.
+    const run = 5;
+    const rise = 2.4;
+    for (const side of [-1, 1]) {
+      const slope = side * rise / run;
+      const norm = Math.hypot(1, slope);
+      const vertex = (a: number, offset: number, lift: number, color: RGB) => {
+        const o = -12 + side * offset;
+        return g.vertex(court.px + court.dx * a + court.nx * o,
+          b.height + rise * (1 - offset / run) + lift, court.pz + court.dz * a + court.nz * o,
+          court.nx * slope / norm, 1 / norm, court.nz * slope / norm, 0, 0, color);
+      };
+      const panel = (a: number, end: number, lift: number, color: RGB) => {
+        const v = [vertex(a, 0, lift, color), vertex(end, 0, lift, color),
+          vertex(end, run, lift, color), vertex(a, run, lift, color)];
+        if (side < 0) v.reverse();
+        g.tri(v[0]!, v[1]!, v[2]!);
+        g.tri(v[0]!, v[2]!, v[3]!);
+      };
+      panel(3, court.len - 3, 0.04, [0.35, 0.43, 0.45]);
+      for (let a = 3; a < court.len - 3; a += 2) panel(a, a + 0.12, 0.08, colors.trim);
+    }
+  }
+  if (b.id === 296668624) {
+    // The upper glazed gallery follows the faceted curve toward Lotus Pond.
+    for (let edge = 12; edge <= 22; edge++) {
+      const w = ws[edge]!;
+      wallBox(g, w, 0, w.len, 0, 0.16, fh, 2 * fh, [0.10, 0.15, 0.16]);
+      for (const y of [fh, fh * 1.72, 2 * fh]) {
+        wallBox(g, w, 0, w.len, 0.16, 0.23, y, y + 0.12, colors.trim);
+      }
+      const panes = Math.ceil(w.len / 1.4);
+      for (let p = 0; p < panes; p++) {
+        const a = p * w.len / panes;
+        wallBox(g, w, a, a + 0.09, 0.16, 0.23, fh, 2 * fh, colors.trim);
+      }
+      wallBox(g, w, 0, w.len, 0, 1.2, fh - 0.3, fh, colors.wall);
+    }
+  }
   const longest = Math.max(...ws.map((w) => w.len));
   const rand = mulberry32(Math.abs(b.id) >>> 0);
 
