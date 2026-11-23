@@ -164,6 +164,14 @@ docker compose down             # 停止（加 -v 會連資料一起刪除）
 | `.env.example` 沒被 commit | 根目錄 `.gitignore` 有 `.env*`；需要時用 `git add -f backend/.env.example` |
 
 ## 變更紀錄
+### 2026-11-23（前端：學生宿舍C 一戶搬到中段 2 樓、曬衣間＝正面 2 樓陽台、寢室改用傳送）— 分支 `fix/dorm-c-front-gate`
+- 需求（附標註圖、平面圖）：整戶挪到 C3 正上方 2 樓紅框（花磚陽台＋右邊兩扇窗），走進曬衣間就是 2 樓陽台；空間不夠、寢室與戶廳都被壓小 → 寢室可以放到 C3 任何一處，靠近房門按 E 直接傳送進寢室；戶廳加大、照平面圖比例重排
+- `frontend/src/buildings/dormCUnit.ts` 重寫：2 樓這戶（`source`，中段 296668596、`DORM_C_UNIT_FLOOR = 3.6`）平面座標＝正面（edge 5）立面座標（原點 vertex 6、`FRONT_Y = 14` 是正面牆線）；只有浴室、走廊（北牆三扇、南牆一扇寢室門，畫在牆上）、雜物間（南牆門洞 `balconyDoor` 通到真的 2 樓陽台 `balcony`）、交誼廳（加大：陽台右邊那扇窗後面＋退縮戶廳窗後面兩塊，整面跟走廊打通，東牆關著的大門）；四間寢室另成一棟 `rooms`（同一個平面轉換，4.2 × 8.0 m 並排，在地底 `DORM_C_ROOMS_FLOOR = -20`），`roomDoors` 記走廊上的門與寢室內的門
+- `frontend/src/buildings/dormCUnitDecor.ts`：參數改吃 `DormCUnit`；`Frame.dy` 讓寢室在另一個樓高；寢室家具照舊（樓梯櫃在房深中間）；走廊牆上畫粉紅寢室門＋門牌；浴室（3 間廁所、東牆 2 洗手台＋鏡、2 小便斗＋百葉通風）、雜物間、走廊鞋櫃、交誼廳（電視、茶几、沙發、餐桌四凳、鞋櫃、飲水機、兩面大窗）照新尺寸；陽台補地板、矮牆、端牆、後牆碰撞；拿掉自己畫的曬衣間
+- `frontend/src/buildings/dormCFacade.ts` `laundryRoom`：2 樓陽台東側木門改成真的門洞
+- `frontend/src/main.ts`：多建一棟寢室（`unit.rooms`）；寢室門互動改成走廊 ↔ 地底寢室傳送（進去站在門內 1.7 m、面向窗）
+- 測試：`tsc --noEmit`、`vite build` 通過；外觀沒有東西穿出中段外牆；C3 門口按 E 到 2 樓交誼廳；走到陽台（看得到花磚與中庭）；走廊按 E 進寢室 4、再按 E 回走廊；看過浴室、交誼廳、走廊（暫時除錯碼已移除）
+
 ### 2026-11-23（前端：學生宿舍C 寢室門改成畫在牆上的門＋按 E 進出）— 分支 `fix/dorm-c-front-gate`
 - 需求（附照片）：門的樣子照照片、要跟牆壁貼齊；門片還是有縫 → 門不要做開關，人物靠近門時一樣按 E 進入房間
 - `frontend/src/buildings/dormCUnit.ts`：寢室 1–4 的門洞拿掉（實心牆）；新增 `roomDoors`（門中心與朝走廊的法向）；雜物間改成 `corridor` 類型，門口只是門洞、沒有門片

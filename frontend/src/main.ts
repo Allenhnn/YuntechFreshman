@@ -60,7 +60,7 @@ import { createMgmtFeatures } from './buildings/mgmtFeatures';
 import { createYuntayExterior, yuntayTreeFree } from './buildings/yuntayExterior';
 import { createDormFeatures, dormTreeFree } from './buildings/dormFeatures';
 import { createDormCFacade, dormCFacadeTreeFree, dormCLobbyDoor } from './buildings/dormCFacade';
-import { DORM_C_UNIT_FLOOR, dormCUnit } from './buildings/dormCUnit';
+import { DORM_C_ROOMS_FLOOR, DORM_C_UNIT_FLOOR, dormCUnit } from './buildings/dormCUnit';
 import { createDormCUnitDecor } from './buildings/dormCUnitDecor';
 import { courtPit, createMgmtCourtyard } from './buildings/mgmtCourtyard';
 import { createDormCourtyard, dormCourtPit } from './buildings/dormCourtyard';
@@ -247,7 +247,7 @@ async function boot(): Promise<void> {
   const handBuilt = handBuiltSrcs.map((src) => createHandBuiltBuilding(src, scene, physics, renderer, env.materials, sceneResources, {
     facadeStyle: facadeStyleOf(facades, campus, src.osmReplaces[0] ?? src.name),
   }));
-  // 學生宿舍C 東翼的一戶寢室（buildings/dormCUnit.ts）: entered from the C3 lobby with 「進入宿舍」, left with 「離開宿舍」.
+  // 學生宿舍C 的一戶寢室（buildings/dormCUnit.ts，中段 2 樓 C3 正上方）: entered from the C3 lobby with 「進入宿舍」, left with 「離開宿舍」.
   const unit = dormCUnit(campus);
   const lobbyDoor = dormCLobbyDoor(campus);
   const unitBuilding = unit ? createHandBuiltBuilding(unit.source, scene, physics, renderer, env.materials, sceneResources, {
@@ -259,13 +259,23 @@ async function boot(): Promise<void> {
       { id: 'dormC-unit:enter', prompt: '按 E 進入宿舍', x: lobbyDoor.x + lobbyDoor.outX * 1.0, y: lobbyDoor.floor, z: lobbyDoor.z + lobbyDoor.outZ * 1.0, radius: 2.4 },
       (() => { const [x, z] = unitBuilding.planToWorld(unit.leave[0], unit.leave[1]); return { id: 'dormC-unit:leave', prompt: '按 E 離開宿舍', x, y: DORM_C_UNIT_FLOOR, z, radius: 1.0 }; })(),
       // Bedroom doors don't open: E at one walks you through (使用者：門不要做開關，靠近門按 E 進入房間).
-      ...unit.roomDoors.flatMap((d, i) => ([['in', 1, `按 E 進入${d.name}`], ['out', -1, `按 E 離開${d.name}`]] as const).map(([way, s, prompt]) => {
-        const [x, z] = unitBuilding.planToWorld(d.at[0] + d.out[0] * 0.7 * s, d.at[1] + d.out[1] * 0.7 * s);
-        return { id: `dormC-room:${way}:${i}`, prompt, x, y: DORM_C_UNIT_FLOOR, z, radius: 0.9 };
-      })),
+      // The bedrooms are a building of their own (underground): E at a door on the flat's corridor takes you in, E inside by
+      // its door takes you back (使用者：寢室挪到 C3 任何一處，靠近房門按 E 直接傳送到寢室內).
+      ...unit.roomDoors.flatMap((d, i) => {
+        const [ix, iz] = unitBuilding.planToWorld(d.at[0] + d.out[0] * 0.7, d.at[1] + d.out[1] * 0.7);
+        const [ox, oz] = unitBuilding.planToWorld(d.inside[0], d.inside[1] - 0.7);
+        return [
+          { id: `dormC-room:in:${i}`, prompt: `按 E 進入${d.name}`, x: ix, y: DORM_C_UNIT_FLOOR, z: iz, radius: 0.9 },
+          { id: `dormC-room:out:${i}`, prompt: `按 E 離開${d.name}`, x: ox, y: DORM_C_ROOMS_FLOOR, z: oz, radius: 0.9 },
+        ];
+      }),
     );
   }
-  const unitDecor = unit && unitBuilding ? createDormCUnitDecor(scene, physics, sceneResources, unit.source) : null;
+  const roomsBuilding = unit ? createHandBuiltBuilding(unit.rooms, scene, physics, renderer, env.materials, sceneResources, {
+    facadeStyle: facadeStyleOf(facades, campus, '學生宿舍C'),
+  }) : null;
+  if (roomsBuilding) handBuilt.push(roomsBuilding);
+  const unitDecor = unit && unitBuilding ? createDormCUnitDecor(scene, physics, sceneResources, unit) : null;
   // 2F sky bridge 管理二館 → 管理一館: from the door at the north end of MB's east wing to MA's west corridor end.
   const byId = (id: string): HandBuiltBuilding | undefined => handBuilt.find((b) => b.source.id === id);
   const ma = byId('ma'), mb = byId('mb');
@@ -832,16 +842,18 @@ async function boot(): Promise<void> {
           return;
         }
         if (target?.id.startsWith('dormC-room:') && unit && unitBuilding) {
-          // 學生宿舍C bedroom door: fade, then stand just through it on the other side, facing on.
+          // 學生宿舍C bedroom door: fade, then stand inside the bedroom by its door (or back in the corridor), facing on.
           const [, way, index] = target.id.split(':');
           const d = unit.roomDoors[Number(index)];
           if (!d || gameStore.getState().fading) return;
-          const s = way === 'in' ? -1 : 1; // into the room is against `out`
+          const entering = way === 'in';
           actions.setFading(true);
           window.setTimeout(() => {
-            const [x, z] = unitBuilding.planToWorld(d.at[0] + d.out[0] * 1.7 * s, d.at[1] + d.out[1] * 1.7 * s);
-            const facing = unitBuilding.planFacing([d.out[0] * s, d.out[1] * s]);
-            teleport(x, DORM_C_UNIT_FLOOR, z, facing);
+            const [x, z] = entering
+              ? unitBuilding.planToWorld(d.inside[0], d.inside[1] - 1.7)
+              : unitBuilding.planToWorld(d.at[0] + d.out[0] * 1.7, d.at[1] + d.out[1] * 1.7);
+            const facing = unitBuilding.planFacing(entering ? [0, -1] : d.out);
+            teleport(x, entering ? DORM_C_ROOMS_FLOOR : DORM_C_UNIT_FLOOR, z, facing);
             renderSyncSystem(world, 1);
             rig.snap(readFocus(), facing + Math.PI);
             actions.setFading(false);

@@ -327,7 +327,13 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
     // Walls stop 2 cm behind the back wall's face: the dorm room on the other side starts there.
     b.put(span(x0, x1, fy - 0.25, fy + 0.02, zb - 0.02, zf), floorTiles, 0.6);
     b.put(span(x0, x1, top - 0.03, top + 0.25, zb - 0.02, zf), paint, 2);
-    b.put(span(x0, x1, fy, top, zb - 0.02, zb), paint, 2);
+    // 2F: the east door is a real doorway into the dorm flat behind (dormCUnit.ts: the store room opens onto this balcony).
+    const flat = fy === BAL.floors[0], g0 = x1 - 1.6, g1 = x1 - 0.7;
+    if (flat) {
+      b.put(span(x0, g0, fy, top, zb - 0.02, zb), paint, 2);
+      b.put(span(g1, x1, fy, top, zb - 0.02, zb), paint, 2);
+      b.put(span(g0, g1, fy + 2.4, top, zb - 0.02, zb), paint, 2);
+    } else b.put(span(x0, x1, fy, top, zb - 0.02, zb), paint, 2);
     for (const side of [-1, 1] as const) {
       // In this side's terms: `e` is the end wall, `at(d)` is d metres in from it.
       const e = side < 0 ? x0 : x1, at = (d: number): number => e - side * d;
@@ -350,9 +356,16 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
         box(0.11, 0.14, fy + 0.94, fy + 1.04, z - 0.02, z + 0.02, steel);
       }
       // Wooden door into the building, a low partition, two washing machines (the one by the door on a stand).
-      box(0.7, 1.6, fy, fy + 2.1, zb, zb + 0.04, wood);
-      box(0.62, 1.68, fy + 2.1, fy + 2.16, zb, zb + 0.05, panelDark);
-      box(1.45, 1.5, fy + 0.95, fy + 1.05, zb + 0.04, zb + 0.08, steel);
+      if (flat && side > 0) {
+        // Open doorway: a dark frame round it instead of the shut wooden door.
+        box(0.64, 0.7, fy, fy + 2.4, zb, zb + 0.05, panelDark);
+        box(1.6, 1.66, fy, fy + 2.4, zb, zb + 0.05, panelDark);
+        box(0.64, 1.66, fy + 2.4, fy + 2.46, zb, zb + 0.05, panelDark);
+      } else {
+        box(0.7, 1.6, fy, fy + 2.1, zb, zb + 0.04, wood);
+        box(0.62, 1.68, fy + 2.1, fy + 2.16, zb, zb + 0.05, panelDark);
+        box(1.45, 1.5, fy + 0.95, fy + 1.05, zb + 0.04, zb + 0.08, steel);
+      }
       box(1.75, 1.87, fy, fy + 1.15, zb, zb + 0.85, paint, 2);
       for (const [d, lift] of [[2.25, 0.25], [2.95, 0]] as const) {
         const y = fy + lift;
