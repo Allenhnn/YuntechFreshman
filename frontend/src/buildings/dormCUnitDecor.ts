@@ -581,13 +581,13 @@ export function createDormCUnitDecor(scene: Scene, physics: RAPIER.World, tracke
   // The balcony's lattice, parapet, floor and racks come from the facade; the rest from the photos: tiled sinks with four
   // taps along both end walls, and the back wall — a brown door near each end (the east one the open doorway into the work
   // room, the west one shut), a low white partition beside each, washing machines (one on a stand), the lower windows
-  // (the east one is the work room's real window) and dark upper ones; navy drying rails and two racks inside.
+  // (the east one is the work room's real window) and dark upper ones; navy drying rails. As wide as the balcony.
   {
     const f = PLAN, [cx0, cy0, cx1, cy1] = R.cloth, [, by0] = balcony;
     const X0 = cx0 + WALL, X1 = cx1 - WALL, Yb = cy0 + WALL, Yf = cy1 - WALL, mid = (X0 + X1) / 2;
     floor(f, clothFloor, [X0, Yb, X1, cy1], 0.9);
     ceiling(f, ceilingPaint, [X0, Yb, X1, cy1]);
-    for (const x of [2.5, 6.2, 9.9]) ceilingPanel(f, x, (Yb + cy1) / 2, 1.2, 0.3);
+    for (const x of [6.2, 10.2]) ceilingPanel(f, x, (Yb + cy1) / 2, 1.2, 0.3);
     const top = 2.4 - LIFT;
     // End walls: white tiles to 1.3 m, a tiled sink the whole depth with four taps.
     for (const side of [-1, 1] as const) {
@@ -628,24 +628,15 @@ export function createDormCUnitDecor(scene: Scene, physics: RAPIER.World, tracke
       box(f, basinIn, c - 0.26, c + 0.26, lift + 0.85, lift + 0.86, Yb + 0.24, Yb + 0.61);
       solid(f, c - 0.32, c + 0.32, 0, lift + 0.97, Yb + 0.03, Yb + 0.67);
     }
-    // Windows: the work room's real one (east, built in the work room), its mirror image on the west (dark), and an
-    // upper dark pair over them.
-    const [ww0, ww1] = DORM_C_WORK_WINDOW, wwW0 = 2 * mid - ww1, wwW1 = 2 * mid - ww0;
+    // Windows: the work room's real one (east, built in the work room), a dark one west of it, and an upper dark pair.
+    const [ww0, ww1] = DORM_C_WORK_WINDOW, wwW1 = ww0 - 0.25, wwW0 = wwW1 - (ww1 - ww0);
     windowV(f, Yb, 1, wwW0, wwW1, 1.0, 2.1, { dark: true });
     for (const [p, q] of [[wwW0, wwW1], [ww0, ww1]] as const) windowV(f, Yb, 1, p, q, 2.3, 2.8, { dark: true });
-    // Navy steel drying frame under the ceiling, stainless racks on the floor.
+    // Navy steel drying frame under the ceiling (使用者：中間的衣架拿掉).
     for (const y of [Yb + 1.0, (Yb + cy1) / 2 + 0.3, cy1 - 0.3]) box(f, navyRail, X0 + 0.7, X1 - 0.7, 2.6, 2.66, y - 0.03, y + 0.03);
-    for (const x of [1.2, 4.6, 8.0, 11.2]) {
+    for (const x of [5.4, mid, 11.0]) {
       box(f, navyRail, x - 0.03, x + 0.03, 2.66, 2.72, Yb + 0.9, cy1 - 0.2);
       for (const y of [Yb + 1.0, cy1 - 0.3]) box(f, navyRail, x - 0.01, x + 0.01, 2.72, CEIL, y - 0.01, y + 0.01);
-    }
-    for (const [ra, rb] of [[3.6, 5.4], [6.8, 8.6]] as const) {
-      const ry = (Yb + cy1) / 2 + 0.6;
-      for (const h of [0.95, 1.55]) for (const dy of [-0.28, 0.28]) tube(f, steel, [ra, h, ry + dy], [rb, h, ry + dy], 0.012);
-      for (const x of [ra, rb]) {
-        tube(f, steel, [x, 0, ry - 0.45], [x, 1.55, ry + 0.28], 0.013);
-        tube(f, steel, [x, 0, ry + 0.45], [x, 1.55, ry - 0.28], 0.013);
-      }
     }
   }
 

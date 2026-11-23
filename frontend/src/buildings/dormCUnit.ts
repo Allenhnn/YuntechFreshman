@@ -45,10 +45,9 @@ export const DORM_C_UNIT_PLAN = {
   // 0.0141 down. 工作室 (work): L-shaped — a wide part south of the passage, and a narrower part on north beside it.
   other: [7.8, 6.5, 12.2, 9.6],
   otherNorth: [7.8, 3.6, 10.8, 6.5],
-  // 曬衣間 (cloth): the whole width of the sketch — an indoor laundry 12 m wide, open along its south side onto the 2F
-  // balcony (whose back wall is gone on this floor), so the two are one room with the lattice in front; furnished from the
-  // user's photos (dormCUnitDecor.ts).
-  cloth: [0.2, 9.6, 12.2, 13.4],
+  // 曬衣間 (cloth): exactly as wide as the balcony's opening (使用者：曬衣間的範圍跟窗戶一樣), going back behind it to the
+  // work room — the balcony (whose back wall is gone on this floor) is its front; furnished from the user's photos.
+  cloth: [4.24, 9.6, 12.24, 13.4],
   living: [16.55, 3.6, 22.3, 11.2], // the recessed hall bay, 7.6 m in from its window (使用者：戶廳太寬，縮小一點)
 } satisfies Record<string, Rect>;
 const R = DORM_C_UNIT_PLAN;
@@ -119,8 +118,8 @@ export function dormCUnit(campus: CampusData): DormCUnit | null {
     // Not a 'room' (its doorways stay plain gaps, no door leaves); two rects, each under 6 m, so the generator doesn't hang
     // a corridor fire-hose cabinet in it.
     space('other', '工作室', 'corridor', [R.other, R.otherNorth]),
-    // Three rects (each under 6 m) so the generator doesn't hang a corridor fire-hose cabinet in it.
-    space('cloth', '曬衣間', 'corridor', [0, 1, 2].map((k): Rect => [R.cloth[0] + (k * (R.cloth[2] - R.cloth[0])) / 3, R.cloth[1], R.cloth[0] + ((k + 1) * (R.cloth[2] - R.cloth[0])) / 3, R.cloth[3]])),
+    // Two rects (each under 6 m) so the generator doesn't hang a corridor fire-hose cabinet in it.
+    space('cloth', '曬衣間', 'corridor', [0, 1].map((k): Rect => [R.cloth[0] + (k * (R.cloth[2] - R.cloth[0])) / 2, R.cloth[1], R.cloth[0] + ((k + 1) * (R.cloth[2] - R.cloth[0])) / 2, R.cloth[3]])),
     space('living', '交誼廳', 'lobby', [R.living]),
   ];
   const openings: Opening[] = [
