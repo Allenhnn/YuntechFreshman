@@ -63,7 +63,9 @@ import { addActivityAtrium } from './buildings/activityAtrium';
 import { addActivityEntrance } from './buildings/activityEntrance';
 import { createYuntayExterior, yuntayTreeFree } from './buildings/yuntayExterior';
 import { createDormFeatures, dormTreeFree } from './buildings/dormFeatures';
-import { createDormCFacade, dormCFacadeTreeFree } from './buildings/dormCFacade';
+import { createDormCFacade, dormCFacadeTreeFree, dormCLobbyDoor } from './buildings/dormCFacade';
+import { DORM_C_LOFT_TOP, DORM_C_ROOMS_FLOOR, DORM_C_UNIT_FLOOR, dormCRoomBeds, dormCUnit } from './buildings/dormCUnit';
+import { createDormCUnitDecor } from './buildings/dormCUnitDecor';
 import { courtPit, createMgmtCourtyard } from './buildings/mgmtCourtyard';
 import { createDormCourtyard, dormCourtPit } from './buildings/dormCourtyard';
 import { createDormYard, dormRideables, dormYardClearings } from './campus/dormYard';
@@ -241,16 +243,55 @@ async function boot(): Promise<void> {
   const library = createHandBuiltBuilding(librarySrc, scene, physics, renderer, env.materials, sceneResources, {
     facadeStyle: facadeStyleOf(facades, campus, librarySrc.osmReplaces[0] ?? librarySrc.name),
   });
-  // Respawn point: one chosen on the map (saved per browser), else the campus default (dorm C entrance).
+  // Respawn point: one chosen on the map (saved per browser), else the game's start (the dorm room, below).
   const spawnPoint = (): { x: number; y: number; z: number; facing: number } => {
     const custom = gameStore.getState().customSpawn;
-    return custom ? { ...custom, y: 0 } : { x: campus.spawn.x, y: 0, z: campus.spawn.z, facing: campus.spawn.facing };
+    return custom ? { ...custom, y: 0 } : startPoint();
   };
   // Every other campus building: generated interiors streamed in near the player.
   const interiors = createInteriorManager(scene, physics, renderer, env.materials, campus, facades, sceneResources, traced);
   const handBuilt = handBuiltSrcs.map((src) => createHandBuiltBuilding(src, scene, physics, renderer, env.materials, sceneResources, {
     facadeStyle: facadeStyleOf(facades, campus, src.osmReplaces[0] ?? src.name),
   }));
+  // 學生宿舍C 的一戶寢室（buildings/dormCUnit.ts，中段 2 樓 C3 正上方）: entered from the C3 lobby with 「進入宿舍」, left with 「離開宿舍」.
+  const unit = dormCUnit(campus);
+  const lobbyDoor = dormCLobbyDoor(campus);
+  const unitBuilding = unit ? createHandBuiltBuilding(unit.source, scene, physics, renderer, env.materials, sceneResources, {
+    facadeStyle: facadeStyleOf(facades, campus, '學生宿舍C'),
+  }) : null;
+  if (unitBuilding && unit && lobbyDoor) {
+    handBuilt.push(unitBuilding);
+    unitBuilding.interactables.push(
+      { id: 'dormC-unit:enter', prompt: '按 E 進入宿舍', x: lobbyDoor.x + lobbyDoor.outX * 1.0, y: lobbyDoor.floor, z: lobbyDoor.z + lobbyDoor.outZ * 1.0, radius: 2.4 },
+      (() => { const [x, z] = unitBuilding.planToWorld(unit.leave[0], unit.leave[1]); return { id: 'dormC-unit:leave', prompt: '按 E 離開宿舍', x, y: DORM_C_UNIT_FLOOR, z, radius: 1.0 }; })(),
+      // Bedroom doors don't open: E at one walks you through (使用者：門不要做開關，靠近門按 E 進入房間).
+      // The bedrooms are a building of their own (underground): E at a door on the flat's corridor takes you in, E inside by
+      // its door takes you back (使用者：寢室挪到 C3 任何一處，靠近房門按 E 直接傳送到寢室內).
+      ...unit.roomDoors.flatMap((d, i) => {
+        const [ix, iz] = unitBuilding.planToWorld(d.at[0] + d.out[0] * 0.7, d.at[1] + d.out[1] * 0.7);
+        const [ox, oz] = unitBuilding.planToWorld(d.inside[0], d.inside[1] - 0.7);
+        return [
+          { id: `dormC-room:in:${i}`, prompt: `按 E 進入${d.name}`, x: ix, y: DORM_C_UNIT_FLOOR, z: iz, radius: 0.9 },
+          { id: `dormC-room:out:${i}`, prompt: `按 E 離開${d.name}`, x: ox, y: DORM_C_ROOMS_FLOOR, z: oz, radius: 0.9 },
+        ];
+      }),
+    );
+  }
+  const roomsBuilding = unit ? createHandBuiltBuilding(unit.rooms, scene, physics, renderer, env.materials, sceneResources, {
+    facadeStyle: facadeStyleOf(facades, campus, '學生宿舍C'),
+  }) : null;
+  if (roomsBuilding) handBuilt.push(roomsBuilding);
+  // The bedrooms' loft beds (modelled in the decor, not generated furniture): seats for lying down and the story's wake-up.
+  // Getting on and off one happens at the foot of its ladder (使用者：上床下床改為靠近樓梯): `dormBedLadder`.
+  const dormBedLadder = new Map<Seat, { x: number; y: number; z: number }>();
+  const dormBeds: Seat[] = unit && unitBuilding ? dormCRoomBeds().map((b) => {
+    const [x, z] = unitBuilding.planToWorld(b.at[0], b.at[1]);
+    const st: Seat = { kind: 'bed', x, y: DORM_C_ROOMS_FLOOR + DORM_C_LOFT_TOP, z, base: DORM_C_ROOMS_FLOOR, yaw: unitBuilding.planFacing(b.head), building: unit.rooms.name, room: `寢室 ${b.room + 1}` };
+    const [lx, lz] = unitBuilding.planToWorld(b.ladder[0], b.ladder[1]);
+    dormBedLadder.set(st, { x: lx, y: DORM_C_ROOMS_FLOOR, z: lz });
+    return st;
+  }) : [];
+  const unitDecor = unit && unitBuilding ? createDormCUnitDecor(scene, physics, sceneResources, unit) : null;
   // 2F sky bridge 管理二館 → 管理一館: from the door at the north end of MB's east wing to MA's west corridor end.
   const byId = (id: string): HandBuiltBuilding | undefined => handBuilt.find((b) => b.source.id === id);
   const ma = byId('ma'), mb = byId('mb');
@@ -300,8 +341,16 @@ async function boot(): Promise<void> {
   const autoDoors = createAutoDoors(scene, physics, sceneResources, doorSpecs);
   const buildings = (): readonly HandBuiltBuilding[] => [library, ...handBuilt, ...interiors.active];
   const buildingById = (id: string): HandBuiltBuilding | undefined => buildings().find((b) => b.source.id === id);
-  // A new game always starts at the dorm C courtyard; a custom point only applies to respawning.
-  const spawn = { x: campus.spawn.x, y: 0, z: campus.spawn.z, facing: campus.spawn.facing };
+  // A new game starts in 學生宿舍C 寢室 4 (使用者：最右邊那間寢室設為遊戲出生點), just inside its door facing the window;
+  // the dorm C courtyard if the flat isn't there. A custom point only applies to respawning.
+  const startPoint = (): { x: number; y: number; z: number; facing: number } => {
+    const d = unit && unitBuilding ? unit.roomDoors.find((r) => r.name === '寢室 4') : undefined;
+    if (!d || !unitBuilding) return { x: campus.spawn.x, y: 0, z: campus.spawn.z, facing: campus.spawn.facing };
+    const [x, z] = unitBuilding.planToWorld(d.inside[0], d.inside[1] - 1.7);
+    return { x, y: DORM_C_ROOMS_FLOOR, z, facing: unitBuilding.planFacing([0, -1]) };
+  };
+  const spawn = startPoint();
+  for (const b of handBuilt) b.update(spawn.x, spawn.y, spawn.z); // the room's walls and floor before the player lands
   await env.loadAround(spawn.x, spawn.z, (f) => actions.setLoadProgress(0.25 + f * 0.25));
   physics.step(); // build the query pipeline before the first shape/ray casts
   actions.setLoadProgress(0.5);
@@ -475,6 +524,7 @@ async function boot(): Promise<void> {
     return focus;
   };
   const teleport = (x: number, y: number, z: number, facing?: number): void => {
+    for (const b of handBuilt) b.update(x, y, z); // load a hand-built interior at the destination first (e.g. the dorm room)
     bodies[eid]?.setTranslation({ x, y: y + CAPSULE_CENTER_OFFSET, z }, true);
     Transform.x[eid] = Transform.prevX[eid] = x;
     Transform.y[eid] = Transform.prevY[eid] = y;
@@ -491,11 +541,12 @@ async function boot(): Promise<void> {
   const nearestSeat = (): Seat | null => {
     const px = Transform.x[eid]!, py = Transform.y[eid]!, pz = Transform.z[eid]!;
     let best: Seat | null = null, bestD = Infinity;
-    for (const b of buildings()) {
-      for (const st of b.seats) {
+    for (const st of [...buildings().flatMap((b) => b.seats), ...dormBeds]) {
+      {
         if (Math.abs(st.base - py) > 0.7) continue;
-        const d = Math.hypot(st.x - px, st.z - pz);
-        if (d < (st.kind === 'bed' ? 1.5 : 0.95) && d < bestD) { best = st; bestD = d; }
+        const at = dormBedLadder.get(st) ?? st; // a loft bed is reached from its ladder
+        const d = Math.hypot(at.x - px, at.z - pz);
+        if (d < (dormBedLadder.has(st) ? 0.9 : st.kind === 'bed' ? 1.5 : 0.95) && d < bestD) { best = st; bestD = d; }
       }
     }
     return best;
@@ -516,7 +567,7 @@ async function boot(): Promise<void> {
     return { x: st.x + dx, z: st.z + dz };
   };
   const sitOn = (st: Seat, stand?: { x: number; y: number; z: number }): void => {
-    const up = stand ?? (st.kind === 'bed' ? { ...besideBed(st), y: st.base } : { x: Transform.x[eid]!, y: Transform.y[eid]!, z: Transform.z[eid]! });
+    const up = stand ?? dormBedLadder.get(st) ?? (st.kind === 'bed' ? { ...besideBed(st), y: st.base } : { x: Transform.x[eid]!, y: Transform.y[eid]!, z: Transform.z[eid]! });
     const hx = Math.sin(st.yaw), hz = Math.cos(st.yaw);
     seat = st.kind === 'bed'
       ? { s: st, x: st.x - hx * 0.25, y: st.y, z: st.z - hz * 0.25, facing: st.yaw + Math.PI, standX: up.x, standY: up.y, standZ: up.z }
@@ -577,6 +628,19 @@ async function boot(): Promise<void> {
   const putInBed = (place: string): boolean => {
     const px = Transform.x[eid]!, pz = Transform.z[eid]!;
     let best: Seat | null = null, bestD = Infinity;
+    // A bed right here (the game starts in the dorm room, 使用者：寢室 4 是出生點): wake up in the nearest one.
+    for (const st of dormBeds) {
+      if (!st.building.startsWith(place)) continue;
+      const d = Math.hypot(st.x - px, st.z - pz);
+      if (d < 15 && d < bestD) { bestD = d; best = st; }
+    }
+    if (best) {
+      if (seat) standUp();
+      bikes.dismount();
+      sitOn(best);
+      rig.snap(readFocus(), best.yaw + Math.PI);
+      return true;
+    }
     for (const b of buildings()) {
       if (!b.source.name.startsWith(place)) continue;
       for (const st of b.seats) {
@@ -891,6 +955,51 @@ async function boot(): Promise<void> {
             actions.toast(refused);
             audio.play('close');
           } else audio.play('click');
+          return;
+        }
+        if (target?.id.startsWith('dormC-room:') && unit && unitBuilding) {
+          // 學生宿舍C bedroom door: fade, then stand inside the bedroom by its door (or back in the corridor), facing on.
+          const [, way, index] = target.id.split(':');
+          const d = unit.roomDoors[Number(index)];
+          if (!d || gameStore.getState().fading) return;
+          const entering = way === 'in';
+          actions.setFading(true);
+          window.setTimeout(() => {
+            const [x, z] = entering
+              ? unitBuilding.planToWorld(d.inside[0], d.inside[1] - 1.7)
+              : unitBuilding.planToWorld(d.at[0] + d.out[0] * 1.7, d.at[1] + d.out[1] * 1.7);
+            const facing = unitBuilding.planFacing(entering ? [0, -1] : d.out);
+            teleport(x, entering ? DORM_C_ROOMS_FLOOR : DORM_C_UNIT_FLOOR, z, facing);
+            renderSyncSystem(world, 1);
+            rig.snap(readFocus(), facing + Math.PI);
+            actions.setFading(false);
+            audio.play('click');
+          }, 300);
+          return;
+        }
+        if ((target?.id === 'dormC-unit:enter' || target?.id === 'dormC-unit:leave') && unit && unitBuilding && lobbyDoor) {
+          // 學生宿舍C: into the flat's living room by its front door, or back out in front of the C3 lobby.
+          if (gameStore.getState().fading) return;
+          const entering = target.id === 'dormC-unit:enter';
+          actions.setFading(true);
+          window.setTimeout(() => {
+            let x: number, y: number, z: number, facing: number;
+            if (entering) {
+              [x, z] = unitBuilding.planToWorld(unit.arrive.at[0], unit.arrive.at[1]);
+              y = DORM_C_UNIT_FLOOR;
+              facing = unitBuilding.planFacing(unit.arrive.facing);
+            } else {
+              x = lobbyDoor.x + lobbyDoor.outX * 2.2;
+              z = lobbyDoor.z + lobbyDoor.outZ * 2.2;
+              y = lobbyDoor.floor;
+              facing = Math.atan2(lobbyDoor.outX, lobbyDoor.outZ);
+            }
+            teleport(x, y, z, facing);
+            renderSyncSystem(world, 1);
+            rig.snap(readFocus(), facing + Math.PI);
+            actions.setFading(false);
+            actions.toast(entering ? '回到宿舍了' : '離開宿舍');
+          }, 350);
           return;
         }
         if (target?.id.includes(':stairs:')) {
@@ -1446,6 +1555,7 @@ async function boot(): Promise<void> {
     yuntayExterior.dispose();
     dormFeatures.dispose();
     dormCFacade.dispose();
+    unitDecor?.dispose();
     dormCourtyard.dispose();
     dormYard.dispose();
     hilife?.dispose();

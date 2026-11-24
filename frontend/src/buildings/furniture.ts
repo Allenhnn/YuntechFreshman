@@ -404,7 +404,9 @@ function restroom(ctx: Ctx, r: Rect, door: Opening | undefined): void {
   const alongX = x1 - x0 >= y1 - y0;
   const lo = alongX ? x0 : y0, hi = alongX ? x1 : y1;
   const latLo = alongX ? y0 : x0, latHi = alongX ? y1 : x1;
-  if (hi - lo < 3 || latHi - latLo < 2.8) return;
+  if (hi - lo < 3 || latHi - latLo < 2.0) return;
+  // Narrow washrooms (a dorm flat's, 2–2.8 m wide): shallower stalls and sink counter, the same layout.
+  const narrow = latHi - latLo < 2.8;
   const dm = door ? (alongX ? (door.a[0] + door.b[0]) / 2 : (door.a[1] + door.b[1]) / 2) : lo;
   const farHigh = Math.abs(dm - lo) < Math.abs(dm - hi);
   const dir = farHigh ? -1 : 1;
@@ -427,7 +429,7 @@ function restroom(ctx: Ctx, r: Rect, door: Opening | undefined): void {
   };
 
   // Stalls: 1.0 m wide, 1.4 m deep, keeping 1.6 m clear by the door; fewer if the full row won't fit.
-  const STALL_W = 1.0, STALL_D = 1.4, PART_H = 1.8, LIFT = 0.12;
+  const STALL_W = 1.0, STALL_D = narrow ? 1.15 : 1.4, PART_H = 1.8, LIFT = 0.12;
   const back = stallWall + s * 0.03;
   const front = back + s * STALL_D;
   for (let count = Math.min(4, Math.floor((hi - lo - 1.6) / STALL_W)); count > 0; count--) {
@@ -457,7 +459,7 @@ function restroom(ctx: Ctx, r: Rect, door: Opening | undefined): void {
   }
 
   // Sinks along the opposite wall, centred on the room, mirror above.
-  const SINK_W = 0.6, SINK_D = 0.55;
+  const SINK_W = 0.6, SINK_D = narrow ? 0.45 : 0.55;
   const sinks = Math.min(3, Math.floor((hi - lo - 1.4) / SINK_W));
   if (sinks < 1) return;
   const half = (sinks * SINK_W) / 2;
