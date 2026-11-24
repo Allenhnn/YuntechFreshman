@@ -54,6 +54,11 @@ interface GateMark {
    */
   firePipe?: boolean;
   /**
+   * 學生宿舍C C1–C2 之間（使用者照片 2026-11-24）：同一款門樓，但門是白色方格鐵門、打不開——固定在開口裡，一直擋著，
+   * 沒有感應、不會開。
+   */
+  locked?: boolean;
+  /**
    * Fixed wall ends (campus metres) instead of probing the nearest wings. 學生宿舍C 前門 stays where it was
    * before 學生宿舍C 東翼 moved 1.6 m east (campusFixes.ts splitDormC) — 使用者：改回原本的位置; the wall now
    * meets that wing's south wall about 1.6 m short of its corner.
@@ -68,6 +73,9 @@ export const DORM_GATES: readonly GateMark[] = [
   // `a` on the courtyard side (east), so the gate swings in and the pipe runs outside.
   { name: '學生宿舍C 後門', a: [-30.9, 333.8], b: [-54.6, 337.3], portal: true, firePipe: true, ends: [[-44.47, 323.98], [-41.0, 347.1]] },
   { name: '學生宿舍C 前門', a: [1.8, 327.5], b: [27.9, 319.9], portal: true, approach: true, ends: [[10.92, 327.66], [8.57, 319.27]] },
+  // 使用者照片（2026-11-24）：C1–C2 之間不是素面牆，是同款門樓＋花磚牆，門打不開。ends: C2 corner, C1 wall (the old
+  // CLOSED_GAPS segment); `a` on the courtyard side (north).
+  { name: '學生宿舍C C1–C2 側門', a: [-1.67, 347.6], b: [-0.43, 357.6], portal: true, locked: true, ends: [[-4.5, 353.02], [2.4, 352.17]] },
   { name: '學生宿舍B 前門', a: [38.3, 319.9], b: [62.2, 313.4] },
   { name: '學生宿舍B 後門', a: [92.7, 311.2], b: [117.7, 303.6] },
   { name: '學生宿舍A 前門', a: [143.8, 296.0], b: [164.5, 289.5] },
@@ -86,7 +94,6 @@ export const DORM_GATES: readonly GateMark[] = [
 const CLOSED_GAPS: readonly [number, number][] = [
   [234786931, 234786932], // 學生宿舍A1 – A2
   [234786934, 234786935], // 學生宿舍B1 – B2
-  [296668592, 296668595], // 學生宿舍C (west wing – east wing, toward the C/D courtyard)
   [296668593, 296668594], // 學生宿舍D (west wing – east wing, toward the C/D courtyard)
 ];
 
@@ -405,11 +412,7 @@ export function createDormYard(scene: Scene, physics: RAPIER.World, campus: Camp
       prism([a, f1, m, [a[0] + o1[0] * d, a[1] + o1[1] * d]], 0, top, concrete);
       prism([f1, b, [b[0] + o2[0] * d, b[1] + o2[1] * d], m], 0, top, concrete);
     }
-    // Glass doors on the gate-side face, a shopfront on the long face.
-    const face1 = Math.hypot(f1[0] - f0[0], f1[1] - f0[1]);
-    panel(f0, d1, o1, face1 / 2 - 1.3, face1 / 2 + 1.3, P.top, P.top + 2.7, 0, 0.08, frameGrey);
-    panel(f0, d1, o1, face1 / 2 - 1.2, face1 / 2 + 1.2, P.top + 0.05, P.top + 2.6, 0.08, 0.02, glass);
-    panel(f0, d1, o1, face1 / 2 - 0.03, face1 / 2 + 0.03, P.top + 0.05, P.top + 2.6, 0.1, 0.03, frameGrey);
+    // The lobby glass on the long face, under C1's balcony tower. 使用者正面照（2026-11-24）：門旁那面（gate side）是素面牆，沒有玻璃門。
     const [sh0, sh1] = C_FRONT.shop;
     panel(f1, d2, o2, sh0 - 0.1, sh1 + 0.1, P.top, P.top + 2.9, 0, 0.08, frameGrey);
     panel(f1, d2, o2, sh0, sh1, P.top + 0.4, P.top + 2.8, 0.08, 0.02, glass);
@@ -596,6 +599,19 @@ export function createDormYard(scene: Scene, physics: RAPIER.World, campus: Camp
         }
         add(box(0.55, 0.3, 0.1, 0.75, PH - 0.5, face * (PD / 2 + 0.05)), lightBox);
         add(box(0.16, 0.24, 0.08, GO / 2 + 0.2, PL - 0.15, face * (PD / 2 + 0.04)), lightBox);
+      }
+      if (g.locked) {
+        // White square-grid iron gate fixed in the opening (照片：打不開): frame, bars both ways, always blocking.
+        const bars: BufferGeometry[] = [
+          box(GO - 0.1, 0.06, 0.06, 0, 0.1, 0), box(GO - 0.1, 0.06, 0.06, 0, 2.1, 0),
+          box(0.06, 2.06, 0.06, -GO / 2 + 0.08, 1.1, 0), box(0.06, 2.06, 0.06, GO / 2 - 0.08, 1.1, 0), box(0.05, 2.0, 0.05, 0, 1.1, 0),
+        ];
+        for (let x = -GO / 2 + 0.25; x < GO / 2 - 0.15; x += 0.17) bars.push(box(0.025, 1.95, 0.025, x, 1.1, 0));
+        for (let y = 0.3; y < 2.05; y += 0.17) bars.push(box(GO - 0.16, 0.025, 0.025, 0, y, 0));
+        add(merged(bars), white);
+        const [lx, lz] = world(0, 0);
+        solid(lx, 1.1, lz, GO / 2, 1.1, 0.12, yaw);
+        continue;
       }
       // Pale-blue gate: a plated left leaf (the door) and a barred right half, hinged at the jambs. 使用者（2026-11-24）：
       // 只有門那一扇會開闔，藍色柵欄那一半是固定的——only the left leaf swings into the courtyard; the barred half stays

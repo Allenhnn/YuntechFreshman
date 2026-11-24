@@ -164,6 +164,19 @@ docker compose down             # 停止（加 -v 會連資料一起刪除）
 | `.env.example` 沒被 commit | 根目錄 `.gitignore` 有 `.env*`；需要時用 `git add -f backend/.env.example` |
 
 ## 變更紀錄
+### 2026-11-24（前端：學生宿舍C C1–C2 之間改成打不開的門樓、C2 東側素面）— 分支 `feat/dorm-c-yard-walls`
+- 需求：C1 與 C2 中間圍牆的照片——同款門樓＋花磚牆，門打不開；C2 靠近 C1 的側面是純牆面
+- `frontend/src/campus/dormYard.ts`：`CLOSED_GAPS` 拿掉 C2–C1 那道素面牆，改成 `DORM_GATES` 的「學生宿舍C C1–C2 側門」（`portal`＋新的 `locked`）：奶油色門樓、黃銅圓燈、花磚牆，開口裡固定一扇白色方格鐵門、碰撞體一直擋著，沒有感應開門
+- `frontend/src/buildings/dormCFacade.ts` `C2.plain`：加 edge 5（靠 C1 的東側）——素面
+### 2026-11-24（前端：學生宿舍C C2 照照片重新建模）— 分支 `feat/dorm-c-yard-walls`
+- 需求：C2 照片，重新建模
+- `frontend/src/buildings/dormCFacade.ts`：C2 外皮（`C2` 常數，OSM 296668592，5 層）：面向中庭的中間凸出塊（edge 2）壁柱分三格——中間內凹陽台（背牆深色、紅色花磚、白柱與管柱、細欄杆、每層樓板帶），左右每層上下兩排棕框窗＋冷氣；一樓三格玻璃＋綠色踢腳板、上方「C2」（`letterSign` 取代 `letterC1`）；門前平台＋兩階台階（含平台三階高）、左右矮牆、左邊盆栽、右邊藍色扶手。兩翼與其他長牆：壁柱、每層兩排棕框橫窗、一樓深色窗＋牆基；短的轉折牆素面
+- `frontend/src/campus/campusFixes.ts` `sealBuildings`：C2 也封起來（外觀整個交給手工外皮，舊的自動入口沒地方放；故事不用它的室內）
+- `frontend/src/campus/customFacades.ts`：`DORM_C.c2`；`CUSTOM_FACADE_EDGES` 列入 C2 全部 10 邊
+### 2026-11-24（前端：學生宿舍C C1 西北側照側面照重做、正面兩塊量體素面）— 分支 `feat/dorm-c-yard-walls`
+- 需求：C1 側面（陽台塔右手邊）照照片改；使用者回報正面跑掉（正面照：塔兩邊量體面向廣場都是素面）
+- `frontend/src/buildings/dormCFacade.ts` `C1`：edge 2、4（塔兩邊量體的正面）素面＋牆基；`side`（edge 1）一轉過角就是內凹直條每層一扇深框窗（使用者：側面跑掉，直條要貼著轉角），後面每層一排深框窗、部分冷氣；整面一樓上下兩排窗（`twoBands`）；edge 1、2 牆基 1.8 m（`tallPlinth`）；edge 0（凸出那塊的側面）一般牆面（使用者紅框）
+- `frontend/src/campus/dormYard.ts` `cFrontApproach`：拿掉門旁那面（edge 4）的玻璃門（正面照沒有）
 ### 2026-11-24（前端：學生宿舍C C1 照照片重新建模、移除內部）— 分支 `feat/dorm-c-yard-walls`
 - 需求：C1 照片重新建模，並移除 C1 的內部建模
 - `frontend/src/campus/campusFixes.ts` `sealBuildings`：C1（OSM 296668595）設 `sealed`、4 層 14.4 m（照片；OSM 是 5 層 18 m）——不產生室內、沒有門

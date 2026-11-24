@@ -364,6 +364,9 @@ export function sealBuildings(campus: CampusData): void {
   const names = new Set(SEALED_BUILDINGS);
   for (const b of campus.buildings) if (b.name && names.has(b.name)) b.sealed = true;
   // 學生宿舍C C1（使用者 2026-11-24：移除 C1 的內部建模）：4 層（照片），沒有室內、沒有門，外觀由 dormCFacade.ts 做。
+  // C2（使用者照片 2026-11-24）：整棟外觀由 dormCFacade.ts 接手，舊的自動入口沒地方放，比照 C1、C3 封起來（故事不用它的室內）。
+  const c2 = campus.buildings.find((b) => b.id === DORM_C.c2);
+  if (c2) c2.sealed = true;
   const c1 = campus.buildings.find((b) => b.id === DORM_C.c1);
   if (c1) {
     c1.sealed = true;

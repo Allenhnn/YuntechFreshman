@@ -108,3 +108,6 @@
 | 學生宿舍C 後門圍牆（使用者照片：門跟前門一樣） | 改成前門同款門樓與花磚牆，牆腳外側紅色消防水管、門外水泥步道 | `dormYard.ts` 後門 `portal`、`firePipe`；前門改 `approach` |
 | 學生宿舍C 前門／後門開門（使用者） | 只有平板門那扇會開闔，藍色欄杆那一半固定、一直擋著 | `dormYard.ts` portal 門：`moves`、固定半邊 `solid`、`block` 只蓋門那半 |
 | 學生宿舍C C1（使用者照片；移除內部） | 4 層、封閉無室內；斜面陽台塔（紅花磚、白柱、塔頂凸出）、塔下玻璃大廳與「C1」、素面量體、其他面框窗＋牆基；入口平台延長到整面 | `campusFixes.ts` `sealBuildings`；`customFacades.ts`；`dormCFacade.ts` `C1`；`dormYard.ts` `C_FRONT` |
+| 學生宿舍C C1 側面（使用者側面照；正面兩塊量體素面） | 塔兩邊量體正面素面、拿掉門旁玻璃門；側面轉角即內凹直條深框窗、後面每層一排深框窗＋冷氣、一樓上下兩排窗、高牆基、凸出塊側面素面 | `dormCFacade.ts` `C1.side`；`dormYard.ts` `cFrontApproach` |
+| 學生宿舍C C2（使用者照片） | 中間凸出塊：內凹陽台紅花磚、兩側兩排棕框窗＋冷氣、一樓三格玻璃與「C2」、門前平台台階花台藍扶手；兩翼壁柱＋橫窗＋牆基；封閉無室內 | `dormCFacade.ts` `C2`；`campusFixes.ts` `sealBuildings`；`customFacades.ts` |
+| 學生宿舍C C1–C2 圍牆（使用者照片：門打不開）；C2 東側 | 素面牆改同款門樓＋花磚牆，固定白色方格鐵門、一直擋著；C2 靠 C1 的側面素面 | `dormYard.ts` `locked`；`dormCFacade.ts` `C2.plain` |

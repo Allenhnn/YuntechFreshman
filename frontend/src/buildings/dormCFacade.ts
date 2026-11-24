@@ -111,7 +111,13 @@ const BACK = { pier: 0.55, pierDepth: 0.42, bay: 3.4, plinth: 1.25, plinthDepth:
  */
 const C1 = {
   ring: [[2.1, 349.72], [4.39, 349.23], [2.76, 339.26], [7.33, 338.44], [11.57, 331.92], [10.92, 327.66], [21.04, 326.03], [21.86, 330.45], [24.97, 330.11], [26.44, 337.63], [18.27, 339.1], [15.33, 342.85], [16.64, 353.14], [2.76, 355.1]] as const,
-  bayEdge: 3, blank: [0, 2, 4, 7] as readonly number[], noPlinth: [3, 4] as readonly number[],
+  bayEdge: 3, blank: [0, 2, 4, 7] as readonly number[], noPlinth: [3] as readonly number[],
+  /**
+   * 側面照（使用者 2026-11-24，陽台塔右手邊；edge 2 是正面照裡的素面量體，不動）：edge 1 一轉過角（`split` 以前）就是一條
+   * 內凹直條，每層一扇深框窗、一樓上下兩排窗；後面每層一排深框窗（部分冷氣）、一樓上下兩排窗。edge 0（凸出那塊的側面）
+   * 是一般牆面（使用者紅框）。edge 1、2 牆基較高（`tallPlinth`）。
+   */
+  side: 1, split: 2.6, tallPlinth: 1.8, tallPlinthEdges: [1, 2] as readonly number[],
   /** Balcony tower on the bay edge: back width, front width, depth out from the wall. */
   bay: { back: 5.4, front: 4.0, depth: 1.6 },
   plinth: 1.3, window: { w: 1.6, y0: 1.0, y1: 2.3, every: 3.4 },
@@ -218,14 +224,26 @@ function diamondMesh(g: CanvasRenderingContext2D): void {
     g.beginPath(); g.moveTo(k + 64, 0); g.lineTo(k, 64); g.stroke();
   }
 }
-/** 「C1」 in teal-green letters with a dark offset (正面照). */
-function letterC1(g: CanvasRenderingContext2D): void {
+/** A block's name (「C1」, 「C2」) in teal-green letters with a dark offset (正面照). */
+const letterSign = (text: string) => (g: CanvasRenderingContext2D): void => {
   g.clearRect(0, 0, 256, 128);
   g.textBaseline = 'middle';
   g.textAlign = 'center';
   g.font = "800 110px 'Arial Rounded MT Bold', system-ui, sans-serif";
-  for (const [dx, col] of [[5, '#2f5f55'], [0, '#5c9c8a']] as const) { g.fillStyle = col; g.fillText('C1', 128 + dx, 66 + dx); }
-}
+  for (const [dx, col] of [[5, '#2f5f55'], [0, '#5c9c8a']] as const) { g.fillStyle = col; g.fillText(text, 128 + dx, 66 + dx); }
+};
+/**
+ * 學生宿舍C C2（OSM 296668592，使用者照片 2026-11-24）：5 層。面向中庭的中間凸出塊（edge 2）：壁柱分三格——中間內凹
+ * 陽台（背牆紅色花磚、兩側開口白色管柱、每層厚樓板帶），左右每層上下兩排棕框窗＋冷氣；一樓三格玻璃（中間是門），上方
+ * 「C2」；門前平台＋三階台階、左邊花台、右邊藍色扶手。兩翼與其他長牆：壁柱、每層兩排棕框橫窗、一樓深色窗＋牆基。
+ */
+const C2 = {
+  ring: [[-41.01, 347.12], [-29.18, 345.14], [-29.57, 342.81], [-17.45, 340.79], [-17.04, 343.18], [-6.45, 341.4], [-4.5, 353.02], [-35.95, 358.29], [-36.17, 356.96], [-39.27, 357.47]] as const,
+  front: 2, plain: [1, 3, 5, 7, 8] as readonly number[], // 5: the side toward C1 is a plain wall (使用者)
+  /** Front block across: pier, side column, centre balcony. */
+  pier: 0.5, centre: 5.0, plinth: 0.9,
+  terrace: { depth: 2.6, top: 0.45, rise: 0.15, tread: 0.35 },
+};
 /** Grey square pavers. */
 function pavers(g: CanvasRenderingContext2D): void {
   const rnd = mulberry32(777);
@@ -845,7 +863,7 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
   if (c1) {
     const H = c1.height, floors = Array.from({ length: Math.max(0, c1.levels - 1) }, (_, k) => (k + 1) * STOREY);
     const c1Plinth = tracker.material(new MeshStandardMaterial({ map: canvasTexture(tracker, 256, 256, aggregate), color: 0xa19e96, roughness: 0.95 }));
-    const c1Letters = tracker.material(new MeshStandardMaterial({ map: canvasTexture(tracker, 256, 128, letterC1), transparent: true, roughness: 0.5 }));
+    const c1Letters = tracker.material(new MeshStandardMaterial({ map: canvasTexture(tracker, 256, 128, letterSign('C1')), transparent: true, roughness: 0.5 }));
     /** A box from (x0, z0) to (x1, z1) in the frame's ground plane, `t` thick, y0..y1. */
     const seg = (b: ReturnType<typeof build>, x0: number, z0: number, x1: number, z1: number, y0: number, y1: number, t: number, m: Material): void => {
       const len = Math.hypot(x1 - x0, z1 - z0);
@@ -863,10 +881,28 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
       const L = f.len, b = build(f);
       skin(b, f, H, []);
       b.put(span(-0.05, L + 0.05, H - 0.2, H + PARAPET, 0.02, 0.14), concrete, 2); // band above the eaves
+      const side = C1.tallPlinthEdges.includes(i), PL = side ? C1.tallPlinth : C1.plinth;
       if (!C1.noPlinth.includes(i)) {
-        b.put(span(-0.02, L + 0.02, -0.3, C1.plinth, 0.02, 0.16), c1Plinth, 2);
-        b.solid(0, L, 0, C1.plinth, 0.02, 0.16);
+        b.put(span(-0.02, L + 0.02, -0.3, PL, 0.02, side ? 0.22 : 0.16), c1Plinth, 2);
+        b.solid(0, L, 0, PL, 0.02, side ? 0.22 : 0.16);
       }
+      /** A window in a deep concrete frame: hood, cheeks and sill `d` out. */
+      const framed = (x0: number, x1: number, y0: number, y1: number, d = 0.45): void => {
+        windowAt(b, x0, x1, y0, y1);
+        b.put(span(x0 - 0.18, x1 + 0.18, y1, y1 + 0.18, 0.02, d), concrete, 2);
+        for (const s of [x0 - 0.18, x1]) b.put(span(s, s + 0.18, y0 - 0.12, y1, 0.02, d), concrete, 2);
+        b.put(span(x0 - 0.18, x1 + 0.18, y0 - 0.12, y0, 0.02, d - 0.15), concrete, 2);
+      };
+      /** Ground floor of the side faces: two window bands one above the other on the tall plinth, a ledge between. */
+      const twoBands = (x0: number, x1: number): void => {
+        const y0 = PL + 0.15, ym = PL + 0.85, y1 = STOREY - 0.2;
+        windowAt(b, x0, x1, y0, ym);
+        windowAt(b, x0, x1, ym + 0.1, y1);
+        b.put(span(x0 - 0.1, x1 + 0.1, ym, ym + 0.1, 0.02, 0.3), concrete, 2);
+        b.put(span(x0 - 0.18, x1 + 0.18, PL, PL + 0.15, 0.02, 0.4), concrete, 2);
+        b.put(span(x0 - 0.18, x1 + 0.18, y1, y1 + 0.2, 0.02, 0.45), concrete, 2);
+        for (const s of [x0 - 0.18, x1]) b.put(span(s, s + 0.18, PL, y1, 0.02, 0.45), concrete, 2);
+      };
       if (i === C1.bayEdge) {
         // Balcony tower, centred on the face: back corners on the wall, front corners `depth` out.
         const { back, front, depth: D } = C1.bay, xc = L / 2;
@@ -895,6 +931,23 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
           b.solid(x - 0.17, x + 0.17, 0, floors[0]! - 0.25, D - 0.4, D - 0.06);
         }
         b.put(new PlaneGeometry(1.5, 0.75).translate(xc, floors[0]! + 0.55, D + 0.02), c1Letters); // in front of the lattice, just above the slab (照片)
+      } else if (i === C1.side) {
+        // Seen from outside the corner with the plain front face is on the left (x = 0). Right at the corner: a recessed strip
+        // with one deep window per floor and the two ground-floor bands; then a row of windows per floor.
+        const S = Math.min(C1.split, L - 3);
+        const r0 = S - 1.8, r1 = S - 0.2;
+        twoBands(r0, r1);
+        for (const fy of floors) framed(r0, r1, fy + 1.0, fy + 2.2, 0.6);
+        b.put(span(r1 + 0.15, r1 + 0.25, STOREY, H - 0.2, 0.02, 0.5), concrete, 2); // the strip's edge toward the rest
+        const k = Math.max(1, Math.round((L - S - 0.4) / 3.0)), st = (L - S - 0.4) / k;
+        for (let q = 0; q < k; q++) {
+          const x0 = S + q * st + 0.3, x1 = S + (q + 1) * st - 0.3;
+          twoBands(x0, x1);
+          for (const fy of floors) {
+            framed(x0, x1, fy + 1.0, fy + 2.2);
+            if (seeded() < 0.6) acUnit(b, x0 + 0.5 + seeded() * (x1 - x0 - 1.0), fy + 0.95);
+          }
+        }
       } else if (!C1.blank.includes(i)) {
         // A row of windows per floor, each in a deep concrete frame (hood, cheeks, sill).
         const { w, y0: wy0, y1: wy1, every } = C1.window;
@@ -909,6 +962,97 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
             for (const s of [x0 - 0.18, x1]) b.put(span(s, s + 0.18, y0 - 0.12, y1, 0.02, 0.45), concrete, 2);
             b.put(span(x0 - 0.18, x1 + 0.18, y0 - 0.12, y0, 0.02, 0.3), concrete, 2);
           }
+        }
+      }
+      b.done();
+    }
+  }
+
+  // --- C2 (使用者照片 2026-11-24) ---------------------------------------------------------------------------
+  const c2 = campus.buildings.find((x) => x.id === DORM_C.c2);
+  if (c2) {
+    const H = c2.height, floors = Array.from({ length: Math.max(0, c2.levels - 1) }, (_, k) => (k + 1) * STOREY);
+    const c2Letters = tracker.material(new MeshStandardMaterial({ map: canvasTexture(tracker, 256, 128, letterSign('C2')), transparent: true, roughness: 0.5 }));
+    const railBlue = mat(0x6fc3d8, { metalness: 0.3, roughness: 0.4 });
+    const n = C2.ring.length;
+    for (let i = 0; i < n; i++) {
+      const f = edgeFrame(campus, { id: DORM_C.c2, i, a: C2.ring[i]!, b: C2.ring[(i + 1) % n]! });
+      if (!f) continue;
+      const L = f.len, b = build(f);
+      skin(b, f, H, []);
+      b.put(span(-0.05, L + 0.05, H - 0.2, H + PARAPET, 0.02, 0.14), concrete, 2);
+      /** Sill, two strip-window bands and a hood for one upper floor between x0 and x1; an AC on some. */
+      const upper = (x0: number, x1: number, fy: number, ac: boolean): void => {
+        b.put(span(x0 - 0.1, x1 + 0.1, fy + 0.85, fy + 0.97, 0.02, 0.3), concrete, 2);
+        stripWindow(b, x0, x1, fy + 0.97, fy + 1.9);
+        b.put(span(x0, x1, fy + 1.9, fy + 1.98, 0.05, 0.12), backFrame);
+        stripWindow(b, x0, x1, fy + 1.98, fy + 2.7);
+        b.put(span(x0 - 0.1, x1 + 0.1, fy + 2.7, fy + 2.95, 0.02, 0.35), concrete, 2);
+        if (ac && seeded() < 0.6) acUnit(b, x0 + 0.5 + seeded() * Math.max(0, x1 - x0 - 1.0), fy + 0.97);
+      };
+      if (i === C2.front) {
+        // Seen from outside: pier | side column | pier | centre balcony | pier | side column | pier.
+        const P = C2.pier, side = (L - 4 * P - C2.centre) / 2;
+        const xs = [0, P + side, 2 * P + side + C2.centre, L - P];
+        for (const x of xs) {
+          b.put(span(x, x + P, 0, H - 0.2, 0.02, 0.32), concrete, 2);
+          b.solid(x, x + P, 0, 2.6, 0.02, 0.32);
+        }
+        const cols: [number, number][] = [[P, P + side], [L - P - side, L - P]];
+        const c0 = 2 * P + side, c1 = c0 + C2.centre;
+        for (const fy of floors) {
+          b.put(span(0, L, fy - 0.3, fy + 0.25, 0.02, 0.3), concrete, 2); // floor band across the block
+          for (const [a, c] of cols) upper(a + 0.15, c - 0.15, fy, true);
+          // Centre balcony: dark loggia, red lattice in the middle, white posts in the open sides, a thin rail.
+          b.put(span(c0, c1, fy + 0.25, fy + STOREY - 0.3, 0.06, 0.07), voidDark);
+          const l0 = c0 + 1.15, l1 = c1 - 1.15;
+          latticePanel(b, l0, l1, fy + 0.25, fy + STOREY - 0.3, 0.2);
+          for (const x of [l0, l1]) b.put(span(x - 0.06, x + 0.06, fy + 0.25, fy + STOREY - 0.3, 0.12, 0.3), paint);
+          for (const x of [c0 + 0.55, c1 - 0.55]) pipe(b, x, fy + 0.25, fy + STOREY - 0.3, 0.22);
+          for (const [a, c] of [[c0, l0], [l1, c1]] as const) b.put(span(a, c, fy + 1.0, fy + 1.05, 0.24, 0.28), paint);
+          b.put(span(c0, c1, fy + STOREY - 0.55, fy + STOREY - 0.3, 0.02, 0.3), concrete, 2); // head of the loggia
+        }
+        // Ground floor: three glass bays (doors in the middle), green kick plates, 「C2」 above the doors.
+        const T = C2.terrace.top;
+        for (const [a, c] of [...cols, [c0, c1]] as const) {
+          b.put(span(a, c, T, STOREY - 0.3, 0.06, 0.1), glass);
+          b.put(span(a, c, T, T + 0.4, 0.1, 0.12), kick);
+          for (let x = a; x <= c + 1e-6; x += (c - a) / 4) b.put(span(Math.max(a, x - 0.03), Math.min(c, x + 0.03), T, STOREY - 0.3, 0.06, 0.14), brownFrame);
+          b.put(span(a, c, T + 2.3, T + 2.36, 0.06, 0.14), brownFrame);
+        }
+        b.put(span(0, L, STOREY - 0.3, STOREY + 0.25, 0.02, 0.3), concrete, 2);
+        b.put(new PlaneGeometry(1.2, 0.6).translate((c0 + c1) / 2, STOREY - 0.02, 0.32), c2Letters);
+        // Terrace in front, three steps down in the middle, a low planter wall on the left and a blue rail on the right.
+        const { depth: TD, rise: R, tread: TR } = C2.terrace;
+        b.put(span(0.2, L - 0.2, -0.3, T, 0.02, TD), steps, 2);
+        b.solid(0.2, L - 0.2, 0, T, 0.02, TD);
+        for (let k = 1; k <= 2; k++) {
+          const top = T - k * R, z1 = TD + k * TR;
+          b.put(span(c0, c1, -0.3, top, TD, z1), steps, 2);
+          b.solid(c0, c1, 0, top, TD, z1);
+        }
+        for (const [a, c] of [[0.2, c0], [c1, L - 0.2]] as const) {
+          b.put(span(a, c, T, T + 0.45, TD - 0.25, TD), concrete, 2); // low wall along the terrace edge
+          b.solid(a, c, 0, T + 0.45, TD - 0.25, TD);
+        }
+        for (const x of [0.5, 0.9, 1.3]) {
+          b.put(new CylinderGeometry(0.14, 0.11, 0.25, 10).translate(x, T + 0.125, TD - 0.55), mat(0xb35a3c, { roughness: 0.8 }));
+          b.put(new SphereGeometry(0.2, 8, 6).translate(x, T + 0.35, TD - 0.55), mat(0x497a32, { roughness: 0.9, flatShading: true }));
+        }
+        const rx0 = c1 + 0.5, rx1 = L - 0.3;
+        for (const x of [rx0, (rx0 + rx1) / 2, rx1]) b.put(new CylinderGeometry(0.03, 0.03, 0.9, 8).translate(x, T + 0.45 + 0.45, TD - 0.12), railBlue);
+        b.put(new CylinderGeometry(0.035, 0.035, rx1 - rx0, 8).rotateZ(Math.PI / 2).translate((rx0 + rx1) / 2, T + 1.35, TD - 0.12), railBlue);
+      } else if (!C2.plain.includes(i)) {
+        // Wings and long faces: pilasters about every 3.4 m, two strip bands per upper floor, dark windows over a plinth.
+        b.put(span(-0.02, L + 0.02, -0.3, C2.plinth, 0.02, 0.18), plinthGrey, 2);
+        b.solid(0, L, 0, C2.plinth, 0.02, 0.18);
+        const P = 0.45, k = Math.max(1, Math.round((L - P) / 3.4)), st = (L - P) / k;
+        for (let q = 0; q <= k; q++) b.put(span(q * st, q * st + P, C2.plinth, H - 0.2, 0.02, 0.3), concrete, 2);
+        for (let q = 0; q < k; q++) {
+          const a = q * st + P + 0.12, c = (q + 1) * st - 0.12;
+          windowAt(b, a, c, C2.plinth + 0.25, STOREY - 0.5);
+          b.put(span(a - 0.1, c + 0.1, STOREY - 0.5, STOREY - 0.25, 0.02, 0.3), concrete, 2);
+          for (const fy of floors) upper(a, c, fy, true);
         }
       }
       b.done();
