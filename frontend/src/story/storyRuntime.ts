@@ -1,4 +1,4 @@
-import { BoxGeometry, CanvasTexture, ConeGeometry, CylinderGeometry, InstancedMesh, Matrix4, Mesh, MeshBasicMaterial, MeshStandardMaterial, PlaneGeometry, SRGBColorSpace, TorusGeometry, type Object3D, type Scene } from 'three';
+import { BoxGeometry, CanvasTexture, ConeGeometry, CylinderGeometry, Group, InstancedMesh, Matrix4, Mesh, MeshBasicMaterial, MeshStandardMaterial, PlaneGeometry, RepeatWrapping, SphereGeometry, SRGBColorSpace, TorusGeometry, type Object3D, type Scene } from 'three';
 import { playerName, studentId } from '../state/playerName';
 import type { CampusData } from '../campus/campusTypes';
 import type { ResourceTracker } from '../core/resources';
@@ -106,8 +106,13 @@ export interface StoryRuntime {
   openWardrobe(): void;
   /** Refusal for opening a door into `room` of `building` right now (Day 1: only the class's room), or null. */
   roomGate(building: string, room: string | undefined): string | null;
-  /** True while the lecture holds you in your seat (seated in the class's room during the class). */
-  seatLocked(): boolean;
+  /**
+   * Why you may not get up right now, or null: the lecture holds you in your seat; on Day 1 you stay
+   * in bed until the wake-up scene has been read ('' = no message). A story scene on screen too.
+   */
+  seatLock(): string | null;
+  /** The race step is on (the campus clears its traffic, the runners take the course). */
+  readonly racing: boolean;
   /** Movement speed multiplier (race stamina). */
   readonly speedFactor: number;
   /** Navigate to the current objective. */
@@ -276,6 +281,13 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
     /** Seconds of boost left. */
     boost: number;
     outWarned: number;
+    /** Barricades across one side of the course (centre, along-course unit, half depth / half width). */
+    blocks: { x: number; z: number; ux: number; uz: number; hd: number; hw: number }[];
+    /** The other runners: distance along the course, offset across it, pace, their figure. */
+    runners: { s: number; off: number; pace: number; phase: number; g: Group; legs: Mesh[] }[];
+    /** Course sampler: point and direction at a distance along it, and its length. */
+    at: (s: number) => { x: number; z: number; ux: number; uz: number };
+    length: number;
   } | null = null;
   let speedFactor = 1;
   let pendingScene: SceneId | null = null;
@@ -314,6 +326,47 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
   };
   /** How far from the course centre line you may run (m). */
   const COURSE_HALF = 10;
+  // Barricade: a red-and-white striped plank on two legs, 1 m wide per unit of x scale.
+  const blockGeo = d.tracker.geometry(new BoxGeometry(1, 0.32, 0.12).translate(0, 0.85, 0));
+  const blockMat = (() => {
+    const c = document.createElement('canvas');
+    c.width = 128; c.height = 32;
+    const g = c.getContext('2d')!;
+    for (let i = 0; i < 8; i++) { g.fillStyle = i % 2 ? '#ffffff' : '#e53935'; g.beginPath(); g.moveTo(i * 16 - 8, 32); g.lineTo(i * 16 + 8, 0); g.lineTo(i * 16 + 24, 0); g.lineTo(i * 16 + 8, 32); g.fill(); }
+    const t = d.tracker.texture(new CanvasTexture(c));
+    t.colorSpace = SRGBColorSpace;
+    t.wrapS = RepeatWrapping;
+    t.repeat.set(3, 1);
+    return d.tracker.material(new MeshStandardMaterial({ map: t, roughness: 0.6 }));
+  })();
+  const postGeo = d.tracker.geometry(new BoxGeometry(0.08, 1.0, 0.08).translate(0, 0.5, 0));
+  const postMat = d.tracker.material(new MeshStandardMaterial({ color: 0x3a3d42, roughness: 0.7 }));
+  /** The other runners in the race (the campus walkers and drivers are taken off for it). */
+  const RUNNERS = 36;
+  const runnerTorso = d.tracker.geometry(new CylinderGeometry(0.19, 0.22, 0.6, 10));
+  const runnerHead = d.tracker.geometry(new SphereGeometry(0.17, 12, 10));
+  const runnerLeg = d.tracker.geometry(new CylinderGeometry(0.07, 0.065, 0.8, 8).translate(0, -0.4, 0));
+  const runnerBib = d.tracker.geometry(new PlaneGeometry(0.22, 0.18));
+  const bibMat = d.tracker.material(new MeshStandardMaterial({ color: 0xffffff, roughness: 0.8 }));
+  const runnerSkin = d.tracker.material(new MeshStandardMaterial({ color: 0xf1d2b0, roughness: 0.7 }));
+  const runnerShirts = [0x2c6fd6, 0xd8353a, 0x2e9e3e, 0xf2c230, 0x7e57c2, 0xff7a1a, 0x26a69a, 0xf48fb1].map((c) => d.tracker.material(new MeshStandardMaterial({ color: c, roughness: 0.6 })));
+  /** Puts every runner at its place on the course (legs swinging while running). */
+  const placeRunners = (dt: number): void => {
+    if (!run) return;
+    for (const r of run.runners) {
+      const moving = run.started && r.s < run.length - 3;
+      if (moving) r.s += r.pace * dt;
+      const p = run.at(Math.max(0, r.s));
+      const back = r.s < 0 ? -r.s : 0; // lined up behind the start
+      const x = p.x - p.uz * r.off - p.ux * back, z = p.z + p.ux * r.off - p.uz * back;
+      r.g.position.set(x, d.groundAt(x, z), z);
+      r.g.rotation.y = Math.atan2(p.ux, p.uz);
+      r.phase += dt * (moving ? r.pace * 2.2 : 0);
+      const sw = moving ? Math.sin(r.phase) * 0.7 : 0;
+      r.legs[0]!.rotation.x = sw;
+      r.legs[1]!.rotation.x = -sw;
+    }
+  };
   const coneGeo = d.tracker.geometry(new ConeGeometry(0.22, 0.7, 10));
   coneGeo.translate(0, 0.35, 0);
   const coneMat = d.tracker.material(new MeshStandardMaterial({ color: 0xff6d00, roughness: 0.6 }));
@@ -387,31 +440,78 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
     coneMesh.frustumCulled = false;
     d.scene.add(coneMesh);
     courseProps.push(coneMesh);
-    // Speed pads at random places along the course (not right at the start).
+    // Distance along the course.
     let total = 0;
     const segs: { a: { x: number; z: number }; b: { x: number; z: number }; at: number; len: number }[] = [];
     for (let i = 0; i + 1 < path.length; i++) {
       const len = Math.hypot(path[i + 1]!.x - path[i]!.x, path[i + 1]!.z - path[i]!.z);
+      if (len < 0.01) continue;
       segs.push({ a: path[i]!, b: path[i + 1]!, at: total, len });
       total += len;
     }
+    const at = (sAt: number): { x: number; z: number; ux: number; uz: number } => {
+      const q = Math.max(0, Math.min(total, sAt));
+      const sg = segs.find((g) => q >= g.at && q <= g.at + g.len) ?? segs[segs.length - 1]!;
+      const t = (q - sg.at) / sg.len;
+      return { x: sg.a.x + (sg.b.x - sg.a.x) * t, z: sg.a.z + (sg.b.z - sg.a.z) * t, ux: (sg.b.x - sg.a.x) / sg.len, uz: (sg.b.z - sg.a.z) / sg.len };
+    };
+    // Barricades (路障) every ~45 m, alternately closing the left or the right of the course: the middle lane stays open.
+    const blocks: { x: number; z: number; ux: number; uz: number; hd: number; hw: number }[] = [];
+    const blockAt: number[] = [];
+    for (let sB = 70, k = 0; sB < total - 40; sB += 38 + Math.random() * 18, k++) {
+      const p = at(sB);
+      const side = k % 2 ? 1 : -1;
+      const inner = 1.6, outer = COURSE_HALF - 0.3;
+      const mid = side * (inner + outer) / 2, hw = (outer - inner) / 2;
+      const x = p.x - p.uz * mid, z = p.z + p.ux * mid;
+      blocks.push({ x, z, ux: p.ux, uz: p.uz, hd: 0.3, hw });
+      blockAt.push(sB);
+      const m = new Mesh(blockGeo, blockMat);
+      m.scale.set(hw * 2, 1, 1);
+      m.position.set(x, d.groundAt(x, z), z);
+      m.rotation.y = Math.atan2(-p.ux, -p.uz); // local x (its width) across the course
+      d.scene.add(m);
+      courseProps.push(m);
+      for (const e of [-1, 1]) {
+        const px = x - p.uz * e * (hw - 0.15), pz = z + p.ux * e * (hw - 0.15);
+        const post = new Mesh(postGeo, postMat);
+        post.position.set(px, d.groundAt(px, pz), pz);
+        d.scene.add(post);
+        courseProps.push(post);
+      }
+    }
+    // Speed pads (more, and stronger than before), in the open middle lane, clear of the barricades.
     const pads: { x: number; z: number; cool: number }[] = [];
-    const count = Math.max(6, Math.round(total / 220));
+    const count = Math.max(12, Math.round(total / 110));
     for (let k = 0; k < count; k++) {
-      const at = 60 + ((k + 0.25 + Math.random() * 0.5) / count) * (total - 90);
-      const sg = segs.find((g) => at >= g.at && at <= g.at + g.len) ?? segs[segs.length - 1]!;
-      const t = sg.len ? (at - sg.at) / sg.len : 0;
-      const ux = sg.len ? (sg.b.x - sg.a.x) / sg.len : 0, uz = sg.len ? (sg.b.z - sg.a.z) / sg.len : 1;
-      const off = (Math.random() - 0.5) * 6; // somewhere across the course
-      const x = sg.a.x + (sg.b.x - sg.a.x) * t - uz * off, z = sg.a.z + (sg.b.z - sg.a.z) * t + ux * off;
+      let sP = 40 + ((k + 0.2 + Math.random() * 0.6) / count) * (total - 70);
+      if (blockAt.some((q) => Math.abs(q - sP) < 7)) sP += 9;
+      const p = at(sP);
+      const off = (Math.random() - 0.5) * 2.2;
+      const x = p.x - p.uz * off, z = p.z + p.ux * off;
       const m = new Mesh(padGeo, padMat);
       m.position.set(x, d.groundAt(x, z) + 0.04, z);
-      m.rotation.y = Math.atan2(ux, uz) + Math.PI;
+      m.rotation.y = Math.atan2(p.ux, p.uz) + Math.PI;
       d.scene.add(m);
       courseProps.push(m);
       pads.push({ x, z, cool: 0 });
     }
-    run = { points, next: 0, t: 0, started: false, path, pads, boost: 0, outWarned: 0 };
+    // The field: everyone on the campus runs it, in the middle lane, at their own pace.
+    const runners: { s: number; off: number; pace: number; phase: number; g: Group; legs: Mesh[] }[] = [];
+    for (let k = 0; k < RUNNERS; k++) {
+      const g = new Group();
+      const shirt = runnerShirts[k % runnerShirts.length]!;
+      const torso = new Mesh(runnerTorso, shirt); torso.position.y = 1.15; g.add(torso);
+      const bib = new Mesh(runnerBib, bibMat); bib.position.set(0, 1.15, 0.2); g.add(bib);
+      const head = new Mesh(runnerHead, runnerSkin); head.position.y = 1.62; g.add(head);
+      const legs = [-0.1, 0.1].map((lx) => { const l = new Mesh(runnerLeg, runnerSkin); l.position.set(lx, 0.82, 0); g.add(l); return l; });
+      for (const c of g.children) c.castShadow = true;
+      d.scene.add(g);
+      courseProps.push(g);
+      runners.push({ s: -2 - (k % 6) * 1.1 - Math.floor(k / 6) * 1.3, off: ((k % 6) - 2.5) * 0.45, pace: 3.6 + Math.random() * 2.2, phase: Math.random() * 6, g, legs });
+    }
+    run = { points, next: 0, t: 0, started: false, path, pads, boost: 0, outWarned: 0, blocks, runners, at, length: total };
+    placeRunners(0);
     points.forEach((p, i) => {
       const m = new Mesh(archGeo, i === 0 ? nextMat : ringMat);
       m.position.set(p.x, 0, p.z);
@@ -1022,12 +1122,25 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
           p.cool = Math.max(0, p.cool - dt);
           if (p.cool <= 0 && Math.hypot(p.x - f.x, p.z - f.z) < 1.8) {
             p.cool = 6;
-            run.boost = 3;
+            run.boost = 3.5;
             d.sound('coin');
             toast('⚡ 加速帶！衝啊！');
           }
         }
-        speedFactor = run.boost > 0 ? 1.65 : 1;
+        // Race day: everyone runs faster (×1.3), a speed pad doubles it.
+        speedFactor = run.boost > 0 ? 2.1 : 1.3;
+        // Barricades: you cannot run through them.
+        for (const bl of run.blocks) {
+          const dx = f.x - bl.x, dz = f.z - bl.z;
+          const a = dx * bl.ux + dz * bl.uz, b = -dx * bl.uz + dz * bl.ux;
+          const r = 0.45;
+          if (Math.abs(a) < bl.hd + r && Math.abs(b) < bl.hw + r) {
+            const pushA = (Math.sign(a) || -1) * (bl.hd + r) - a, pushB = (Math.sign(b) || 1) * (bl.hw + r) - b;
+            if (Math.abs(pushA) <= Math.abs(pushB)) d.shove(bl.ux * pushA, bl.uz * pushA);
+            else d.shove(-bl.uz * pushB, bl.ux * pushB);
+          }
+        }
+        placeRunners(dt);
         // The course is fenced off: step past the cones and you are put back on it.
         const near = nearestOnCourse(run.path, f.x, f.z);
         if (near.d > COURSE_HALF) {
@@ -1139,11 +1252,16 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
       if (currentStep()?.cond.t === 'outfit') playScene('wardrobe');
       else open({ kind: 'wardrobe' });
     },
-    seatLocked() {
+    seatLock() {
+      if (st().scene) return '';
       const step = on() ? currentStep() : null;
       const f = lastFrame;
-      return !!step && !!f && step.cond.t === 'scene' && !!step.room && f.seatedIn === step.place && f.seatedRoom === step.room;
+      if (!step || !f) return null;
+      if (step.id === '1-1' && !wakeVnDone) return '';
+      if (step.cond.t === 'scene' && !!step.room && f.seatedIn === step.place && f.seatedRoom === step.room) return '🙅 教授正在上課，請勿離開座位！';
+      return null;
     },
+    get racing() { return on() && currentStep()?.cond.t === 'run'; },
     roomGate(building: string, room: string | undefined): string | null {
       const step = currentStep();
       if (!st().enabled || prog().day !== 1 || !step?.room || (step.cond.t !== 'class' && step.cond.t !== 'scene')) return null;

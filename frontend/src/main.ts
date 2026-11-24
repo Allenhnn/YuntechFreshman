@@ -418,9 +418,11 @@ async function boot(): Promise<void> {
   const bikes = createBikeSystem(scene, bikeStations, sceneResources, dormRideables());
   const inPit = (x: number, z: number): boolean => dormPit.contains(x, z) || !!court?.contains(x, z) || !!pondAt(x, z);
   const traffic = createTraffic(scene, campus, sceneResources, inPit);
+  /** 路跑 day: the campus walkers and every vehicle are taken off (the runners own the course). */
+  let raceMode = false;
   const applyAmbient = (a: GameState['ambient']): void => {
-    traffic.setEnabled('people', a.people);
-    traffic.setEnabled('vehicles', a.vehicles);
+    traffic.setEnabled('people', a.people && !raceMode);
+    traffic.setEnabled('vehicles', a.vehicles && !raceMode);
   };
   applyAmbient(gameStore.getState().ambient);
   const centreOf = (name: string): { x: number; z: number } | null => {
@@ -612,9 +614,10 @@ async function boot(): Promise<void> {
   /** Getting up on purpose (E or a move key): not while the professor is lecturing. */
   let seatNagAt = 0;
   const tryStandUp = (): void => {
-    if (story.seatLocked()) {
+    const why = story.seatLock();
+    if (why !== null) {
       const now = performance.now();
-      if (now - seatNagAt > 2500) { seatNagAt = now; actions.toast('🙅 教授正在上課，請勿離開座位！'); }
+      if (why && now - seatNagAt > 2500) { seatNagAt = now; actions.toast(why); }
       return;
     }
     standUp();
@@ -1121,6 +1124,10 @@ async function boot(): Promise<void> {
           return;
         }
         if (playground?.racing) return;
+        if (story.racing && bikes.nearest(Transform.x[eid]!, Transform.y[eid]!, Transform.z[eid]!) >= 0 && !nearestSeat()) {
+          actions.toast('🚫 路跑進行中，禁止騎乘任何車輛！');
+          return;
+        }
         // Take a cyclist's bike (they end up on foot, shouting).
         if (!target && Transform.y[eid]! < 1.5) {
           const robbed = traffic.robCyclist(Transform.x[eid]!, Transform.z[eid]!, ROB_REACH);
@@ -1351,7 +1358,8 @@ async function boot(): Promise<void> {
       moveMods.fly = ui.tester.fly && !riding;
       moveMods.noclip = ui.tester.noclip && !riding;
       if (seat && (input.held() & MOVE_BITS)) tryStandUp();
-      moveMods.speed = seat || knock || playground?.frozen || sports.frozen || (ui.countdown && ui.countdown.text !== '開始！') ? 0 : ui.tester.speed * story.speedFactor * sports.speedFactor * (bikes.riddenKind === 'scooter' ? SCOOTER_SPEED_FACTOR : 1) * (inWater ? 0.55 : 1);
+      // Not while a story scene (dialogue, mini-game) is on screen: you move again once it is closed.
+      moveMods.speed = seat || knock || storyStore.getState().scene || playground?.frozen || sports.frozen || (ui.countdown && ui.countdown.text !== '開始！') ? 0 : ui.tester.speed * story.speedFactor * sports.speedFactor * (bikes.riddenKind === 'scooter' ? SCOOTER_SPEED_FACTOR : 1) * (inWater ? 0.55 : 1);
       moveMods.noJump = sports.active || !!knock;
       moveMods.bike = riding;
       moveMods.blocked = riding ? insideBuilding : null;
@@ -1440,6 +1448,11 @@ async function boot(): Promise<void> {
       }
     }
     coins.render(world, time);
+    if (story.racing !== raceMode) {
+      raceMode = story.racing;
+      applyAmbient(gameStore.getState().ambient);
+      if (raceMode && bikes.ridden >= 0) { bikes.dismount(); actions.toast('🚫 路跑進行中，禁止騎乘任何車輛！'); }
+    }
     traffic.update(dt, Transform.x[eid]!, Transform.z[eid]!);
     ponds.update(dt, time);
     {
@@ -1575,7 +1588,7 @@ async function boot(): Promise<void> {
             ?? (sports.prompt(f.x, f.y, f.z))
             ?? (sports.active ? null : (() => { const st = nearestSeat(); return st ? (st.kind === 'bed' ? '按 E 躺上床' : '按 E 坐下') : null; })())
             ?? (f.y < 1.5 && traffic.cyclistNear(f.x, f.z, ROB_REACH) ? '按 E 搶走他的腳踏車' : null)
-            ?? (playground?.canStart(f.x, f.z) ? '按 E 開始跑道計時賽' : bikes.nearest(f.x, f.y, f.z) >= 0 ? (bikes.kindOf(bikes.nearest(f.x, f.y, f.z)) === 'scooter' ? '按 E 騎機車' : '按 E 騎腳踏車') : null),
+            ?? (playground?.canStart(f.x, f.z) ? '按 E 開始跑道計時賽' : bikes.nearest(f.x, f.y, f.z) >= 0 && !raceMode ? (bikes.kindOf(bikes.nearest(f.x, f.y, f.z)) === 'scooter' ? '按 E 騎機車' : '按 E 騎腳踏車') : null),
     );
 
     telemetry.x = f.x;
