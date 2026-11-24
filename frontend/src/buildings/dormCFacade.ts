@@ -40,6 +40,8 @@ import { DORM_C, DORM_C_BALCONY as BAL, DORM_C_BALCONY_SPAN, DORM_C_HALL_2F as H
  *  - 中段兩側退縮的牆段（西側 4 層；東側凹口內屬東翼，3 層）與轉角短牆：同色混凝土框、每層窗洞與遮陽板，一樓深色玻璃。
  *  - 兩翼（3 層，轉角照）：灰色混凝土牆基；面向中庭的端牆兩側各一列深框紅花磚格柵（每層一格、旁邊一段開口與白柱），
  *    中間每層窗戶加混凝土遮陽板、冷氣；長邊每層小窗與遮陽板，轉角一樓一格花磚。
+ *  - 背面（北面，使用者背面照 2026-11-24）：淺灰素面牆基、約 3.4 m 一根壁柱；1 樓每格一排棕色菱形鐵窗花＋一排棕框窗，
+ *    樓上每層窗台、上下兩排棕框橫窗、混凝土遮陽，部分窗台冷氣、幾根白色落水管；兩端短牆是樓梯間（每層一扇高窗）。北面不再有門。
  * 遊戲可進入的門（描圖資料）都在北面。外皮貼在 OSM 外牆外側（程序立面的遮陽板等細節由 CUSTOM_FACADE_EDGES 略過），
  * 每面牆一個座標系：原點在「從外面看的左端」，+x 往右、+z 朝外、+y 向上。
  */
@@ -63,6 +65,16 @@ const EDGES = {
   westWingEast: { id: DORM_C.westWing, i: 0, a: [-30.8, 313.4], b: [-29.4, 321.3] },
   westWingSouth: { id: DORM_C.westWing, i: 1, a: [-29.4, 321.3], b: [-42.3, 323.6] },
   westWingWest: { id: DORM_C.westWing, i: 2, a: [-42.3, 323.6], b: [-44.6, 310.4] },
+  // The back (north side, 使用者背面照 2026-11-24).
+  backMiddle: { id: DORM_C.middle, i: 1, a: [-29.23, 301.79], b: [-4.89, 297.51] },
+  backMiddleStair: { id: DORM_C.middle, i: 9, a: [-32.53, 303.63], b: [-29.02, 303.01] },
+  backMiddleJog: { id: DORM_C.middle, i: 0, a: [-29.02, 303.01], b: [-29.23, 301.79] },
+  backWest: { id: DORM_C.westWing, i: 3, a: [-44.64, 310.41], b: [-33.71, 308.48] },
+  backWestJog: { id: DORM_C.westWing, i: 4, a: [-33.71, 308.48], b: [-34.49, 303.97] },
+  backWestStub: { id: DORM_C.westWing, i: 5, a: [-34.49, 303.97], b: [-32.53, 303.63] },
+  backEast: { id: DORM_C.eastWing, i: 0, a: [-4.89, 297.51], b: [1.96, 296.3] },
+  backEastSide: { id: DORM_C.eastWing, i: 1, a: [1.96, 296.3], b: [3.39, 304.4] },
+  backEastEnd: { id: DORM_C.eastWing, i: 2, a: [3.39, 304.4], b: [7.47, 303.68] },
 } as const satisfies Record<string, Anchor>;
 
 const STOREY = 3.6;
@@ -85,6 +97,12 @@ const WING = { depth: 0.5, pier: 0.6, lattice: 3.0, slot: 0.7, bay: 2.6, hood: 0
 /** Entrance terrace in front of the centre bay: depth from the wall, steps (count, rise, tread). */
 const TERRACE = { depth: 3.2, steps: 4, rise: 0.14, tread: 0.35 };
 const PLANTER = { width: 2.3, top: 0.75 };
+/**
+ * The back (north) faces, 使用者背面照: a tall smooth grey plinth; pilasters about every 3.4 m; per bay on the ground floor
+ * a band of brown diamond-mesh grilles under a band of brown-framed windows; upper floors a sill, two bands of brown
+ * strip windows (a tall lower one, a shorter upper one), a concrete hood over them; split ACs on some sills.
+ */
+const BACK = { pier: 0.55, pierDepth: 0.42, bay: 3.4, plinth: 1.25, plinthDepth: 0.22, pane: 0.75 };
 
 /** No campus trees on the steps, planter and the paving in front. */
 export function dormCFacadeTreeFree(campus: CampusData): Ring[] {
@@ -176,6 +194,17 @@ function wallTile(g: CanvasRenderingContext2D): void {
   g.fillStyle = '#f2f2ee';
   for (let y = 0; y < 4; y++) for (let x = 0; x < 4; x++) g.fillRect(x * 16 + 1, y * 16 + 1, 14, 14);
 }
+/** Diamond wire mesh of the ground-floor window grilles (背面照): brown wires over the glass behind (opaque, no moiré). */
+function diamondMesh(g: CanvasRenderingContext2D): void {
+  g.fillStyle = '#4f5a5e';
+  g.fillRect(0, 0, 64, 64);
+  g.strokeStyle = '#6a4a33';
+  g.lineWidth = 4;
+  for (let k = -64; k <= 128; k += 32) {
+    g.beginPath(); g.moveTo(k, 0); g.lineTo(k + 64, 64); g.stroke();
+    g.beginPath(); g.moveTo(k + 64, 0); g.lineTo(k, 64); g.stroke();
+  }
+}
 /** Grey square pavers. */
 function pavers(g: CanvasRenderingContext2D): void {
   const rnd = mulberry32(777);
@@ -244,6 +273,11 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
   const lobbyFloor = mat(0x3c3f42, { roughness: 0.25, metalness: 0.1 });
   const boardGreen = mat(0x2f6b4f, { roughness: 0.8 });
   const vendLit = mat(0xf4f8ff, { emissive: 0xdfefff, emissiveIntensity: 0.7, roughness: 0.2 });
+  // The back (背面照): brown aluminium frames, pale reflective glass, brown diamond-mesh grilles.
+  const backFrame = mat(0x6e5039, { metalness: 0.35, roughness: 0.5 });
+  const backGlass = mat(0x7d898d, { metalness: 0.35, roughness: 0.18 });
+  const grille = tracker.material(new MeshStandardMaterial({ map: canvasTexture(tracker, 64, 64, diamondMesh), roughness: 0.5, metalness: 0.2 }));
+  const backPlinth = mat(0xb3b1aa, { roughness: 0.9 }); // smooth pale grey render (背面照)
 
   /** Per-frame geometry, merged into one mesh per material at the end. */
   const build = (f: Frame): { put(g: BufferGeometry, m: Material, uv?: number): void; solid(x0: number, x1: number, y0: number, y1: number, z0: number, z1: number): void; done(): void } => {
@@ -709,6 +743,76 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
       b.put(span(a, c, H - 0.25, H, 0.02, k === 'windows' || k === 'single' || k === 'room' ? 0.2 : Dw), concrete, 2);
     }
     b.put(span(-0.05, L + 0.05, H, H + PARAPET, 0.02, Dw + 0.05), concrete, 2);
+    b.done();
+  }
+
+  // --- The back (north side, 使用者背面照 2026-11-24) ------------------------------------------------------
+  // bays: the long faces (plinth, pilasters, per bay a grille band and window band downstairs, two strip-window bands and a
+  // hood upstairs); stair: the short end faces, one tall window per floor at the landing; plain: the short jogs, bare wall.
+  /** Brown strip window: glass, a frame round it, mullions about every BACK.pane m. */
+  const stripWindow = (b: ReturnType<typeof build>, x0: number, x1: number, y0: number, y1: number): void => {
+    b.put(span(x0, x1, y0, y1, 0.05, 0.08), backGlass);
+    const n = Math.max(1, Math.round((x1 - x0) / BACK.pane));
+    for (let k = 0; k <= n; k++) { const x = x0 + ((x1 - x0) * k) / n; b.put(span(Math.max(x0, x - 0.03), Math.min(x1, x + 0.03), y0, y1, 0.05, 0.12), backFrame); }
+    for (const y of [y0, y1 - 0.05]) b.put(span(x0, x1, y, y + 0.05, 0.05, 0.12), backFrame);
+  };
+  type Back = 'bays' | 'stair' | 'plain';
+  const backWalls: [Anchor, Back, typeof MIDDLE | typeof WINGS][] = [
+    [EDGES.backMiddle, 'bays', MIDDLE], [EDGES.backMiddleStair, 'stair', MIDDLE], [EDGES.backMiddleJog, 'plain', MIDDLE],
+    [EDGES.backWest, 'bays', WINGS], [EDGES.backWestJog, 'stair', WINGS], [EDGES.backWestStub, 'plain', WINGS],
+    [EDGES.backEast, 'bays', WINGS], [EDGES.backEastSide, 'bays', WINGS], [EDGES.backEastEnd, 'stair', WINGS],
+  ];
+  for (const [e, kind, { H, floors }] of backWalls) {
+    const f = edgeFrame(campus, e);
+    if (!f) continue;
+    const L = f.len, b = build(f);
+    skin(b, f, H, []);
+    // Smooth grey plinth along the foot, and the band above the eaves.
+    b.put(span(-0.02, L + 0.02, -0.3, BACK.plinth, 0.02, BACK.plinthDepth), backPlinth);
+    b.solid(0, L, 0, BACK.plinth, 0.02, BACK.plinthDepth);
+    b.put(span(-0.05, L + 0.05, H - 0.25, H + PARAPET, 0.02, 0.3), concrete, 2);
+    if (kind === 'stair') {
+      const m = L / 2, w = Math.min(1.1, L - 0.8);
+      for (const fy of [0, ...floors]) {
+        const y0 = fy + 1.7, y1 = fy + 3.2;
+        if (y1 > H - 0.3) continue;
+        stripWindow(b, m - w / 2, m + w / 2, y0, y1);
+        b.put(span(m - w / 2 - 0.1, m + w / 2 + 0.1, y0 - 0.12, y0, 0.02, 0.22), concrete, 2);
+      }
+    }
+    if (kind === 'bays') {
+      const P = BACK.pier, n = Math.max(1, Math.round((L - P) / BACK.bay)), st = (L - P) / n;
+      for (let k = 0; k <= n; k++) {
+        const a = k * st, c = a + P;
+        b.put(span(a, c, BACK.plinth, H - 0.25, 0.02, BACK.pierDepth), concrete, 2);
+        b.put(span(a - 0.05, c + 0.05, -0.3, BACK.plinth + 0.15, 0.02, BACK.pierDepth + 0.06), backPlinth);
+        b.solid(a, c, 0, 2.6, 0.02, BACK.pierDepth + 0.06);
+        if (n >= 3 && (k === 1 || k === n - 1)) pipe(b, (a + c) / 2, -0.3, H, BACK.pierDepth + 0.08); // white downpipes on some pilasters
+      }
+      for (let k = 0; k < n; k++) {
+        const a = k * st + P, c = (k + 1) * st, x0 = a + 0.12, x1 = c - 0.12;
+        // Ground floor: sill on the plinth, the diamond-mesh grille band (dark room behind), a ledge, the window band, a hood.
+        b.put(span(a, c, BACK.plinth, BACK.plinth + 0.12, 0.02, 0.3), concrete, 2);
+        const gw = x1 - x0, gh = 2.3 - BACK.plinth - 0.12, gg = new PlaneGeometry(gw, gh).translate((x0 + x1) / 2, BACK.plinth + 0.12 + gh / 2, 0.14);
+        const guv = gg.getAttribute('uv');
+        for (let i = 0; i < guv.count; i++) guv.setXY(i, (guv.getX(i) * gw) / 0.4, (guv.getY(i) * gh) / 0.4);
+        b.put(gg, grille);
+        const gn = Math.max(1, Math.round(gw / BACK.pane));
+        for (let q = 0; q <= gn; q++) { const x = x0 + (gw * q) / gn; b.put(span(Math.max(x0, x - 0.03), Math.min(x1, x + 0.03), BACK.plinth + 0.12, 2.3, 0.05, 0.16), backFrame); }
+        b.put(span(a, c, 2.3, 2.45, 0.02, 0.28), concrete, 2);
+        stripWindow(b, x0, x1, 2.45, 3.15);
+        b.put(span(a, c, 3.15, 3.45, 0.02, 0.34), concrete, 2);
+        // Upper floors: sill, the two strip-window bands, a hood; an AC on some sills.
+        for (const fy of floors) {
+          b.put(span(a, c, fy + 0.85, fy + 0.97, 0.02, 0.3), concrete, 2);
+          stripWindow(b, x0, x1, fy + 0.97, fy + 1.9);
+          b.put(span(x0, x1, fy + 1.9, fy + 1.98, 0.05, 0.12), backFrame);
+          stripWindow(b, x0, x1, fy + 1.98, fy + 2.7);
+          b.put(span(a, c, fy + 2.7, fy + 3.0, 0.02, 0.4), concrete, 2);
+          if (seeded() < 0.55) acUnit(b, x0 + 0.6 + seeded() * (x1 - x0 - 1.2), fy + 0.97);
+        }
+      }
+    }
     b.done();
   }
 

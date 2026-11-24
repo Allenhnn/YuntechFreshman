@@ -164,6 +164,10 @@ docker compose down             # 停止（加 -v 會連資料一起刪除）
 | `.env.example` 沒被 commit | 根目錄 `.gitignore` 有 `.env*`；需要時用 `git add -f backend/.env.example` |
 
 ## 變更紀錄
+### 2026-11-24（前端：學生宿舍C C3 背面照照片重新建模）— 分支 `feat/dorm-c-yard-walls`
+- 需求：使用者給 C3 背面（北面）照片，重新建模背面
+- `frontend/src/buildings/dormCFacade.ts`：新增背面外皮（`BACK` 尺寸、`EDGES.back*` 九段牆）：淺灰素面牆基、約 3.4 m 一根壁柱；1 樓棕色菱形鐵窗花（不透明貼圖 `diamondMesh`）＋一排棕框窗；樓上每層窗台、上下兩排棕框橫窗（`stripWindow`）、混凝土遮陽、部分窗台冷氣、白色落水管；兩端短牆當樓梯間（每層一扇高窗）
+- `frontend/src/campus/customFacades.ts` `CUSTOM_FACADE_EDGES`：三塊的北面各邊都列入（中段 0、1、9；東翼 0–2；西翼 3–5）——程序立面細節略過，封閉建築的自動「關著的門」也不會再落在北面（照片背面沒有門）
 ### 2026-11-24（前端：學生宿舍C 戶廳窗改單純一片玻璃、移到凹口開口正中）— 分支 `feat/dorm-c-yard-walls`
 - 需求：戶廳窗戶造型怪怪的；單純窗戶就好，不要紗窗、不要看起來能開的
 - 原因：2 樓交誼廳窗在東側凹口牆的正中，東半邊正對東翼的牆，從室內看出去左邊一大塊是洗石子牆
