@@ -1,3 +1,4 @@
+import { CUSTOM_FACADE_EDGES } from './customFacades';
 import type { CampusBuilding, CampusRoad, Ring } from './campusTypes';
 
 /**
@@ -44,9 +45,10 @@ export function enterableShape(b: CampusBuilding): boolean {
 export function buildingEntrance(b: CampusBuilding, roads: readonly CampusRoad[], photoEdges: ReadonlySet<number> = new Set()): Entrance | null {
   const r = b.outer;
   const n = r.length / 2;
+  const custom = CUSTOM_FACADE_EDGES[b.id];
   let best = -1, bestScore = Infinity, longest = -1, longestLen = 0;
   for (let i = 0; i < n; i++) {
-    if (photoEdges.has(i)) continue;
+    if (photoEdges.has(i) || custom?.includes(i)) continue; // photo walls and hand-built facades keep their wall
     const j = (i + 1) % n;
     const px = r[i * 2]!, pz = r[i * 2 + 1]!, dx = r[j * 2]! - px, dz = r[j * 2 + 1]! - pz;
     const len = Math.hypot(dx, dz);

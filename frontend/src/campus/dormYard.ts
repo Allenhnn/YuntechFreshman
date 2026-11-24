@@ -1,13 +1,19 @@
 import {
   BoxGeometry,
   CanvasTexture,
+  ExtrudeGeometry,
   Group,
+  IcosahedronGeometry,
   Mesh,
   MeshStandardMaterial,
   PlaneGeometry,
   Quaternion,
   RepeatWrapping,
   SRGBColorSpace,
+  Shape,
+  ShapeGeometry,
+  SphereGeometry,
+  Vector2,
   Vector3,
   type BufferGeometry,
   type Scene,
@@ -33,11 +39,23 @@ interface GateMark {
   /** Marked bar in the gap, along the way through: two ends in campus metres. */
   a: [number, number];
   b: [number, number];
+  /**
+   * Style of 學生宿舍C 前門 (user photos, 2026-11-22): instead of pillars and a red-tile roof, a solid
+   * cream gatehouse block (PORTAL) with brass dome lamps, cream walls with tall red lattice panels, a
+   * pale-blue gate, and the approach on the courtyard side (see C_FRONT).
+   */
+  portal?: boolean;
+  /**
+   * Fixed wall ends (campus metres) instead of probing the nearest wings. 學生宿舍C 前門 stays where it was
+   * before 學生宿舍C 東翼 moved 1.6 m east (campusFixes.ts splitDormC) — 使用者：改回原本的位置; the wall now
+   * meets that wing's south wall about 1.6 m short of its corner.
+   */
+  ends?: readonly [readonly [number, number], readonly [number, number]];
 }
 
 export const DORM_GATES: readonly GateMark[] = [
   { name: '學生宿舍C 後門', a: [-52.0, 341.5], b: [-28.1, 331.7] },
-  { name: '學生宿舍C 前門', a: [1.8, 327.5], b: [27.9, 319.9] },
+  { name: '學生宿舍C 前門', a: [1.8, 327.5], b: [27.9, 319.9], portal: true, ends: [[10.92, 327.66], [8.57, 319.27]] },
   { name: '學生宿舍B 前門', a: [38.3, 319.9], b: [62.2, 313.4] },
   { name: '學生宿舍B 後門', a: [92.7, 311.2], b: [117.7, 303.6] },
   { name: '學生宿舍A 前門', a: [143.8, 296.0], b: [164.5, 289.5] },
@@ -114,6 +132,26 @@ export function dormRideables(): { x: number; z: number; yaw: number; kind: 'bik
   return out;
 }
 
+/**
+ * 學生宿舍C 前門, courtyard side (user photo looking east at the gate, 2026-11-22), campus metres:
+ *  - a straight grey-and-red paver walk from the courtyard to the gate (along the way through);
+ *  - left of it (學生宿舍C north wing) a grass strip with a black lamppost and a shrub;
+ *  - right of it dark red pavers up to the 學生宿舍C east wing, whose two faces by the gate carry a
+ *    raised entrance platform (three steps round its free sides) with glass doors and a shopfront.
+ * `faces` are the east wing's outline corners from the gate corner southward (OSM 296668595).
+ */
+const C_FRONT = {
+  walk: { from: -7, to: 30, half: 2.0 }, // through the gate (replaces the shared gate pavers)
+  plaza: [[10.7, 327.7], [11.4, 331.9], [7.2, 338.2], [2.6, 338.9], [-7.1, 337.5], [-9.0, 330.8], [9.8, 325.5]] as const,
+  faces: [[10.9, 327.7], [11.6, 331.9], [7.3, 338.4]] as const,
+  platform: { start: 0.25, end: 4.5, depth: 2.2, top: 0.45, rise: 0.15, tread: 0.35, steps: 3 },
+  lamp: [5.0, 321.4] as const,
+  shrub: [2.7, 322.4] as const,
+};
+
+/** 學生宿舍C 前門's gatehouse (close-up photo): opening, block width / height / depth, lintel underside, lattice panel and pier widths. */
+const PORTAL = { open: 2.7, width: 3.9, height: 3.15, depth: 0.8, lintel: 2.25, panel: 0.8, pier: 0.95 };
+
 const WALL_H = 2.1;
 const WALL_T = 0.28;
 const GATE_W = 4.4;
@@ -132,6 +170,8 @@ export function dormYardClearings(): Ring[] {
   }
   for (const r of BIKE_ROWS) for (let i = 0; i + 3 < r.length; i += 2) out.push(band(r[i]!, r[i + 1]!, r[i + 2]!, r[i + 3]!, 1.4));
   out.push(...SHEDS.map((s) => s.slice()));
+  // 學生宿舍C 前門 approach: the walk (gate → courtyard) and the plaza by the east wing.
+  out.push(band(9.7, 323.5, -19.2, 331.6, 3.5), C_FRONT.plaza.flatMap(([x, z]) => [x, z]));
   return out;
 }
 
@@ -157,6 +197,8 @@ function canvas(tracker: ResourceTracker, w: number, h: number, paint: (g: Canva
 const OPEN_R = 4.5;
 const CLOSE_R = 6.5;
 const GATE_SPEED = 2.2; // m/s of leaf travel
+/** How far the swing leaves of 學生宿舍C 前門 open (rad, just short of flat against the jambs). */
+const SWING = Math.PI * 0.48;
 
 export interface DormYard {
   /** Footprints (rectangles) of every solid piece — walls, gate posts, sheds — for route planning. */
@@ -180,7 +222,8 @@ export function createDormYard(scene: Scene, physics: RAPIER.World, campus: Camp
   const dark = mat(0x2a2d31, { roughness: 0.5 });
   const sensorRed = mat(0xc62828, { emissive: 0xff3030, emissiveIntensity: 0.9 });
   const sensorGreen = mat(0x2e7d32, { emissive: 0x30ff60, emissiveIntensity: 0.9 });
-  interface SensorGate { x: number; z: number; leaf: Mesh; light: Mesh; block: RAPIER.Collider; open: number; target: number }
+  /** `swing` (swing gates) sets the leaves for 0..1 open; sliding gates move `leaf` by `travel` instead. */
+  interface SensorGate { x: number; z: number; leaf: Mesh; light: Mesh; block: RAPIER.Collider; open: number; target: number; travel: number; swing: ((t: number) => void) | null }
   const gates: SensorGate[] = [];
   const pavers = tracker.material(new MeshStandardMaterial({
     map: canvas(tracker, 128, 128, (g) => {
@@ -202,6 +245,165 @@ export function createDormYard(scene: Scene, physics: RAPIER.World, campus: Camp
     colliders.push(physics.createCollider(RAPIER.ColliderDesc.cuboid(hx, hy, hz).setTranslation(x, y, z).setRotation({ x: q.x, y: q.y, z: q.z, w: q.w })));
   };
   const dorms = campus.buildings.filter((b) => b.name?.startsWith('學生宿舍'));
+
+  // Red-brown diamond lattice (breeze-block screen) over a dark, teal-lit void; one panel 0.8 × 1.8 m.
+  const lattice = tracker.material(new MeshStandardMaterial({
+    map: canvas(tracker, 128, 288, (g) => {
+      g.fillStyle = '#1f2423';
+      g.fillRect(0, 0, 128, 288);
+      g.fillStyle = 'rgba(60,125,120,0.45)';
+      g.fillRect(0, 0, 128, 288);
+      g.strokeStyle = '#a3503b';
+      g.lineWidth = 6;
+      for (let k = -288; k < 416; k += 26) {
+        g.beginPath(); g.moveTo(k, 0); g.lineTo(k + 288, 288); g.stroke();
+        g.beginPath(); g.moveTo(k + 288, 0); g.lineTo(k, 288); g.stroke();
+      }
+      g.strokeStyle = '#8a8378';
+      g.lineWidth = 6;
+      g.strokeRect(3, 3, 122, 282);
+    }),
+    roughness: 0.9,
+  }));
+  const cream = mat(0xeee6d0, { roughness: 0.95 });
+  const plinth = mat(0x8d8b85, { roughness: 0.9 });
+  const paleBlue = mat(0xa9d2e3, { metalness: 0.3, roughness: 0.5 });
+  const dome = tracker.geometry(new SphereGeometry(0.15, 14, 10).scale(1, 1, 0.6));
+  const brass = mat(0xc9a24d, { metalness: 0.6, roughness: 0.35, emissive: 0x6b5220, emissiveIntensity: 0.4 });
+  const lightBox = mat(0x6c6e70, { roughness: 0.6 });
+  const globeMat = mat(0xfff6dc, { emissive: 0xffe6a8, emissiveIntensity: 0.8, roughness: 0.3 });
+  const plazaPavers = tracker.material(new MeshStandardMaterial({
+    map: (() => {
+      const t = canvas(tracker, 128, 128, (g) => {
+        g.fillStyle = '#4a3934';
+        g.fillRect(0, 0, 128, 128);
+        const tones = ['#7a5148', '#6c4a43', '#83605a', '#5f4540', '#8a6c64'];
+        for (let y = 0; y < 8; y++) for (let x = 0; x < 4; x++) {
+          g.fillStyle = tones[(x * 3 + y * 7) % tones.length]!;
+          g.fillRect(x * 32 + (y % 2) * 16 + 1, y * 16 + 1, 30, 14);
+        }
+      });
+      t.repeat.set(1 / 2, 1 / 2);
+      return t;
+    })(),
+    roughness: 0.95, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -6,
+  }));
+  // Grey interlocking pavers (0.2 × 0.1 m) with a red double band every 3 m (photo of the C walk).
+  const walkPavers = tracker.material(new MeshStandardMaterial({
+    map: (() => {
+      const t = canvas(tracker, 256, 192, (g) => {
+        g.fillStyle = '#5d5a57';
+        g.fillRect(0, 0, 256, 192);
+        for (let row = 0; row < 32; row++) {
+          const band = row < 2;
+          for (let col = -1; col < 21; col++) {
+            const v = (row * 31 + col * 17) % 7;
+            g.fillStyle = band ? ['#9a5246', '#a45a4c', '#8e4b40'][v % 3]! : ['#8d8a86', '#97948f', '#85827e', '#9e9b96'][v % 4]!;
+            g.fillRect(col * 12.8 + (row % 2) * 6.4 + 0.6, row * 6 + 0.6, 11.6, 4.8);
+          }
+        }
+      });
+      t.repeat.set(1 / 4, 1 / 3);
+      return t;
+    })(),
+    roughness: 0.95, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -8,
+  }));
+  const concrete = mat(0xb9b7b0, { roughness: 0.9 });
+  const glass = mat(0x24313a, { roughness: 0.15, metalness: 0.4 });
+  const frameGrey = mat(0x5c6166, { metalness: 0.4 });
+  const black = mat(0x1d1f22, { metalness: 0.4, roughness: 0.6 });
+  const leafGreen = mat(0x4f7d35, { roughness: 0.9, flatShading: true });
+  /** A flat polygon (campus x / z) slightly above the ground, UVs in metres. */
+  const decal = (pts: readonly (readonly [number, number])[], y: number, m: MeshStandardMaterial, uvOf: (x: number, z: number) => [number, number] = (x, z) => [x, z]): void => {
+    const sh = new Shape(pts.map(([x, z]) => new Vector2(x, -z)));
+    const geo = new ShapeGeometry(sh).rotateX(-Math.PI / 2).translate(0, y, 0);
+    const pos = geo.getAttribute('position'), uv = geo.getAttribute('uv');
+    for (let i = 0; i < pos.count; i++) uv.setXY(i, ...uvOf(pos.getX(i), pos.getZ(i)));
+    const mesh = new Mesh(tracker.geometry(geo), m);
+    mesh.receiveShadow = true;
+    root.add(mesh);
+  };
+  /** A vertical prism over a convex campus polygon, with a matching collider. */
+  const prism = (pts: readonly (readonly [number, number])[], y0: number, y1: number, m: MeshStandardMaterial): void => {
+    const geo = new ExtrudeGeometry(new Shape(pts.map(([x, z]) => new Vector2(x, -z))), { depth: y1 - y0, bevelEnabled: false }).rotateX(-Math.PI / 2).translate(0, y0, 0);
+    const mesh = new Mesh(tracker.geometry(geo), m);
+    mesh.castShadow = mesh.receiveShadow = true;
+    root.add(mesh);
+    const v: number[] = [];
+    for (const [x, z] of pts) v.push(x, y0, z, x, y1, z);
+    const d = RAPIER.ColliderDesc.convexHull(new Float32Array(v));
+    if (d) colliders.push(physics.createCollider(d));
+  };
+  /** A thin panel standing on a wall from a, running along unit dir for s0..s1, set out by `out` along n. */
+  const panel = (a: readonly [number, number], dir: [number, number], n: [number, number], s0: number, s1: number, y0: number, y1: number, out: number, depth: number, m: MeshStandardMaterial): void => {
+    const sm = (s0 + s1) / 2, cxp = a[0] + dir[0] * sm + n[0] * (out + depth / 2), czp = a[1] + dir[1] * sm + n[1] * (out + depth / 2);
+    const mesh = new Mesh(tracker.geometry(box(s1 - s0, y1 - y0, depth, 0, (y0 + y1) / 2, 0)), m);
+    mesh.position.set(cxp, 0, czp);
+    mesh.rotation.y = Math.atan2(-dir[1], dir[0]);
+    mesh.castShadow = true;
+    root.add(mesh);
+  };
+  /** 學生宿舍C 前門, courtyard side: the walk, the plaza, the entrance platform, lamppost and shrub. */
+  const cFrontApproach = (cx: number, cz: number, mx: number, mz: number): void => {
+    const { walk, platform: P } = C_FRONT;
+    const lx = -mz, lz = mx; // across the walk
+    const at = (t: number, l: number): [number, number] => [cx + mx * t + lx * l, cz + mz * t + lz * l];
+    // UVs across (u) and along (v) the walk so the red bands run crosswise.
+    decal([at(walk.from, -walk.half), at(walk.to, -walk.half), at(walk.to, walk.half), at(walk.from, walk.half)], 0.036, walkPavers,
+      (x, z) => [(x - cx) * lx + (z - cz) * lz, (x - cx) * mx + (z - cz) * mz]);
+    decal(C_FRONT.plaza, 0.03, plazaPavers);
+    // Entrance platform along the two faces, three steps round the free sides (outline offset by d).
+    const [f0, f1, f2] = C_FRONT.faces;
+    const unit = (a: readonly [number, number], b: readonly [number, number]): [number, number] => {
+      const l = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      return [(b[0] - a[0]) / l, (b[1] - a[1]) / l];
+    };
+    const d1 = unit(f0, f1), d2 = unit(f1, f2);
+    // Outward normals: the courtyard side of each face (away from the building's inside).
+    const n1: [number, number] = [-d1[1], d1[0]], n2: [number, number] = [-d2[1], d2[0]];
+    const side = (n: [number, number], f: readonly [number, number]): [number, number] => ((cx - f[0]) * n[0] + (cz - f[1]) * n[1] > 0 ? n : [-n[0], -n[1]]);
+    const o1 = side(n1, f0), o2 = side(n2, f2);
+    const s0: [number, number] = [f0[0] + d1[0] * P.start, f0[1] + d1[1] * P.start];
+    const e: [number, number] = [f1[0] + d2[0] * P.end, f1[1] + d2[1] * P.end];
+    const miter = (d: number): [number, number] => {
+      // f1 + d·o1 + a·d1 = f1 + d·o2 + b·d2
+      const rx = d * (o2[0] - o1[0]), rz = d * (o2[1] - o1[1]);
+      const det = d1[0] * -d2[1] - d1[1] * -d2[0];
+      const a = (rx * -d2[1] - rz * -d2[0]) / det;
+      return [f1[0] + d * o1[0] + a * d1[0], f1[1] + d * o1[1] + a * d1[1]];
+    };
+    for (let k = P.steps; k >= 0; k--) {
+      const d = P.depth + k * P.tread, ext = k * P.tread, top = P.top - k * P.rise;
+      const a: [number, number] = [s0[0] - d1[0] * ext, s0[1] - d1[1] * ext];
+      const b: [number, number] = [e[0] + d2[0] * ext, e[1] + d2[1] * ext];
+      const m = miter(d);
+      prism([a, f1, m, [a[0] + o1[0] * d, a[1] + o1[1] * d]], 0, top, concrete);
+      prism([f1, b, [b[0] + o2[0] * d, b[1] + o2[1] * d], m], 0, top, concrete);
+    }
+    // Glass doors on the gate-side face, a shopfront on the long face.
+    const face1 = Math.hypot(f1[0] - f0[0], f1[1] - f0[1]);
+    panel(f0, d1, o1, face1 / 2 - 1.3, face1 / 2 + 1.3, P.top, P.top + 2.7, 0, 0.08, frameGrey);
+    panel(f0, d1, o1, face1 / 2 - 1.2, face1 / 2 + 1.2, P.top + 0.05, P.top + 2.6, 0.08, 0.02, glass);
+    panel(f0, d1, o1, face1 / 2 - 0.03, face1 / 2 + 0.03, P.top + 0.05, P.top + 2.6, 0.1, 0.03, frameGrey);
+    panel(f1, d2, o2, 0.5, P.end - 0.3, P.top, P.top + 2.9, 0, 0.08, frameGrey);
+    panel(f1, d2, o2, 0.6, P.end - 0.4, P.top + 0.4, P.top + 2.8, 0.08, 0.02, glass);
+    for (let s = 0.6; s <= P.end - 0.4 + 1e-6; s += (P.end - 1.0) / 3) panel(f1, d2, o2, s - 0.03, s + 0.03, P.top + 0.4, P.top + 2.8, 0.1, 0.03, frameGrey);
+    // Black lamppost with a box head, and a shrub, on the grass strip by the north wing.
+    const [lpx, lpz] = C_FRONT.lamp;
+    const post = new Mesh(tracker.geometry(merged([box(0.12, 3.6, 0.12, 0, 1.8, 0), box(0.34, 0.42, 0.34, 0, 3.75, 0), box(0.3, 0.3, 0.3, 0, 0.15, 0)])), black);
+    post.position.set(lpx, 0, lpz);
+    post.castShadow = true;
+    root.add(post);
+    const head = new Mesh(tracker.geometry(box(0.26, 0.08, 0.26, 0, 3.52, 0)), globeMat);
+    head.position.set(lpx, 0, lpz);
+    root.add(head);
+    solid(lpx, 1.8, lpz, 0.1, 1.8, 0.1, 0);
+    const [shx, shz] = C_FRONT.shrub;
+    const bush = new Mesh(tracker.geometry(merged([new IcosahedronGeometry(0.55, 0).scale(1.2, 0.85, 1).translate(0, 0.5, 0), new IcosahedronGeometry(0.4, 0).translate(0.45, 0.75, 0.2)])), leafGreen);
+    bush.position.set(shx, 0, shz);
+    bush.castShadow = true;
+    root.add(bush);
+  };
 
   // --- Gates (前門 / 後門) -----------------------------------------------------------------------
   // The mark lies in the gap between two wings and points along the way through. The wall closes the
@@ -263,7 +465,7 @@ export function createDormYard(scene: Scene, physics: RAPIER.World, campus: Camp
 
   for (const g of DORM_GATES) {
     const mx = (g.a[0] + g.b[0]) / 2, mz = (g.a[1] + g.b[1]) / 2;
-    const br = bridge(mx, mz);
+    const br = g.ends ? { p: [g.ends[0][0], g.ends[0][1]] as [number, number], q: [g.ends[1][0], g.ends[1][1]] as [number, number] } : bridge(mx, mz);
     if (!br) continue;
     const span = Math.hypot(br.q[0] - br.p[0], br.q[1] - br.p[1]);
     if (span < GATE_W + 1.5) continue;
@@ -283,49 +485,136 @@ export function createDormYard(scene: Scene, physics: RAPIER.World, campus: Camp
       return mesh;
     };
     const world = (lx: number, lz: number): [number, number] => [cx + ux * lx - uz * lz, cz + uz * lx + ux * lz];
-    // Wall segments either side of the opening, with pilasters every ~3 m and a grey coping.
-    for (const [s0, s1] of [[-left, -GATE_W / 2 - 0.35], [GATE_W / 2 + 0.35, right]] as const) {
-      const w = s1 - s0;
-      if (w < 0.3) continue;
-      const mid = (s0 + s1) / 2;
-      add(box(w, WALL_H, WALL_T, mid, WALL_H / 2, 0), white);
-      add(box(w + 0.06, 0.08, WALL_T + 0.1, mid, WALL_H + 0.04, 0), coping);
-      for (let s = s0; s <= s1 + 0.01; s += Math.max(2.4, w / Math.max(1, Math.round(w / 3)))) add(box(0.42, WALL_H + 0.18, 0.42, s, (WALL_H + 0.18) / 2, 0), white);
-      const [wx, wz] = world(mid, 0);
-      solid(wx, WALL_H / 2, wz, w / 2, WALL_H / 2, WALL_T / 2 + 0.05, yaw);
+    const GW = g.portal ? PORTAL.open : GATE_W;
+    const leafZ = g.portal ? 0 : 0.32;
+    let leaf: Mesh, light: Mesh;
+    let swing: ((t: number) => void) | null = null;
+    if (!g.portal) {
+      // Wall segments either side of the opening, with pilasters every ~3 m and a grey coping.
+      for (const [s0, s1] of [[-left, -GATE_W / 2 - 0.35], [GATE_W / 2 + 0.35, right]] as const) {
+        const w = s1 - s0;
+        if (w < 0.3) continue;
+        const mid = (s0 + s1) / 2;
+        add(box(w, WALL_H, WALL_T, mid, WALL_H / 2, 0), white);
+        add(box(w + 0.06, 0.08, WALL_T + 0.1, mid, WALL_H + 0.04, 0), coping);
+        for (let s = s0; s <= s1 + 0.01; s += Math.max(2.4, w / Math.max(1, Math.round(w / 3)))) add(box(0.42, WALL_H + 0.18, 0.42, s, (WALL_H + 0.18) / 2, 0), white);
+        const [wx, wz] = world(mid, 0);
+        solid(wx, WALL_H / 2, wz, w / 2, WALL_H / 2, WALL_T / 2 + 0.05, yaw);
+      }
+      // Gate pillars and the small red-tile roof (門樓).
+      for (const s of [-1, 1]) {
+        add(box(0.7, 2.9, 0.7, s * (GATE_W / 2 + 0.35), 1.45, 0), white);
+        const [px, pz] = world(s * (GATE_W / 2 + 0.35), 0);
+        solid(px, 1.45, pz, 0.35, 1.45, 0.35, yaw);
+      }
+      add(box(GATE_W + 1.6, 0.22, 1.5, 0, 3.0, 0), white); // lintel
+      const roofW = GATE_W + 2.4;
+      for (const side of [-1, 1]) {
+        const slope = add(box(roofW, 0.12, 1.25, 0, 3.42, side * 0.52), tile);
+        slope.rotation.x = side * 0.42;
+      }
+      add(box(roofW + 0.1, 0.12, 0.18, 0, 3.66, 0), mat(0x8c3a30)); // ridge
+      // Sensor sliding gate (感應門): closed across the opening, slides behind the right-hand wall
+      // when someone comes close; card reader and a sensor light by the left pillar.
+      const bars: BufferGeometry[] = [box(GATE_W, 0.06, 0.06, 0, 0.12, 0), box(GATE_W, 0.06, 0.06, 0, 1.75, 0)];
+      for (let i = 0; i <= 14; i++) bars.push(box(0.035, 1.7, 0.035, -GATE_W / 2 + (i * GATE_W) / 14, 0.93, 0));
+      leaf = add(merged(bars), iron);
+      add(box(0.14, 1.15, 0.14, -GATE_W / 2 - 0.9, 0.58, 0.6), iron);
+      add(box(0.22, 0.3, 0.1, -GATE_W / 2 - 0.9, 1.25, 0.63), dark);
+      light = add(box(0.16, 0.16, 0.06, -GATE_W / 2 - 0.35, 2.55, 0.38), sensorRed);
+    } else {
+      // 學生宿舍C 前門 (close-up photo, 2026-11-22): cream walls with a grey plinth and a heavy grey coping,
+      // tall red lattice panels (0.8 m) between plain piers; a solid cream gatehouse block standing above
+      // the walls with a door-sized opening, a brass dome lamp either side of it on both faces, a grey
+      // light box above the opening and a small card reader; a pale-blue gate in the opening.
+      const { open: GO, width: PW, height: PH, depth: PD, lintel: PL, panel: PP, pier: PR } = PORTAL;
+      for (const [s0, s1, dir] of [[-left, -PW / 2, -1], [PW / 2, right, 1]] as const) {
+        const w = s1 - s0;
+        if (w < 0.3) continue;
+        const mid = (s0 + s1) / 2;
+        add(box(w, WALL_H, WALL_T, mid, WALL_H / 2, 0), cream);
+        add(box(w, 0.2, WALL_T + 0.06, mid, 0.1, 0), plinth);
+        add(box(w + 0.04, 0.13, WALL_T + 0.18, mid, WALL_H + 0.065, 0), plinth);
+        // Lattice panels from the gatehouse outward: panel, pier, panel, … As many panels as fit with
+        // piers of at least PIER_MIN (narrowing the piers below PR when needed), so the short walls
+        // either side of the gatehouse still get a second panel at their outer end (user screenshot).
+        const avail = w - 0.05 - 0.12, PIER_MIN = 0.3;
+        const n = Math.max(1, Math.floor((avail + PIER_MIN) / (PP + PIER_MIN)));
+        const pier = n > 1 ? Math.min(PR, (avail - n * PP) / (n - 1)) : 0;
+        for (let k = 0; k < n; k++) {
+          const near = PW / 2 + 0.05 + k * (PP + pier), far = near + PP;
+          add(box(PP, 1.8, WALL_T + 0.03, dir * (near + far) / 2, 1.1, 0), lattice);
+        }
+        const [wx, wz] = world(mid, 0);
+        solid(wx, WALL_H / 2, wz, w / 2, WALL_H / 2, WALL_T / 2 + 0.05, yaw);
+      }
+      const sideW = (PW - GO) / 2;
+      for (const s of [-1, 1]) {
+        add(box(sideW, PH, PD, s * (GO / 2 + sideW / 2), PH / 2, 0), cream);
+        const [px, pz] = world(s * (GO / 2 + sideW / 2), 0);
+        solid(px, PH / 2, pz, sideW / 2, PH / 2, PD / 2, yaw);
+      }
+      add(box(PW, PH - PL, PD, 0, (PL + PH) / 2, 0), cream);
+      add(box(PW + 0.08, 0.08, PD + 0.08, 0, PH + 0.04, 0), plinth);
+      add(box(GO + 0.3, 0.05, PD + 0.5, 0, 0.025, 0), plinth); // stone threshold
+      for (const face of [-1, 1]) {
+        for (const s of [-1, 1]) {
+          const lamp = new Mesh(dome, brass);
+          lamp.position.set(s * (PW / 2 - 0.4), PL + 0.2, face * (PD / 2));
+          grp.add(lamp);
+        }
+        add(box(0.55, 0.3, 0.1, 0.75, PH - 0.5, face * (PD / 2 + 0.05)), lightBox);
+        add(box(0.16, 0.24, 0.08, GO / 2 + 0.2, PL - 0.15, face * (PD / 2 + 0.04)), lightBox);
+      }
+      // Pale-blue gate (user, 2026-11-22: it swings open like a pair of doors, not sideways): two leaves
+      // hinged at the jambs, a plated left leaf and a barred right leaf, swinging into the courtyard.
+      // Each leaf is built in its hinge's frame, running from the hinge (x = 0) toward the middle.
+      const LW = GO / 2 - 0.06; // leaf width: a hinge gap at the jamb and a meeting gap in the middle
+      const frame = (dirX: 1 | -1): BufferGeometry[] => [
+        box(LW, 0.05, 0.05, dirX * LW / 2, 0.1, 0), box(LW, 0.05, 0.05, dirX * LW / 2, 1.95, 0),
+        box(0.05, 1.9, 0.05, dirX * 0.025, 1.02, 0), box(0.05, 1.9, 0.05, dirX * (LW - 0.025), 1.02, 0),
+      ];
+      const leftParts = [...frame(1), box(LW - 0.1, 1.6, 0.025, LW / 2, 1.02, 0)];
+      const rightParts = frame(-1);
+      for (let x = 0.17; x < LW - 0.08; x += 0.17) rightParts.push(box(0.03, 1.85, 0.03, -x, 1.02, 0));
+      const inward = (g.a[0] - cx) * -uz + (g.a[1] - cz) * ux > 0 ? 1 : -1; // courtyard side (local +z = inward)
+      const hinge = GO / 2 - 0.04;
+      const leaves: { pivot: Group; sign: number }[] = [];
+      for (const [hx, parts, sign] of [[-hinge, leftParts, -inward], [hinge, rightParts, inward]] as const) {
+        const pivot = new Group();
+        pivot.position.set(hx, 0, 0);
+        grp.add(pivot);
+        const m = new Mesh(tracker.geometry(merged(parts)), paleBlue);
+        m.castShadow = true;
+        pivot.add(m);
+        // Hinge pins on the jamb.
+        for (const y of [0.35, 1.7]) add(box(0.06, 0.12, 0.06, hx + Math.sign(hx) * 0.01, y, 0), paleBlue);
+        leaves.push({ pivot, sign });
+      }
+      swing = (t) => { for (const l of leaves) l.pivot.rotation.y = l.sign * t * SWING; };
+      // `leaf` stays as the sliding-leaf handle for the shared code below; the swing replaces the slide.
+      leaf = new Mesh();
+      light = add(box(0.12, 0.12, 0.05, -GO / 2 - 0.2, PL - 0.15, PD / 2 + 0.03), sensorRed);
     }
-    // Gate pillars and the small red-tile roof (門樓).
-    for (const s of [-1, 1]) {
-      add(box(0.7, 2.9, 0.7, s * (GATE_W / 2 + 0.35), 1.45, 0), white);
-      const [px, pz] = world(s * (GATE_W / 2 + 0.35), 0);
-      solid(px, 1.45, pz, 0.35, 1.45, 0.35, yaw);
-    }
-    add(box(GATE_W + 1.6, 0.22, 1.5, 0, 3.0, 0), white); // lintel
-    const roofW = GATE_W + 2.4;
-    for (const side of [-1, 1]) {
-      const slope = add(box(roofW, 0.12, 1.25, 0, 3.42, side * 0.52), tile);
-      slope.rotation.x = side * 0.42;
-    }
-    add(box(roofW + 0.1, 0.12, 0.18, 0, 3.66, 0), mat(0x8c3a30)); // ridge
-    // Sensor sliding gate (感應門): closed across the opening, slides behind the right-hand wall
-    // when someone comes close; card reader and a sensor light by the left pillar.
-    const bars: BufferGeometry[] = [box(GATE_W, 0.06, 0.06, 0, 0.12, 0), box(GATE_W, 0.06, 0.06, 0, 1.75, 0)];
-    for (let i = 0; i <= 14; i++) bars.push(box(0.035, 1.7, 0.035, -GATE_W / 2 + (i * GATE_W) / 14, 0.93, 0));
-    const leaf = add(merged(bars), iron);
-    leaf.position.set(0, 0, 0.32);
-    add(box(0.14, 1.15, 0.14, -GATE_W / 2 - 0.9, 0.58, 0.6), iron);
-    add(box(0.22, 0.3, 0.1, -GATE_W / 2 - 0.9, 1.25, 0.63), dark);
-    const light = add(box(0.16, 0.16, 0.06, -GATE_W / 2 - 0.35, 2.55, 0.38), sensorRed);
-    const [gx, gz] = world(0, 0.32);
-    const block = physics.createCollider(RAPIER.ColliderDesc.cuboid(GATE_W / 2, 1.0, 0.12).setTranslation(gx, 1.0, gz)
+    leaf.position.set(0, 0, leafZ);
+    const [gx, gz] = world(0, leafZ);
+    const block = physics.createCollider(RAPIER.ColliderDesc.cuboid(GW / 2, 1.0, 0.12).setTranslation(gx, 1.0, gz)
       .setRotation((() => { const q = new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), yaw); return { x: q.x, y: q.y, z: q.z, w: q.w }; })()));
     colliders.push(block);
-    gates.push({ x: cx, z: cz, leaf, light, block, open: 0, target: 0 });
-    // Pavers through the gate (both sides).
-    const path = new Mesh(tracker.geometry(new PlaneGeometry(GATE_W - 0.4, 14).rotateX(-Math.PI / 2).translate(0, 0.035, 0)), pavers);
-    (path.geometry.attributes.uv!.array as Float32Array).forEach((v, i, arr) => { arr[i] = v * (i % 2 === 0 ? 2 : 7); });
-    path.receiveShadow = true;
-    grp.add(path);
+    // Swing leaves travel about a quarter circle at their tips.
+    gates.push({ x: cx, z: cz, leaf, light, block, open: 0, target: 0, travel: swing ? (GW / 2) * SWING : GW + 0.55, swing });
+    // Pavers through the gate (both sides); the portal gate's walk runs through instead.
+    if (!g.portal) {
+      const path = new Mesh(tracker.geometry(new PlaneGeometry(GATE_W - 0.4, 14).rotateX(-Math.PI / 2).translate(0, 0.035, 0)), pavers);
+      (path.geometry.attributes.uv!.array as Float32Array).forEach((v, i, arr) => { arr[i] = v * (i % 2 === 0 ? 2 : 7); });
+      path.receiveShadow = true;
+      grp.add(path);
+    }
+    if (g.portal) {
+      // Way into the courtyard: the side of the wall the mark's start lies on.
+      const nx = -uz, nz = ux, inward = (g.a[0] - cx) * nx + (g.a[1] - cz) * nz > 0 ? 1 : -1;
+      cFrontApproach(cx, cz, inward * nx, inward * nz);
+    }
   }
 
   // --- Sheds --------------------------------------------------------------------------------------
@@ -355,7 +644,6 @@ export function createDormYard(scene: Scene, physics: RAPIER.World, campus: Camp
     grp.add(slab);
   }
 
-  const travel = GATE_W + 0.55;
   return {
     blockers,
     update(dt, px, py, pz) {
@@ -366,8 +654,9 @@ export function createDormYard(scene: Scene, physics: RAPIER.World, campus: Camp
         if (want === 1 && g.target === 0) started = true;
         g.target = want;
         if (g.open === g.target) continue;
-        g.open = g.target > g.open ? Math.min(1, g.open + (dt * GATE_SPEED) / travel) : Math.max(0, g.open - (dt * GATE_SPEED) / travel);
-        g.leaf.position.x = g.open * travel;
+        g.open = g.target > g.open ? Math.min(1, g.open + (dt * GATE_SPEED) / g.travel) : Math.max(0, g.open - (dt * GATE_SPEED) / g.travel);
+        if (g.swing) g.swing(g.open);
+        else g.leaf.position.x = g.open * g.travel;
         g.light.material = g.open > 0 ? sensorGreen : sensorRed;
         // Passable once it is mostly open; blocks again as soon as it starts closing over the gap.
         g.block.setEnabled(g.open < 0.6);

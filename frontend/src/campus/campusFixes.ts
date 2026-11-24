@@ -1,4 +1,7 @@
 import type { CampusData } from './campusTypes';
+import type { TracedIndex } from '../buildings/buildingTypes';
+import type { Entrance } from './entrances';
+import { DORM_C, DORM_C_PIECES } from './customFacades';
 import buildingRings from './buildingRings.json';
 
 /**
@@ -361,3 +364,76 @@ export function sealBuildings(campus: CampusData): void {
   const names = new Set(SEALED_BUILDINGS);
   for (const b of campus.buildings) if (b.name && names.has(b.name)) b.sealed = true;
 }
+
+/**
+ * 學生宿舍C 北棟（OSM 296668596，U 形）：使用者實拍中段 4 層、左右兩翼 3 層，OSM 卻是一個 5 層 18 m 的多邊形。
+ * 切成三塊（customFacades.ts `DORM_C_PIECES`）：中段保留原 id，兩翼是新 id；分界牆由 `PARTY_WALLS` 處理。
+ * Skipped (nothing changes) if the OSM ring no longer has the expected shape.
+ */
+export function splitDormC(campus: CampusData): void {
+  const i = campus.buildings.findIndex((b) => b.id === DORM_C.middle);
+  const b = campus.buildings[i];
+  if (!b || b.outer.length !== 40 || Math.hypot(b.outer[24]! + 8.9, b.outer[25]! - 308.8) > 0.3 || Math.hypot(b.outer[4]! + 29.0, b.outer[5]! - 303.0) > 0.3) return;
+  const r = b.outer;
+  type P = [number, number];
+  const V = (k: number): P => [r[k * 2]!, r[k * 2 + 1]!];
+  const add = (p: P, d: P, t: number): P => [p[0] + d[0] * t, p[1] + d[1] * t];
+  /** Where p + t·d meets the line through q along e. */
+  const meet = (p: P, d: P, q: P, e: P): P => {
+    const det = d[0] * -e[1] - d[1] * -e[0];
+    return add(p, d, ((q[0] - p[0]) * -e[1] - (q[1] - p[1]) * -e[0]) / det);
+  };
+  // Front (vertex 13 → 14), unit; the projecting front takes in one room west of the balcony:
+  // its west return (vertices 14, 15) slides west by `roomWidth` (使用者標註).
+  const f13 = V(13), fl = Math.hypot(r[28]! - f13[0], r[29]! - f13[1]);
+  const fu: P = [(r[28]! - f13[0]) / fl, (r[29]! - f13[1]) / fl];
+  const p14 = add(V(14), fu, DORM_C.roomWidth), p15 = add(V(15), fu, DORM_C.roomWidth);
+  // The east wing keeps its OSM shape (使用者地圖) but moves `eastShift` m further east along the front, so the
+  // hall beside the balcony (the old notch, now part of the 4-storey middle) shows about as wide as the west hall
+  // (使用者：右側戶廳 4 層、露出比例跟左側差不多). The middle ends on a line from the moved vertex 11 along the
+  // east wing's inner face (vertex 8 → 9) up to the north face (3 → 4).
+  const sh = (k: number): P => add(V(k), fu, -DORM_C.eastShift);
+  const pts: Record<string, P> = { p14, p15 };
+  for (const k of [4, 5, 6, 7, 8, 9, 10, 11]) pts[`${k}s`] = sh(k);
+  pts.Q = meet(pts['11s']!, [r[18]! - r[16]!, r[19]! - r[17]!], V(3), [r[8]! - r[6]!, r[9]! - r[7]!]);
+  const ring = (ids: readonly (number | string)[]): number[] => ids.flatMap((k) => (typeof k === 'number' ? V(k) : pts[k]!));
+  // 使用者（2026-11-23）：北棟的室內先整個拿掉——三塊都封起來（門畫成關著的，沒有室內）。故事的寢室在南邊那棟 C（296668592），不受影響。
+  const piece = (id: number, ids: readonly (number | string)[], levels: number) => ({ ...b, id, outer: ring(ids), holes: [], levels, height: Math.round(levels * 3.6 * 10) / 10, sealed: true });
+  campus.buildings.splice(i, 1,
+    piece(DORM_C.middle, DORM_C_PIECES.middle, DORM_C.middleLevels),
+    piece(DORM_C.westWing, DORM_C_PIECES.westWing, DORM_C.wingLevels),
+    piece(DORM_C.eastWing, DORM_C_PIECES.eastWing, DORM_C.wingLevels));
+}
+
+/**
+ * After `splitDormC`: the plan-traced interior that covered 296668596 now spans the three pieces, and
+ * its shell doors (edge + metres along it) are moved onto whichever piece's wall they now lie on.
+ * Every piece gets an entry (maybe empty), so none of them falls back to a generated interior.
+ */
+export function remapSplitTraced(traced: TracedIndex | undefined, campus: CampusData): void {
+  // Only while a traced plan covers it (FLOORPLAN_INTERIORS); otherwise each piece gets a generated interior.
+  if (!traced?.buildings.some((t) => t.osmIds.includes(DORM_C.middle))) return;
+  const pieces = [DORM_C.middle, DORM_C.westWing, DORM_C.eastWing].map((id) => campus.buildings.find((b) => b.id === id));
+  if (pieces.some((p) => !p) || !campus.buildings.some((b) => b.id === DORM_C.westWing)) return;
+  for (const t of traced.buildings) if (t.osmIds.includes(DORM_C.middle)) for (const id of [DORM_C.westWing, DORM_C.eastWing]) if (!t.osmIds.includes(id)) t.osmIds.push(id);
+  const old = traced.entrances[String(DORM_C.middle)] ?? [];
+  const oldRing = OLD_DORM_C_NORTH; // the doors are all on the original north face (vertex 3 → 4)
+  const out = new Map<number, Entrance[]>(pieces.map((p) => [p!.id, []]));
+  for (const en of old) {
+    if (en.edge !== 3) continue;
+    const [ax, az, bx, bz] = oldRing, len = Math.hypot(bx - ax, bz - az);
+    const x = ax + ((bx - ax) * en.along) / len, z = az + ((bz - az) * en.along) / len;
+    for (const p of pieces) {
+      const rr = p!.outer, n = rr.length / 2;
+      for (let k = 0; k < n; k++) {
+        const j = (k + 1) % n, px = rr[k * 2]!, pz = rr[k * 2 + 1]!, qx = rr[j * 2]!, qz = rr[j * 2 + 1]!;
+        const l = Math.hypot(qx - px, qz - pz), s = ((x - px) * (qx - px) + (z - pz) * (qz - pz)) / l;
+        const off = Math.abs((x - px) * (qz - pz) - (z - pz) * (qx - px)) / l;
+        if (off < 0.3 && s > 1.3 && s < l - 1.3) out.get(p!.id)!.push({ edge: k, along: s });
+      }
+    }
+  }
+  for (const [id, list] of out) traced.entrances[String(id)] = list;
+}
+/** The original north face of 296668596 (vertex 3 → 4), where its three shell doors are. */
+const OLD_DORM_C_NORTH = [-29.23, 301.79, 0.38, 296.58] as const;

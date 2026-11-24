@@ -107,6 +107,22 @@ export function addFacadeDetails(
   const floors = Math.max(1, b.levels || Math.round(b.height / 3.6));
   const fh = b.height / floors;
   const ws = walls(b.outer);
+  if (b.id === 296668624) {
+    // The upper glazed gallery follows the faceted curve toward Lotus Pond.
+    for (let edge = 12; edge <= 22; edge++) {
+      const w = ws[edge]!;
+      wallBox(g, w, 0, w.len, 0, 0.16, fh, 2 * fh, [0.10, 0.15, 0.16]);
+      for (const y of [fh, fh * 1.72, 2 * fh]) {
+        wallBox(g, w, 0, w.len, 0.16, 0.23, y, y + 0.12, colors.trim);
+      }
+      const panes = Math.ceil(w.len / 1.4);
+      for (let p = 0; p < panes; p++) {
+        const a = p * w.len / panes;
+        wallBox(g, w, a, a + 0.09, 0.16, 0.23, fh, 2 * fh, colors.trim);
+      }
+      wallBox(g, w, 0, w.len, 0, 1.2, fh - 0.3, fh, colors.wall);
+    }
+  }
   const longest = Math.max(...ws.map((w) => w.len));
   const rand = mulberry32(Math.abs(b.id) >>> 0);
 

@@ -164,6 +164,130 @@ docker compose down             # 停止（加 -v 會連資料一起刪除）
 | `.env.example` 沒被 commit | 根目錄 `.gitignore` 有 `.env*`；需要時用 `git add -f backend/.env.example` |
 
 ## 變更紀錄
+### 2026-11-23（前端：學生宿舍C 北棟門廳大門置中）— 分支 `fix/dorm-c-front-gate`
+- 需求：使用者說的「大門沒有置中」是北棟一樓門廳的棕框雙開門（截圖紅線，「C」字正下方），不是中庭的前門
+- `frontend/src/buildings/dormCFacade.ts`：雙開門改在門廳正中，對齊「C」字與地上紅磚帶
+- 中庭前門（dormYard）：前兩輪因誤會而移到東翼轉角與旁棟缺口正中，使用者要求改回原本的位置——`ends` 改回東翼東移前的原端點（10.92, 327.66）–（8.57, 319.27）
+- 測試：`tsc --noEmit`、`vite build` 通過；dev server 暫時除錯相機從使用者截圖視角看過（已移除）
+
+### 2026-11-23（前端：學生宿舍C 前門位置固定、東翼凹口牆改實心）— 分支 `fix/dorm-c-front-gate`
+- 需求：C 棟大門位置飄掉；地圖上紅框處（東翼面向戶廳的凹口牆）的戶廳窗不要、換成牆
+- 原因：前門的圍牆端點是執行時找兩翼最近點；東翼東移 1.6 m 後，門的中心往東 1.4 m 並轉了角度，跟固定位置的步道、廣場錯開
+- `frontend/src/campus/dormYard.ts`：`GateMark.ends`，C 前門固定牆端點；先固定回原端點，使用者說沒有置中，改成從東翼轉角（10.15, 318.99）沿原圍牆角度到旁棟南牆（12.52, 327.43），門在缺口正中、步道跟著門
+- `frontend/src/buildings/dormCFacade.ts`：東翼凹口的西向牆改實心
+- 測試：`tsc --noEmit`、`vite build` 通過；dev server 暫時除錯相機看過前門與凹口（已移除）
+
+### 2026-11-23（前端：學生宿舍C 右側戶廳改 4 層、整棟往東加長 1.6 m）— 分支 `fix/dorm-c-front-gate`
+- 需求：右側戶廳要 4 層，露出比例跟左側差不多；可以增加整體長度、不必完全照平面，但不要超出太多
+- `frontend/src/campus/customFacades.ts`：`DORM_C.eastShift = 1.6`；`DORM_C_PIECES` 東翼改用移動後的點（4s…11s、Q）；分界牆、手工立面邊號、陽台邊號（edge 5）更新
+- `frontend/src/campus/campusFixes.ts`：`splitDormC` 東翼頂點沿正面往東移 1.6 m；原凹口北面併入中段（4 層戶廳，約 5.9 m，左側約 5.75 m）
+- `frontend/src/buildings/dormCFacade.ts`：錨點更新；右側戶廳用中段 4 層高度
+- 檢查：東翼東牆離腳踏車棚至少約 1.7 m、C 前門圍牆仍接在東翼東南角
+- 測試：`tsc --noEmit`、`vite build` 通過；dev server 暫時除錯相機看過正面與空拍（已移除）
+
+### 2026-11-23（前端：學生宿舍C 北棟正面右側加房間、縮小戶廳與曬衣間）— 分支 `fix/dorm-c-front-gate`
+- 需求：截圖紅框（左側戶廳＋房間）複製到右邊藍框；戶廳和洗衣間縮小，房間窗戶比例不動
+- `frontend/src/campus/customFacades.ts`：`DORM_C_BALCONY.a0 = roomWidth + 1`，陽台東端讓出一間房
+- `frontend/src/buildings/dormCFacade.ts`：凸出段右端加房間列（同左側）；陽台開口端 1.3 m；戶廳窗 `HALL_WINDOW` 2.4 m 置中、兩旁實牆；東側凹口朝中庭那面改回戶廳；曬衣架縮短配合較短的陽台
+- 測試：`tsc --noEmit`、`vite build` 通過；dev server 暫時除錯相機從使用者截圖視角看過（已移除）
+
+### 2026-11-23（前端：學生宿舍C 北棟室內移除、東翼破圖修正）— 分支 `fix/dorm-c-front-gate`
+- 需求：把 C 棟的室內建模先刪除；修正截圖中 C 棟東翼的破圖
+- `frontend/src/campus/campusFixes.ts`：`splitDormC` 產生的三塊（中段、西翼、東翼）都設 `sealed`——沒有生成的室內、門畫成關著
+- 決定：只封北棟（使用者一直稱為 C 棟的這棟）；故事的寢室（起床、睡覺、衣櫃）在南邊那棟 C（296668592），保留它的室內，否則 Day 1 起床會壞
+- `frontend/src/buildings/dormCFacade.ts`：破圖原因是東翼南端牆花磚旁的柱子在平的素牆前凸出 0.5 m；`blank` 實心牆段改成與外框同深（含牆基與碰撞）
+- 測試：`tsc --noEmit`、`vite build` 通過；dev server 暫時除錯相機從使用者截圖視角看過、確認北棟沒有室內（已移除）
+
+### 2026-11-23（前端：學生宿舍C 東翼依使用者手繪平面調整立面）— 分支 `fix/dorm-c-front-gate`
+- 需求：使用者畫了東翼平面（房間、曬衣間、浴室、戶廳），紅色斜線為實心牆無窗，window 處為戶廳
+- `frontend/src/buildings/dormCFacade.ts`：新增牆格 `blank`（只有外皮）與版型 `eastEast`；東翼南端牆＝轉角曬衣間大花磚＋其餘實心；東牆＝南角浴室實心＋三間房窗；戶廳高窗改在凹口的西向牆，凹口北面與南向短牆改實心
+- 測試：`tsc --noEmit`、`vite build` 通過；dev server 暫時除錯相機看過中庭側、東側與凹口（已移除）
+
+### 2026-11-23（前端：學生宿舍C 東翼回到原本格局）— 分支 `fix/dorm-c-front-gate`
+- 需求：使用者給地圖截圖，東翼格局要長那樣（原寬、內側有凹口）
+- `frontend/src/campus/campusFixes.ts`：`splitDormC` 取消東半鏡像，東翼回到 OSM 外形（分界點 S 在北面）；西側的房間外移保留
+- `frontend/src/campus/customFacades.ts`：`DORM_C_PIECES`、分界牆、手工立面邊號回到對應的編號；陽台在中段 edge 4、從 OSM vertex 13 量起
+- `frontend/src/buildings/dormCFacade.ts`：凸出段右側不再有房間列；東側凹口北面＝一間戶廳（3 層）、凹口另兩面加樓層帶；東翼南端牆變長，素牆段依長度放數扇小窗
+- 決定：凸出段只有西側一間房（東側凹口只有約 4.2 m，放不下房間＋戶廳）
+- 測試：`tsc --noEmit`、`vite build` 通過；dev server 暫時除錯相機空拍看過（已移除）
+
+### 2026-11-23（前端：學生宿舍C 東翼依轉角照重建、西翼內側牆改素牆）— 分支 `fix/dorm-c-front-gate`
+- 需求：使用者截圖藍框（東翼）依實拍轉角照重建、紅框（中段）不動；另一張截圖斜線處（西翼面向中庭的內側牆）改成一般牆面、什麼都不放
+- `frontend/src/buildings/dormCFacade.ts`：兩翼六面牆改用版型 `Layout`（`clothLeft`、`eastSouth`、`eastWest`、`side`、`plain`）；東翼長內側面＝窗戶＋冷氣、靠轉角深框白柱開口＋窄花磚；東翼南端牆＝轉角一大格花磚（`screen`）＋每層一扇小窗（`single`）；西翼內側牆 `plain`；移除先前按比例壓縮的東翼端牆
+- 追加（使用者：側面三個太多）：東翼長內側面改成只有一間房＋一間曬衣間，兩格各佔一半（新牆格 `room`）
+- 測試：`tsc --noEmit`、`vite build` 通過；dev server 暫時除錯相機從使用者兩張截圖的視角看過（已移除）
+
+### 2026-11-23（前端：學生宿舍C 北棟右半比照左半）— 分支 `fix/dorm-c-front-gate`
+- 需求：使用者截圖分紅（左半，已完成）藍（右半）兩邊，右半要跟左半一樣
+- `frontend/src/campus/campusFixes.ts`：`splitDormC` 改寫——凸出段西端照舊外移一間房寬，東半整個用陽台中線鏡像西半（房間、轉角、戶廳、分界）；東翼內側牆往東退到鏡像戶廳的端點（平行原內側牆，接到南端牆）
+- `frontend/src/campus/customFacades.ts`：`DORM_C_PIECES` 改成命名點；`DORM_C_BALCONY_SPAN`；陽台改在中段 edge 5、從頂點 i 量起多一間房寬；分界牆、手工立面邊號更新
+- `frontend/src/buildings/dormCFacade.ts`：凸出段兩側各一列房間、兩側戶廳都是一間高窗；東翼端牆較短時四格（戶廳、兩間房、曬衣間）按比例縮小、不掛冷氣；陽台端柱改用 `DORM_C_BALCONY_SPAN[0]`（修正端柱被算成 4.4 m 的錯誤）
+- 決定：OSM 的東翼比西翼偏內，鏡像後東翼變窄（約 8.3 m 寬）；中庭東側多出的空地維持草地
+- 測試：`tsc --noEmit`、`vite build` 通過；dev server 暫時除錯相機正面與東翼看過（已移除）
+
+### 2026-11-23（前端：學生宿舍C 北棟依使用者標註調整房間配置）— 分支 `fix/dorm-c-front-gate`
+- 需求：依遊戲截圖標註，凸出段每層是一間房間＋曬衣間；退縮處是戶廳；兩翼端牆每層只有一間曬衣間、兩間房間，另一端是戶廳
+- `frontend/src/campus/customFacades.ts`：`DORM_C.roomWidth = 3.4`
+- `frontend/src/campus/campusFixes.ts`：`splitDormC` 把中段西轉角（原 vertex 14、15）沿正面往西移一間房寬
+- `frontend/src/buildings/dormCFacade.ts`：凸出段左邊加房間列；兩翼端牆改成「外側曬衣間花磚＋兩間房＋內側戶廳大窗」（西翼曬衣間在左、東翼在右）
+- 追加：凸出段西側的退縮處（藍框）只有一間戶廳：整面一格、每層一扇高窗、不掛冷氣
+- 測試：`tsc --noEmit`、`vite build` 通過；dev server 暫時除錯相機從使用者截圖視角與兩翼正面看過（已移除）
+
+### 2026-11-23（前端：學生宿舍C 北棟改成中段 4 層、兩翼 3 層，依照片重建兩翼與洗衣陽台正面）— 分支 `fix/dorm-c-front-gate`
+- 需求：使用者說中段 4 層、左右兩邊 3 層，依下方三張照片重建；中間曬衣間依上方兩張正面照再重建
+- `frontend/src/campus/campusFixes.ts`：`splitDormC` 把 OSM 296668596（原 5 層 18 m）載入時切成中段（原 id，4 層）與西翼 2966685961、東翼 2966685962（3 層）；`remapSplitTraced` 在描圖室內開啟時把殼體門洞搬到新分塊
+- `frontend/src/campus/customFacades.ts`：`DORM_C`、`DORM_C_PIECES`、`PARTY_WALLS`、`STYLE_ALIAS`；洗衣陽台改 2F–4F、整個凸出段寬（兩端各留 1 m 柱）、只挖外牆厚度 0.4 m
+- `frontend/src/campus/chunkBuilder.ts`：分界牆（只在描圖室內時拆）、分塊沿用原本的立面樣式與色調
+- `frontend/src/campus/entrances.ts`：備援入口跳過 `CUSTOM_FACADE_EDGES` 的牆，門不會被手工立面蓋住
+- 新增 `frontend/src/interiors/clipToShells.ts`（interiorWorker 用）：描圖室內超出較矮殼體的樓層剪掉、電梯落點移到最近走廊
+- `frontend/src/main.ts`：呼叫上面兩個 fix；在描圖索引中列出（即使沒有門）的建築不再補備援自動門
+- `frontend/src/buildings/dormCFacade.ts` 重寫：中段一整片格柵＋兩端開口（白水管、橫桿）、外框深 1.5 m、一樓整面玻璃門廳；兩翼六面牆（灰色牆基、深框花磚格柵列、窗戶遮陽板、冷氣）
+- 決定：目前 `FLOORPLAN_INTERIORS` 關閉，三塊各自有生成的室內與入口，分界牆保留；中段 4F 以上、兩翼 3F 以上都沒有室內
+- 測試：`tsc --noEmit`、`vite build` 通過；dev server 用暫時的除錯相機從中庭、空中與陽台內檢查（除錯碼已移除）
+
+### 2026-11-22（前端：學生宿舍C 北棟中段洗衣陽台室內）— 分支 `fix/dorm-c-front-gate`
+- 需求：依使用者四張陽台室內照，重新建模建築中間的陽台
+- 發現：立面上的紅色是赤陶鏤空圓環花磚，不是磁磚；後面是長條洗衣陽台
+- `frontend/src/campus/customFacades.ts`：新增 `DORM_C_BALCONY`、`CUSTOM_FACADE_OPENINGS`（OSM 296668596 edge 13，2F–5F 每層開洞）
+- `frontend/src/campus/chunkBuilder.ts`：`WindowCut.open`，開洞只做牆厚收邊、不放玻璃與窗框
+- `frontend/src/buildings/dormCFacade.ts`：格柵改成 alpha 鏤空貼圖（`latticePanel`）、前緣改薄矮牆；新增 `laundryRoom`（地磚、白磁磚洗手台、木門、隔牆、洗衣機、鐵窗花窗、曬衣桿、日光燈、曬衣架）；一樓雨遮梁降低避免穿出 2F 地板
+- 決定：陽台往室內深 1.3 m（描圖平面在約 1.5 m 後就是寢室），只能從外面看、走不進去；兩扇門是裝飾
+- 測試：`tsc --noEmit`、`vite build` 通過；dev server 用暫時的除錯相機進陽台內對照四張照片（除錯碼已移除）
+
+### 2026-11-22（前端：學生宿舍C 前門格柵與推開式鐵門、C 北棟中段南面重建）— 分支 `fix/dorm-c-front-gate`
+- 需求：依使用者遊戲截圖（紅框）在門樓兩側短牆補紅色格柵、鐵門改成像木門一樣推開；依實拍與小地圖紅色箭頭重建從 C 中庭往北看到的立面（被樹擋住的部分與另一半對稱）
+- `frontend/src/campus/dormYard.ts`：格柵依牆長能放幾片就放幾片（牆墩最窄 0.3 m），門樓兩側各兩片；`portal` 門改成兩扇以門框為軸往中庭內開的門（`SWING`，`SensorGate.swing`），其他宿舍門仍是橫拉
+- 新增 `frontend/src/buildings/dormCFacade.ts`：OSM 296668596（學生宿舍C 北棟，U 形）中段面向中庭的 edge 11–15；洗石子外框、窗列、紅磚凹陽台、雨遮梁與「C」、玻璃門廳、台階平台、花台盆栽、地磚紅磚帶；有碰撞
+- 新增 `frontend/src/campus/customFacades.ts`，`chunkBuilder.ts` 在列出的牆略過程序立面細節（遮陽板會穿出外皮）
+- 決定：箭頭指向的是 296668596（小地圖 +z 朝南），不是 296668592；中段門廳的門是裝飾，遊戲可進入的門依描圖資料仍在北面
+- 測試：`tsc --noEmit`、`vite build` 通過；dev server 實際走到門口與中庭看過
+
+### 2026-11-22（前端：學生宿舍C 前門依近照重建門樓與圍牆）— 分支 `fix/dorm-c-front-gate`
+- 需求：依使用者的大門近照再重新建模
+- `frontend/src/campus/dormYard.ts`（只影響 `portal` 門＝學生宿舍C 前門）：
+  - 門樓改成一整塊米白色量體（新增 `PORTAL`：寬 3.9、高 3.15、深 0.8 m，門洞 2.7 × 2.25 m），頂上灰色壓頂
+  - 門洞兩側牆面各一盞黃銅半球燈（兩面都有），門洞上方右側灰色燈箱、門邊小讀卡機，門下石材門檻
+  - 圍牆：米白色、灰色牆基與厚壓頂；從門樓往外「0.8 m 紅褐菱格花磚格柵（後面暗色帶青綠）→ 0.95 m 實牆墩」交替，格柵幾乎整片牆高
+  - 感應門：改成淡藍色門框，左半鐵板、右半直條，寬度跟門洞一致；放在牆厚中央，滑行距離每扇門各自計算（`SensorGate.travel`）
+  - 步道往外延伸穿過大門（t −7–30），這座門不再鋪共用的門口磚
+- 測試：`tsc --noEmit`、`vite build` 通過；headless Chrome 在步道上朝門口看確認
+
+### 2026-11-22（前端：學生宿舍C 前門依實拍修細節）— 分支 `fix/dorm-c-front-gate`（從 feat/login af24168 開出）
+- 需求：依使用者照片（紅色箭頭為視角，從 C 中庭往東看前門）修 C 棟門口細節
+- 先比對現況：門口由 `campus/dormYard.ts` 的 `DORM_GATES` 產生，全部宿舍門共用紅瓦門樓＋鐵色感應門；中庭全是草地
+- `frontend/src/campus/dormYard.ts`：
+  - `GateMark.portal`：只有「學生宿舍C 前門」用，其他門不變
+    - 門樓：紅瓦屋頂改成白色深門楣，柱頂兩側各一盞圓球燈（兩面都有）
+    - 圍牆：每跨嵌紅色花磚格柵，感應門改淡藍色
+  - 新增 `C_FRONT`，在中庭側鋪設：
+    - 從前門往西 6.9–30 m、寬 4 m 的灰色連鎖磚步道，每 3 m 一道紅色雙排磚帶，UV 沿步道方向
+    - 步道南側到 C 東翼（296668595）一片深紅褐色磚鋪廣場
+    - 東翼靠門的兩面牆前做入口平台（0.45 m），自由的三邊各三階，玻璃雙門＋玻璃店面（直框）
+    - 步道北側草地上一支黑色方頭路燈、一叢灌木
+  - `dormYardClearings` 加入步道與廣場範圍，避免撒樹
+- 測試：`tsc --noEmit`、`vite build` 通過；headless Chrome 從照片同一位置朝東看確認（截圖時把故事關掉，避免一開始躺在宿舍床上）
+- 備註：`fix/dorm-d-entry-terrace`（D 入口平台補到牆面）尚未合併進 feat/login
+
 ### 2026-11-20（前端：迴旋坡道往 D 側平移、與走廊欄杆相接、中間鏤空）— 分支 `feat/dorm-c-d-exterior`
 - 需求：把迴旋坡道平移到截圖紅線位置；坡道跟旁邊的圍欄（D 側走廊花磚欄杆）連在一起，中間連接處直接鏤空
 - `frontend/src/buildings/dormCourtyard.ts`：`RAMP` 全部往 D 側移 0.8 m，外牆外緣在 w −8.6（紅線）
