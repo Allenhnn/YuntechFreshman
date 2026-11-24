@@ -455,6 +455,8 @@ export function createHandBuiltBuilding(
         if (py + 0.8 >= l.base && cellOf(l.grid, x, y) !== OUTSIDE) current = i;
       });
     }
+    // Outside the footprint but up in the air (the 2F sky bridge, a raised walkway): the floor at your height.
+    if (current < 0 && py > 1.5) meshes.levels.forEach((l, i) => { if (py + 0.8 >= l.base) current = i; });
     interior.levels.forEach((l, i) => {
       l.group.visible = current < 0 ? l.base <= 0 : Math.abs(i - current) <= 1;
     });
