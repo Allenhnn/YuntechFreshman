@@ -6,14 +6,14 @@ import { boundarySegments, rasterize } from '../src/buildings/floorGrid';
 import type { BuildingSource, FloorPlan, Rect, Space, Vec2 } from '../src/buildings/buildingTypes';
 
 const levels = [['B1',-2.475],['1F',1.125],['2F',3.6],['3F',7.2]] as const;
-const bookshopWell: Rect = [-17,10,-1.5,15.6];
+const bookshopWell: Rect = [-26,10,0,15.6];
 const basementFlight: Rect = [-11,21,0,23.2];
 const source: BuildingSource = {
   id:'activity-centre', name:'學生活動中心暨表演廳', osmReplaces:['學生活動中心','表演廳'],
   transform:{angleDeg:Math.atan2(6.28,-35.17)*180/Math.PI,planCentroid:[0,0],worldCentroid:[128.18,168.83]},
   floorHeight:3.6, levels:levels.map(([id,elevation])=>({id,elevation,built:true})),
   floors:{},shell:{},directory:[],undergroundLevel:'B1',style:{clerestory:false,windows:true},
-  groundOpenings:[bookshopWell,basementFlight,[-26,9,-18,13],[50,9,58,13],[7,-8,28,1.9]],
+  groundOpenings:[bookshopWell,basementFlight,[50,9,58,13],[7,-8,28,1.9]],
 };
 for(const [index,[id,base]] of levels.entries()) {
   const height=(levels[index+1]?.[1]??10.8)-base;
@@ -70,7 +70,7 @@ for(const [index,[id,base]] of levels.entries()) {
     room('303',[30,9,36,17]);
   }
   const extras=f.extras!;
-  const box=(x:number,z:number,y:number,w:number,h:number,d:number,kind:'riser'|'stage'='riser')=>{
+  const box=(x:number,z:number,y:number,w:number,h:number,d:number,kind:'riser'|'stage'|'partition'='riser')=>{
     extras.items.push({kind,x,z,y,ry:0,sx:w,sy:h,sz:d,tint:0});
     extras.colliders.push({c:[x,y+h/2,z],h:[w/2,h/2,d/2]});
   };
@@ -97,7 +97,7 @@ for(const [index,[id,base]] of levels.entries()) {
   }
   // Open stairwells in both wings. Alternating directions stack consecutive
   // flights over the same cutout. Walkable treads use exactly their visual size.
-  for(const [left,right] of [[-26,-18],[50,58]]) {
+  for(const [left,right] of [[50,58]]) {
     space('樓梯井','void',[[left,9,right,13]],{noCeiling:true,customEdge:true,ceiling:height+.1});
     if(index<3){
       const n=Math.ceil(height/.17), step=(right-left)/n;
@@ -108,16 +108,16 @@ for(const [index,[id,base]] of levels.entries()) {
       }
     }
   }
-  if(id==='3F') for(const [a,b] of [[-24,-2],[38,57]]) space('Open gallery','void',[[a,13.5,b,16]],{noCeiling:true,ceiling:height+.1});
+  if(id==='3F') for(const [a,b] of [[38,57]]) space('Open gallery','void',[[a,13.5,b,16]],{noCeiling:true,ceiling:height+.1});
   if(id==='2F') {
     space('觀眾席上方挑空','void',[[-57,-4,-36,16]],{noCeiling:false});
-    for(const [a,b] of [[-24,-2],[38,57]]) space('翼廊挑空','void',[[a,13.5,b,16]],{noCeiling:true});
+    for(const [a,b] of [[38,57]]) space('翼廊挑空','void',[[a,13.5,b,16]],{noCeiling:true});
   }
-  for(const [a,b] of [[-26,-18],[50,58]]) {
+  for(const [a,b] of [[50,58]]) {
     space('Stair landings','corridor',[[a-1.6,8.8,a,13.2],[b,8.8,b+1.6,13.2]],{group:'hall'});
   }
   // Flight guards follow the shaft edges; its two ends stay open to both landings.
-  for(const [a,b] of [[-26,-18],[50,58]]) for(const y of [9.02,12.98]) {
+  for(const [a,b] of [[50,58]]) for(const y of [9.02,12.98]) {
     box((a+b)/2,y,.86,b-a,.08,.07);
     for(let x=a+.25;x<b;x+=2) box(x,y,0,.07,.86,.07);
   }
@@ -132,8 +132,53 @@ for(const [index,[id,base]] of levels.entries()) {
     box(-46,30.55,-base,11,base,1.3);
     box(-46,31.2,2.5,13,.32,2.8,'stage');
   }
+  const concreteBox=(x:number,z:number,y:number,w:number,h:number,d:number)=>
+    box(x,z,y,w,h,d,'partition');
+  // At the entrance the well meets the wall between the two doors. Only
+  // the far end has a cross passage, behind the paired stair flights.
+  if(id!=='B1') space('書城通高樓井','void',[bookshopWell],
+    {noCeiling:true,customEdge:true,ceiling:height+.12});
+  space('樓梯後方橫廊','corridor',[[-29,3,-26,23]],{group:'hall'});
   if(id==='1F') {
-    space('書城走道間挑空','void',[bookshopWell],{noCeiling:true});
+    concreteBox(-29.1,13,0,.2,height,20);
+    concreteBox(-.08,12.8,0,.16,height,5.6);
+    concreteBox(-1,19,0,2.1,height,.16);
+    concreteBox(-13,6.7,0,26,height,.16);
+    f.blankWalls=[{a:[0,10],b:[0,15.6]}];
+  }
+  // The rear landing is flush with the cross passage. The opposite landing
+  // has a semicircular nose and a short level connection to each side.
+  if(index%2===0) {
+    concreteBox(-17.25,12.8,-.20,1.5,.20,5.6);
+    for(let j=0;j<16;j++){
+      const z=10+(j+.5)*5.6/16;
+      const reach=1.65*Math.sqrt(1-((z-12.8)/2.8)**2);
+      concreteBox(-16.5+reach/2,z,-.20,reach,.20,5.6/16);
+      concreteBox(-16.5+reach-.05,z,0,.12,.76,5.6/16);
+      concreteBox(-16.5+reach-.05,z,.94,.065,.065,5.6/16);
+    }
+  }
+  if(index<3) {
+    const count=Math.ceil(height/.17), step=8/count;
+    const z=index%2===0?11.43:13.99;
+    for(let i=0;i<count;i++){
+      const x=index%2===0?-18-(i+.5)*step:-26+(i+.5)*step;
+      const top=(i+1)*height/count;
+      concreteBox(x,z,top-.29,step,.29,2.35);
+      concreteBox(x,z+1.14,top,.085,.85,.07);
+      concreteBox(x,z+1.14,top+.85,step,.06,.07);
+    }
+  }
+  for(const z of [10.03,15.57]){
+    // The rounded landings open onto the side galleries on B1 and 2F.
+    const spans=index%2===0?[[-26,-18],[-16.5,0]]:[[-26,0]];
+    for(const [a,b] of spans){
+      concreteBox((a+b)/2,z,0,b-a,.73,.11);
+      concreteBox((a+b)/2,z,.94,b-a,.065,.065);
+      for(let x=a+.2;x<b;x+=2.2) concreteBox(x,z,.73,.055,.22,.055);
+    }
+  }
+  if(id==='1F') {
     space('通往地下室的直梯','void',[basementFlight],{noCeiling:true,customEdge:true});
     // Fixtures sit against the bookshop wall, leaving the route beside the rail clear.
     for(const [x,width] of [[-4,2.8],[-9,2.4],[-14,2.4]]) {

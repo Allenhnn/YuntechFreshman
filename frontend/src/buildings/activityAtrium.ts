@@ -1,4 +1,4 @@
-import { BoxGeometry, CanvasTexture, Color, Group, InstancedMesh, Mesh, MeshStandardMaterial, Object3D, PlaneGeometry, RepeatWrapping, SRGBColorSpace, Vector3, type Scene } from 'three';
+import { DoubleSide, BoxGeometry, CanvasTexture, Color, Group, InstancedMesh, Mesh, MeshStandardMaterial, Object3D, PlaneGeometry, RepeatWrapping, SRGBColorSpace, Vector3, type Scene } from 'three';
 import type { ResourceTracker } from '../core/resources';
 
 /** The interior references use plan-right towards room 107 (local +X)
@@ -75,10 +75,20 @@ export function addActivityAtrium(scene: Scene, tracker: ResourceTracker) {
     block(x,1.13,z,.05,1.52,.05,0x757d77);
   for(const h of [1.26,1.77,2.28]) for(let i=0;i<6;i++)
     block(-14.96+i*.31,h,18.4,.17,.25,.23,[0xa77652,0x748b86,0xd5bc79][i%3]!);
-  for(const z of [10,15.6]) {
-    member([-17,2.15,z],[-1.5,2.15,z],.065,.065,0x898b83);
-    for(let x=-16.8;x<-1.5;x+=2.5) block(x,1.13,z,.05,1.02,.05,0x898b83);
-  }
+  // The bottom of the well is the finished B1 lobby floor.
+  const basementTile=tile.clone();basementTile.repeat.set(10,2);
+  const wellFloor=new Mesh(new PlaneGeometry(26,5.6),new MeshStandardMaterial({
+    map:basementTile,color:0xc5baa6,roughness:.9
+  }));
+  wellFloor.rotation.x=-Math.PI/2;wellFloor.position.set(-13,-2.388,12.8);
+  root.add(wellFloor);
+  // Translucent roof above the multi-storey bookshop stairwell.
+  const skylight=new Mesh(new PlaneGeometry(26,5.6),new MeshStandardMaterial({
+    color:0xb0c6ce,transparent:true,opacity:.48,roughness:.5,side:DoubleSide
+  }));
+  skylight.position.set(-13,10.85,12.8);skylight.rotation.x=-Math.PI/2;root.add(skylight);
+  for(let x=-26;x<=0;x+=2) block(x,10.68,12.8,.09,.14,5.6,0x666a69);
+  block(-13,10.70,12.8,26,.12,.08,0x666a69);
   for(const x of [-6.8,-11.3]) {
     block(x,1.13,16.15,.42,.06,.42,0x767974);
     block(x,1.19,16.15,.07,.57,.07,0x858780);

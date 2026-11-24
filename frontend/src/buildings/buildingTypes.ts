@@ -99,7 +99,7 @@ export interface FloorPlan {
    * stage): plan x / z, `y` above this floor's base. Colliders are axis-aligned boxes (centre, half size).
    */
   extras?: {
-    items: { kind: 'chair' | 'stage' | 'riser'; x: number; y: number; z: number; ry: number; sx: number; sy: number; sz: number; tint: number }[];
+    items: { kind: 'chair' | 'stage' | 'riser' | 'partition'; x: number; y: number; z: number; ry: number; sx: number; sy: number; sz: number; tint: number }[];
     colliders: { c: [number, number, number]; h: [number, number, number] }[];
   };
 }
