@@ -164,6 +164,9 @@ docker compose down             # 停止（加 -v 會連資料一起刪除）
 | `.env.example` 沒被 commit | 根目錄 `.gitignore` 有 `.env*`；需要時用 `git add -f backend/.env.example` |
 
 ## 變更紀錄
+### 2026-11-24（前端：學生宿舍C C1 北側照側面照重做）— 分支 `feat/dorm-c-yard-walls`
+- 需求：C1 另一邊的側面照片（朝 C3／前門那面），不要動到正面
+- `frontend/src/buildings/dormCFacade.ts` `C1.sideN`（edge 5）：從東端起樓梯間每層一扇窄高窗（`stairW`）、壁柱分格每層一排深框窗＋冷氣（到 `rowsEnd`）、靠塔那段每層一條深的內凹橫窗帶；一樓上下兩排窗；牆基 1.8 m（`tallPlinthEdges` 加 5）。正面（edge 2、3、4）不變
 ### 2026-11-24（前端：學生宿舍C C1–C2 之間改成打不開的門樓、C2 東側素面）— 分支 `feat/dorm-c-yard-walls`
 - 需求：C1 與 C2 中間圍牆的照片——同款門樓＋花磚牆，門打不開；C2 靠近 C1 的側面是純牆面
 - `frontend/src/campus/dormYard.ts`：`CLOSED_GAPS` 拿掉 C2–C1 那道素面牆，改成 `DORM_GATES` 的「學生宿舍C C1–C2 側門」（`portal`＋新的 `locked`）：奶油色門樓、黃銅圓燈、花磚牆，開口裡固定一扇白色方格鐵門、碰撞體一直擋著，沒有感應開門

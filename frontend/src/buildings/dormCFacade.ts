@@ -117,7 +117,12 @@ const C1 = {
    * 內凹直條，每層一扇深框窗、一樓上下兩排窗；後面每層一排深框窗（部分冷氣）、一樓上下兩排窗。edge 0（凸出那塊的側面）
    * 是一般牆面（使用者紅框）。edge 1、2 牆基較高（`tallPlinth`）。
    */
-  side: 1, split: 2.6, tallPlinth: 1.8, tallPlinthEdges: [1, 2] as readonly number[],
+  side: 1, split: 2.6, tallPlinth: 1.8, tallPlinthEdges: [1, 2, 5] as readonly number[],
+  /**
+   * 另一側的側面照（使用者 2026-11-24，edge 5，朝 C3／前門那面）：從東端（x = 0）起——樓梯間（每層一扇窄高窗）、
+   * 壁柱分格每層一排窗＋冷氣、靠塔那段每層一條深的內凹橫窗帶；一樓上下兩排窗、高牆基。正面不動。
+   */
+  sideN: 5, stairW: 2.4, rowsEnd: 6.4,
   /** Balcony tower on the bay edge: back width, front width, depth out from the wall. */
   bay: { back: 5.4, front: 4.0, depth: 1.6 },
   plinth: 1.3, window: { w: 1.6, y0: 1.0, y1: 2.3, every: 3.4 },
@@ -948,6 +953,24 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
             if (seeded() < 0.6) acUnit(b, x0 + 0.5 + seeded() * (x1 - x0 - 1.0), fy + 0.95);
           }
         }
+      } else if (i === C1.sideN) {
+        // Seen from outside the east end is on the left (x = 0), the corner by the tower on the right (x = L).
+        const s1 = C1.stairW, s2 = Math.min(L - 3.5, C1.rowsEnd);
+        for (const fy of [0, ...floors]) framed(s1 / 2 - 0.35, s1 / 2 + 0.35, fy + (fy === 0 ? PL + 0.4 : 1.5), fy + 3.1, 0.3);
+        b.put(span(s1 - 0.3, s1, PL, H - 0.2, 0.02, 0.45), concrete, 2); // the stair column's edge
+        const k = Math.max(1, Math.round((s2 - s1) / 2.0)), st = (s2 - s1) / k;
+        for (let q = 0; q < k; q++) {
+          const x0 = s1 + q * st + 0.25, x1 = s1 + (q + 1) * st - 0.25;
+          twoBands(x0, x1);
+          for (const fy of floors) {
+            framed(x0, x1, fy + 1.0, fy + 2.2);
+            if (seeded() < 0.7) acUnit(b, (x0 + x1) / 2, fy + 0.95);
+          }
+          if (q > 0) b.put(span(x0 - 0.38, x0 - 0.12, PL, H - 0.2, 0.02, 0.4), concrete, 2); // pilaster between bays
+        }
+        b.put(span(s2 - 0.05, s2 + 0.25, PL, H - 0.2, 0.02, 0.45), concrete, 2);
+        twoBands(s2 + 0.45, L - 0.4);
+        for (const fy of floors) framed(s2 + 0.45, L - 0.4, fy + 1.2, fy + 2.2, 0.7); // deep recessed band per floor
       } else if (!C1.blank.includes(i)) {
         // A row of windows per floor, each in a deep concrete frame (hood, cheeks, sill).
         const { w, y0: wy0, y1: wy1, every } = C1.window;
