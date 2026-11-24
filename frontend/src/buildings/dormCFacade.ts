@@ -303,8 +303,8 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
     b.put(span(x0, x1, y0, y0 + 0.03, z - 0.05, z + 0.05), concrete, 2);
   };
   /** A window on the wall plane: frame, glass and a middle mullion. */
-  const windowAt = (b: ReturnType<typeof build>, x0: number, x1: number, y0: number, y1: number): void => {
-    b.put(span(x0, x1, y0, y1, 0.06, 0.1), glass);
+  const windowAt = (b: ReturnType<typeof build>, x0: number, x1: number, y0: number, y1: number, pane: Material = glass): void => {
+    b.put(span(x0, x1, y0, y1, 0.06, 0.1), pane);
     for (const x of [x0, (x0 + x1) / 2 - 0.025, x1 - 0.05]) b.put(span(x, x + 0.05, y0, y1, 0.06, 0.13), frameGrey);
     for (const y of [y0, y1 - 0.05, y0 + (y1 - y0) * 0.62]) b.put(span(x0, x1, y, y + 0.05, 0.06, 0.13), frameGrey);
   };
@@ -561,7 +561,11 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
     const f = edgeFrame(campus, e);
     if (!f) continue;
     const L = f.len, Dw = FLANK.depth, b = build(f);
-    skin(b, f, H, []);
+    // East hall, 2F: the dorm flat's living room is behind it — the wall skin is cut and the glass is clear, so it looks
+    // out (使用者：戶廳的窗戶可以看到外面; the shell wall is opened by DORM_C_HALL_2F).
+    const see = e === EDGES.eastFlank, hm = (FLANK.pier + L) / 2, hh = Math.min(HALL_WINDOW, L - FLANK.pier) / 2;
+    const seeFy = floors[0]!;
+    skin(b, f, H, see ? [[hm - hh, hm + hh, seeFy + 0.6, seeFy + 2.8]] : []);
     const nBay = hall ? 1 : Math.max(1, Math.round((L - FLANK.pier) / FLANK.bay));
     const step = (L - FLANK.pier) / nBay;
     for (let k = 0; k <= nBay; k++) {
@@ -578,7 +582,7 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
         b.put(span(a - 0.1, c + 0.1, w1, w1 + 0.1, Dw, FLANK.shade), concrete, 2); // sunshade
         // The hall's window (使用者：縮小): at most HALL_WINDOW wide, solid wall either side at the frame face.
         const half = hall ? Math.min(HALL_WINDOW, c - a) / 2 : (c - a) / 2, m = (a + c) / 2;
-        windowAt(b, m - half, m + half, w0, w1);
+        windowAt(b, m - half, m + half, w0, w1, see && fy === seeFy ? clearGlass : glass);
         if (m - half > a + 0.01) for (const [p, q] of [[a, m - half], [m + half, c]] as const) b.put(span(p, q, w0, w1, 0.02, Dw), concrete, 2);
         if (!hall && seeded() < 0.5) acUnit(b, a + 0.6 + seeded() * (c - a - 1.2), fy + 0.92);
       }

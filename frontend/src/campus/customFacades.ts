@@ -84,9 +84,15 @@ export const DORM_C_LOBBY = { edge: DORM_C_BALCONY.edge, a0: DORM_C_BALCONY.a0, 
 
 /** Wall openings with nothing in them (no glass, no frames): the hand-built module fills them. */
 export interface FacadeOpening { edge: number; a0: number; a1: number; y0: number; y1: number }
+/**
+ * 2F hall window on the middle's east flank (edge 3, 11s → vertex 4): the dorm flat's living room is behind it and looks
+ * out through it (使用者：戶廳的窗戶可以看到外面). a0/a1 from vertex 11s; the facade module draws it in clear glass.
+ */
+export const DORM_C_HALL_2F = { edge: 3, a0: 1.42, a1: 3.87, y0: 4.2, y1: 6.4 } as const;
 export const CUSTOM_FACADE_OPENINGS: Readonly<Record<number, readonly FacadeOpening[]>> = {
   [DORM_C_BALCONY.building]: [
     ...DORM_C_BALCONY.floors.map((y) => ({ edge: DORM_C_BALCONY.edge, a0: DORM_C_BALCONY.a0, a1: DORM_C_BALCONY.a1, y0: y, y1: y + DORM_C_BALCONY.height })),
     { edge: DORM_C_LOBBY.edge, a0: DORM_C_LOBBY.a0, a1: DORM_C_LOBBY.a1, y0: 0, y1: DORM_C_LOBBY.top },
+    DORM_C_HALL_2F,
   ],
 };

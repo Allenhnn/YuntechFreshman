@@ -60,7 +60,7 @@ import { createMgmtFeatures } from './buildings/mgmtFeatures';
 import { createYuntayExterior, yuntayTreeFree } from './buildings/yuntayExterior';
 import { createDormFeatures, dormTreeFree } from './buildings/dormFeatures';
 import { createDormCFacade, dormCFacadeTreeFree, dormCLobbyDoor } from './buildings/dormCFacade';
-import { DORM_C_ROOMS_FLOOR, DORM_C_UNIT_FLOOR, dormCUnit } from './buildings/dormCUnit';
+import { DORM_C_LOFT_TOP, DORM_C_ROOMS_FLOOR, DORM_C_UNIT_FLOOR, dormCRoomBeds, dormCUnit } from './buildings/dormCUnit';
 import { createDormCUnitDecor } from './buildings/dormCUnitDecor';
 import { courtPit, createMgmtCourtyard } from './buildings/mgmtCourtyard';
 import { createDormCourtyard, dormCourtPit } from './buildings/dormCourtyard';
@@ -237,10 +237,10 @@ async function boot(): Promise<void> {
   const library = createHandBuiltBuilding(librarySrc, scene, physics, renderer, env.materials, sceneResources, {
     facadeStyle: facadeStyleOf(facades, campus, librarySrc.osmReplaces[0] ?? librarySrc.name),
   });
-  // Respawn point: one chosen on the map (saved per browser), else the campus default (dorm C entrance).
+  // Respawn point: one chosen on the map (saved per browser), else the game's start (the dorm room, below).
   const spawnPoint = (): { x: number; y: number; z: number; facing: number } => {
     const custom = gameStore.getState().customSpawn;
-    return custom ? { ...custom, y: 0 } : { x: campus.spawn.x, y: 0, z: campus.spawn.z, facing: campus.spawn.facing };
+    return custom ? { ...custom, y: 0 } : startPoint();
   };
   // Every other campus building: generated interiors streamed in near the player.
   const interiors = createInteriorManager(scene, physics, renderer, env.materials, campus, facades, sceneResources, traced);
@@ -275,6 +275,11 @@ async function boot(): Promise<void> {
     facadeStyle: facadeStyleOf(facades, campus, '學生宿舍C'),
   }) : null;
   if (roomsBuilding) handBuilt.push(roomsBuilding);
+  // The bedrooms' loft beds (modelled in the decor, not generated furniture): seats for lying down and the story's wake-up.
+  const dormBeds: Seat[] = unit && unitBuilding ? dormCRoomBeds().map((b) => {
+    const [x, z] = unitBuilding.planToWorld(b.at[0], b.at[1]);
+    return { kind: 'bed', x, y: DORM_C_ROOMS_FLOOR + DORM_C_LOFT_TOP, z, base: DORM_C_ROOMS_FLOOR, yaw: unitBuilding.planFacing(b.head), building: unit.rooms.name, room: `寢室 ${b.room + 1}` };
+  }) : [];
   const unitDecor = unit && unitBuilding ? createDormCUnitDecor(scene, physics, sceneResources, unit) : null;
   // 2F sky bridge 管理二館 → 管理一館: from the door at the north end of MB's east wing to MA's west corridor end.
   const byId = (id: string): HandBuiltBuilding | undefined => handBuilt.find((b) => b.source.id === id);
@@ -322,8 +327,16 @@ async function boot(): Promise<void> {
   const autoDoors = createAutoDoors(scene, physics, sceneResources, doorSpecs);
   const buildings = (): readonly HandBuiltBuilding[] => [library, ...handBuilt, ...interiors.active];
   const buildingById = (id: string): HandBuiltBuilding | undefined => buildings().find((b) => b.source.id === id);
-  // A new game always starts at the dorm C courtyard; a custom point only applies to respawning.
-  const spawn = { x: campus.spawn.x, y: 0, z: campus.spawn.z, facing: campus.spawn.facing };
+  // A new game starts in 學生宿舍C 寢室 4 (使用者：最右邊那間寢室設為遊戲出生點), just inside its door facing the window;
+  // the dorm C courtyard if the flat isn't there. A custom point only applies to respawning.
+  const startPoint = (): { x: number; y: number; z: number; facing: number } => {
+    const d = unit && unitBuilding ? unit.roomDoors.find((r) => r.name === '寢室 4') : undefined;
+    if (!d || !unitBuilding) return { x: campus.spawn.x, y: 0, z: campus.spawn.z, facing: campus.spawn.facing };
+    const [x, z] = unitBuilding.planToWorld(d.inside[0], d.inside[1] - 1.7);
+    return { x, y: DORM_C_ROOMS_FLOOR, z, facing: unitBuilding.planFacing([0, -1]) };
+  };
+  const spawn = startPoint();
+  for (const b of handBuilt) b.update(spawn.x, spawn.y, spawn.z); // the room's walls and floor before the player lands
   await env.loadAround(spawn.x, spawn.z, (f) => actions.setLoadProgress(0.25 + f * 0.25));
   physics.step(); // build the query pipeline before the first shape/ray casts
   actions.setLoadProgress(0.5);
@@ -466,6 +479,7 @@ async function boot(): Promise<void> {
     return focus;
   };
   const teleport = (x: number, y: number, z: number, facing?: number): void => {
+    for (const b of handBuilt) b.update(x, y, z); // load a hand-built interior at the destination first (e.g. the dorm room)
     bodies[eid]?.setTranslation({ x, y: y + CAPSULE_CENTER_OFFSET, z }, true);
     Transform.x[eid] = Transform.prevX[eid] = x;
     Transform.y[eid] = Transform.prevY[eid] = y;
@@ -482,8 +496,8 @@ async function boot(): Promise<void> {
   const nearestSeat = (): Seat | null => {
     const px = Transform.x[eid]!, py = Transform.y[eid]!, pz = Transform.z[eid]!;
     let best: Seat | null = null, bestD = Infinity;
-    for (const b of buildings()) {
-      for (const st of b.seats) {
+    for (const st of [...buildings().flatMap((b) => b.seats), ...dormBeds]) {
+      {
         if (Math.abs(st.base - py) > 0.7) continue;
         const d = Math.hypot(st.x - px, st.z - pz);
         if (d < (st.kind === 'bed' ? 1.5 : 0.95) && d < bestD) { best = st; bestD = d; }
@@ -526,6 +540,19 @@ async function boot(): Promise<void> {
   const putInBed = (place: string): boolean => {
     const px = Transform.x[eid]!, pz = Transform.z[eid]!;
     let best: Seat | null = null, bestD = Infinity;
+    // A bed right here (the game starts in the dorm room, 使用者：寢室 4 是出生點): wake up in the nearest one.
+    for (const st of dormBeds) {
+      if (!st.building.startsWith(place)) continue;
+      const d = Math.hypot(st.x - px, st.z - pz);
+      if (d < 15 && d < bestD) { bestD = d; best = st; }
+    }
+    if (best) {
+      if (seat) standUp();
+      bikes.dismount();
+      sitOn(best);
+      rig.snap(readFocus(), best.yaw + Math.PI);
+      return true;
+    }
     for (const b of buildings()) {
       if (!b.source.name.startsWith(place)) continue;
       for (const st of b.seats) {

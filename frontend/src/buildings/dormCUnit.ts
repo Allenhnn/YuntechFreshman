@@ -51,6 +51,8 @@ export const DORM_C_UNIT_PLAN = {
   living: [16.55, 3.6, 22.3, 11.2], // the recessed hall bay, 7.6 m in from its window (使用者：戶廳太寬，縮小一點)
 } satisfies Record<string, Rect>;
 const R = DORM_C_UNIT_PLAN;
+/** The living room's window onto the courtyard (plan x range in its front wall), behind the facade's 2F hall window. */
+export const DORM_C_LIVING_WINDOW = [18.6, 21.0] as const;
 /** The work room's window into the laundry: plan x range in their shared wall. */
 export const DORM_C_WORK_WINDOW = [8.0, 9.2] as const;
 /** Floor level of the bedrooms and the bathroom (m): below ground, out of sight, above the fall-out-of-world net at −40. */
@@ -59,6 +61,18 @@ export const DORM_C_ROOMS_FLOOR = -20;
 export const DORM_C_ROOMS: readonly Rect[] = [0, 1, 2, 3].map((k) => [k * 4.2, 20, (k + 1) * 4.2, 28] as Rect);
 /** The bathroom, beside them: its curtained doorway in the middle of the south wall. */
 export const DORM_C_BATH: Rect = [17.6, 23.0, 21.2, 28.0]; // edges on the 0.1 m grid (the wall generator snaps to it)
+/**
+ * The loft beds in the bedrooms (plan centre, head-end direction), as dormCUnitDecor.ts lays them out: per side one bed on the
+ * window-end loft (head to the window) and one on the door-end loft (head to the door), the mattress 0.525 m off the wall;
+ * `DORM_C_LOFT_TOP` the mattress top above the floor. For lying down (E) and the story's wake-up in bed.
+ */
+export const DORM_C_LOFT_TOP = 0.08 + 1.98;
+export function dormCRoomBeds(): { room: number; at: [number, number]; head: [number, number] }[] {
+  return DORM_C_ROOMS.flatMap((q, room) => [0.625, q[2] - q[0] - 0.625].flatMap((u) => [
+    { room, at: [q[0] + u, q[1] + 1.18] as [number, number], head: [0, -1] as [number, number] },
+    { room, at: [q[0] + u, q[1] + 6.82] as [number, number], head: [0, 1] as [number, number] },
+  ]));
+}
 /** A room's door: this far along its door wall from the room's west side. */
 export const DORM_C_ROOM_DOOR = [1.6, 2.6] as const;
 const doorMid = (DORM_C_ROOM_DOOR[0] + DORM_C_ROOM_DOOR[1]) / 2;
@@ -135,6 +149,9 @@ export function dormCUnit(campus: CampusData): DormCUnit | null {
     // The corridor carries on into the living room; the flat's own front door, shut, in the living room's east wall.
     door(R.living[0], R.living[1], R.living[0], R.corridor[3], 'open'),
     door(R.living[2], 6.2, R.living[2], 7.2, 'closed'),
+    // The hall window (使用者：戶廳的窗戶可以看到外面): a gap in the front wall in line with the facade's 2F hall window
+    // (DORM_C_HALL_2F, the shell wall is opened there too); the decor builds the sill, head and frame round it.
+    door(DORM_C_LIVING_WINDOW[0], R.living[3], DORM_C_LIVING_WINDOW[1], R.living[3], 'open'),
   ];
   const roomSpaces: Space[] = [...DORM_C_ROOMS.map((q, k) => space(`room${k + 1}`, `寢室 ${k + 1}`, 'room', [q])), space('bath', '浴室', 'toilet', [DORM_C_BATH])];
   const rooms: BuildingSource = {

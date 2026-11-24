@@ -164,6 +164,20 @@ docker compose down             # 停止（加 -v 會連資料一起刪除）
 | `.env.example` 沒被 commit | 根目錄 `.gitignore` 有 `.env*`；需要時用 `git add -f backend/.env.example` |
 
 ## 變更紀錄
+### 2026-11-24（前端：遊戲出生點改在學生宿舍C 寢室 4）— 分支 `fix/dorm-c-front-gate`
+- 需求（附截圖）：最右邊那間寢室（寢室 4）設為遊戲出生點
+- `frontend/src/main.ts`：`startPoint()`——寢室 4 門內 1.7 m、面向窗（地底寢室那棟）；新遊戲、「回到起點」、沒設自訂重生點時的重生都用它（沒有寢室資料時退回 C 棟中庭）；`teleport` 先對所有手工建築呼叫 `update`，讓目的地的室內（寢室在 90 m 外會卸載）先載入再落地；開場也先載入出生點附近的室內
+- 再修（使用者：開新遊戲還是從原本的地方開始）：新遊戲的劇情一開始會把人放到「學生宿舍C」的床上，原本只找得到南棟（舊故事寢室）的生成家具床，而且偏好下鋪——`dormCUnit.ts` 新增 `dormCRoomBeds`／`DORM_C_LOFT_TOP`（四間寢室各四張上鋪的位置與床頭方向），`main.ts` 把它們做成床位（`dormBeds`）：靠近時可按 E 躺上去，`putInBed` 先找 15 m 內的寢室床，所以新遊戲直接在寢室 4 的床上醒來
+- 測試：`tsc --noEmit`、`vite build` 通過；從 200 m 外用「回到起點」傳回寢室 4，站在地板上（y −20）、面向窗；清除進度開新遊戲，躺在寢室 4 靠門那座上鋪（y −17.94）
+
+### 2026-11-24（前端：學生宿舍C 交誼廳窗戶看得到外面）— 分支 `fix/dorm-c-front-gate`
+- 需求：戶廳（交誼廳）的窗戶要看得到外面
+- `frontend/src/campus/customFacades.ts`：`DORM_C_HALL_2F`——中段東側退縮戶廳那面（edge 3）2 樓窗的位置把外殼牆挖開
+- `frontend/src/buildings/dormCFacade.ts`：東側戶廳 2 樓那扇窗的外皮挖洞、玻璃改透明（`windowAt` 多一個玻璃材質參數）；其他樓層照舊暗玻璃
+- `frontend/src/buildings/dormCUnit.ts`：`DORM_C_LIVING_WINDOW` x 18.6–21.0，交誼廳前牆在那段開口
+- `frontend/src/buildings/dormCUnitDecor.ts`：交誼廳原本兩排貼圖窗拿掉，改成真的窗：開口上下補牆與碰撞、室內側深色窗框（四格直框＋一道橫框，看起來像照片的上下兩排）
+- 測試：`tsc --noEmit`、`vite build` 通過；從交誼廳看得到中庭與對面大樓，從外面看得到交誼廳裡面（暫時除錯碼已移除）
+
 ### 2026-11-24（前端：學生宿舍C 交誼廳照照片重新布置）— 分支 `fix/dorm-c-front-gate`
 - 需求（附交誼廳照片）：移除戶廳所有家具，改成照片的樣子
 - `frontend/src/buildings/dormCUnitDecor.ts` 交誼廳：拿掉電視、茶几、布沙發、餐桌凳子、公告欄、鞋櫃、飲水機；改成照片——窗牆上下兩排深框窗、一套厚實松木沙發（三人座背靠窗、西側兩人座、東側單人座，扶手粗木塊、背板有直條）圍著木座玻璃面茶几，窗角一張邊桌放電話、旁邊白色暖氣機，天花吊扇＋日光燈，東牆一張牛皮紙、開關面板；地板改米色磨石子

@@ -6,7 +6,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RAPIER } from '../physics/physics';
 import type { ResourceTracker } from '../core/resources';
 import { createPlanTransform } from './planTransform';
-import { DORM_C_BATH, DORM_C_BATH_CURTAIN, DORM_C_WORK_WINDOW, DORM_C_ROOM_DOOR, DORM_C_ROOMS, DORM_C_ROOMS_FLOOR, DORM_C_UNIT_FLOOR, DORM_C_UNIT_PLAN as R, type DormCUnit } from './dormCUnit';
+import { DORM_C_BATH, DORM_C_BATH_CURTAIN, DORM_C_LIVING_WINDOW, DORM_C_WORK_WINDOW, DORM_C_ROOM_DOOR, DORM_C_ROOMS, DORM_C_ROOMS_FLOOR, DORM_C_UNIT_FLOOR, DORM_C_UNIT_PLAN as R, type DormCUnit } from './dormCUnit';
 import { DORM_C_BALCONY } from '../campus/customFacades';
 
 /**
@@ -733,11 +733,18 @@ export function createDormCUnitDecor(scene: Scene, physics: RAPIER.World, tracke
   // a side table with a telephone, a white heater, a ceiling fan beside the light, a brown paper sheet and a switch plate.
   {
     const f = PLAN, [x0, y0, x1, y1] = R.living;
-    const X0 = x0 + WALL, X1 = x1 - WALL, Y0 = y0 + WALL, Y1 = y1 - WALL;
+    const X1 = x1 - WALL, Y0 = y0 + WALL, Y1 = y1 - WALL;
     floor(f, terrazzo, [x0, Y0, X1, Y1], 1.2);
     ceiling(f, ceilingPaint, [x0, Y0, X1, Y1]);
-    windowV(f, Y1, -1, X0 + 0.3, X1 - 0.9, 0.95, 1.9, { mullions: 3 });
-    windowV(f, Y1, -1, X0 + 0.3, X1 - 0.9, 2.15, 2.75, { mullions: 3 });
+    // The real window onto the courtyard (the facade's 2F hall window, clear glass): wall below and above it built here,
+    // a dark frame with mullions and a transom on this side, so it reads as the photo's upper and lower bands.
+    const [lw0, lw1] = DORM_C_LIVING_WINDOW, ws0 = 0.6 - LIFT, ws1 = 2.8 - LIFT, wy0 = Y1, wy1 = y1 + 0.16;
+    box(f, plaster, lw0, lw1, 0, ws0, wy0, wy1);
+    box(f, plaster, lw0, lw1, ws1, CEIL, wy0, wy1);
+    solid(f, lw0, lw1, 0, CEIL, wy0, wy1);
+    for (const [p, q] of [[lw0, lw0 + 0.06], [lw1 - 0.06, lw1]] as const) box(f, frameBrown, p, q, ws0, ws1, wy0, wy0 + 0.05);
+    for (let k = 1; k < 4; k++) { const x = lw0 + ((lw1 - lw0) * k) / 4; box(f, frameBrown, x - 0.025, x + 0.025, ws0, ws1, wy0, wy0 + 0.05); }
+    for (const h of [ws0, 1.75, ws1 - 0.06]) box(f, frameBrown, lw0, lw1, h, h + 0.06, wy0, wy0 + 0.05);
     ceilingPanel(f, 18.2, 7.0, 0.6, 1.2);
     // Ceiling fan: down-rod, hub, four blades.
     const fx = 20.0, fz = 8.2, fh = CEIL - 0.45;
