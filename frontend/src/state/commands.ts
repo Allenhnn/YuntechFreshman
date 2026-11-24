@@ -5,6 +5,8 @@
  */
 export type GameCommand =
   | { type: 'respawn' }
+  /** Back to the last checkpoint (pause menu: out of a spot you are stuck in). */
+  | { type: 'checkpoint' }
   /** Back to the new-game start point (quitting to the main menu). */
   | { type: 'toStart' }
   /** Resume the progress stored in this browser. */

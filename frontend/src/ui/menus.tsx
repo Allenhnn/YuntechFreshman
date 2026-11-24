@@ -175,6 +175,7 @@ export function MenuScreen({ paused }: { paused: boolean }): ReactNode {
         <h1 className="title">已暫停</h1>
         <div className="menu-buttons">
           <button className="btn primary" onClick={api.resume}>繼續遊戲</button>
+          <button className="btn" onClick={() => { dispatch({ type: 'checkpoint' }); api.resume(); }} title="卡住了？回到最近一次劇情進度或傳送的位置">回到上一個紀錄點</button>
           <button className="btn" onClick={() => open('controls')}>操作介紹</button>
           <button className="btn" onClick={() => open('settings')}>設定</button>
           <button className="btn" onClick={api.quitToMenu}>回主選單</button>

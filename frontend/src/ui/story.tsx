@@ -1,8 +1,9 @@
+import { WARDROBE_YAW_LIMIT, wardrobeView } from '../character/wardrobePreview';
 import { randomName, studentId, usePlayerName } from '../state/playerName';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { actions, useGame } from '../state/store';
 import { storyActions, useStory, type StoryProgress } from '../state/story';
-import { COURSE, LECTURE, TUTORIAL, ACHIEVEMENTS, CLUBS, DAYS, MIXER, MIXER_GOAL, MIXER_START, QUIZ, SIDE_QUESTS, PHOTO_SPOTS, TOUR_STOPS, type Step, type VnLine } from '../story/storyData';
+import { COURSE, LECTURE, TUTORIAL, ACHIEVEMENTS, CLUBS, DAYS, MIXER, MIXER_GOAL, MIXER_START, QUIZ, SIDE_QUESTS, PHOTO_SPOTS, TOUR_STOPS, MY_ROOM, type Step, type VnLine } from '../story/storyData';
 import { OUTFIT_ITEMS, OUTFIT_PARTS } from '../character/outfit';
 import { storyEvents } from '../story/storyRuntime';
 import { dispatch } from '../state/commands';
@@ -47,8 +48,8 @@ function howTo(step: Step): string {
     case 'tutorial': return '照著畫面下方的提示操作';
     case 'getUp': return '按 E 或任一移動鍵下床';
     case 'phoneRollcall': return '按 P 打開手機 →「聊天室」問小芳點名碼 →「點名系統」輸入';
-    case 'outfit': return `在${step.place}按 E 打開衣櫃，至少穿上 3 件再出門`;
-    case 'sleep': return `回到${step.place}，按 E 睡覺`;
+    case 'outfit': return `進宿舍到${MY_ROOM.number}（${MY_ROOM.label}），在衣櫃前按 E，至少穿上 3 件再出門`;
+    case 'sleep': return `進宿舍到${MY_ROOM.number}（${MY_ROOM.label}），爬上自己的床躺下就會睡著`;
     case 'run': return '跟著箭頭依序穿過拱門；Shift 衝刺會消耗體力';
     case 'quiz': return `走進${step.place}，按 E 入座考試`;
     case 'enter': return `走到${step.place}`;
@@ -778,12 +779,25 @@ function StayAwake(): ReactNode {
 }
 
 /** 衣櫃: six parts, each worn or taken off on its own; the character on screen is the preview. */
+/**
+ * 衣櫃: the character on the left (a preview drawn by the game into `.wd-preview`, drag or the
+ * arrows to turn it half a turn either way), the parts and clothes on the right. In the story's
+ * outfit step you need three things on to go; otherwise the wardrobe just closes.
+ */
 function Wardrobe(): ReactNode {
   const api = useApi();
   const saved = useStory((s) => s.progress.outfit);
+  const outfitStep = useStory((s) => DAYS[s.progress.day - 1]?.steps[s.progress.step]?.cond.t === 'outfit');
   const outfit = saved ?? {};
   const [part, setPart] = useState<(typeof OUTFIT_PARTS)[number]['id']>('hat');
+  const [yaw, setYaw] = useState(0);
+  const drag = useRef<{ x: number; yaw: number } | null>(null);
   const worn = OUTFIT_PARTS.filter((p) => outfit[p.id]).length;
+  const turn = (v: number): void => {
+    const y = Math.max(-WARDROBE_YAW_LIMIT, Math.min(WARDROBE_YAW_LIMIT, v));
+    wardrobeView.yaw = y;
+    setYaw(y);
+  };
   const wear = (id: string | null): void => {
     api.click();
     storyActions.update((p) => {
@@ -792,27 +806,44 @@ function Wardrobe(): ReactNode {
       return { ...p, outfit: o };
     });
   };
+  const deg = Math.round((yaw * 180) / Math.PI);
   return (
-    <div className="wardrobe">
-      <h2><Icon name="shirt" /> 衣櫃</h2>
-      <div className="wd-parts">
-        {OUTFIT_PARTS.map((p) => (
-          <button key={p.id} className={`${p.id === part ? 'on' : ''}${outfit[p.id] ? ' worn' : ''}`} onClick={() => { api.click(); setPart(p.id); }}>
-            <i><Rich t={p.icon} /></i>{p.label}
-          </button>
-        ))}
+    <>
+      <div
+        className="wd-preview"
+        onPointerDown={(e) => { drag.current = { x: e.clientX, yaw }; (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); }}
+        onPointerMove={(e) => { if (drag.current) turn(drag.current.yaw + (e.clientX - drag.current.x) * 0.012); }}
+        onPointerUp={() => { drag.current = null; }}
+      >
+        <div className="wd-preview-bar">
+          <button onClick={() => { api.click(); turn(yaw - Math.PI / 4); }} aria-label="向左轉"><svg viewBox="0 0 10 10" width="12" height="12"><path d="M7 1 2 5l5 4z" fill="currentColor" /></svg></button>
+          <span>{deg === 0 ? '正面' : `${deg > 0 ? '右' : '左'}轉 ${Math.abs(deg)}°`}・拖曳旋轉</span>
+          <button onClick={() => { api.click(); turn(yaw + Math.PI / 4); }} aria-label="向右轉"><svg viewBox="0 0 10 10" width="12" height="12"><path d="M3 1l5 4-5 4z" fill="currentColor" /></svg></button>
+        </div>
       </div>
-      <div className="wd-items">
-        <button className={`wd-item${!outfit[part] ? ' on' : ''}`} onClick={() => wear(null)}><span className="sw none"><Icon name="close" size={14} /></span>脫下</button>
-        {OUTFIT_ITEMS.filter((it) => it.part === part).map((it) => (
-          <button key={it.id} className={`wd-item${outfit[part] === it.id ? ' on' : ''}`} onClick={() => wear(it.id)}>
-            <span className="sw" style={{ background: `#${it.color.toString(16).padStart(6, '0')}` }} />{it.name}
-          </button>
-        ))}
+      <div className="wardrobe">
+        <h2><Icon name="shirt" /> 衣櫃</h2>
+        <div className="wd-parts">
+          {OUTFIT_PARTS.map((p) => (
+            <button key={p.id} className={`${p.id === part ? 'on' : ''}${outfit[p.id] ? ' worn' : ''}`} onClick={() => { api.click(); setPart(p.id); }}>
+              <i><Rich t={p.icon} /></i>{p.label}
+            </button>
+          ))}
+        </div>
+        <div className="wd-items">
+          <button className={`wd-item${!outfit[part] ? ' on' : ''}`} onClick={() => wear(null)}><span className="sw none"><Icon name="close" size={14} /></span>脫下</button>
+          {OUTFIT_ITEMS.filter((it) => it.part === part).map((it) => (
+            <button key={it.id} className={`wd-item${outfit[part] === it.id ? ' on' : ''}`} onClick={() => wear(it.id)}>
+              <span className="sw" style={{ background: `#${it.color.toString(16).padStart(6, '0')}` }} />{it.name}{it.trend && <em className="wd-trend">潮</em>}
+            </button>
+          ))}
+        </div>
+        <p className="wd-note">已穿 {worn}/6 件{outfitStep ? (worn < 3 ? '・至少穿 3 件才夠帥' : '・帥！') : ''}</p>
+        {outfitStep
+          ? <button className="btn primary" disabled={worn < 3} onClick={() => storyEvents.finishScene({ kind: 'wardrobe' })}>完成造型，出門！</button>
+          : <button className="btn primary" onClick={() => { api.click(); storyEvents.finishScene({ kind: 'wardrobe' }); }}>穿好了，關上衣櫃</button>}
       </div>
-      <p className="wd-note">已穿 {worn}/6 件{worn < 3 ? '・至少穿 3 件才夠帥' : '・帥！'}</p>
-      <button className="btn primary" disabled={worn < 3} onClick={() => storyEvents.finishScene({ kind: 'wardrobe' })}>完成造型，出門！</button>
-    </div>
+    </>
   );
 }
 

@@ -7,7 +7,7 @@ import { actions, gameStore } from '../state/store';
 import { achievementById, sideById, storyActions, storyStore, type StoryProgress, type StoryScene } from '../state/story';
 import {
   ABSENT_FINE, ACTIVITY, LECTURE, RACE_ROUTE, TUTORIAL, CAFETERIA, DAYS, DIALOGS, DORM, FRIEND, PHOTO_SPOTS, ROOMMATE, STALL_IDS, TOUR_FACTS, TOUR_STOPS,
-  type SceneId, type SportKind, type Step, WAKE_VN, TUTORIAL_DONE_VN } from './storyData';
+  type SceneId, type SportKind, type Step, WAKE_VN, TUTORIAL_DONE_VN, BIKE_VN, type VnLine, MY_ROOM } from './storyData';
 import { createBeacons, type Beacon } from './beacons';
 import { createNpcs, type NpcSpec } from './npcs';
 import { insidePoint as insidePointOf } from '../campus/insidePoint';
@@ -37,6 +37,8 @@ export interface StoryDeps {
   sound(name: 'coin' | 'open' | 'close' | 'click' | 'bell' | 'buzz'): void;
   /** Gets the player off a seat or out of bed (where they would step off). */
   standUp(): void;
+  /** Fades and puts the player outside the dorm's front door (then `after`). */
+  goOutsideDorm(after: () => void): void;
   bikeStations: readonly { name: string; x: number; z: number }[];
   /** Walkable surface height at (x, z) (raised plazas, steps). */
   groundAt(x: number, z: number): number;
@@ -78,6 +80,8 @@ export interface StoryFrame {
   lying: boolean;
   /** Code of the room whose chair you sit on (MA214), or null. */
   seatedRoom: string | null;
+  /** Building and room of the bed you lie in ('學生宿舍C 寢室', '寢室 4'), or null. */
+  bed: { building: string; room: string } | null;
 }
 
 export type SceneResult =
@@ -98,6 +102,8 @@ export interface StoryRuntime {
   prompt(f: StoryFrame): string | null;
   /** Handles E: 'done' when the story used it, 'hilife' to open the 萊爾富 shop, null when not. */
   interact(f: StoryFrame): 'done' | 'hilife' | null;
+  /** Your room's wardrobe (E at it): the story's outfit scene, or just changing clothes. */
+  openWardrobe(): void;
   /** Refusal for opening a door into `room` of `building` right now (Day 1: only the class's room), or null. */
   roomGate(building: string, room: string | undefined): string | null;
   /** True while the lecture holds you in your seat (seated in the class's room during the class). */
@@ -119,7 +125,7 @@ export const storyEvents = {
   buy: (_menu: string | undefined): void => undefined,
   eat: (_item: ItemId): void => undefined,
   steal: (_item: ItemId): void => undefined,
-  photo: (_area: string | null): void => undefined,
+  photo: (_area: string | null, _selfie?: boolean): void => undefined,
   bikeHit: (): void => undefined,
   /** Took a cyclist's bike. */
   robBike: (): void => undefined,
@@ -181,15 +187,21 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
     if (step.wake) { wakeFor = 20; wakeTried = true; }
     if (step.msg) {
       const m = step.msg;
-      window.setTimeout(() => {
+      const send = (): void => {
+        if (st().scene) { window.setTimeout(send, 600); return; } // after the scene on screen
         storyActions.message(m.from, m.text, !!step.quietMsg); // quiet: a notification only (the tutorial asks for P)
         d.sound('open');
         if (m.from === ROOMMATE) storyActions.setReplies(ROOMMATE, [{ id: 'otw', text: '馬上到！' }, { id: 'ok', text: '收到 👍' }]);
         if (!step.quietMsg) d.openPhone(m.from); // the phone pops up on the chat, not a message over the game
-      }, step.wake ? 1500 : 400);
+      };
+      window.setTimeout(send, step.wake ? 1500 : 400);
     }
   };
-  const advance = (): void => {
+  /**
+   * Next step. Every finished step is marked with a short visual-novel scene (what was done, what comes
+   * next, or the end of the day) unless `quiet` (the step already ended in a scene of its own).
+   */
+  const advance = (quiet = false): void => {
     const p = prog();
     const step = currentStep();
     if (!step) return;
@@ -199,11 +211,19 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
     const last = p.step + 1 >= day.steps.length;
     storyActions.update((q) => ({ ...q, day: last ? q.day + 1 : q.day, step: last ? 0 : q.step + 1 }));
     d.sound('coin');
-    if (last && p.day < DAYS.length) {
-      toast(`🌙 Day ${p.day}「${day.title}」結束`);
+    if (last && p.day < DAYS.length && quiet) {
       storyActions.celebrate(`Day ${p.day} 完成！`, `「${day.title}」・明天是 Day ${p.day + 1}「${DAYS[p.day]!.title}」`);
     }
-    else if (!last) toast(`✅ ${step.text}`);
+    if (!quiet && on()) {
+      const next = last ? undefined : day.steps[p.step + 1];
+      const lines: VnLine[] = [{ who: '', text: `「${step.text}」——完成！` }];
+      if (last) {
+        lines.push({ who: '', text: `Day ${p.day}「${day.title}」結束了。` });
+        if (p.day < DAYS.length) lines.push({ who: '你', text: `明天是 Day ${p.day + 1}「${DAYS[p.day]!.title}」。` });
+      } else if (next) lines.push({ who: '你', text: `接下來……${next.text}。` });
+      // After the step's own effects (begin) so a message it sends waits for the scene.
+      window.setTimeout(() => { if (!st().scene) open({ kind: 'vn', id: 'stepVn', lines }); }, 250);
+    }
     if (gameStore.getState().nav) actions.setNav(null);
     if (step.doneAt !== undefined) {
       d.setClock(dayStart(p.day, step.doneAt));
@@ -220,6 +240,10 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
   let wasLying = false;
   let wakeTried = false;
   let wrongRoomToast = false;
+  /** Seconds lying in your own bed during a sleep step; the night is passing; told it's not your bed. */
+  let sleepT = 0;
+  let sleeping = false;
+  let bedNag = false;
   /** Day 1: told once that the class is upstairs, on entering 管理一館 on the ground floor. */
   let floorHint = false;
   /** Day 1 wake-up visual novel: seconds lying in bed before it opens, and whether it has run. */
@@ -619,8 +643,12 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
         }
         return;
       case 'vn':
-        if (r.id === 'wakeVn' && step?.cond.t === 'getUp') { d.standUp(); advance(); }
-        if (r.id === 'tutorialDoneVn' && step?.cond.t === 'tutorial') advance();
+        if (r.id === 'wakeVn' && step?.cond.t === 'getUp') { d.standUp(); advance(true); }
+        if (r.id === 'tutorialDoneVn' && step?.cond.t === 'tutorial') {
+          // Out the front door, and how to ride a bike (the clock waits).
+          d.goOutsideDorm(() => window.setTimeout(() => open({ kind: 'vn', id: 'bikeVn', lines: BIKE_VN }), 500));
+        }
+        if (r.id === 'bikeVn' && step?.cond.t === 'tutorial') advance(true);
         return;
       case 'wardrobe':
         if (step?.cond.t === 'outfit') { advance(); toast('😎 帥！出發去聯誼'); }
@@ -690,7 +718,8 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
     toast(`🫣 偷偷拿走了 ${ITEMS[item].name}…店員：「同學！你還沒結帳！」`);
     d.sound('close');
   };
-  storyEvents.photo = (area) => {
+  storyEvents.photo = (area, selfie) => {
+    if (selfie) unlock('selfie');
     if (!area) return;
     startSide('photo');
     if (PHOTO_SPOTS.includes(area)) sideProgress('photo', area);
@@ -881,6 +910,28 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
       } else if (f.lying) wasLying = true;
       else if (wasLying && wakeFor <= 0) { wasLying = false; advance(); }
     }
+    // Sleep: only lying in your own bed (C214) — a moment after you lie down, the night passes.
+    if (step?.cond.t === 'sleep' && !st().scene) {
+      const mine = f.bed && f.bed.room === MY_ROOM.label && f.bed.building.startsWith(DORM);
+      if (mine) {
+        sleepT += dt;
+        if (sleepT > 1.2 && !sleeping) {
+          sleeping = true;
+          const until = step.cond.until;
+          const p = prog();
+          toast('😴 Zzz…');
+          d.fade(() => {
+            if (until !== 'nextDay') d.setClock(dayStart(p.day, until));
+            sleeping = false;
+            advance();
+          });
+        }
+      } else {
+        if (f.bed && !bedNag) { bedNag = true; toast(`這不是你的床！你的寢室是 ${MY_ROOM.number}（${MY_ROOM.label}）`); }
+        if (!f.bed) bedNag = false;
+        sleepT = 0;
+      }
+    }
     // Roll call: from where you are, the walk to the classroom (MA214) plus 5 seconds to sit down.
     if (step?.cond.t === 'class' && !st().scene) {
       if (cls.phase === 'idle') {
@@ -1049,9 +1100,8 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
     if (lostFoundReady(f)) return '按 E 把撿到的學生證交出去';
     if (step && inPlace(f, step.place)) {
       if (step.cond.t === 'talk' && closeTo(step.cond.scene, f)) return step.cond.prompt;
-      if (step.cond.t === 'sleep') return step.cond.until === 'nextDay' ? '按 E 回房間睡覺（到隔天早上）' : '按 E 回房間補眠（睡到傍晚）';
+
       if (step.cond.t === 'quiz') return '按 E 入座開始小考';
-      if (step.cond.t === 'outfit') return '按 E 打開衣櫃換裝';
     }
     if (atCounter(f)) return '按 E 逛萊爾富';
     return null;
@@ -1066,16 +1116,7 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
         return 'done';
       }
       if (step.cond.t === 'quiz') { pendingScene = 'quiz'; open({ kind: 'quiz' }); return 'done'; }
-      if (step.cond.t === 'outfit') { playScene('wardrobe'); return 'done'; }
-      if (step.cond.t === 'sleep') {
-        const until = step.cond.until;
-        const p = prog();
-        d.fade(() => {
-          if (until !== 'nextDay') d.setClock(dayStart(p.day, until));
-          advance();
-        });
-        return 'done';
-      }
+
     }
     if (atCounter(f)) return 'hilife';
     return null;
@@ -1092,6 +1133,12 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
      * Day 1 遲到危機: only the class's own room may be entered (its doors open); any other classroom
      * door in the 管理學院 stays shut with a reminder. Returns the refusal, or null when allowed.
      */
+    openWardrobe() {
+      if (on() && prog().day < 2) { toast('衣櫃裡還空空的…（Day 2 開放換裝）'); return; }
+      if (st().scene) return;
+      if (currentStep()?.cond.t === 'outfit') playScene('wardrobe');
+      else open({ kind: 'wardrobe' });
+    },
     seatLocked() {
       const step = on() ? currentStep() : null;
       const f = lastFrame;

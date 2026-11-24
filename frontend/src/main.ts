@@ -1,4 +1,6 @@
 import { ACESFilmicToneMapping, Euler, PCFShadowMap, PerspectiveCamera, Quaternion, Scene, SRGBColorSpace, Vector3, WebGLRenderer } from 'three';
+import { MY_ROOM } from './story/storyData';
+import { createWardrobePreview, wardrobeView } from './character/wardrobePreview';
 import { playerName, studentId } from './state/playerName';
 import { createPhoneCamera } from './game/phoneCamera';
 import { addPhoto } from './state/album';
@@ -64,7 +66,7 @@ import { addActivityEntrance } from './buildings/activityEntrance';
 import { createYuntayExterior, yuntayTreeFree } from './buildings/yuntayExterior';
 import { createDormFeatures, dormTreeFree } from './buildings/dormFeatures';
 import { createDormCFacade, dormCFacadeTreeFree, dormCLobbyDoor } from './buildings/dormCFacade';
-import { DORM_C_LOFT_TOP, DORM_C_ROOMS_FLOOR, DORM_C_UNIT_FLOOR, dormCRoomBeds, dormCUnit } from './buildings/dormCUnit';
+import { DORM_C_LOFT_TOP, DORM_C_ROOMS, DORM_C_ROOMS_FLOOR, DORM_C_UNIT_FLOOR, dormCRoomBeds, dormCUnit } from './buildings/dormCUnit';
 import { createDormCUnitDecor } from './buildings/dormCUnitDecor';
 import { courtPit, createMgmtCourtyard } from './buildings/mgmtCourtyard';
 import { createDormCourtyard, dormCourtPit } from './buildings/dormCourtyard';
@@ -271,10 +273,16 @@ async function boot(): Promise<void> {
         const [ix, iz] = unitBuilding.planToWorld(d.at[0] + d.out[0] * 0.7, d.at[1] + d.out[1] * 0.7);
         const [ox, oz] = unitBuilding.planToWorld(d.inside[0], d.inside[1] - 0.7);
         return [
-          { id: `dormC-room:in:${i}`, prompt: `按 E 進入${d.name}`, x: ix, y: DORM_C_UNIT_FLOOR, z: iz, radius: 0.9 },
+          { id: `dormC-room:in:${i}`, prompt: d.name === MY_ROOM.label ? `按 E 進入你的寢室 ${MY_ROOM.number}` : `按 E 進入${d.name}`, x: ix, y: DORM_C_UNIT_FLOOR, z: iz, radius: 0.9 },
           { id: `dormC-room:out:${i}`, prompt: `按 E 離開${d.name}`, x: ox, y: DORM_C_ROOMS_FLOOR, z: oz, radius: 0.9 },
         ];
       }),
+      // Your room's wardrobe (寢室 4, door-end wardrobes): changing clothes any time from Day 2.
+      (() => {
+        const q = DORM_C_ROOMS[Number(MY_ROOM.label.replace(/\D/g, '')) - 1] ?? DORM_C_ROOMS[3]!;
+        const [x, z] = unitBuilding.planToWorld((q[0] + q[2]) / 2, q[1] + 5.6);
+        return { id: 'dormC-wardrobe', prompt: '按 E 打開衣櫃', x, y: DORM_C_ROOMS_FLOOR, z, radius: 1.3 };
+      })(),
     );
   }
   const roomsBuilding = unit ? createHandBuiltBuilding(unit.rooms, scene, physics, renderer, env.materials, sceneResources, {
@@ -466,6 +474,21 @@ async function boot(): Promise<void> {
     hilife: hilife ? { counter: hilife.counter, clerk: hilife.clerk } : null,
     putInBed: (place) => putInBed(place),
     standUp: () => standUp(),
+    goOutsideDorm: (after) => {
+      // In front of the 學生宿舍C lobby (the dorm courtyard spawn if that door isn't known).
+      actions.setFading(true);
+      window.setTimeout(() => {
+        if (seat) standUp();
+        const x = lobbyDoor ? lobbyDoor.x + lobbyDoor.outX * 2.4 : campus.spawn.x;
+        const z = lobbyDoor ? lobbyDoor.z + lobbyDoor.outZ * 2.4 : campus.spawn.z;
+        const facing = lobbyDoor ? Math.atan2(lobbyDoor.outX, lobbyDoor.outZ) : campus.spawn.facing;
+        teleport(x, lobbyDoor ? lobbyDoor.floor : 0, z, facing);
+        renderSyncSystem(world, 1);
+        rig.snap(readFocus(), facing + Math.PI);
+        actions.setFading(false);
+        after();
+      }, 350);
+    },
     shove: (dx, dz) => shiftPlayer(dx, dz),
     openPhone: (from) => {
       storyActions.focusThread(from);
@@ -485,7 +508,7 @@ async function boot(): Promise<void> {
   let swimStroke = 0;
   let lastWake = 0;
   let lastNight = -1;
-  const storyFrame: StoryFrame = { x: 0, y: 0, z: 0, area: null, minutes: 0, riding: false, sprinting: false, playing: false, viewYaw: 0, seatedIn: null, seatedRoom: null, lying: false, jumps: 0, modal: 'none' };
+  const storyFrame: StoryFrame = { x: 0, y: 0, z: 0, area: null, minutes: 0, riding: false, sprinting: false, playing: false, viewYaw: 0, seatedIn: null, seatedRoom: null, bed: null, lying: false, jumps: 0, modal: 'none' };
   const insideBuilding = createBuildingTest(campus);
   const moveMods: MoveModifiers = { fly: false, noclip: false, speed: 1, bike: false, blocked: null };
   const joints = findMascotJoints(model.root);
@@ -504,9 +527,10 @@ async function boot(): Promise<void> {
   // Wardrobe clothes follow the saved outfit; opening the wardrobe turns the camera to face you.
   const outfitter = createOutfitter(model.root);
   outfitter.apply(storyStore.getState().progress.outfit ?? {});
+  const wardrobePreview = createWardrobePreview(renderer, model.root);
   const unsubOutfit = storyStore.subscribe((st, prev) => {
-    if (st.progress.outfit !== prev.progress.outfit) outfitter.apply(st.progress.outfit ?? {});
-    if (st.scene?.kind === 'wardrobe' && prev.scene?.kind !== 'wardrobe') rig.snap(readFocus(), Transform.rotY[eid]! + 0.35);
+    if (st.progress.outfit !== prev.progress.outfit) { outfitter.apply(st.progress.outfit ?? {}); wardrobePreview.invalidate(); }
+    if (st.scene?.kind === 'wardrobe' && prev.scene?.kind !== 'wardrobe') { wardrobeView.yaw = 0; wardrobePreview.invalidate(); }
   });
   const ridePose = createPose();
 
@@ -595,6 +619,30 @@ async function boot(): Promise<void> {
     }
     standUp();
   };
+  // --- Checkpoints: where 「回到上一個紀錄點」 (pause menu) puts you back if you get stuck ---------
+  // Taken when a story step begins and after every door / stair / elevator teleport, once you are
+  // standing (not seated, riding or knocked down). Kept in this browser.
+  const CHECKPOINT_KEY = 'yfm.checkpoint.v1';
+  type Checkpoint = { x: number; y: number; z: number; facing: number };
+  const loadCheckpoint = (): Checkpoint | null => {
+    try {
+      const c = JSON.parse(localStorage.getItem(CHECKPOINT_KEY) ?? 'null') as Checkpoint | null;
+      return c && [c.x, c.y, c.z, c.facing].every(Number.isFinite) ? c : null;
+    } catch { return null; }
+  };
+  let checkpointTimer = 0;
+  const takeCheckpoint = (delay = 1500): void => {
+    window.clearTimeout(checkpointTimer);
+    checkpointTimer = window.setTimeout(() => {
+      if (seat || knock || bikes.ridden >= 0 || CharacterMotor.grounded[eid] !== 1) { takeCheckpoint(2000); return; }
+      const c: Checkpoint = { x: Transform.x[eid]!, y: Transform.y[eid]!, z: Transform.z[eid]!, facing: Transform.rotY[eid]! };
+      if (![c.x, c.y, c.z].every(Number.isFinite)) return;
+      try { localStorage.setItem(CHECKPOINT_KEY, JSON.stringify(c)); } catch { /* private mode */ }
+    }, delay);
+  };
+  storyStore.subscribe((s, prev) => {
+    if (s.progress.day !== prev.progress.day || s.progress.step !== prev.progress.step) takeCheckpoint(2500);
+  });
   // --- Bumping into people and vehicles; knocked down by a car --------------------------------
   /** Knocked down: thrown along (dx, dz), sliding until `speed` dies out or a wall stops it. */
   let knock: { t: number; total: number; dx: number; dz: number; speed: number; facing: number } | null = null;
@@ -835,6 +883,7 @@ async function boot(): Promise<void> {
         }
         return;
       case 'newGame':
+        try { localStorage.removeItem(CHECKPOINT_KEY); } catch { /* private mode */ }
         introPending = true;
         actions.setNav(null);
         navLine.set(null);
@@ -847,6 +896,19 @@ async function boot(): Promise<void> {
         rig.snap(readFocus(), spawn.facing + Math.PI);
         story.restart();
         return;
+      case 'checkpoint': {
+        bikes.dismount();
+        playground?.cancel();
+        sports.cancel();
+        if (seat) standUp();
+        knock = null;
+        const p = loadCheckpoint() ?? spawn;
+        teleport(p.x, p.y, p.z, p.facing);
+        renderSyncSystem(world, 1);
+        rig.snap(readFocus(), p.facing + Math.PI);
+        actions.toast('↩️ 回到上一個紀錄點');
+        return;
+      }
       case 'toStart':
       case 'respawn': {
         bikes.dismount();
@@ -879,7 +941,7 @@ async function boot(): Promise<void> {
           await addPhoto(blob, label);
           actions.bumpAlbum();
           actions.toast('已存到相簿');
-          storyEvents.photo(areaAt(obj.position.x, obj.position.y, obj.position.z)?.title ?? null);
+          storyEvents.photo(areaAt(obj.position.x, obj.position.y, obj.position.z)?.title ?? null, st.cameraSelfie);
         });
         return;
       }
@@ -957,6 +1019,10 @@ async function boot(): Promise<void> {
           } else audio.play('click');
           return;
         }
+        if (target?.id === 'dormC-wardrobe') {
+          story.openWardrobe();
+          return;
+        }
         if (target?.id.startsWith('dormC-room:') && unit && unitBuilding) {
           // 學生宿舍C bedroom door: fade, then stand inside the bedroom by its door (or back in the corridor), facing on.
           const [, way, index] = target.id.split(':');
@@ -973,6 +1039,7 @@ async function boot(): Promise<void> {
             renderSyncSystem(world, 1);
             rig.snap(readFocus(), facing + Math.PI);
             actions.setFading(false);
+            takeCheckpoint();
             audio.play('click');
           }, 300);
           return;
@@ -998,6 +1065,7 @@ async function boot(): Promise<void> {
             renderSyncSystem(world, 1);
             rig.snap(readFocus(), facing + Math.PI);
             actions.setFading(false);
+            takeCheckpoint();
             actions.toast(entering ? '回到宿舍了' : '離開宿舍');
           }, 350);
           return;
@@ -1016,6 +1084,7 @@ async function boot(): Promise<void> {
             renderSyncSystem(world, 1);
             rig.snap(readFocus(), facing + Math.PI);
             actions.setFading(false);
+            takeCheckpoint();
             actions.toast(`${portal.level} 到了`);
           }, 350);
           return;
@@ -1268,7 +1337,8 @@ async function boot(): Promise<void> {
       const k = ui.settings.mouseSensitivity;
       rig.rotate(mouse.dx * k, mouse.dy * k * (ui.settings.invertY ? -1 : 1));
       // Game clock: one real second = one game minute, frozen in menus.
-      clockSeconds += dt;
+      // …and stopped while a visual-novel scene is on screen.
+      if (storyStore.getState().scene?.kind !== 'vn') clockSeconds += dt;
       actions.setGameMinutes(START_MINUTES + Math.floor(clockSeconds));
     }
 
@@ -1417,6 +1487,7 @@ async function boot(): Promise<void> {
       storyFrame.viewYaw = rig.yaw;
       storyFrame.seatedIn = seat && seat.s.kind === 'chair' ? seat.s.building : null;
       storyFrame.seatedRoom = seat && seat.s.kind === 'chair' ? seat.s.room : null;
+      storyFrame.bed = seat && seat.s.kind === 'bed' ? { building: seat.s.building, room: seat.s.room ?? '' } : null;
       storyFrame.lying = !!seat && seat.s.kind === 'bed';
       storyFrame.jumps = CharacterMotor.jumpSeq[eid]!;
       storyFrame.modal = ui.modal;
@@ -1523,6 +1594,11 @@ async function boot(): Promise<void> {
       if (impact > 3) audio.play('land', Math.min(1, impact / 12));
     }
     renderer.render(scene, camera);
+    // 衣櫃: the character preview in the box the wardrobe leaves on the left.
+    if (storyStore.getState().scene?.kind === 'wardrobe') {
+      const box = document.querySelector('.wd-preview')?.getBoundingClientRect();
+      if (box) wardrobePreview.render(box);
+    }
 
     if (ui.settings.showDebug) updateDebug(dt, {
       x: f.x, y: f.y, z: f.z,

@@ -103,7 +103,7 @@ function shedFrame(s: Ring): { cx: number; cz: number; lx: number; lz: number; L
 
 /**
  * Every bike in the dorm parking rows and sheds — all rideable (the bike system draws and rides them)
- * — plus the dorm scooter by the road next to the new-player start (faster than a bike).
+ * — plus the scooter (faster than a bike), parked in the bays beside the 警衛室 by 技職大樓.
  * Seeded, so the same bikes stand in the same places every visit.
  */
 export function dormRideables(): { x: number; z: number; yaw: number; kind: 'bike' | 'scooter' }[] {
@@ -115,7 +115,8 @@ export function dormRideables(): { x: number; z: number; yaw: number; kind: 'bik
     for (let t = 0.4; t < len - 0.3; t += step) {
       if (rnd() < 0.12) continue; // the odd empty slot
       // Bike axis (+Z local) across the row; yaw maps +Z onto (sin, cos).
-      out.push({ x: ax + ux * t, z: az + uz * t, yaw: Math.atan2(-uz, ux) + Math.PI / 2 + facing + (rnd() - 0.5) * 0.25, kind: 'bike' });
+      // All parallel, square to the row (使用者：腳踏車請平行排列).
+      out.push({ x: ax + ux * t, z: az + uz * t, yaw: Math.atan2(-uz, ux) + Math.PI / 2 + facing, kind: 'bike' });
     }
   };
   for (const r of BIKE_ROWS) for (let i = 0; i + 3 < r.length; i += 2) row(r[i]!, r[i + 1]!, r[i + 2]!, r[i + 3]!, 0.75, 0);
@@ -128,7 +129,8 @@ export function dormRideables(): { x: number; z: number; yaw: number; kind: 'bik
       row(ax, az, bx, bz, 0.7, side > 0 ? Math.PI : 0);
     }
   }
-  out.push({ x: 27.4, z: 314.6, yaw: 0, kind: 'scooter' });
+  // 使用者：摩托車移至警衛室旁 — on the open side of 「機車停車格（警衛室旁）」's fence, just north of the 警衛室 (技職大樓).
+  out.push({ x: -103.4, z: -45.2, yaw: 0, kind: 'scooter' });
   return out;
 }
 

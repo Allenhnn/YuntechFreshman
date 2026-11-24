@@ -142,6 +142,8 @@ export interface VnLine {
 }
 
 export const ROOMMATE = '室友阿凱';
+/** Your room in 學生宿舍C (寢室 4 of the flat, where a new game starts): you sleep in its bed, its wardrobe is yours. */
+export const MY_ROOM = { label: '寢室 4', number: 'C214' } as const;
 export const FRIEND = '同學小芳';
 /** Fine for missing a roll call (NT$). */
 export const ABSENT_FINE = 50;
@@ -154,6 +156,13 @@ export const WAKE_VN: VnLine[] = [
   { who: ROOMMATE, text: '老師在點名了！你人咧？？快來管一！', phone: true },
   { who: '你', text: '……點名？現在幾點……七點五十二？！' },
   { who: '你', text: '糟糕！睡過頭了！趕快起床！', shake: true },
+];
+/** Out of the dorm on Day 1: the bikes outside (the clock stops while it is read). */
+export const BIKE_VN: VnLine[] = [
+  { who: '', text: '衝出宿舍大門——門口停了一整排腳踏車。' },
+  { who: '你', text: '用走的一定來不及……騎腳踏車去！' },
+  { who: '教學', text: '走到腳踏車旁邊按 E 就能騎上去，W A S D 控制方向，再按一次 E 下車。' },
+  { who: '教學', text: '騎車比走路快很多，但小心別撞到路人！要進建築物前先下車。' },
 ];
 /** After the tutorial: back to the emergency. */
 export const TUTORIAL_DONE_VN: VnLine[] = [
@@ -174,16 +183,16 @@ export const DAYS: Day[] = [
       { id: '1-5', text: '把午餐吃掉（背包或快捷欄使用）', place: CAFETERIA, cond: { t: 'eat' } },
       { id: '1-6', text: '下午的課翹掉！用手機問點名碼，在「點名系統」簽到', place: CAFETERIA, cond: { t: 'phoneRollcall' }, at: hm(13, 10), msg: { from: FRIEND, text: '下午那堂改數位點名喔，要輸 4 位數的點名碼～' } },
       { id: '1-7', text: '翹課成功，去籃球場打球打到天黑', place: '籃球場', cond: { t: 'sport', kind: 'basketball' }, doneAt: hm(19, 0) },
-      { id: '1-8', text: '天黑了，回宿舍睡覺', place: DORM, cond: { t: 'sleep', until: 'nextDay' } },
+      { id: '1-8', text: '天黑了，回宿舍 C214 寢室的床上睡覺', place: DORM, cond: { t: 'sleep', until: 'nextDay' } },
     ],
   },
   {
     title: '夜生活與聯誼準備',
     steps: [
       { id: '2-1', text: '睡到晚上才醒…下床準備出門', place: DORM, cond: { t: 'getUp' }, at: hm(18, 30), wake: true, msg: { from: ROOMMATE, text: '今晚聯誼別忘了！穿帥一點啊 😎' } },
-      { id: '2-2', text: '打開宿舍衣櫃，換一套帥氣穿搭', place: DORM, cond: { t: 'outfit' } },
+      { id: '2-2', text: '回 C214 寢室打開衣櫃，換一套帥氣穿搭', place: DORM, cond: { t: 'outfit' } },
       { id: '2-3', text: '到學生活動中心參加聯誼，把好感度聊滿', place: ACTIVITY, cond: { t: 'talk', prompt: '按 E 加入聯誼', scene: 'mixer' } },
-      { id: '2-4', text: '聯誼結束，回宿舍睡覺', place: DORM, cond: { t: 'sleep', until: 'nextDay' } },
+      { id: '2-4', text: '聯誼結束，回 C214 寢室的床上睡覺', place: DORM, cond: { t: 'sleep', until: 'nextDay' } },
     ],
   },
   {
@@ -192,7 +201,7 @@ export const DAYS: Day[] = [
       { id: '3-1', text: '早起！今天是雲科路跑，下床', place: DORM, cond: { t: 'getUp' }, at: hm(7, 0), wake: true, give: 'raceBib', msg: { from: ROOMMATE, text: '號碼布幫你領了，在你桌上！起點在游泳館旁邊' } },
       { id: '3-2', text: '到路跑起點（游泳館旁）報到', place: '路跑起點', cond: { t: 'enter' } },
       { id: '3-3', text: '跑完全程：依路線通過所有檢查點（不能騎車）', place: '路跑起點', cond: { t: 'run' } },
-      { id: '3-4', text: '累死了，回宿舍睡一整天', place: DORM, cond: { t: 'sleep', until: 'nextDay' } },
+      { id: '3-4', text: '累死了，回 C214 寢室的床上睡一整天', place: DORM, cond: { t: 'sleep', until: 'nextDay' } },
     ],
   },
   {
@@ -257,6 +266,7 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: 'safeRider', title: '交通安全模範生', icon: '🦺', desc: '騎腳踏車累計 1 公里都沒撞到人' },
   { id: 'explorer', title: '校園探險家', icon: '🧭', desc: '走進 15 棟不同的建築' },
   { id: 'mixerStar', title: '聯誼之星', icon: '💫', desc: '聯誼時三個話題都選到最佳回答' },
+  { id: 'selfie', title: '自拍一張', icon: '🤳', desc: '用手機相機的自拍模式拍一張照' },
   { id: 'graduateWeek', title: '第一週畢業', icon: '🎓', desc: '完成第一週的主線' },
 ];
 
