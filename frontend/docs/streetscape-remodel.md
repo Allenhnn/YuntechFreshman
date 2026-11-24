@@ -104,3 +104,4 @@
 | 學生宿舍C C3 西翼分界不要斜（使用者） | 西翼與中段分界改沿西翼內側牆面筆直往北，中段 4 樓西牆不再斜 | `campusFixes.ts` `splitDormC` 點 `B`；`customFacades.ts` `DORM_C_PIECES` |
 | 學生宿舍C 戶廳窗（使用者：造型怪、單純窗戶就好） | 窗往西 1.1 m 移到凹口開口正中（不再正對東翼的牆），一片玻璃加外框，無分格 | `customFacades.ts` `DORM_C_HALL_2F`；`dormCUnit.ts` `DORM_C_LIVING_WINDOW`；`dormCFacade.ts` `windowAt` plain；`dormCUnitDecor.ts` |
 | 學生宿舍C C3 背面（使用者背面照） | 淺灰牆基、壁柱、1 樓棕色菱形鐵窗花＋棕框窗、樓上兩排棕框橫窗＋遮陽＋冷氣、落水管；兩端樓梯間高窗；北面拿掉門 | `dormCFacade.ts` 背面外皮；`customFacades.ts` `CUSTOM_FACADE_EDGES` |
+| 學生宿舍C 西翼西面北端（使用者紅框） | 原本 1 樓花磚＋樓上窄窗的那一格改純牆面 | `dormCFacade.ts` `side` 版型 |

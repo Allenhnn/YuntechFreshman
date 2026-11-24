@@ -656,7 +656,7 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
   //    room (a window with AC) and one laundry (a deep bay with a white post and lattice at the corner), each half the
   //    wall; its south end the laundry's big lattice bay at the corner, then solid wall (corridor and bathroom behind);
   //    its east face three rooms, and solid wall at the south corner (the bathroom);
-  //  - side: windows with hoods, one ground-floor lattice bay at the left corner;
+  //  - side: the west wing's west face — a plain wall at the north (left) corner (使用者), then windows with hoods;
   //  - plain: the west wing's inner face — a plain wall, nothing on it.
   type Layout = 'clothLeft' | 'eastSouth' | 'eastWest' | 'eastEast' | 'side' | 'plain';
   const wingWalls: [Anchor, Layout][] = [[EDGES.westWingSouth, 'clothLeft'], [EDGES.eastWingSouth, 'eastSouth'], [EDGES.eastWingWest, 'eastWest'], [EDGES.eastWingEast, 'eastEast'], [EDGES.westWingEast, 'plain'], [EDGES.westWingWest, 'side']];
@@ -686,6 +686,9 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
       // Seen from outside the corner is on the right. Only one room and one laundry (使用者): two equal bays.
       const half = (L - P - P - 0.7) / 2;
       push(P, 'pier'); push(half, 'room'); push(P, 'pier'); push(half, 'lattice'); push(0.7, 'pier');
+    } else if (layout === 'side') {
+      // 使用者（2026-11-24）：北端那一段（原本 1 樓花磚、樓上一列窄窗）是純牆面。
+      push(P + LAT, 'blank'); push(P, 'pier'); push(L - 3 * P - LAT, 'windows'); push(P, 'pier');
     } else if (L > 2 * P + LAT + 3) {
       push(P, 'pier'); push(LAT, 'groundLattice'); push(P, 'pier'); push(L - 3 * P - LAT, 'windows'); push(P, 'pier');
     } else {

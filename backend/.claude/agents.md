@@ -164,6 +164,9 @@ docker compose down             # 停止（加 -v 會連資料一起刪除）
 | `.env.example` 沒被 commit | 根目錄 `.gitignore` 有 `.env*`；需要時用 `git add -f backend/.env.example` |
 
 ## 變更紀錄
+### 2026-11-24（前端：學生宿舍C 西翼西面北端改純牆面）— 分支 `feat/dorm-c-yard-walls`
+- 需求：西翼西面靠北的那一段（1 樓紅花磚、樓上一列窄窗）是純牆面
+- `frontend/src/buildings/dormCFacade.ts`：`side` 版型（只用在西翼西面）北端一格改 `blank`（素面牆＋牆基），其餘窗戶不變
 ### 2026-11-24（前端：學生宿舍C C3 背面照照片重新建模）— 分支 `feat/dorm-c-yard-walls`
 - 需求：使用者給 C3 背面（北面）照片，重新建模背面
 - `frontend/src/buildings/dormCFacade.ts`：新增背面外皮（`BACK` 尺寸、`EDGES.back*` 九段牆）：淺灰素面牆基、約 3.4 m 一根壁柱；1 樓棕色菱形鐵窗花（不透明貼圖 `diamondMesh`）＋一排棕框窗；樓上每層窗台、上下兩排棕框橫窗（`stripWindow`）、混凝土遮陽、部分窗台冷氣、白色落水管；兩端短牆當樓梯間（每層一扇高窗）
