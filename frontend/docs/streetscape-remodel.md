@@ -118,3 +118,5 @@
 | 學生宿舍C C1 東側一個平面（使用者） | 東北角退縮凹口填平，東面整面一個平面（edge 6），服務中心錨點跟著改 edge 7 | `campusFixes.ts` `sealBuildings`、`dormCFacade.ts` `C1.ring`、`dormFeatures.ts` `C_CORNER` |
 | 學生宿舍C 宿服中心上方（使用者照片） | 北棟朝南那面：窄窗列＋三格寬窗帶、深橫帶、壁柱、冷氣；斜角每層一個深凹開口 | `dormCFacade.ts` `C1.svcBack`、`C1.svcDiag` |
 | 學生宿舍C 宿服中心兩側對稱（使用者） | 南翼朝東那面（edge 9）鏡射北棟朝南那面：窄窗列靠斜角、三格寬窗帶、深橫帶、冷氣 | `dormCFacade.ts` `C1.svcMirror` |
+| 學生宿舍C C2 背面（使用者照片） | 洗石子（色調跟 C2 正面一樣）、壁柱分格、陽台矮牆掛冷氣、一樓紅花磚帶＋咖啡框窗；東端凸出的洗石子樓梯間；C1–C2 側門牆接樓梯間東角、門樓往 C1 移 | `dormCFacade.ts` `C2.back`、`dormYard.ts` `shift` |
+| 學生宿舍D ＝ C 區鏡射（使用者） | D 三棟外環換成 C 三棟鏡射過來的，外觀、門樓、圍牆、前門廣場同一套；招牌 D1–D3；D 入口雨遮保留（周圍牆面改成同一套洗石子）；不做室內、門進不去 | `customFacades.ts` `dormCToD`、`campusFixes.ts` `copyDormCToD`、`dormCFacade.ts` `site`、`dormYard.ts` |

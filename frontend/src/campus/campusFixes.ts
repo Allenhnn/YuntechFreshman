@@ -1,7 +1,7 @@
 import type { CampusData } from './campusTypes';
 import type { TracedIndex } from '../buildings/buildingTypes';
 import type { Entrance } from './entrances';
-import { DORM_C, DORM_C_PIECES } from './customFacades';
+import { DORM_C, DORM_C_PIECES, DORM_C_TO_D_IDS, dormCToD } from './customFacades';
 import buildingRings from './buildingRings.json';
 
 /**
@@ -424,6 +424,26 @@ export function splitDormC(campus: CampusData): void {
     piece(DORM_C.middle, DORM_C_PIECES.middle, DORM_C.middleLevels),
     piece(DORM_C.westWing, DORM_C_PIECES.westWing, DORM_C.wingLevels),
     piece(DORM_C.eastWing, DORM_C_PIECES.eastWing, DORM_C.wingLevels));
+}
+
+/**
+ * 學生宿舍D（使用者 2026-11-24：整個 C 區的配置複製到 D 區）：after `sealBuildings` and `splitDormC`, each D building's
+ * outline becomes its C counterpart's mirrored across (customFacades.ts `dormCToD`, vertex order reversed so it stays CCW),
+ * with the same storeys; all sealed (外觀就好、門進不去). The south building takes C3's three pieces: the middle keeps the
+ * OSM id, the wings are new. Skipped if any C piece or D building is missing.
+ */
+export function copyDormCToD(campus: CampusData): void {
+  const pairs = DORM_C_TO_D_IDS.map(([c, d]) => [campus.buildings.find((b) => b.id === c), d] as const);
+  const template = campus.buildings.find((b) => b.id === DORM_C_TO_D_IDS[2]![1]);
+  if (pairs.some(([c]) => !c) || !template) return;
+  for (const [c, id] of pairs) {
+    const r = c!.outer, out: number[] = [];
+    for (let k = r.length / 2 - 1; k >= 0; k--) out.push(...dormCToD(r[k * 2]!, r[k * 2 + 1]!));
+    const d = { ...(campus.buildings.find((b) => b.id === id) ?? template), id, outer: out, holes: [], levels: c!.levels, height: c!.height, sealed: true };
+    const at = campus.buildings.findIndex((b) => b.id === id);
+    if (at >= 0) campus.buildings[at] = d;
+    else campus.buildings.push(d);
+  }
 }
 
 /**

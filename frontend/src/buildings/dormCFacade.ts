@@ -25,7 +25,7 @@ import { RAPIER } from '../physics/physics';
 import type { ResourceTracker } from '../core/resources';
 import { mulberry32 } from '../core/math';
 import type { CampusData, Ring } from '../campus/campusTypes';
-import { DORM_C, DORM_C_BALCONY as BAL, DORM_C_BALCONY_SPAN, DORM_C_HALL_2F as HALL, DORM_C_LOBBY as LOBBY } from '../campus/customFacades';
+import { DORM_C, DORM_C_BALCONY as BAL, DORM_C_BALCONY_SPAN, DORM_C_HALL_2F as HALL, DORM_C_LOBBY as LOBBY, DORM_C_TO_D_MATRIX, dormCToD } from '../campus/customFacades';
 
 /**
  * 學生宿舍C 北棟（OSM 296668596，U 形），依使用者實拍＋遊戲截圖與小地圖（2026-11-22）。載入時切成三塊
@@ -147,8 +147,9 @@ const C1 = {
 export function dormCFacadeTreeFree(campus: CampusData): Ring[] {
   const f = edgeFrame(campus, EDGES.centre);
   if (!f) return [];
-  // Out to the halls either side (and the ground the east wing gave up).
-  return [[f.world(-7, 0), f.world(f.len + 7, 0), f.world(f.len + 7, 9), f.world(-7, 9)].flat()];
+  // Out to the halls either side (and the ground the east wing gave up); the same ground at D (its mirrored copy).
+  const c = [f.world(-7, 0), f.world(f.len + 7, 0), f.world(f.len + 7, 9), f.world(-7, 9)];
+  return [c.flat(), c.map(([x, z]) => dormCToD(x, z)).reverse().flat()];
 }
 
 // ---------------------------------------------------------------- wall frames
@@ -263,6 +264,12 @@ const C2 = {
   /** Front block across: pier, side column, centre balcony. */
   pier: 0.5, centre: 5.0, plinth: 0.9,
   terrace: { depth: 2.6, top: 0.45, rise: 0.15, tread: 0.35 },
+  /**
+   * 背面（使用者照片 2026-11-24，edge 6，朝南）：西起整片洗石子（色調跟 C2 正面一樣，使用者），壁柱分格，每層每格一道凸出的陽台矮牆（外面掛冷氣）、
+   * 後面一扇窗、上面一條橫楣和一排小窗；一樓牆腳一條紅色花磚帶、上面咖啡框窗。東端一座洗石子樓梯間（`tower`：寬、凸出 m），
+   * 正面偏左一列窄窗、一樓一個暗的出入口；C1–C2 側門的圍牆接在它正面的東角（dormYard.ts）。
+   */
+  back: 6, bay: 3.2, tower: { w: 4.2, d: 1.6 },
 };
 /** Grey square pavers. */
 function pavers(g: CanvasRenderingContext2D): void {
@@ -275,22 +282,52 @@ function pavers(g: CanvasRenderingContext2D): void {
   }
 }
 /** 「C3」 in teal-green raised letters (正面照): a big C, a smaller 3 at its lower right, a dark offset for depth. */
-function letterC(g: CanvasRenderingContext2D): void {
+const letterC = (L: string) => (g: CanvasRenderingContext2D): void => {
   g.clearRect(0, 0, 360, 256);
   g.textBaseline = 'alphabetic';
   g.font = "800 230px 'Arial Rounded MT Bold', system-ui, sans-serif";
-  for (const [dx, col] of [[7, '#2f5f55'], [0, '#5c9c8a']] as const) { g.fillStyle = col; g.fillText('C', 20 + dx, 210 + dx); }
+  for (const [dx, col] of [[7, '#2f5f55'], [0, '#5c9c8a']] as const) { g.fillStyle = col; g.fillText(L, 20 + dx, 210 + dx); }
   g.font = "800 130px 'Arial Rounded MT Bold', system-ui, sans-serif";
   for (const [dx, col] of [[5, '#2f5f55'], [0, '#5c9c8a']] as const) { g.fillStyle = col; g.fillText('3', 205 + dx, 235 + dx); }
-}
+};
+/** Painted mirror-image, so it reads right once the D copy's mirror matrix flips it back. */
+const mirrored = (paint: (g: CanvasRenderingContext2D) => void) => (g: CanvasRenderingContext2D): void => {
+  g.save();
+  g.translate(g.canvas.width, 0);
+  g.scale(-1, 1);
+  paint(g);
+  g.restore();
+};
 
 // ---------------------------------------------------------------- build
 export interface DormCFacade { dispose(): void }
 
-export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: CampusData, tracker: ResourceTracker): DormCFacade {
+/**
+ * `site` 'D'（使用者 2026-11-24：整個 C 區的配置複製到 D 區）：the same build from the C buildings, the whole group put on
+ * the D buildings by the mirror matrix (customFacades.ts `dormCToD`; three.js flips the faces for a negative determinant),
+ * colliders mirrored with it, and the signs read 「D1」「D2」「D3」. C1's three walls above the service centre are where
+ * D's entrance canopy stands (dormFeatures.ts): they get the same skin and upper floors (使用者：色調一樣的風格), the canopy
+ * and its doors stay in front of them.
+ */
+export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: CampusData, tracker: ResourceTracker, site: 'C' | 'D' = 'C'): DormCFacade {
+  const D = site === 'D';
   const root = new Group();
-  root.name = '學生宿舍C south facade';
+  root.name = D ? '學生宿舍D facade (C 區鏡射)' : '學生宿舍C south facade';
+  if (D) {
+    root.matrixAutoUpdate = false;
+    root.matrix.fromArray(DORM_C_TO_D_MATRIX as number[]);
+  }
   scene.add(root);
+  /** World x/z of a C point on this site. */
+  const site2 = (x: number, z: number): [number, number] => (D ? dormCToD(x, z) : [x, z]);
+  /** The yaw of a box whose local x axis is at `yaw` in C, once on this site (mirroring keeps a box a box). */
+  const siteYaw = (yaw: number): number => {
+    if (!D) return yaw;
+    const [ax, az] = dormCToD(Math.cos(yaw), -Math.sin(yaw)), [ox, oz] = dormCToD(0, 0);
+    return Math.atan2(-(az - oz), ax - ox);
+  };
+  const sign = (paint: (g: CanvasRenderingContext2D) => void): ((g: CanvasRenderingContext2D) => void) => (D ? mirrored(paint) : paint);
+  const L = D ? 'D' : 'C';
   const colliders: RAPIER.Collider[] = [];
   const mat = (color: number, extra: ConstructorParameters<typeof MeshStandardMaterial>[0] = {}): MeshStandardMaterial =>
     tracker.material(new MeshStandardMaterial({ color, roughness: 0.85, ...extra }));
@@ -324,7 +361,7 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
   const plinthGrey = tracker.material(new MeshStandardMaterial({ map: canvasTexture(tracker, 256, 256, aggregate), color: 0x9a9890, roughness: 0.95 }));
   const voidDark = mat(0x2b2d2f, { roughness: 1 });
   const tube = mat(0xffffff, { emissive: 0xf4f7ff, emissiveIntensity: 1.2 });
-  const letter = tracker.material(new MeshStandardMaterial({ map: canvasTexture(tracker, 360, 256, letterC), transparent: true, roughness: 0.5 }));
+  const letter = tracker.material(new MeshStandardMaterial({ map: canvasTexture(tracker, 360, 256, sign(letterC(L))), transparent: true, roughness: 0.5 }));
   // Lobby (正面照): clear glass you can see into, dark brown frames, green dado, dark polished floor.
   const clearGlass = mat(0xa9bfc6, { transparent: true, opacity: 0.22, roughness: 0.05, metalness: 0.2, depthWrite: false });
   const brownFrame = mat(0x3d2c22, { metalness: 0.3, roughness: 0.5 });
@@ -345,7 +382,7 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
     grp.position.set(f.ox, 0, f.oz);
     grp.rotation.y = f.yaw;
     root.add(grp);
-    const q = new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), f.yaw);
+    const q = new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), siteYaw(f.yaw));
     return {
       put(g, m, uv) {
         const list = parts.get(m) ?? [];
@@ -353,7 +390,7 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
         parts.set(m, list);
       },
       solid(x0, x1, y0, y1, z0, z1) {
-        const [wx, wz] = f.world((x0 + x1) / 2, (z0 + z1) / 2);
+        const [wx, wz] = site2(...f.world((x0 + x1) / 2, (z0 + z1) / 2));
         colliders.push(physics.createCollider(RAPIER.ColliderDesc.cuboid((x1 - x0) / 2, (y1 - y0) / 2, (z1 - z0) / 2)
           .setTranslation(wx, (y0 + y1) / 2, wz).setRotation({ x: q.x, y: q.y, z: q.z, w: q.w })));
       },
@@ -627,7 +664,7 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
     {
       const v: number[] = [];
       for (const [px, pz] of [[L, 0.02], [L + PLANTER.width, 0.02], [L, reach]] as const) {
-        const [wx, wz] = f.world(px, pz);
+        const [wx, wz] = site2(...f.world(px, pz));
         v.push(wx, 0, wz, wx, PLANTER.top, wz);
       }
       const d = RAPIER.ColliderDesc.convexHull(new Float32Array(v));
@@ -883,7 +920,7 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
   if (c1) {
     const H = c1.height, floors = Array.from({ length: Math.max(0, c1.levels - 1) }, (_, k) => (k + 1) * STOREY);
     const c1Plinth = tracker.material(new MeshStandardMaterial({ map: canvasTexture(tracker, 256, 256, aggregate), color: 0xa19e96, roughness: 0.95 }));
-    const c1Letters = tracker.material(new MeshStandardMaterial({ map: canvasTexture(tracker, 256, 128, letterSign('C1')), transparent: true, roughness: 0.5 }));
+    const c1Letters = tracker.material(new MeshStandardMaterial({ map: canvasTexture(tracker, 256, 128, sign(letterSign(`${L}1`))), transparent: true, roughness: 0.5 }));
     /** A box from (x0, z0) to (x1, z1) in the frame's ground plane, `t` thick, y0..y1. */
     const seg = (b: ReturnType<typeof build>, x0: number, z0: number, x1: number, z1: number, y0: number, y1: number, t: number, m: Material): void => {
       const len = Math.hypot(x1 - x0, z1 - z0);
@@ -1043,7 +1080,7 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
   const c2 = campus.buildings.find((x) => x.id === DORM_C.c2);
   if (c2) {
     const H = c2.height, floors = Array.from({ length: Math.max(0, c2.levels - 1) }, (_, k) => (k + 1) * STOREY);
-    const c2Letters = tracker.material(new MeshStandardMaterial({ map: canvasTexture(tracker, 256, 128, letterSign('C2')), transparent: true, roughness: 0.5 }));
+    const c2Letters = tracker.material(new MeshStandardMaterial({ map: canvasTexture(tracker, 256, 128, sign(letterSign(`${L}2`))), transparent: true, roughness: 0.5 }));
     const railBlue = mat(0x6fc3d8, { metalness: 0.3, roughness: 0.4 });
     const n = C2.ring.length;
     for (let i = 0; i < n; i++) {
@@ -1113,6 +1150,40 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
         const rx0 = c1 + 0.5, rx1 = L - 0.3;
         for (const x of [rx0, (rx0 + rx1) / 2, rx1]) b.put(new CylinderGeometry(0.03, 0.03, 0.9, 8).translate(x, T + 0.45 + 0.45, TD - 0.12), railBlue);
         b.put(new CylinderGeometry(0.035, 0.035, rx1 - rx0, 8).rotateZ(Math.PI / 2).translate((rx0 + rx1) / 2, T + 1.35, TD - 0.12), railBlue);
+      } else if (i === C2.back) {
+        // Seen from outside the west end is on the left (x = 0); the stair tower at the east end (x = L).
+        const { w: TW, d: TD } = C2.tower, G = L - TW, P = 0.45;
+                const k = Math.max(1, Math.round((G - P) / C2.bay)), st = (G - P) / k;
+        for (let q = 0; q <= k; q++) b.put(span(q * st, q * st + P, STOREY - 0.3, H - 0.2, 0.02, 0.55), concrete, 2);
+        b.put(span(-0.02, G, -0.3, 0.05, 0.02, 0.5), plinthGrey, 2);
+        b.solid(0, G, 0, 2.6, 0.02, 0.5);
+        for (let q = 0; q < k; q++) {
+          const a = q * st + P, c = (q + 1) * st;
+          // Ground floor: the red lattice band along the foot, a ledge, brown-framed windows.
+          latticePanel(b, a + 0.05, c - 0.05, 0.05, 0.95, 0.42);
+          b.put(span(a, c, 0.95, 1.15, 0.02, 0.5), concrete, 2);
+          b.put(span(a + 0.1, c - 0.1, 1.15, STOREY - 0.35, 0.06, 0.1), glass);
+          for (let m = 0; m <= 3; m++) { const x = a + 0.1 + ((c - a - 0.2) * m) / 3; b.put(span(Math.max(a + 0.1, x - 0.03), Math.min(c - 0.1, x + 0.03), 1.15, STOREY - 0.35, 0.06, 0.14), brownFrame); }
+          b.put(span(a + 0.1, c - 0.1, 2.3, 2.36, 0.06, 0.14), brownFrame);
+          // Upper floors: balcony parapet (an AC hung on it), the window behind, a lintel, a row of small windows.
+          for (const fy of floors) {
+            b.put(span(a, c, fy - 0.3, fy + 1.0, 0.02, 0.5), concrete, 2);
+            windowAt(b, a + 0.12, c - 0.12, fy + 1.0, fy + 2.3);
+            b.put(span(a, c, fy + 2.3, fy + 2.55, 0.02, 0.5), concrete, 2);
+            stripWindow(b, a + 0.15, c - 0.15, fy + 2.6, fy + 3.2);
+            if (seeded() < 0.8) { const x = a + 0.55 + seeded() * Math.max(0, c - a - 1.1); b.put(span(x - 0.4, x + 0.4, fy + 0.2, fy + 0.8, 0.5, 0.8), acWhite); }
+          }
+        }
+        // Stair tower: aggregate concrete, a column of narrow windows left of centre, a dark doorway at the foot.
+        b.put(span(G, L, -0.3, H + 0.6, 0.02, TD), concrete, 2);
+        b.solid(G, L, 0, H, 0.02, TD);
+        const xc = G + TW * 0.42;
+        for (const fy of floors) {
+          b.put(span(xc - 0.45, xc + 0.45, fy + 1.2, fy + 2.6, TD - 0.06, TD + 0.01), glass);
+          for (const x of [xc - 0.45, xc - 0.025, xc + 0.4]) b.put(span(x, x + 0.05, fy + 1.2, fy + 2.6, TD - 0.06, TD + 0.03), frameGrey);
+          for (const y of [fy + 1.2, fy + 2.55]) b.put(span(xc - 0.45, xc + 0.45, y, y + 0.05, TD - 0.06, TD + 0.03), frameGrey);
+        }
+        b.put(span(xc - 0.6, xc + 0.6, 0, 2.5, TD - 0.25, TD + 0.01), voidDark);
       } else if (!C2.plain.includes(i)) {
         // Wings and long faces: pilasters about every 3.4 m, two strip bands per upper floor, dark windows over a plinth.
         b.put(span(-0.02, L + 0.02, -0.3, C2.plinth, 0.02, 0.18), plinthGrey, 2);

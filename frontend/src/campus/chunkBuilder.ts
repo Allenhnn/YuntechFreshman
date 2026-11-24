@@ -637,7 +637,12 @@ export class ChunkBuilder {
       const openings = CUSTOM_FACADE_OPENINGS[b.id];
       if (openings?.length) {
         cuts = new Map(cuts ?? []);
-        for (const o of openings) cuts.set(o.edge, [...(cuts.get(o.edge) ?? []), { a0: o.a0, a1: o.a1, y0: o.y0, y1: o.y1, open: true }]);
+        const r = b.outer, n = r.length / 2;
+        for (const o of openings) {
+          const j = (o.edge + 1) % n, len = Math.hypot(r[j * 2]! - r[o.edge * 2]!, r[j * 2 + 1]! - r[o.edge * 2 + 1]!);
+          const [a0, a1] = o.fromEnd ? [len - o.a1, len - o.a0] : [o.a0, o.a1];
+          cuts.set(o.edge, [...(cuts.get(o.edge) ?? []), { a0, a1, y0: o.y0, y1: o.y1, open: true }]);
+        }
       }
       addWalls(facade, b.outer, b.height, floors, style, shots && photoOut ? { edges: shots.edges, out: photoOut } : undefined, doors,
         // Party walls only open up for one traced plan running through the pieces; generated interiors are

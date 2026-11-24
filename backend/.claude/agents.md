@@ -164,6 +164,18 @@ docker compose down             # 停止（加 -v 會連資料一起刪除）
 | `.env.example` 沒被 commit | 根目錄 `.gitignore` 有 `.env*`；需要時用 `git add -f backend/.env.example` |
 
 ## 變更紀錄
+### 2026-11-24（前端：整個 C 區的配置複製到 D 區）— 分支 `feat/dorm-c-yard-walls`
+- 需求：C 區配置複製到 D 區；D 入口雨遮那塊不要動；不複製室內，只要外觀，門進不去
+- `frontend/src/campus/customFacades.ts`：`DORM_D`（D 三棟＋南棟兩翼新 id）、`dormCToD`／`DORM_C_TO_D_MATRIX`（C → D 鏡射：旋轉取三棟一起擬合，平移讓 C1 宿服中心斜牆中點落在 D 入口斜牆中點）、`dormDEdge`；D 的 `CUSTOM_FACADE_EDGES`、`STYLE_ALIAS`、南棟中段陽台／門廳開口（`FacadeOpening.fromEnd`，`chunkBuilder.ts` 支援）
+- `frontend/src/campus/campusFixes.ts` `copyDormCToD`（main.ts 在 splitDormC 之後）：D 三棟外環換成 C 對應那棟鏡射過來的外環（反轉頂點順序），C3 三塊 → D 南棟三塊；層數照 C、全部 sealed
+- `frontend/src/buildings/dormCFacade.ts` `createDormCFacade(..., 'D')`：同一套外觀整組套鏡射矩陣、碰撞體一起鏡射（`site2`／`siteYaw`），招牌改 D1、D2、D3（鏡像畫）；`dormCFacadeTreeFree` 加 D
+- `frontend/src/campus/dormYard.ts`：`DORM_GATES` = C 的三道門＋鏡射到 D 的同款（`site: 'D'`，前門廣場用 `D_FRONT`）；拿掉 D 原本兩道感應門與 D1–D2 素面牆；`WALL_STUBS`、清樹範圍加 D
+- 使用者再調整：D 棟外面色調改成一樣的風格——D 入口那三面也貼 C1 宿服中心上方那套（洗石子、樓上窗帶／深凹開口），雨遮、門、台階照舊在前面（拿掉 `DORM_D_KEEP_C1_EDGES`，D 東棟 `CUSTOM_FACADE_EDGES` 全部邊）
+- `frontend/src/buildings/dormFeatures.ts`：D 入口雨遮錨點改到新外環（斜牆 edge 2、北翼 edge 1，`D_CORNER` 牆線重算）
+### 2026-11-24（前端：學生宿舍C C2 背面照照片重做、C1–C2 側門位置調整）— 分支 `feat/dorm-c-yard-walls`
+- 需求：C2 背面照照片重新建模，並調整 C1–C2 之間門的位置
+- `frontend/src/buildings/dormCFacade.ts` `C2.back`（edge 6）：洗石子（色調跟 C2 正面一樣，使用者；照片是淺綠磁磚但不用）、壁柱每 `bay` 一格；每層每格凸出的陽台矮牆（外掛冷氣）、後面一扇窗、橫楣、一排小窗；一樓牆腳紅色花磚帶＋咖啡框窗；東端洗石子樓梯間（`tower` 寬 4.2、凸出 1.6 m），正面偏左一列窄窗、一樓暗的出入口
+- `frontend/src/campus/dormYard.ts` `GateMark.shift`（門樓中心往 `ends[1]` 移幾 m）；C1–C2 側門的牆改從 C2 樓梯間正面東角接到 C1 西面（ends [[-4.24, 354.6], [2.69, 354.5]]），`shift: 0.9`——門樓靠 C1
 ### 2026-11-24（前端：學生宿舍C 宿服中心兩側對稱）— 分支 `feat/dorm-c-yard-walls`
 - 需求：以宿服中心為中心，另一邊也一樣、對稱
 - `frontend/src/buildings/dormCFacade.ts` `C1.svcMirror`（edge 9，南翼朝東那面）跟 `svcBack` 共用同一套、左右鏡射（窄窗列在靠斜角那端）；edge 9 從 `southLike` 移除（現在 [10, 6]）

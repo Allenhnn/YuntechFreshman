@@ -24,6 +24,7 @@ import { RAPIER } from '../physics/physics';
 import type { ResourceTracker } from '../core/resources';
 import { mulberry32 } from '../core/math';
 import type { CampusData, Ring } from './campusTypes';
+import { dormCToD } from './customFacades';
 
 /**
  * Dorm area layout from the user's marked map (2026-11-20) and Street View:
@@ -64,9 +65,13 @@ interface GateMark {
    * meets that wing's south wall about 1.6 m short of its corner.
    */
   ends?: readonly [readonly [number, number], readonly [number, number]];
+  /** The gate's centre moved this many metres from the wall's middle toward the second end (`ends[1]`). */
+  shift?: number;
+  /** 學生宿舍D's mirrored copy of a 學生宿舍C gate (its approach uses D_FRONT). */
+  site?: 'D';
 }
 
-export const DORM_GATES: readonly GateMark[] = [
+const BASE_GATES: readonly GateMark[] = [
   // 使用者平面圖（C 區，2026-11-24）：C2–C3 之間的圍牆沿兩棟的外側邊線——從 C3 西翼西南角往外 2.2 m，筆直接到 C2
   // 西北角（不是從兩棟中間穿過）；門在中間。ends: C3 end, C2 end.
   // 使用者照片（2026-11-24）：門的樣式跟前門一樣（奶油色門樓、花磚牆、淡藍色門），牆腳外側一條紅色消防水管、門外水泥步道。
@@ -75,15 +80,29 @@ export const DORM_GATES: readonly GateMark[] = [
   { name: '學生宿舍C 前門', a: [1.8, 327.5], b: [27.9, 319.9], portal: true, approach: true, ends: [[10.92, 327.66], [8.57, 319.27]] },
   // 使用者照片（2026-11-24）：C1–C2 之間不是素面牆，是同款門樓＋花磚牆，門打不開。ends: C2 corner, C1 wall (the old
   // CLOSED_GAPS segment); `a` on the courtyard side (north).
-  { name: '學生宿舍C C1–C2 側門', a: [-1.67, 347.6], b: [-0.43, 357.6], portal: true, locked: true, ends: [[-4.5, 353.02], [2.4, 352.17]] },
+  // 使用者 C2 背面照（2026-11-24）：牆從 C2 樓梯間（凸出 1.6 m，dormCFacade.ts C2.tower）正面的東角接到 C1 西面；門樓靠 C1，
+  // C1 那側只剩窄窄一段、C2 那側約 2.4 m。
+  { name: '學生宿舍C C1–C2 側門', a: [-1.67, 347.6], b: [-0.43, 357.6], portal: true, locked: true, ends: [[-4.24, 354.6], [2.69, 354.5]], shift: 0.9 },
   { name: '學生宿舍B 前門', a: [38.3, 319.9], b: [62.2, 313.4] },
   { name: '學生宿舍B 後門', a: [92.7, 311.2], b: [117.7, 303.6] },
   { name: '學生宿舍A 前門', a: [143.8, 296.0], b: [164.5, 289.5] },
   { name: '學生宿舍A 後門', a: [211.2, 286.2], b: [231.9, 279.6] },
-  { name: '學生宿舍D 後門', a: [-36.7, 412.3], b: [-12.8, 406.9] },
-  { name: '學生宿舍D 前門', a: [6.8, 403.7], b: [32.9, 397.2] },
   { name: '學生宿舍E.F 前門', a: [54.6, 397.2], b: [80.7, 388.5] },
   { name: '學生宿舍E.F 後門', a: [97.0, 388.3], b: [118.7, 380.6] },
+];
+
+/** A C-area point on its mirrored D copy (customFacades.ts `dormCToD`). */
+const toD = (p: readonly [number, number]): [number, number] => dormCToD(p[0], p[1]);
+/**
+ * 學生宿舍D（使用者 2026-11-24：整個 C 區的配置複製到 D 區）：C 的後門、前門、C1–C2 側門鏡射過去，取代 D 原本的兩道感應門和
+ * D1–D2 之間的素面牆；同一款門樓、花磚牆，前門的步道／廣場／平台（D_FRONT）、後門的消防水管、側門打不開，都一樣。
+ */
+export const DORM_GATES: readonly GateMark[] = [
+  ...BASE_GATES,
+  ...BASE_GATES.filter((g) => g.name.startsWith('學生宿舍C')).map((g): GateMark => ({
+    ...g, name: g.name.replace(/C/g, 'D'), a: toD(g.a), b: toD(g.b), site: 'D',
+    ...(g.ends ? { ends: [toD(g.ends[0]), toD(g.ends[1])] as const } : {}),
+  })),
 ];
 
 /**
@@ -94,7 +113,6 @@ export const DORM_GATES: readonly GateMark[] = [
 const CLOSED_GAPS: readonly [number, number][] = [
   [234786931, 234786932], // 學生宿舍A1 – A2
   [234786934, 234786935], // 學生宿舍B1 – B2
-  [296668593, 296668594], // 學生宿舍D (west wing – east wing, toward the C/D courtyard)
 ];
 
 /**
@@ -103,6 +121,7 @@ const CLOSED_GAPS: readonly [number, number][] = [
  */
 const WALL_STUBS: readonly (readonly [readonly [number, number], readonly [number, number]])[] = [
   [[-42.3, 323.6], [-44.47, 323.98]],
+  [toD([-42.3, 323.6]), toD([-44.47, 323.98])], // 學生宿舍D 的同一段
 ];
 
 /** Bike parking rows (polylines). */
@@ -177,6 +196,14 @@ const C_FRONT = {
   lamp: [5.0, 321.4] as const,
   shrub: [2.7, 322.4] as const,
 };
+/** 學生宿舍D 前門's courtyard side: C_FRONT mirrored onto D (the walk and platform sizes are the same). */
+const D_FRONT: typeof C_FRONT = {
+  ...C_FRONT,
+  plaza: C_FRONT.plaza.map(toD) as unknown as typeof C_FRONT.plaza,
+  faces: C_FRONT.faces.map(toD) as unknown as typeof C_FRONT.faces,
+  lamp: toD(C_FRONT.lamp) as unknown as typeof C_FRONT.lamp,
+  shrub: toD(C_FRONT.shrub) as unknown as typeof C_FRONT.shrub,
+};
 
 /** 學生宿舍C 前門's gatehouse (close-up photo): opening, block width / height / depth, lintel underside, lattice panel and pier widths. */
 const PORTAL = { open: 2.7, width: 3.9, height: 3.15, depth: 0.8, lintel: 2.25, panel: 0.8, pier: 0.95 };
@@ -201,6 +228,8 @@ export function dormYardClearings(): Ring[] {
   out.push(...SHEDS.map((s) => s.slice()));
   // 學生宿舍C 前門 approach: the walk (gate → courtyard) and the plaza by the east wing.
   out.push(band(9.7, 323.5, -19.2, 331.6, 3.5), C_FRONT.plaza.flatMap(([x, z]) => [x, z]));
+  // … and its mirrored copy at 學生宿舍D.
+  out.push(band(...toD([9.7, 323.5]), ...toD([-19.2, 331.6]), 3.5), D_FRONT.plaza.flatMap(([x, z]) => [x, z]));
   return out;
 }
 
@@ -376,16 +405,16 @@ export function createDormYard(scene: Scene, physics: RAPIER.World, campus: Camp
     root.add(mesh);
   };
   /** 學生宿舍C 前門, courtyard side: the walk, the plaza, the entrance platform, lamppost and shrub. */
-  const cFrontApproach = (cx: number, cz: number, mx: number, mz: number): void => {
-    const { walk, platform: P } = C_FRONT;
+  const cFrontApproach = (FR: typeof C_FRONT, cx: number, cz: number, mx: number, mz: number): void => {
+    const { walk, platform: P } = FR;
     const lx = -mz, lz = mx; // across the walk
     const at = (t: number, l: number): [number, number] => [cx + mx * t + lx * l, cz + mz * t + lz * l];
     // UVs across (u) and along (v) the walk so the red bands run crosswise.
     decal([at(walk.from, -walk.half), at(walk.to, -walk.half), at(walk.to, walk.half), at(walk.from, walk.half)], 0.036, walkPavers,
       (x, z) => [(x - cx) * lx + (z - cz) * lz, (x - cx) * mx + (z - cz) * mz]);
-    decal(C_FRONT.plaza, 0.03, plazaPavers);
+    decal(FR.plaza, 0.03, plazaPavers);
     // Entrance platform along the two faces, three steps round the free sides (outline offset by d).
-    const [f0, f1, f2] = C_FRONT.faces;
+    const [f0, f1, f2] = FR.faces;
     const unit = (a: readonly [number, number], b: readonly [number, number]): [number, number] => {
       const l = Math.hypot(b[0] - a[0], b[1] - a[1]);
       return [(b[0] - a[0]) / l, (b[1] - a[1]) / l];
@@ -413,13 +442,13 @@ export function createDormYard(scene: Scene, physics: RAPIER.World, campus: Camp
       prism([f1, b, [b[0] + o2[0] * d, b[1] + o2[1] * d], m], 0, top, concrete);
     }
     // The lobby glass on the long face, under C1's balcony tower. 使用者正面照（2026-11-24）：門旁那面（gate side）是素面牆，沒有玻璃門。
-    const [sh0, sh1] = C_FRONT.shop;
+    const [sh0, sh1] = FR.shop;
     panel(f1, d2, o2, sh0 - 0.1, sh1 + 0.1, P.top, P.top + 2.9, 0, 0.08, frameGrey);
     panel(f1, d2, o2, sh0, sh1, P.top + 0.4, P.top + 2.8, 0.08, 0.02, glass);
     for (let s = sh0; s <= sh1 + 1e-6; s += (sh1 - sh0) / 4) panel(f1, d2, o2, s - 0.03, s + 0.03, P.top + 0.4, P.top + 2.8, 0.1, 0.03, frameGrey);
     panel(f1, d2, o2, sh0, sh1, P.top, P.top + 0.4, 0.08, 0.03, kickGreen); // green kick plate (照片)
     // Black lamppost with a box head, and a shrub, on the grass strip by the north wing.
-    const [lpx, lpz] = C_FRONT.lamp;
+    const [lpx, lpz] = FR.lamp;
     const post = new Mesh(tracker.geometry(merged([box(0.12, 3.6, 0.12, 0, 1.8, 0), box(0.34, 0.42, 0.34, 0, 3.75, 0), box(0.3, 0.3, 0.3, 0, 0.15, 0)])), black);
     post.position.set(lpx, 0, lpz);
     post.castShadow = true;
@@ -428,7 +457,7 @@ export function createDormYard(scene: Scene, physics: RAPIER.World, campus: Camp
     head.position.set(lpx, 0, lpz);
     root.add(head);
     solid(lpx, 1.8, lpz, 0.1, 1.8, 0.1, 0);
-    const [shx, shz] = C_FRONT.shrub;
+    const [shx, shz] = FR.shrub;
     const bush = new Mesh(tracker.geometry(merged([new IcosahedronGeometry(0.55, 0).scale(1.2, 0.85, 1).translate(0, 0.5, 0), new IcosahedronGeometry(0.4, 0).translate(0.45, 0.75, 0.2)])), leafGreen);
     bush.position.set(shx, 0, shz);
     bush.castShadow = true;
@@ -504,8 +533,9 @@ export function createDormYard(scene: Scene, physics: RAPIER.World, campus: Camp
     const span = Math.hypot(br.q[0] - br.p[0], br.q[1] - br.p[1]);
     if (span < GATE_W + 1.5) continue;
     const ux = (br.q[0] - br.p[0]) / span, uz = (br.q[1] - br.p[1]) / span;
-    const cx = (br.p[0] + br.q[0]) / 2, cz = (br.p[1] + br.q[1]) / 2;
-    const left = span / 2 - 0.05, right = span / 2 - 0.05;
+    const sh = g.shift ?? 0;
+    const cx = (br.p[0] + br.q[0]) / 2 + ux * sh, cz = (br.p[1] + br.q[1]) / 2 + uz * sh;
+    const left = span / 2 + sh - 0.05, right = span / 2 - sh - 0.05;
     const yaw = Math.atan2(-uz, ux); // local +x along the wall
     const grp = new Group();
     grp.position.set(cx, 0, cz);
@@ -678,7 +708,7 @@ export function createDormYard(scene: Scene, physics: RAPIER.World, campus: Camp
     if (g.approach) {
       // Way into the courtyard: the side of the wall the mark's start lies on.
       const nx = -uz, nz = ux, inward = (g.a[0] - cx) * nx + (g.a[1] - cz) * nz > 0 ? 1 : -1;
-      cFrontApproach(cx, cz, inward * nx, inward * nz);
+      cFrontApproach(g.site === 'D' ? D_FRONT : C_FRONT, cx, cz, inward * nx, inward * nz);
     }
   }
 

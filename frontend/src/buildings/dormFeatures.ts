@@ -52,9 +52,11 @@ import { drawIcon } from '../ui/icons';
 // ---------------------------------------------------------------- anchors (OSM id, edge, endpoints)
 interface WallAnchor { id: number; edge: number; a: [number, number]; b: [number, number] }
 /** 學生宿舍D 東北向斜牆（入口凹處）。 */
-const D_RECESS: WallAnchor = { id: 296668594, edge: 1, a: [22.0, 380.5], b: [25.7, 383.9] };
+// 使用者（2026-11-24）：D 區換成 C 區的鏡射（campusFixes.ts copyDormCToD），東棟外環跟著換；入口斜牆、北翼東面改成新外環的邊（C1 宿服中心那道斜牆＝edge 2），
+// 斜牆中點不動，雨遮、台階、坡道照舊做在上面。
+const D_RECESS: WallAnchor = { id: 296668594, edge: 2, a: [21.85, 380.88], b: [25.85, 383.45] };
 /** 學生宿舍D 北翼東面（入口右手邊凸出的那面牆）。 */
-const D_WING: WallAnchor = { id: 296668594, edge: 0, a: [20.6, 372.3], b: [22.0, 380.5] };
+const D_WING: WallAnchor = { id: 296668594, edge: 1, a: [19.7, 370.73], b: [21.85, 380.88] };
 
 // ---------------------------------------------------------------- dimensions (m)
 /**
@@ -81,7 +83,7 @@ interface CornerSpec { base: WallAnchor; xWall: readonly [P2, P2]; zWall: readon
 /** 學生宿舍C：北棟南面（x 牆）與南翼東面（z 牆），中間 OSM 小斜牆。C1 東北角凹口填平後（campusFixes.ts）這面是 edge 7。 */
 const C_CORNER: CornerSpec = { base: { id: 296668595, edge: 7, a: [26.4, 337.6], b: [18.3, 339.1] }, xWall: [[0, 0], [8.24, 0]], zWall: [[-3.64, 3.19], [-4.22, 13.45]] };
 /** 學生宿舍D：北翼東面（x 牆）與東翼北面（z 牆），中間是入口斜牆。 */
-const D_CORNER: CornerSpec = { base: { id: 296668594, edge: 1, a: [22.0, 380.5], b: [25.7, 383.9] }, xWall: [[5.04, 0], [11.6, 5.15]], zWall: [[0, 0], [-4.94, 6.95]] };
+const D_CORNER: CornerSpec = { base: D_RECESS, xWall: [[4.77, 0], [12.05, 7.38]], zWall: [[0, 0], [-6.2, 5.52]] };
 
 /** Corner geometry in its base wall frame: origin, axes, the z-wall slope and the walls' ends in corner coords. */
 interface CornerGeom { o: P2; X: P2; Z: P2; mz: number; chamfer: [P2, P2]; xEnd: number; zEnd: P2; toBase(x: number, z: number): P2 }
