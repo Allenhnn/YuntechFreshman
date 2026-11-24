@@ -1,5 +1,5 @@
 import { WARDROBE_YAW_LIMIT, wardrobeView } from '../character/wardrobePreview';
-import { randomName, studentId, usePlayerName } from '../state/playerName';
+import { randomName, usePlayerName } from '../state/playerName';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { actions, useGame } from '../state/store';
 import { storyActions, useStory, type StoryProgress } from '../state/story';
@@ -494,28 +494,28 @@ function RollCall(): ReactNode {
 }
 /**
  * 確認身份: after your hand goes up the professor is suspicious and asks three questions about
- * 雲科 and yourself; two right and you are marked present, otherwise it was a stand-in (absent).
+ * this class (物件導向軟體工程); two right and you are marked present, otherwise it was a stand-in (absent).
  */
 function IdentityCheck({ me, onDone }: { me: string; onDone: (ok: boolean) => void }): ReactNode {
   const api = useApi();
-  const no = useStory((s) => s.progress.studentNo);
   const qs = useMemo(() => {
-    const id = studentId(no);
+    // 物件導向軟體工程 (this class) questions.
     const pool: { q: string; a: string; wrong: string[] }[] = [
-      { q: '雲科大在哪裡？', a: '雲林縣斗六市', wrong: ['雲林縣虎尾鎮', '嘉義縣民雄鄉', '彰化縣彰化市'] },
-      { q: '雲科大的英文簡稱是？', a: 'YunTech', wrong: ['NTUST', 'NCKU', 'NTHU'] },
-      { q: '你現在上課的這棟是？', a: '管理一館', wrong: ['工程一館', '設計學院', '圖書館'] },
-      { q: '你是哪一系的學生？', a: '資訊管理系', wrong: ['企業管理系', '財務金融系', '工業工程與管理系'] },
-      { q: '你的學號是？', a: id, wrong: [studentId(String((Number(no) + 37) % 1000)), id.replace('B114', 'B113'), id.replace('B11412', 'B11431')] },
-      { q: '這堂課是什麼課？', a: COURSE, wrong: ['微積分', '計算機概論', '會計學'] },
-      { q: '我們學校的吉祥物「雲寶寶」頭上有幾片葉子？', a: '3 片', wrong: ['1 片', '2 片', '4 片'] },
+      { q: '物件導向的三大特性是封裝、繼承，還有什麼？', a: '多型', wrong: ['遞迴', '編譯', '迭代'] },
+      { q: '把資料和操作資料的方法包在一起、隱藏內部細節，叫做什麼？', a: '封裝', wrong: ['繼承', '多載', '委派'] },
+      { q: '子類別重新定義父類別的方法，叫做什麼？', a: '覆寫（Override）', wrong: ['多載（Overload）', '封裝（Encapsulation）', '實例化（Instantiate）'] },
+      { q: 'UML 裡描述類別之間關係（繼承、關聯）的是哪一種圖？', a: '類別圖', wrong: ['使用案例圖', '活動圖', '甘特圖'] },
+      { q: 'UML 裡描述使用者（Actor）和系統功能互動的是哪一種圖？', a: '使用案例圖', wrong: ['類別圖', '部署圖', '狀態圖'] },
+      { q: '「一個類別應該只有一個改變的理由」是 SOLID 的哪個原則？', a: '單一職責原則', wrong: ['開放封閉原則', '里氏替換原則', '依賴反轉原則'] },
+      { q: '「對擴充開放、對修改封閉」是哪個原則？', a: '開放封閉原則', wrong: ['單一職責原則', '介面隔離原則', '依賴反轉原則'] },
+      { q: '確保一個類別只會有一個實例的設計模式是？', a: '單例模式（Singleton）', wrong: ['工廠模式（Factory）', '觀察者模式（Observer）', '轉接器模式（Adapter）'] },
     ];
     return pool
       .map((q) => ({ q, k: Math.random() }))
       .sort((p, q) => p.k - q.k)
       .slice(0, 3)
       .map(({ q }) => ({ q: q.q, a: q.a, options: [q.a, ...q.wrong].map((o) => ({ o, k: Math.random() })).sort((p, q) => p.k - q.k).map(({ o }) => o) }));
-  }, [no]);
+  }, []);
   const [stage, setStage] = useState<'doubt' | number | 'pass' | 'fail'>('doubt');
   const [right, setRight] = useState(0);
   const [picked, setPicked] = useState<string | null>(null);
@@ -535,7 +535,7 @@ function IdentityCheck({ me, onDone }: { me: string; onDone: (ok: boolean) => vo
   if (stage === 'doubt') {
     return (
       <>
-        <p className="story-text">你舉起手：「有！」<br />教授推了推眼鏡：「嗯？你確定你是 <b>{me}</b> 嗎？最近代點名的很多……那我問你幾個問題。」</p>
+        <p className="story-text">你舉起手：「有！」<br />教授推了推眼鏡：「嗯？你確定你是 <b>{me}</b> 嗎？最近代點名的很多……那我問你幾個物件導向的問題。」</p>
         <button className="btn primary" onClick={() => { api.click(); setStage(0); }}>好，請問（答對 2 題就算到）</button>
       </>
     );
@@ -750,7 +750,7 @@ function StayAwake(): ReactNode {
       <div className="speaker">課堂・教授講課中　<small>剩 {Math.max(0, Math.ceil(left))} 秒</small></div>
       {done === null ? (
         <>
-          <p className="story-text">「…所以這個公式非常重要，期末一定會考…」{yawn ? <b className="yawn">哈～～欠～</b> : null}</p>
+          <p className="story-text">「…所以這個 UML 類別圖非常重要，期末一定會考…」{yawn ? <b className="yawn">哈～～欠～</b> : null}</p>
           <div className={`awake-state s-${state}`}>狀態：{state}</div>
           <div className={`awake-bar${yawn ? ' yawning' : ''}`}>
             <span className="zone" style={{ left: `${SAFE[0] * 100}%`, width: `${(SAFE[1] - SAFE[0]) * 100}%` }} />

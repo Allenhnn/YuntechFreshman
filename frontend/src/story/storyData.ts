@@ -116,18 +116,18 @@ export const TUTORIAL: readonly { key: string[]; text: string }[] = [
 
 /** 上課中: what the professor says while you sit in class (one line every few seconds). */
 export const LECTURE: readonly { who: string; text: string }[] = [
-  { who: '教授', text: '好，我們開始上課。今天講「管理的四大功能」。' },
-  { who: '教授', text: '規劃、組織、領導、控制——這四個字期末一定考。' },
+  { who: '教授', text: '好，我們開始上課。今天講物件導向的三大特性。' },
+  { who: '教授', text: '封裝、繼承、多型——這三個詞期末一定考。' },
   { who: '同學', text: '（小聲）欸，你剛剛是不是差點遲到…' },
-  { who: '教授', text: '規劃就是先想清楚目標，再決定要怎麼做。' },
-  { who: '教授', text: '就像你們早上設三個鬧鐘，結果還是睡過頭，這就是規劃失敗。' },
+  { who: '教授', text: '封裝，就是把資料和操作資料的方法包在一起，外面只看得到介面。' },
+  { who: '教授', text: '就像你的鬧鐘，你只要按按鈕，不用知道裡面怎麼響——結果你還是睡過頭。' },
   { who: '同學', text: '（全班笑）' },
-  { who: '教授', text: '組織，是把人和資源放在對的位置上。' },
-  { who: '教授', text: '這一頁的圖大家抄一下，下週小考會出。' },
+  { who: '教授', text: '繼承，是子類別把父類別的屬性和方法拿來用，再加上自己的。' },
+  { who: '教授', text: '這張 UML 類別圖大家抄一下，下週小考會出。' },
   { who: '同學', text: '（小聲）好想睡…' },
-  { who: '教授', text: '領導呢，不只是下命令，而是讓大家願意跟著你走。' },
+  { who: '教授', text: '多型呢，同一個方法呼叫，不同的物件會有不同的行為。' },
 ];
-export const COURSE = '管理學概論';
+export const COURSE = '物件導向軟體工程';
 
 /** A line of a visual-novel scene: a speaker (empty = narration), the text, and how it is shown. */
 export interface VnLine {

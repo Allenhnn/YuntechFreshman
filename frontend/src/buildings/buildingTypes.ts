@@ -22,7 +22,9 @@ export type FurnishKind =
   | 'exhibit'
   | 'dorm'
   | 'dormLoft'
-  | 'restroom';
+  | 'restroom'
+  /** 多功能教室 (MA214, from the photo): screen and lectern at the front, tiers of long wooden desks with microphones. */
+  | 'conference';
 
 export interface Space {
   id: string;
