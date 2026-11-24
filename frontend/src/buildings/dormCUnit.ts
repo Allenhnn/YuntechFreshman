@@ -52,7 +52,7 @@ export const DORM_C_UNIT_PLAN = {
 } satisfies Record<string, Rect>;
 const R = DORM_C_UNIT_PLAN;
 /** The living room's window onto the courtyard (plan x range in its front wall), behind the facade's 2F hall window. */
-export const DORM_C_LIVING_WINDOW = [18.6, 21.0] as const;
+export const DORM_C_LIVING_WINDOW = [17.5, 19.9] as const; // in line with DORM_C_HALL_2F (moved west, clear of the east wing)
 /** The work room's window into the laundry: plan x range in their shared wall. */
 export const DORM_C_WORK_WINDOW = [8.0, 9.2] as const;
 /** Floor level of the bedrooms and the bathroom (m): below ground, out of sight, above the fall-out-of-world net at −40. */

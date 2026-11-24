@@ -742,9 +742,9 @@ export function createDormCUnitDecor(scene: Scene, physics: RAPIER.World, tracke
     box(f, plaster, lw0, lw1, 0, ws0, wy0, wy1);
     box(f, plaster, lw0, lw1, ws1, CEIL, wy0, wy1);
     solid(f, lw0, lw1, 0, CEIL, wy0, wy1);
+    // 使用者（2026-11-24）：單純窗戶就好——不要紗窗、不要分格（看起來能開的）：只有一圈外框。
     for (const [p, q] of [[lw0, lw0 + 0.06], [lw1 - 0.06, lw1]] as const) box(f, frameBrown, p, q, ws0, ws1, wy0, wy0 + 0.05);
-    for (let k = 1; k < 4; k++) { const x = lw0 + ((lw1 - lw0) * k) / 4; box(f, frameBrown, x - 0.025, x + 0.025, ws0, ws1, wy0, wy0 + 0.05); }
-    for (const h of [ws0, 1.75, ws1 - 0.06]) box(f, frameBrown, lw0, lw1, h, h + 0.06, wy0, wy0 + 0.05);
+    for (const h of [ws0, ws1 - 0.06]) box(f, frameBrown, lw0, lw1, h, h + 0.06, wy0, wy0 + 0.05);
     ceilingPanel(f, 18.2, 7.0, 0.6, 1.2);
     // Ceiling fan: down-rod, hub, four blades.
     const fx = 20.0, fz = 8.2, fh = CEIL - 0.45;

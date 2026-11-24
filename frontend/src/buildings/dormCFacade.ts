@@ -25,7 +25,7 @@ import { RAPIER } from '../physics/physics';
 import type { ResourceTracker } from '../core/resources';
 import { mulberry32 } from '../core/math';
 import type { CampusData, Ring } from '../campus/campusTypes';
-import { DORM_C, DORM_C_BALCONY as BAL, DORM_C_BALCONY_SPAN, DORM_C_LOBBY as LOBBY } from '../campus/customFacades';
+import { DORM_C, DORM_C_BALCONY as BAL, DORM_C_BALCONY_SPAN, DORM_C_HALL_2F as HALL, DORM_C_LOBBY as LOBBY } from '../campus/customFacades';
 
 /**
  * 學生宿舍C 北棟（OSM 296668596，U 形），依使用者實拍＋遊戲截圖與小地圖（2026-11-22）。載入時切成三塊
@@ -303,10 +303,11 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
     b.put(span(x0, x1, y0, y0 + 0.03, z - 0.05, z + 0.05), concrete, 2);
   };
   /** A window on the wall plane: frame, glass and a middle mullion. */
-  const windowAt = (b: ReturnType<typeof build>, x0: number, x1: number, y0: number, y1: number, pane: Material = glass): void => {
+  /** `plain`: one fixed pane in an outer frame — no middle mullion or transom (no sashes, no screen). */
+  const windowAt = (b: ReturnType<typeof build>, x0: number, x1: number, y0: number, y1: number, pane: Material = glass, plain = false): void => {
     b.put(span(x0, x1, y0, y1, 0.06, 0.1), pane);
-    for (const x of [x0, (x0 + x1) / 2 - 0.025, x1 - 0.05]) b.put(span(x, x + 0.05, y0, y1, 0.06, 0.13), frameGrey);
-    for (const y of [y0, y1 - 0.05, y0 + (y1 - y0) * 0.62]) b.put(span(x0, x1, y, y + 0.05, 0.06, 0.13), frameGrey);
+    for (const x of plain ? [x0, x1 - 0.05] : [x0, (x0 + x1) / 2 - 0.025, x1 - 0.05]) b.put(span(x, x + 0.05, y0, y1, 0.06, 0.13), frameGrey);
+    for (const y of plain ? [y0, y1 - 0.05] : [y0, y1 - 0.05, y0 + (y1 - y0) * 0.62]) b.put(span(x0, x1, y, y + 0.05, 0.06, 0.13), frameGrey);
   };
   const acUnit = (b: ReturnType<typeof build>, x: number, y: number): void => {
     b.put(span(x - 0.4, x + 0.4, y, y + 0.55, 0.06, 0.36), acWhite);
@@ -563,7 +564,10 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
     const L = f.len, Dw = FLANK.depth, b = build(f);
     // East hall, 2F: the dorm flat's living room is behind it — the wall skin is cut and the glass is clear, so it looks
     // out (使用者：戶廳的窗戶可以看到外面; the shell wall is opened by DORM_C_HALL_2F).
-    const see = e === EDGES.eastFlank, hm = (FLANK.pier + L) / 2, hh = Math.min(HALL_WINDOW, L - FLANK.pier) / 2;
+    // East: the window sits where DORM_C_HALL_2F opens the shell (a0/a1 from vertex i), centred on the notch's open part,
+    // clear of the east wing's wall in front of the rest (使用者：戶廳窗戶的造型怪怪的).
+    const see = e === EDGES.eastFlank;
+    const hm = see ? L - (HALL.a0 + HALL.a1) / 2 : (FLANK.pier + L) / 2, hh = see ? (HALL.a1 - HALL.a0) / 2 : Math.min(HALL_WINDOW, L - FLANK.pier) / 2;
     const seeFy = floors[0]!;
     skin(b, f, H, see ? [[hm - hh, hm + hh, seeFy + 0.6, seeFy + 2.8]] : []);
     const nBay = hall ? 1 : Math.max(1, Math.round((L - FLANK.pier) / FLANK.bay));
@@ -581,8 +585,9 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
         b.put(span(a, c, w1, fy + 3.35, 0.02, Dw), concrete, 2);
         b.put(span(a - 0.1, c + 0.1, w1, w1 + 0.1, Dw, FLANK.shade), concrete, 2); // sunshade
         // The hall's window (使用者：縮小): at most HALL_WINDOW wide, solid wall either side at the frame face.
-        const half = hall ? Math.min(HALL_WINDOW, c - a) / 2 : (c - a) / 2, m = (a + c) / 2;
-        windowAt(b, m - half, m + half, w0, w1, see && fy === seeFy ? clearGlass : glass);
+        const half = see ? hh : hall ? Math.min(HALL_WINDOW, c - a) / 2 : (c - a) / 2, m = see ? hm : (a + c) / 2;
+        // The living room's window (使用者：單純窗戶就好，不要紗窗、不要看起來能開的): one clear pane, outer frame only.
+        windowAt(b, m - half, m + half, w0, w1, see && fy === seeFy ? clearGlass : glass, see && fy === seeFy);
         if (m - half > a + 0.01) for (const [p, q] of [[a, m - half], [m + half, c]] as const) b.put(span(p, q, w0, w1, 0.02, Dw), concrete, 2);
         if (!hall && seeded() < 0.5) acUnit(b, a + 0.6 + seeded() * (c - a - 1.2), fy + 0.92);
       }

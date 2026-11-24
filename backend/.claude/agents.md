@@ -164,6 +164,10 @@ docker compose down             # 停止（加 -v 會連資料一起刪除）
 | `.env.example` 沒被 commit | 根目錄 `.gitignore` 有 `.env*`；需要時用 `git add -f backend/.env.example` |
 
 ## 變更紀錄
+### 2026-11-24（前端：學生宿舍C 戶廳窗改單純一片玻璃、移到凹口開口正中）— 分支 `feat/dorm-c-yard-walls`
+- 需求：戶廳窗戶造型怪怪的；單純窗戶就好，不要紗窗、不要看起來能開的
+- 原因：2 樓交誼廳窗在東側凹口牆的正中，東半邊正對東翼的牆，從室內看出去左邊一大塊是洗石子牆
+- `customFacades.ts` `DORM_C_HALL_2F` a0/a1 改 2.53–4.93（往西 1.1 m）；`dormCUnit.ts` `DORM_C_LIVING_WINDOW` 改 [17.5, 19.9]；`dormCFacade.ts` 東側戶廳各層窗改照 `DORM_C_HALL_2F` 置中（上下層對齊），`windowAt` 加 `plain`：2 樓這扇只有外框；`dormCUnitDecor.ts` 室內窗框拿掉直櫺與橫檔
 ### 2026-11-24（前端：學生宿舍C C2–C3 後門圍牆照平面圖移位）— 分支 `feat/dorm-c-yard-walls`
 - 需求：依 C 區平面圖調整宿舍圍牆，特別是平面圖右側 C2 與 C3 相連的那道牆
 - 平面圖與遊戲方向相差 180°（圖右＝遊戲西）。前門牆（C1–C3）與南側 C1–C2 封牆原本就對；後門牆原本從兩棟中間（x≈-33）穿過，改沿外側邊線
