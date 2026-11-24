@@ -6,12 +6,14 @@ import { boundarySegments, rasterize } from '../src/buildings/floorGrid';
 import type { BuildingSource, FloorPlan, Rect, Space, Vec2 } from '../src/buildings/buildingTypes';
 
 const levels = [['B1',-2.475],['1F',1.125],['2F',3.6],['3F',7.2]] as const;
+const bookshopWell: Rect = [-17,10,-1.5,15.6];
+const basementFlight: Rect = [-11,21,0,23.2];
 const source: BuildingSource = {
   id:'activity-centre', name:'學生活動中心暨表演廳', osmReplaces:['學生活動中心','表演廳'],
   transform:{angleDeg:Math.atan2(6.28,-35.17)*180/Math.PI,planCentroid:[0,0],worldCentroid:[128.18,168.83]},
   floorHeight:3.6, levels:levels.map(([id,elevation])=>({id,elevation,built:true})),
   floors:{},shell:{},directory:[],undergroundLevel:'B1',style:{clerestory:false,windows:true},
-  groundOpenings:[[-26,9,-18,13],[50,9,58,13],[7,-8,28,1.9]],
+  groundOpenings:[bookshopWell,basementFlight,[-26,9,-18,13],[50,9,58,13],[7,-8,28,1.9]],
 };
 for(const [index,[id,base]] of levels.entries()) {
   const height=(levels[index+1]?.[1]??10.8)-base;
@@ -130,6 +132,23 @@ for(const [index,[id,base]] of levels.entries()) {
     box(-46,30.55,-base,11,base,1.3);
     box(-46,31.2,2.5,13,.32,2.8,'stage');
   }
+  if(id==='1F') {
+    space('書城走道間挑空','void',[bookshopWell],{noCeiling:true});
+    space('通往地下室的直梯','void',[basementFlight],{noCeiling:true,customEdge:true});
+    // Fixtures sit against the bookshop wall, leaving the route beside the rail clear.
+    for(const [x,width] of [[-4,2.8],[-9,2.4],[-14,2.4]]) {
+      extras.colliders.push({c:[x,.48,18.45],h:[width/2,.48,.39]});
+    }
+  }
+  if(id==='B1') {
+    space('書城下方中庭','lobby',[bookshopWell],{group:'hall',noCeiling:true});
+    space('直梯下方及出口','corridor',[[-13,18,-11,23.2],basementFlight],
+      {group:'hall',noCeiling:true});
+    const count=22, tread=11/count;
+    for(let i=0;i<count;i++) {
+      box(-11+(i+.5)*tread,22.1,0,tread,(i+1)*height/count,2.2);
+    }
+  }
   // Doors on the longest available wall facing circulation. A nested service
   // room (e.g. 134/135) may instead connect through its adjoining parent.
   const grid=rasterize(f.spaces), edges=boundarySegments(grid);
@@ -152,7 +171,12 @@ for(const [index,[id,base]] of levels.entries()) {
   }
   // Upper bridge edges remain open to both wings. At ground level the court
   // itself is the exterior platform, entered at the mouths of both corridors.
-  if(id==='1F') for(const x of [0,36]) open('v',x,13,4,'open','中庭');
+  if(id==='1F') {
+    open('v',36,13,4,'open','中庭');
+    open('v',0,17.4,1.8,'exit','雲院書城');
+    open('v',0,8.4,1.8,'exit','翼廊');
+    open('v',0,22.1,2.2,'open','B1');
+  }
   if(id==='B1') open('h',-8,17.5,19,'open','Courtyard');
   if(id==='3F') open('v',36,13,1.4,'door','303');
   if(id==='2F'||id==='3F') for(const y of [2.5,5,17,20]) {

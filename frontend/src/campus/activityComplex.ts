@@ -59,7 +59,7 @@ export function buildActivityComplex(b: CampusBuilding, solid: GeoBuilder, glass
     // Photos 14–16 and 23–26: two open ends, galleries down the sides,
     // overhead bridges and a glazed ridge visible from inside the court.
     for (const x of [1, 32]) {
-      for (const z of (x === 1 ? [-22,-4] : [-22,-13,-4])) box(x,x+.65,z,z+.65,0,10.8);
+      for (const z of (x === 1 ? [-24.1,-4] : [-22,-13,-4])) box(x,x+.65,z,z+.65,0,10.8);
       for (const y of [3.6,7.2]) {
         box(x-1,x+2.6,-24,0,y-.32,.32);
         const inner = x < 10 ? x+2.4 : x-1;
@@ -208,6 +208,12 @@ export function buildActivityComplex(b: CampusBuilding, solid: GeoBuilder, glass
         box(x,x+1.65,z,z+tread,platformY,(i+1)*rise,edge);
       }
       section(solid,at,x,x+.06,-20-steps*tread,-20,platformY+1.03,4.52,.06,metal);
+    }
+    // Level threshold from the plaza platform to the descending basement flight.
+    box(0,2,-23.2,-21,0,1.125);
+    for(const z of [-23.2,-21]) {
+      box(0,.08,z,z+.055,1.125,.92,metal);
+      box(0,1.75,z,z+.055,2.045,.06,metal);
     }
     // Central stair, level side bypasses and the paired stepped planting beds.
     for (let i=0;i<7;i++) box(12.5,23.5,-30.9+i*.43,-30.47+i*.43,.075,(i+1)*.15,edge);

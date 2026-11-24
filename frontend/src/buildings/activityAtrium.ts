@@ -58,6 +58,39 @@ export function addActivityAtrium(scene: Scene, tracker: ResourceTracker) {
     member([30,1.125,z],[30,6.8,z],.63,.63,0xb2aba0);
     member([30,6.78,z],[31.7,6.78,z],.38,.08,0xffeac8);
   }
+  // Bookshop frontage along the left-hand gallery. Keep a clear aisle on
+  // the well side of the counter, copier and glass display case.
+  const block=(x:number,y:number,z:number,w:number,h:number,d:number,color:number)=>
+    member([x,y,z],[x,y+h,z],w,d,color);
+  for(let x=-17;x<=-2;x+=.28) block(x,1.26,18.89,.09,2.14,.09,0x97754f);
+  block(-9.5,3.36,18.76,15.2,.07,.20,0xffe2ae);
+  block(-4,1.13,18.45,2.8,.92,.78,0xbfa982);
+  block(-4,2.05,18.45,2.94,.06,.84,0xe6d7b7);
+  block(-4.65,2.11,18.54,.48,.32,.09,0x464c4c);
+  block(-9,1.13,18.45,2.4,.81,.78,0xcecfc4);
+  block(-9,1.94,18.45,2.2,.09,.66,0x525554);
+  block(-9,2.03,18.67,2.12,.19,.21,0xe3dfcb);
+  for(const h of [1.21,1.72,2.23]) block(-14,h,18.45,2.4,.05,.76,0xb8bbb2);
+  for(const x of [-15.15,-12.85]) for(const z of [18.09,18.8])
+    block(x,1.13,z,.05,1.52,.05,0x757d77);
+  for(const h of [1.26,1.77,2.28]) for(let i=0;i<6;i++)
+    block(-14.96+i*.31,h,18.4,.17,.25,.23,[0xa77652,0x748b86,0xd5bc79][i%3]!);
+  for(const z of [10,15.6]) {
+    member([-17,2.15,z],[-1.5,2.15,z],.065,.065,0x898b83);
+    for(let x=-16.8;x<-1.5;x+=2.5) block(x,1.13,z,.05,1.02,.05,0x898b83);
+  }
+  for(const x of [-6.8,-11.3]) {
+    block(x,1.13,16.15,.42,.06,.42,0x767974);
+    block(x,1.19,16.15,.07,.57,.07,0x858780);
+    block(x,1.76,16.15,.43,.09,.38,0x9c6355);
+  }
+  // Basement stair: the rails follow the same rise and run as the B1 treads.
+  for(const z of [21.05,23.15]) {
+    member([-11,-1.48,z],[0,2.12,z],.07,.07,0x808782);
+    for(let i=0;i<=5;i++){
+      const f=i/5;block(-11+11*f,-2.475+3.6*f,z,.06,1,.06,0x808782);
+    }
+  }
   const batch=new InstancedMesh(new BoxGeometry(),new MeshStandardMaterial({roughness:.9}),members.length);
   const temp=new Object3D(), direction=new Vector3(),axis=new Vector3(0,1,0);
   members.forEach(({p,q,w,h,color},i)=>{
@@ -70,7 +103,7 @@ export function addActivityAtrium(scene: Scene, tracker: ResourceTracker) {
     m.position.set(x,y,z);m.rotation.y=yaw;root.add(m);
   };
   // Display glazing beside the corridor mouth, facing the landing.
-  panel(5.6,1.18,.18,2.28,8,Math.PI/2,texture(512,128,c=>{
+  panel(5.6,1.18,.18,2.28,12.9,Math.PI/2,texture(512,128,c=>{
     c.fillStyle='#494740'; c.fillRect(0,0,512,128);
     for(let i=0;i<6;i++){
       const x=5+i*84;
@@ -78,6 +111,11 @@ export function addActivityAtrium(scene: Scene, tracker: ResourceTracker) {
       c.fillStyle='#8e795a'; c.fillRect(x,78,78,5);
       c.fillStyle='#fff1c0'; c.fillRect(x+8,13,61,5);
     }
+  }));
+  panel(3.4,.46,-7,3.02,18.80,Math.PI,texture(640,96,c=>{
+    c.fillStyle='#514439';c.fillRect(0,0,640,96);
+    c.fillStyle='#fae7b5';c.font='bold 64px sans-serif';
+    c.textAlign='center';c.fillText('雲院書城',320,71);
   }));
   panel(18,1.35,17.8,7.52,2.42,0,texture(1536,128,c=>{
     c.fillStyle='#e1d9bd';c.fillRect(0,0,1536,128);c.fillStyle='#4d7867';
