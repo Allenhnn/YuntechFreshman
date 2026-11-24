@@ -327,7 +327,7 @@ function buildModelledFloor(
       if (y1 - y0 <= 0.01) continue;
       // Clerestory: a high glazed strip where a room meets a corridor (the wall stays solid for collision).
       const corridorSide = (s?: Space): boolean => s?.kind === 'corridor' || s?.kind === 'lobby';
-      const roomSide = (s?: Space): boolean => s?.kind === 'room';
+      const roomSide = (s?: Space): boolean => s?.kind === 'room' && !s.solidWalls;
       const strip = clerestory && !kind && A && B && ((roomSide(A) && corridorSide(B)) || (roomSide(B) && corridorSide(A)))
         && y0 <= base + 0.01 && y1 >= base + CLERESTORY[1] + 0.1;
       // Windows: an exterior wall of a room or corridor is glazed where the facade paints its windows.

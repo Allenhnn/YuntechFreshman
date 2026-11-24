@@ -37,6 +37,8 @@ export interface Space {
   ceiling: number;
   /** Area from the official space table (m²), used to validate the trace. */
   legendArea?: number;
+  /** Plain walls all round: no clerestory glass toward corridors (store and tool rooms). */
+  solidWalls?: boolean;
   /** Open to the floor above (stair halls under a void): no ceiling quad or ceiling collider. */
   noCeiling?: boolean;
   /** Spaces sharing a group are one room split only to vary the ceiling (no wall between them). */
