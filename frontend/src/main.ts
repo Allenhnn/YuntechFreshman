@@ -276,9 +276,14 @@ async function boot(): Promise<void> {
   }) : null;
   if (roomsBuilding) handBuilt.push(roomsBuilding);
   // The bedrooms' loft beds (modelled in the decor, not generated furniture): seats for lying down and the story's wake-up.
+  // Getting on and off one happens at the foot of its ladder (使用者：上床下床改為靠近樓梯): `dormBedLadder`.
+  const dormBedLadder = new Map<Seat, { x: number; y: number; z: number }>();
   const dormBeds: Seat[] = unit && unitBuilding ? dormCRoomBeds().map((b) => {
     const [x, z] = unitBuilding.planToWorld(b.at[0], b.at[1]);
-    return { kind: 'bed', x, y: DORM_C_ROOMS_FLOOR + DORM_C_LOFT_TOP, z, base: DORM_C_ROOMS_FLOOR, yaw: unitBuilding.planFacing(b.head), building: unit.rooms.name, room: `寢室 ${b.room + 1}` };
+    const st: Seat = { kind: 'bed', x, y: DORM_C_ROOMS_FLOOR + DORM_C_LOFT_TOP, z, base: DORM_C_ROOMS_FLOOR, yaw: unitBuilding.planFacing(b.head), building: unit.rooms.name, room: `寢室 ${b.room + 1}` };
+    const [lx, lz] = unitBuilding.planToWorld(b.ladder[0], b.ladder[1]);
+    dormBedLadder.set(st, { x: lx, y: DORM_C_ROOMS_FLOOR, z: lz });
+    return st;
   }) : [];
   const unitDecor = unit && unitBuilding ? createDormCUnitDecor(scene, physics, sceneResources, unit) : null;
   // 2F sky bridge 管理二館 → 管理一館: from the door at the north end of MB's east wing to MA's west corridor end.
@@ -499,8 +504,9 @@ async function boot(): Promise<void> {
     for (const st of [...buildings().flatMap((b) => b.seats), ...dormBeds]) {
       {
         if (Math.abs(st.base - py) > 0.7) continue;
-        const d = Math.hypot(st.x - px, st.z - pz);
-        if (d < (st.kind === 'bed' ? 1.5 : 0.95) && d < bestD) { best = st; bestD = d; }
+        const at = dormBedLadder.get(st) ?? st; // a loft bed is reached from its ladder
+        const d = Math.hypot(at.x - px, at.z - pz);
+        if (d < (dormBedLadder.has(st) ? 0.9 : st.kind === 'bed' ? 1.5 : 0.95) && d < bestD) { best = st; bestD = d; }
       }
     }
     return best;
@@ -519,7 +525,7 @@ async function boot(): Promise<void> {
     return best;
   };
   const sitOn = (st: Seat, stand?: { x: number; y: number; z: number }): void => {
-    const up = stand ?? (st.kind === 'bed' ? { ...besideBed(st), y: st.base } : { x: Transform.x[eid]!, y: Transform.y[eid]!, z: Transform.z[eid]! });
+    const up = stand ?? dormBedLadder.get(st) ?? (st.kind === 'bed' ? { ...besideBed(st), y: st.base } : { x: Transform.x[eid]!, y: Transform.y[eid]!, z: Transform.z[eid]! });
     const hx = Math.sin(st.yaw), hz = Math.cos(st.yaw);
     seat = st.kind === 'bed'
       ? { s: st, x: st.x - hx * 0.25, y: st.y, z: st.z - hz * 0.25, facing: st.yaw + Math.PI, standX: up.x, standY: up.y, standZ: up.z }

@@ -67,10 +67,12 @@ export const DORM_C_BATH: Rect = [17.6, 23.0, 21.2, 28.0]; // edges on the 0.1 m
  * `DORM_C_LOFT_TOP` the mattress top above the floor. For lying down (E) and the story's wake-up in bed.
  */
 export const DORM_C_LOFT_TOP = 0.08 + 1.98;
-export function dormCRoomBeds(): { room: number; at: [number, number]; head: [number, number] }[] {
-  return DORM_C_ROOMS.flatMap((q, room) => [0.625, q[2] - q[0] - 0.625].flatMap((u) => [
-    { room, at: [q[0] + u, q[1] + 1.18] as [number, number], head: [0, -1] as [number, number] },
-    { room, at: [q[0] + u, q[1] + 6.82] as [number, number], head: [0, 1] as [number, number] },
+export function dormCRoomBeds(): { room: number; at: [number, number]; head: [number, number]; ladder: [number, number] }[] {
+  // `ladder`: where you get on and off (使用者：上床下床改為靠近樓梯) — the foot of that side's ladder in the aisle, on the
+  // bed's side of it (the ladder unit stands 3.6–4.4 m from the window wall, 0.88 m deep).
+  return DORM_C_ROOMS.flatMap((q, room) => [[0.625, 1.33], [q[2] - q[0] - 0.625, q[2] - q[0] - 1.33]].flatMap(([u, lu]) => [
+    { room, at: [q[0] + u!, q[1] + 1.18] as [number, number], head: [0, -1] as [number, number], ladder: [q[0] + lu!, q[1] + 3.8] as [number, number] },
+    { room, at: [q[0] + u!, q[1] + 6.82] as [number, number], head: [0, 1] as [number, number], ladder: [q[0] + lu!, q[1] + 4.2] as [number, number] },
   ]));
 }
 /** A room's door: this far along its door wall from the room's west side. */

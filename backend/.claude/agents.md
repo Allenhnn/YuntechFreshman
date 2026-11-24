@@ -164,6 +164,12 @@ docker compose down             # 停止（加 -v 會連資料一起刪除）
 | `.env.example` 沒被 commit | 根目錄 `.gitignore` 有 `.env*`；需要時用 `git add -f backend/.env.example` |
 
 ## 變更紀錄
+### 2026-11-24（前端：學生宿舍C 寢室上下床改在樓梯旁）— 分支 `fix/dorm-c-front-gate`
+- 需求：上床下床改為靠近樓梯
+- `frontend/src/buildings/dormCUnit.ts` `dormCRoomBeds`：每張上鋪多一個 `ladder`——該側樓梯櫃前走道上的梯腳（靠窗那張在樓梯靠窗側、靠門那張在靠門側）
+- `frontend/src/main.ts`：`dormBedLadder`；寢室上鋪的「躺上床」提示改在梯腳 0.9 m 內出現（不再看床的位置），下床（E 或移動鍵）站回梯腳
+- 測試：`tsc --noEmit`、`vite build` 通過；新遊戲在寢室 4 床上醒來，下床站在東側樓梯腳；走回梯腳出現「E 躺上床」，按 E 躺回去（暫時除錯碼已移除）
+
 ### 2026-11-24（前端：遊戲出生點改在學生宿舍C 寢室 4）— 分支 `fix/dorm-c-front-gate`
 - 需求（附截圖）：最右邊那間寢室（寢室 4）設為遊戲出生點
 - `frontend/src/main.ts`：`startPoint()`——寢室 4 門內 1.7 m、面向窗（地底寢室那棟）；新遊戲、「回到起點」、沒設自訂重生點時的重生都用它（沒有寢室資料時退回 C 棟中庭）；`teleport` 先對所有手工建築呼叫 `update`，讓目的地的室內（寢室在 90 m 外會卸載）先載入再落地；開場也先載入出生點附近的室內
