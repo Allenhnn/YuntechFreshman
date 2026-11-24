@@ -164,6 +164,12 @@ docker compose down             # 停止（加 -v 會連資料一起刪除）
 | `.env.example` 沒被 commit | 根目錄 `.gitignore` 有 `.env*`；需要時用 `git add -f backend/.env.example` |
 
 ## 變更紀錄
+### 2026-11-24（前端：學生宿舍C C1 照照片重新建模、移除內部）— 分支 `feat/dorm-c-yard-walls`
+- 需求：C1 照片重新建模，並移除 C1 的內部建模
+- `frontend/src/campus/campusFixes.ts` `sealBuildings`：C1（OSM 296668595）設 `sealed`、4 層 14.4 m（照片；OSM 是 5 層 18 m）——不產生室內、沒有門
+- `frontend/src/campus/customFacades.ts`：`DORM_C.c1`／`c1Levels`；`CUSTOM_FACADE_EDGES` 列入 C1 全部 14 邊（程序立面細節略過、不放關著的門）
+- `frontend/src/buildings/dormCFacade.ts`：C1 外皮（`C1` 常數）：面向前門廣場的斜面（edge 3）中間凸出的多邊形陽台塔——2F 以上每層樓板＋兩側矮牆、正面整片紅色花磚、白柱，塔頂高出屋頂；一樓縮進去兩根柱子、2F 樓板上藍綠色「C1」；兩塊量體面向廣場的短牆（edge 0、2、4、7）素面；其他各面每層一排混凝土框的窗、牆腳深灰牆基
+- `frontend/src/campus/dormYard.ts` `C_FRONT`：入口平台延長到整個斜面（`end` 7.0，台階在陽台塔正前方）；大廳玻璃改照 `shop` 範圍放在塔下，加綠色踢腳板
 ### 2026-11-24（前端：學生宿舍C 後門（C2–C3 圍牆）照照片重做、門跟前門同款）— 分支 `feat/dorm-c-yard-walls`
 - 需求：C3 與 C2 中間圍牆的照片，重新建模；門的樣式跟前門一樣
 - `frontend/src/campus/dormYard.ts`：`學生宿舍C 後門` 改用 `portal`（奶油色門樓、黃銅圓燈、淡藍色雙開門、花磚牆、灰色牆基與壓頂）；`a`／`b` 對調讓 `a` 在中庭側（門往中庭開）。`GateMark` 新增 `approach`（只有前門：中庭的步道、廣場、平台，原本綁在 `portal` 上）與 `firePipe`（後門：牆腳外側紅色消防水管＋小托座、門外水泥步道）

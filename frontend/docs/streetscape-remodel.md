@@ -107,3 +107,4 @@
 | 學生宿舍C 西翼西面北端（使用者紅框） | 原本 1 樓花磚＋樓上窄窗的那一格改純牆面 | `dormCFacade.ts` `side` 版型 |
 | 學生宿舍C 後門圍牆（使用者照片：門跟前門一樣） | 改成前門同款門樓與花磚牆，牆腳外側紅色消防水管、門外水泥步道 | `dormYard.ts` 後門 `portal`、`firePipe`；前門改 `approach` |
 | 學生宿舍C 前門／後門開門（使用者） | 只有平板門那扇會開闔，藍色欄杆那一半固定、一直擋著 | `dormYard.ts` portal 門：`moves`、固定半邊 `solid`、`block` 只蓋門那半 |
+| 學生宿舍C C1（使用者照片；移除內部） | 4 層、封閉無室內；斜面陽台塔（紅花磚、白柱、塔頂凸出）、塔下玻璃大廳與「C1」、素面量體、其他面框窗＋牆基；入口平台延長到整面 | `campusFixes.ts` `sealBuildings`；`customFacades.ts`；`dormCFacade.ts` `C1`；`dormYard.ts` `C_FRONT` |

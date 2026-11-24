@@ -164,7 +164,9 @@ const C_FRONT = {
   walk: { from: -7, to: 30, half: 2.0 }, // through the gate (replaces the shared gate pavers)
   plaza: [[10.7, 327.7], [11.4, 331.9], [7.2, 338.2], [2.6, 338.9], [-7.1, 337.5], [-9.0, 330.8], [9.8, 325.5]] as const,
   faces: [[10.9, 327.7], [11.6, 331.9], [7.3, 338.4]] as const,
-  platform: { start: 0.25, end: 4.5, depth: 2.2, top: 0.45, rise: 0.15, tread: 0.35, steps: 3 },
+  // 使用者 C1 照片（2026-11-24）：台階在陽台塔正前方，整個斜面那麼寬；大廳玻璃（shop，沿斜面從轉角量起）在塔下。
+  platform: { start: 0.25, end: 7.0, depth: 2.2, top: 0.45, rise: 0.15, tread: 0.35, steps: 3 },
+  shop: [1.95, 5.85] as const,
   lamp: [5.0, 321.4] as const,
   shrub: [2.7, 322.4] as const,
 };
@@ -288,6 +290,7 @@ export function createDormYard(scene: Scene, physics: RAPIER.World, campus: Camp
   const cream = mat(0xeee6d0, { roughness: 0.95 });
   const plinth = mat(0x8d8b85, { roughness: 0.9 });
   const firePipeRed = mat(0xc0322b, { roughness: 0.45, metalness: 0.2 });
+  const kickGreen = mat(0x3f7f4a, { roughness: 0.7 });
   const footpath = mat(0xa8a69f, { roughness: 0.95, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -8 });
   const paleBlue = mat(0xa9d2e3, { metalness: 0.3, roughness: 0.5 });
   const dome = tracker.geometry(new SphereGeometry(0.15, 14, 10).scale(1, 1, 0.6));
@@ -407,9 +410,11 @@ export function createDormYard(scene: Scene, physics: RAPIER.World, campus: Camp
     panel(f0, d1, o1, face1 / 2 - 1.3, face1 / 2 + 1.3, P.top, P.top + 2.7, 0, 0.08, frameGrey);
     panel(f0, d1, o1, face1 / 2 - 1.2, face1 / 2 + 1.2, P.top + 0.05, P.top + 2.6, 0.08, 0.02, glass);
     panel(f0, d1, o1, face1 / 2 - 0.03, face1 / 2 + 0.03, P.top + 0.05, P.top + 2.6, 0.1, 0.03, frameGrey);
-    panel(f1, d2, o2, 0.5, P.end - 0.3, P.top, P.top + 2.9, 0, 0.08, frameGrey);
-    panel(f1, d2, o2, 0.6, P.end - 0.4, P.top + 0.4, P.top + 2.8, 0.08, 0.02, glass);
-    for (let s = 0.6; s <= P.end - 0.4 + 1e-6; s += (P.end - 1.0) / 3) panel(f1, d2, o2, s - 0.03, s + 0.03, P.top + 0.4, P.top + 2.8, 0.1, 0.03, frameGrey);
+    const [sh0, sh1] = C_FRONT.shop;
+    panel(f1, d2, o2, sh0 - 0.1, sh1 + 0.1, P.top, P.top + 2.9, 0, 0.08, frameGrey);
+    panel(f1, d2, o2, sh0, sh1, P.top + 0.4, P.top + 2.8, 0.08, 0.02, glass);
+    for (let s = sh0; s <= sh1 + 1e-6; s += (sh1 - sh0) / 4) panel(f1, d2, o2, s - 0.03, s + 0.03, P.top + 0.4, P.top + 2.8, 0.1, 0.03, frameGrey);
+    panel(f1, d2, o2, sh0, sh1, P.top, P.top + 0.4, 0.08, 0.03, kickGreen); // green kick plate (照片)
     // Black lamppost with a box head, and a shrub, on the grass strip by the north wing.
     const [lpx, lpz] = C_FRONT.lamp;
     const post = new Mesh(tracker.geometry(merged([box(0.12, 3.6, 0.12, 0, 1.8, 0), box(0.34, 0.42, 0.34, 0, 3.75, 0), box(0.3, 0.3, 0.3, 0, 0.15, 0)])), black);

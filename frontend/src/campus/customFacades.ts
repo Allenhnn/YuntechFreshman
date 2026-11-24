@@ -8,6 +8,9 @@
 export const DORM_C = {
   /** OSM id kept by the 4-storey middle. */
   middle: 296668596,
+  /** 學生宿舍C C1（OSM 296668595，宿舍服務中心那棟）：使用者照片 4 層、不做內部（sealed）。 */
+  c1: 296668595,
+  c1Levels: 4,
   /** New ids for the 3-storey wings (not in OSM). */
   westWing: 2966685961,
   eastWing: 2966685962,
@@ -58,6 +61,8 @@ export const STYLE_ALIAS: Readonly<Record<number, number>> = { [DORM_C.westWing]
  */
 export const CUSTOM_FACADE_EDGES: Readonly<Record<number, readonly number[]>> = {
   // buildings/dormCFacade.ts
+  // C1 (使用者照片 2026-11-24): every wall, so neither procedural details nor a shut door land on it.
+  [DORM_C.c1]: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
   // The back faces too (使用者背面照): middle 0, 1, 9; east wing 0, 1, 2; west wing 3, 4, 5 — so no shut door lands on them.
   [DORM_C.middle]: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
   [DORM_C.eastWing]: [0, 1, 2, 3, 4, 5, 6, 7, 8],
