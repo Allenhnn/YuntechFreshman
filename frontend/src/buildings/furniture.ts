@@ -9,7 +9,7 @@ import type { ColliderBox } from './buildingMesh';
  * walls, doors, voids, cores and neighbouring rooms without hand placement. Keep-out circles protect
  * elevator landings, signs and stair ends.
  */
-export type FurnitureKind = 'shelf' | 'table' | 'chair' | 'plinth' | 'stage' | 'riser' | 'screen' | 'bed' | 'whiteboard' | 'bunk' | 'toilet' | 'sink' | 'mirror' | 'partition' | 'hydrant' | 'bins' | 'sign' | 'bracket' | 'vending' | 'loft' | 'podium' | 'student' | 'teacher' | 'head' | 'counter' | 'mic';
+export type FurnitureKind = 'shelf' | 'table' | 'chair' | 'plinth' | 'stage' | 'riser' | 'screen' | 'bed' | 'whiteboard' | 'bunk' | 'toilet' | 'sink' | 'mirror' | 'partition' | 'hydrant' | 'bins' | 'sign' | 'bracket' | 'vending' | 'loft' | 'podium' | 'student' | 'teacher' | 'head' | 'counter' | 'mic' | 'woodbox';
 
 export interface FurnitureItem {
   kind: FurnitureKind;
@@ -308,6 +308,55 @@ function conference(ctx: Ctx, r: Rect, door: Opening | undefined): void {
       }
     }
   }
+}
+
+/**
+ * 休息區 (the user's photo): a narrow room off the corridor, reddish wood everywhere — panels up the
+ * long walls (gaps at doors), a wooden floor, a deep wooden frame round the entrance on the corridor
+ * side; low wooden benches along one wall, a long low bench-table on the other, a small table by the
+ * window at the far end. Entrance on the short side nearest the corridor (the long axis's high or low end).
+ */
+function lounge(ctx: Ctx, r: Rect, openings: readonly Opening[]): void {
+  const [x0, y0, x1, y1] = r;
+  const alongY = y1 - y0 >= x1 - x0;
+  const len = alongY ? y1 - y0 : x1 - x0, wid = alongY ? x1 - x0 : y1 - y0;
+  // Entrance end: the short side with no wall (the corridor) — taken as the high end here (y1 / x1).
+  const P = (a: number, b: number): [number, number] => (alongY ? [x0 + b, y1 - a] : [x1 - a, y0 + b]); // a from the entrance
+  const box = (a: number, b: number, la: number, lb: number, y: number, h: number, collide = true): void => {
+    const [cx, cz] = P(a, b);
+    const sx = alongY ? lb : la, sz = alongY ? la : lb;
+    ctx.items.push({ kind: 'woodbox', x: cx, y: ctx.base + y, z: cz, ry: 0, sx, sy: h, sz, tint: 0 });
+    if (collide) ctx.colliders.push({ c: [cx, ctx.base + y + h / 2, cz], h: [sx / 2, h / 2, sz / 2] });
+  };
+  // Floor (a thin layer on the tiles, inside the wall faces).
+  const inset = WALL_T / 2;
+  box(len / 2, wid / 2, len - 0.04, wid - 2 * inset, 0.07, 0.04, false); // room floors sit 8 cm up (FLOOR_Y)
+  // Panels up both long walls, skipping doorways.
+  const doorsOn = (side: 0 | 1): [number, number][] => openings
+    .filter((o) => {
+      const vx = Math.abs(o.a[0] - o.b[0]) < 0.05, wallAt = alongY ? (side ? x1 : x0) : (side ? y1 : y0);
+      return (alongY ? vx && Math.abs(o.a[0] - wallAt) < 0.06 : !vx && Math.abs(o.a[1] - wallAt) < 0.06);
+    })
+    .map((o) => {
+      const p = alongY ? [y1 - Math.max(o.a[1], o.b[1]), y1 - Math.min(o.a[1], o.b[1])] : [x1 - Math.max(o.a[0], o.b[0]), x1 - Math.min(o.a[0], o.b[0])];
+      return [p[0]! - 0.12, p[1]! + 0.12] as [number, number];
+    });
+  for (const side of [0, 1] as const) {
+    const b = side ? wid - inset - 0.025 : inset + 0.025;
+    let a0 = 0.02;
+    for (const [d0, d1] of [...doorsOn(side), [len, len] as [number, number]].sort((p, q) => p[0] - q[0])) {
+      if (d0 - a0 > 0.1) box((a0 + d0) / 2, b, d0 - a0, 0.04, 0, 2.5, false);
+      a0 = Math.max(a0, d1);
+    }
+  }
+  // Entrance frame: two deep posts and a lintel.
+  for (const b of [inset + 0.14, wid - inset - 0.14]) box(0.2, b, 0.4, 0.28, 0, 2.75);
+  box(0.2, wid / 2, 0.4, wid - 2 * inset, 2.35, 0.4, false);
+  // Benches along the low wall (b small), a long low bench-table along the other, a table by the window.
+  const n = Math.max(1, Math.floor((len - 2.6) / 1.9));
+  for (let i = 0; i < n; i++) box(1.4 + i * 1.9 + 0.8, 0.45, 1.5, 0.42, 0, 0.42);
+  box(len * 0.55, wid - 0.55, Math.min(3.2, len * 0.4), 0.6, 0, 0.45);
+  box(len - 0.9, wid / 2, 0.7, 0.9, 0, 0.72);
 }
 
 function singleDesk(ctx: Ctx, r: Rect, door: Opening | undefined): void {
@@ -611,6 +660,7 @@ export function layoutFurniture(plan: FloorPlan, grid: FloorGrid, base: number, 
         case 'theater': seating(ctx, r, false); break;
         case 'classroom': seating(ctx, r, true); break;
         case 'conference': conference(ctx, r, door); break;
+        case 'lounge': lounge(ctx, r, plan.openings); break;
         case 'exhibit': plinths(ctx, r); break;
         case 'dorm': dormRoom(ctx, r, door, false); break;
         case 'dormLoft': dormRoom(ctx, r, door, true); break;

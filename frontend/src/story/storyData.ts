@@ -116,18 +116,20 @@ export const TUTORIAL: readonly { key: string[]; text: string }[] = [
 
 /** 上課中: what the professor says while you sit in class (one line every few seconds). */
 export const LECTURE: readonly { who: string; text: string }[] = [
-  { who: '教授', text: '好，我們開始上課。今天講物件導向的三大特性。' },
-  { who: '教授', text: '封裝、繼承、多型——這三個詞期末一定考。' },
+  { who: '郭教授', text: '好，我們開始上課。今天講物件導向的三大特性。' },
+  { who: '郭教授', text: '封裝、繼承、多型——這三個詞期末一定考。' },
   { who: '同學', text: '（小聲）欸，你剛剛是不是差點遲到…' },
-  { who: '教授', text: '封裝，就是把資料和操作資料的方法包在一起，外面只看得到介面。' },
-  { who: '教授', text: '就像你的鬧鐘，你只要按按鈕，不用知道裡面怎麼響——結果你還是睡過頭。' },
+  { who: '郭教授', text: '封裝，就是把資料和操作資料的方法包在一起，外面只看得到介面。' },
+  { who: '郭教授', text: '就像你的鬧鐘，你只要按按鈕，不用知道裡面怎麼響——結果你還是睡過頭。' },
   { who: '同學', text: '（全班笑）' },
-  { who: '教授', text: '繼承，是子類別把父類別的屬性和方法拿來用，再加上自己的。' },
-  { who: '教授', text: '這張 UML 類別圖大家抄一下，下週小考會出。' },
+  { who: '郭教授', text: '繼承，是子類別把父類別的屬性和方法拿來用，再加上自己的。' },
+  { who: '郭教授', text: '這張 UML 類別圖大家抄一下，下週小考會出。' },
   { who: '同學', text: '（小聲）好想睡…' },
-  { who: '教授', text: '多型呢，同一個方法呼叫，不同的物件會有不同的行為。' },
+  { who: '郭教授', text: '多型呢，同一個方法呼叫，不同的物件會有不同的行為。' },
 ];
 export const COURSE = '物件導向軟體工程';
+/** The professor of the MA214 class. */
+export const PROFESSOR = '郭姝妤';
 
 /** A line of a visual-novel scene: a speaker (empty = narration), the text, and how it is shown. */
 export interface VnLine {

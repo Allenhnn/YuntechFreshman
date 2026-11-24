@@ -24,7 +24,9 @@ export type FurnishKind =
   | 'dormLoft'
   | 'restroom'
   /** 多功能教室 (MA214, from the photo): screen and lectern at the front, tiers of long wooden desks with microphones. */
-  | 'conference';
+  | 'conference'
+  /** 休息區 (from the photo): wood-panelled walls and entrance frame, wooden floor, benches and low tables. */
+  | 'lounge';
 
 export interface Space {
   id: string;

@@ -196,6 +196,8 @@ export function createFurnitureKit(tracker: ResourceTracker): FurnitureKit {
   // 多功能教室 desk: 1 m of long wooden counter (scaled along x), top at 0.78 m, front panel to the floor on −Z.
   const honey = tracker.material(new MeshStandardMaterial({ color: 0xc8924f, roughness: 0.45 }));
   const counterGeo = tracker.geometry(merge([unitBox(1, 0.04, 0.58, 0, 0.74, 0), unitBox(1, 0.74, 0.03, 0, 0, -0.27), unitBox(1, 0.03, 0.4, 0, 0.36, -0.05)]));
+  // 休息區 wood: reddish-brown stained boards (unit box, scaled).
+  const redwood = tracker.material(new MeshStandardMaterial({ color: 0x8b4a2b, roughness: 0.5 }));
   // Desk microphone: a round base, a gooseneck and the head (front on −Z).
   const micGeo = tracker.geometry(merge([unitBox(0.1, 0.02, 0.1, 0, 0, 0), unitBox(0.014, 0.24, 0.014, 0, 0.02, 0.02), unitBox(0.03, 0.03, 0.06, 0, 0.25, -0.01)]));
   // Raised stage blocks: dark stained boards.
@@ -520,13 +522,13 @@ export function createFurnitureKit(tracker: ResourceTracker): FurnitureKit {
 
   return {
     signMaterial,
-    geometry: { shelf, table, chair, plinth: unit, stage: unit, riser: unit, screen: tracker.geometry(unitBox(1, 1, 1)), bed, whiteboard, bunk, loft, student, teacher, head: headGeo, podium, toilet, sink, mirror: tracker.geometry(unitBox(1, 1, 1)), partition: tracker.geometry(unitBox(1, 1, 1)), hydrant, bins, sign: signGeo, bracket: unit, vending: unit, counter: counterGeo, mic: micGeo },
+    geometry: { shelf, table, chair, plinth: unit, stage: unit, riser: unit, screen: tracker.geometry(unitBox(1, 1, 1)), bed, whiteboard, bunk, loft, student, teacher, head: headGeo, podium, toilet, sink, mirror: tracker.geometry(unitBox(1, 1, 1)), partition: tracker.geometry(unitBox(1, 1, 1)), hydrant, bins, sign: signGeo, bracket: unit, vending: unit, counter: counterGeo, mic: micGeo, woodbox: unit },
     material: {
       shelf: [wood, wood, wood, wood, books, books], table: laminate, chair: fabric, plinth, stage: stageFloor, riser: tierFloor, screen, bed: [wood, linen, linen],
       whiteboard: [alu, boardFace], bunk: [wood, linen], loft: [wood, linen], student: clothes, teacher: clothes, head: [headSkin, faceInk], podium: [wood, crest], toilet: ceramic, sink: [counter, ceramic, chrome], mirror, partition: panel,
       hydrant: [red, red, red, red, red, cabinetFront], bins: [binColor(0x6e7275), binColor(0x2c6fd6), binColor(0x2f8f4a)], sign: panel, bracket: mountBlack,
       vending: [vendingBody, vendingBody, vendingTop, vendingTop, vendingBody, vendingFace], // front on −Z
-      counter: honey, mic: chrome,
+      counter: honey, mic: chrome, woodbox: redwood,
     },
   };
 }
