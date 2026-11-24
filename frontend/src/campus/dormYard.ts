@@ -1,6 +1,7 @@
 import {
   BoxGeometry,
   CanvasTexture,
+  CylinderGeometry,
   ExtrudeGeometry,
   Group,
   IcosahedronGeometry,
@@ -45,6 +46,13 @@ interface GateMark {
    * pale-blue gate, and the approach on the courtyard side (see C_FRONT).
    */
   portal?: boolean;
+  /** 學生宿舍C 前門 only: its courtyard approach (walk, plaza by the east wing, platform; see C_FRONT). */
+  approach?: boolean;
+  /**
+   * 學生宿舍C 後門 (使用者照片 2026-11-24, same gate as 前門): a red fire-main pipe along the foot of the wall on the
+   * outside, and a plain concrete footpath through the gate.
+   */
+  firePipe?: boolean;
   /**
    * Fixed wall ends (campus metres) instead of probing the nearest wings. 學生宿舍C 前門 stays where it was
    * before 學生宿舍C 東翼 moved 1.6 m east (campusFixes.ts splitDormC) — 使用者：改回原本的位置; the wall now
@@ -56,8 +64,10 @@ interface GateMark {
 export const DORM_GATES: readonly GateMark[] = [
   // 使用者平面圖（C 區，2026-11-24）：C2–C3 之間的圍牆沿兩棟的外側邊線——從 C3 西翼西南角往外 2.2 m，筆直接到 C2
   // 西北角（不是從兩棟中間穿過）；門在中間。ends: C3 end, C2 end.
-  { name: '學生宿舍C 後門', a: [-54.6, 337.3], b: [-30.9, 333.8], ends: [[-44.47, 323.98], [-41.0, 347.1]] },
-  { name: '學生宿舍C 前門', a: [1.8, 327.5], b: [27.9, 319.9], portal: true, ends: [[10.92, 327.66], [8.57, 319.27]] },
+  // 使用者照片（2026-11-24）：門的樣式跟前門一樣（奶油色門樓、花磚牆、淡藍色門），牆腳外側一條紅色消防水管、門外水泥步道。
+  // `a` on the courtyard side (east), so the gate swings in and the pipe runs outside.
+  { name: '學生宿舍C 後門', a: [-30.9, 333.8], b: [-54.6, 337.3], portal: true, firePipe: true, ends: [[-44.47, 323.98], [-41.0, 347.1]] },
+  { name: '學生宿舍C 前門', a: [1.8, 327.5], b: [27.9, 319.9], portal: true, approach: true, ends: [[10.92, 327.66], [8.57, 319.27]] },
   { name: '學生宿舍B 前門', a: [38.3, 319.9], b: [62.2, 313.4] },
   { name: '學生宿舍B 後門', a: [92.7, 311.2], b: [117.7, 303.6] },
   { name: '學生宿舍A 前門', a: [143.8, 296.0], b: [164.5, 289.5] },
@@ -277,6 +287,8 @@ export function createDormYard(scene: Scene, physics: RAPIER.World, campus: Camp
   }));
   const cream = mat(0xeee6d0, { roughness: 0.95 });
   const plinth = mat(0x8d8b85, { roughness: 0.9 });
+  const firePipeRed = mat(0xc0322b, { roughness: 0.45, metalness: 0.2 });
+  const footpath = mat(0xa8a69f, { roughness: 0.95, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -8 });
   const paleBlue = mat(0xa9d2e3, { metalness: 0.3, roughness: 0.5 });
   const dome = tracker.geometry(new SphereGeometry(0.15, 14, 10).scale(1, 1, 0.6));
   const brass = mat(0xc9a24d, { metalness: 0.6, roughness: 0.35, emissive: 0x6b5220, emissiveIntensity: 0.4 });
@@ -580,9 +592,9 @@ export function createDormYard(scene: Scene, physics: RAPIER.World, campus: Camp
         add(box(0.55, 0.3, 0.1, 0.75, PH - 0.5, face * (PD / 2 + 0.05)), lightBox);
         add(box(0.16, 0.24, 0.08, GO / 2 + 0.2, PL - 0.15, face * (PD / 2 + 0.04)), lightBox);
       }
-      // Pale-blue gate (user, 2026-11-22: it swings open like a pair of doors, not sideways): two leaves
-      // hinged at the jambs, a plated left leaf and a barred right leaf, swinging into the courtyard.
-      // Each leaf is built in its hinge's frame, running from the hinge (x = 0) toward the middle.
+      // Pale-blue gate: a plated left leaf (the door) and a barred right half, hinged at the jambs. 使用者（2026-11-24）：
+      // 只有門那一扇會開闔，藍色柵欄那一半是固定的——only the left leaf swings into the courtyard; the barred half stays
+      // shut and always blocks. Each leaf is built in its hinge's frame, running from the hinge (x = 0) toward the middle.
       const LW = GO / 2 - 0.06; // leaf width: a hinge gap at the jamb and a meeting gap in the middle
       const frame = (dirX: 1 | -1): BufferGeometry[] => [
         box(LW, 0.05, 0.05, dirX * LW / 2, 0.1, 0), box(LW, 0.05, 0.05, dirX * LW / 2, 1.95, 0),
@@ -594,7 +606,7 @@ export function createDormYard(scene: Scene, physics: RAPIER.World, campus: Camp
       const inward = (g.a[0] - cx) * -uz + (g.a[1] - cz) * ux > 0 ? 1 : -1; // courtyard side (local +z = inward)
       const hinge = GO / 2 - 0.04;
       const leaves: { pivot: Group; sign: number }[] = [];
-      for (const [hx, parts, sign] of [[-hinge, leftParts, -inward], [hinge, rightParts, inward]] as const) {
+      for (const [hx, parts, sign, moves] of [[-hinge, leftParts, -inward, true], [hinge, rightParts, inward, false]] as const) {
         const pivot = new Group();
         pivot.position.set(hx, 0, 0);
         grp.add(pivot);
@@ -603,20 +615,38 @@ export function createDormYard(scene: Scene, physics: RAPIER.World, campus: Camp
         pivot.add(m);
         // Hinge pins on the jamb.
         for (const y of [0.35, 1.7]) add(box(0.06, 0.12, 0.06, hx + Math.sign(hx) * 0.01, y, 0), paleBlue);
-        leaves.push({ pivot, sign });
+        if (moves) leaves.push({ pivot, sign });
       }
+      // The fixed barred half always blocks.
+      const [fx, fz] = world(GO / 4, 0);
+      solid(fx, 1.0, fz, GO / 4, 1.0, 0.12, yaw);
       swing = (t) => { for (const l of leaves) l.pivot.rotation.y = l.sign * t * SWING; };
+      if (g.firePipe) {
+        // Red fire-main pipe along the wall foot on the outside, on small grey saddles, either side of the gatehouse.
+        const pz = -inward * (WALL_T / 2 + 0.12);
+        for (const [s0, s1] of [[-left, -PW / 2], [PW / 2, right]] as const) {
+          const w = s1 - s0;
+          if (w < 0.3) continue;
+          add(new CylinderGeometry(0.075, 0.075, w, 12).rotateZ(Math.PI / 2).translate((s0 + s1) / 2, 0.3, pz), firePipeRed);
+          for (let x = s0 + 0.4; x < s1 - 0.2; x += 2.2) add(box(0.12, 0.22, 0.2, x, 0.11, pz), plinth);
+        }
+        // Plain concrete footpath through the gate: out across the grass, and a short way in.
+        const walk = new Mesh(tracker.geometry(new PlaneGeometry(1.4, 12).rotateX(-Math.PI / 2).translate(0, 0.04, -inward * 4.2)), footpath);
+        walk.receiveShadow = true;
+        grp.add(walk);
+      }
       // `leaf` stays as the sliding-leaf handle for the shared code below; the swing replaces the slide.
       leaf = new Mesh();
       light = add(box(0.12, 0.12, 0.05, -GO / 2 - 0.2, PL - 0.15, PD / 2 + 0.03), sensorRed);
     }
     leaf.position.set(0, 0, leafZ);
-    const [gx, gz] = world(0, leafZ);
-    const block = physics.createCollider(RAPIER.ColliderDesc.cuboid(GW / 2, 1.0, 0.12).setTranslation(gx, 1.0, gz)
+    // The portal gate's block covers only its swinging door (the left half); the barred half has its own solid.
+    const [gx, gz] = world(g.portal ? -GW / 4 : 0, leafZ);
+    const block = physics.createCollider(RAPIER.ColliderDesc.cuboid(g.portal ? GW / 4 : GW / 2, 1.0, 0.12).setTranslation(gx, 1.0, gz)
       .setRotation((() => { const q = new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), yaw); return { x: q.x, y: q.y, z: q.z, w: q.w }; })()));
     colliders.push(block);
     // Swing leaves travel about a quarter circle at their tips.
-    gates.push({ x: cx, z: cz, leaf, light, block, open: 0, target: 0, travel: swing ? (GW / 2) * SWING : GW + 0.55, swing });
+    gates.push({ x: g.portal ? world(-GW / 4, 0)[0] : cx, z: g.portal ? world(-GW / 4, 0)[1] : cz, leaf, light, block, open: 0, target: 0, travel: swing ? (GW / 2) * SWING : GW + 0.55, swing });
     // Pavers through the gate (both sides); the portal gate's walk runs through instead.
     if (!g.portal) {
       const path = new Mesh(tracker.geometry(new PlaneGeometry(GATE_W - 0.4, 14).rotateX(-Math.PI / 2).translate(0, 0.035, 0)), pavers);
@@ -624,7 +654,7 @@ export function createDormYard(scene: Scene, physics: RAPIER.World, campus: Camp
       path.receiveShadow = true;
       grp.add(path);
     }
-    if (g.portal) {
+    if (g.approach) {
       // Way into the courtyard: the side of the wall the mark's start lies on.
       const nx = -uz, nz = ux, inward = (g.a[0] - cx) * nx + (g.a[1] - cz) * nz > 0 ? 1 : -1;
       cFrontApproach(cx, cz, inward * nx, inward * nz);

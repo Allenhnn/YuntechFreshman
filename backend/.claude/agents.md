@@ -164,6 +164,10 @@ docker compose down             # 停止（加 -v 會連資料一起刪除）
 | `.env.example` 沒被 commit | 根目錄 `.gitignore` 有 `.env*`；需要時用 `git add -f backend/.env.example` |
 
 ## 變更紀錄
+### 2026-11-24（前端：學生宿舍C 後門（C2–C3 圍牆）照照片重做、門跟前門同款）— 分支 `feat/dorm-c-yard-walls`
+- 需求：C3 與 C2 中間圍牆的照片，重新建模；門的樣式跟前門一樣
+- `frontend/src/campus/dormYard.ts`：`學生宿舍C 後門` 改用 `portal`（奶油色門樓、黃銅圓燈、淡藍色雙開門、花磚牆、灰色牆基與壓頂）；`a`／`b` 對調讓 `a` 在中庭側（門往中庭開）。`GateMark` 新增 `approach`（只有前門：中庭的步道、廣場、平台，原本綁在 `portal` 上）與 `firePipe`（後門：牆腳外側紅色消防水管＋小托座、門外水泥步道）
+- 使用者：前門跟後門只有門那一扇會開闔，藍色柵欄那一半不會動——`portal` 門只有左邊平板門會轉開；右邊欄杆固定、有自己的碰撞體一直擋著；感應範圍與開門時解除的擋板都只算門那一半
 ### 2026-11-24（前端：學生宿舍C 西翼西面北端改純牆面）— 分支 `feat/dorm-c-yard-walls`
 - 需求：西翼西面靠北的那一段（1 樓紅花磚、樓上一列窄窗）是純牆面
 - `frontend/src/buildings/dormCFacade.ts`：`side` 版型（只用在西翼西面）北端一格改 `blank`（素面牆＋牆基），其餘窗戶不變

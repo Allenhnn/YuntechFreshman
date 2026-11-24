@@ -105,3 +105,5 @@
 | 學生宿舍C 戶廳窗（使用者：造型怪、單純窗戶就好） | 窗往西 1.1 m 移到凹口開口正中（不再正對東翼的牆），一片玻璃加外框，無分格 | `customFacades.ts` `DORM_C_HALL_2F`；`dormCUnit.ts` `DORM_C_LIVING_WINDOW`；`dormCFacade.ts` `windowAt` plain；`dormCUnitDecor.ts` |
 | 學生宿舍C C3 背面（使用者背面照） | 淺灰牆基、壁柱、1 樓棕色菱形鐵窗花＋棕框窗、樓上兩排棕框橫窗＋遮陽＋冷氣、落水管；兩端樓梯間高窗；北面拿掉門 | `dormCFacade.ts` 背面外皮；`customFacades.ts` `CUSTOM_FACADE_EDGES` |
 | 學生宿舍C 西翼西面北端（使用者紅框） | 原本 1 樓花磚＋樓上窄窗的那一格改純牆面 | `dormCFacade.ts` `side` 版型 |
+| 學生宿舍C 後門圍牆（使用者照片：門跟前門一樣） | 改成前門同款門樓與花磚牆，牆腳外側紅色消防水管、門外水泥步道 | `dormYard.ts` 後門 `portal`、`firePipe`；前門改 `approach` |
+| 學生宿舍C 前門／後門開門（使用者） | 只有平板門那扇會開闔，藍色欄杆那一半固定、一直擋著 | `dormYard.ts` portal 門：`moves`、固定半邊 `solid`、`block` 只蓋門那半 |
