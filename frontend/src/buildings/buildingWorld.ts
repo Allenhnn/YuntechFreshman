@@ -377,12 +377,13 @@ export function createHandBuiltBuilding(
       // Full-length wall mirrors: a live reflection (rendered only while the player is close).
       for (const f of src.floors[lvl.id]?.fixtures ?? []) {
         if (f.kind !== 'mirror') continue;
-        const ratio = f.width / 2.05;
-        const mirror = new Reflector(new PlaneGeometry(f.width, 2.05), {
+        const mh = f.height ?? 2.05;
+        const ratio = f.width / mh;
+        const mirror = new Reflector(new PlaneGeometry(f.width, mh), {
           textureWidth: Math.round(Math.min(2048, 512 * ratio)), textureHeight: 512, color: 0xc4ccd0, clipBias: 0.003,
         });
         const off = WALL_T / 2 + 0.03;
-        mirror.position.set(f.at[0] + f.facing[0] * off, lvl.base + 0.12 + 1.025, f.at[1] + f.facing[1] * off);
+        mirror.position.set(f.at[0] + f.facing[0] * off, lvl.base + 0.12 + mh / 2, f.at[1] + f.facing[1] * off);
         mirror.rotation.y = Math.atan2(f.facing[0], f.facing[1]);
         mirror.visible = false;
         group.add(mirror);

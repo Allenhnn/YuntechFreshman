@@ -86,6 +86,8 @@ export interface Fixture {
   facing: Vec2;
   /** Along the wall (m). */
   width: number;
+  /** Mirrors: glass height (m, default 2.05). */
+  height?: number;
 }
 
 export interface FloorPlan {
