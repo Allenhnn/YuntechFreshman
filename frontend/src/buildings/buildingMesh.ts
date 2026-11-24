@@ -542,7 +542,7 @@ export function buildBuildingMeshes(src: BuildingSource): BuildingMeshes {
     return { id: lvl.id, base: lvl.base, part: int.build(), doors, plates, furniture: items, furnitureColliders: colliders };
   });
 
-  const ground = modelled.find((m) => m.base === 0);
+  const ground = modelled.find((m) => m.base >= 0);
   const footprint = ground ? regionRects(ground.grid, (v) => v !== OUTSIDE) : [];
   let belowAll: Rect[] = modelled.filter((m) => m.base >= 0).flatMap((m) => regionRects(m.grid, (v) => v !== OUTSIDE));
   for (const level of src.levels) {

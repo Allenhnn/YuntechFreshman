@@ -113,7 +113,7 @@ export function buildActivityComplex(b: CampusBuilding, solid: GeoBuilder, glass
     // Ceiling and column lines over the two covered ends of the level hall.
     for(const [a,b] of [[.1,6],[28,35.7]] as const) box(a,b,-20,-3,6.82,.38,concrete);
     // Backing wall and fixed display doors by room 107 (plan right).
-    box(35.47,35.8,-11.55,-4.05,1.125,3.5,concrete);
+    // The room 107 wall belongs to the floor plan.
     for(const x of [6,25.5]) {
       box(x,x+2.3,-2.15,-1.55,1.46,.12,[.36,.24,.15]);
       for(const offset of [.18,1.9]) box(x+offset,x+offset+.17,-2.1,-1.6,1.125,.34,edge);
@@ -190,11 +190,22 @@ export function buildActivityComplex(b: CampusBuilding, solid: GeoBuilder, glass
       const t=(i+.5)*tread, y=(i+1)*platformY/count;
       section(solid,stairAt,.79,.85,t,t+.055,y,y,.86,metal);
     }
+    // Paired stairs at the ends of the upper gallery, separate from the
+    // straight ground-level approach. Their last tread meets the 2F bridge.
+    for(const x of [4.5,29]) {
+      const steps=16, rise=(3.6-platformY)/steps, tread=.31;
+      for(let i=0;i<steps;i++) {
+        const z=-20-(steps-i)*tread;
+        box(x,x+1.65,z,z+tread,platformY,(i+1)*rise,edge);
+      }
+      section(solid,at,x,x+.06,-20-steps*tread,-20,platformY+1.03,4.52,.06,metal);
+    }
     // Central stair, level side bypasses and the paired stepped planting beds.
     for (let i=0;i<7;i++) box(12.5,23.5,-30.9+i*.43,-30.47+i*.43,.075,(i+1)*.15,edge);
     // Both exterior stairs terminate on one continuous first-floor platform.
     box(1.8,32.5,-27.89,.55,0,platformY,concrete);
-    box(32.5,35.8,-20,-3,0,1.125,concrete);
+    box(32.5,36,-20,-3,0,1.125,concrete);
+    box(0,1.8,-14.9,-3,0,1.125,concrete);
     section(solid,at,.15,1.8,-27.89,-14.9,0,1.05,.075,edge);
     box(.15,1.8,-14.9,.55,0,1.125,concrete);
     for(const x of [1.6,24.1]) {

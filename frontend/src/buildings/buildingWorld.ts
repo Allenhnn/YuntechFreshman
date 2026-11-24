@@ -159,7 +159,7 @@ export function buildingGroundHoles(src: BuildingSource): Ring[] {
 /** Ground-floor footprint in world space, computable before any mesh exists (tree exclusion). */
 export function buildingFootprintRings(src: BuildingSource): Ring[] {
   const xf = createPlanTransform(src);
-  const ground = src.levels.find((l) => l.elevation === 0);
+  const ground = src.levels.find((l) => l.elevation >= 0);
   const plan = ground ? src.floors[ground.id] : undefined;
   if (!plan) return [];
   return regionRects(rasterize(plan.spaces), (v) => v !== OUTSIDE).map(([a, b, c, d]) => [
