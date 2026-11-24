@@ -78,8 +78,8 @@ const STEP_COUNT = 3;
 type P2 = [number, number];
 /** One corner: its base wall frame and the two walls in that frame, each from its end at the OSM diagonal outward. */
 interface CornerSpec { base: WallAnchor; xWall: readonly [P2, P2]; zWall: readonly [P2, P2] }
-/** 學生宿舍C：北棟南面（x 牆）與南翼東面（z 牆），中間 OSM 小斜牆。 */
-const C_CORNER: CornerSpec = { base: { id: 296668595, edge: 9, a: [26.4, 337.6], b: [18.3, 339.1] }, xWall: [[0, 0], [8.24, 0]], zWall: [[-3.64, 3.19], [-4.22, 13.45]] };
+/** 學生宿舍C：北棟南面（x 牆）與南翼東面（z 牆），中間 OSM 小斜牆。C1 東北角凹口填平後（campusFixes.ts）這面是 edge 7。 */
+const C_CORNER: CornerSpec = { base: { id: 296668595, edge: 7, a: [26.4, 337.6], b: [18.3, 339.1] }, xWall: [[0, 0], [8.24, 0]], zWall: [[-3.64, 3.19], [-4.22, 13.45]] };
 /** 學生宿舍D：北翼東面（x 牆）與東翼北面（z 牆），中間是入口斜牆。 */
 const D_CORNER: CornerSpec = { base: { id: 296668594, edge: 1, a: [22.0, 380.5], b: [25.7, 383.9] }, xWall: [[5.04, 0], [11.6, 5.15]], zWall: [[0, 0], [-4.94, 6.95]] };
 

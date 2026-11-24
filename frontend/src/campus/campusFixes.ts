@@ -372,6 +372,15 @@ export function sealBuildings(campus: CampusData): void {
     c1.sealed = true;
     c1.levels = DORM_C.c1Levels;
     c1.height = Math.round(DORM_C.c1Levels * 3.6 * 10) / 10;
+    // 使用者（2026-11-24）：東側沒有凹進去，整面是一個平面（跟南面一樣）——OSM 在東北角的凹口（vertex 6、7）拿掉：
+    // 北面（5 → 6）直接延伸到東面（8 → 9）那條線上，兩線交點取代 vertex 6、7、8。
+    const r = c1.outer;
+    if (r.length === 28 && Math.hypot(r[12]! - 21.04, r[13]! - 326.03) < 0.3 && Math.hypot(r[16]! - 24.97, r[17]! - 330.11) < 0.3) {
+      const [ax, az, dx, dz] = [r[10]!, r[11]!, r[12]! - r[10]!, r[13]! - r[11]!];
+      const [qx, qz, ex, ez] = [r[16]!, r[17]!, r[18]! - r[16]!, r[19]! - r[17]!];
+      const t = ((qx - ax) * -ez - (qz - az) * -ex) / (dx * -ez - dz * -ex);
+      c1.outer = [...r.slice(0, 12), ax + dx * t, az + dz * t, ...r.slice(18)];
+    }
   }
 }
 

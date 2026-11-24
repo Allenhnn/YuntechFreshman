@@ -107,11 +107,12 @@ const BACK = { pier: 0.55, pierDepth: 0.42, bay: 3.4, plinth: 1.25, plinthDepth:
  * 學生宿舍C C1（OSM 296668595，使用者照片 2026-11-24）：4 層洗石子混凝土。面向前門廣場的斜面（edge 3）中間一座凸出的
  * 多邊形陽台塔：2F 以上每層一圈樓板＋兩側矮牆、正面整片紅色花磚、轉角白柱，塔頂高出屋頂一截；一樓縮進去是玻璃大廳
  * （dormYard.ts C_FRONT.shop），2F 樓板正面藍綠色「C1」。左右兩塊量體面向廣場的短牆（edge 2、4）是素面牆；其他各面
- * 每層一排混凝土框的窗，牆腳一段深灰牆基。`ring`：OSM 外環（edge i 從頂點 i 到 i + 1），對不上就整個略過。
+ * 每層一排混凝土框的窗，牆腳一段深灰牆基。`ring`：OSM 外環（edge i 從頂點 i 到 i + 1），東北角的凹口已由 campusFixes.ts
+ * sealBuildings 填平（使用者：東側是一個平面），對不上就整個略過。
  */
 const C1 = {
-  ring: [[2.1, 349.72], [4.39, 349.23], [2.76, 339.26], [7.33, 338.44], [11.57, 331.92], [10.92, 327.66], [21.04, 326.03], [21.86, 330.45], [24.97, 330.11], [26.44, 337.63], [18.27, 339.1], [15.33, 342.85], [16.64, 353.14], [2.76, 355.1]] as const,
-  bayEdge: 3, blank: [0, 2, 4, 7] as readonly number[], noPlinth: [3] as readonly number[],
+  ring: [[2.1, 349.72], [4.39, 349.23], [2.76, 339.26], [7.33, 338.44], [11.57, 331.92], [10.92, 327.66], [24.08, 325.54], [26.44, 337.63], [18.27, 339.1], [15.33, 342.85], [16.64, 353.14], [2.76, 355.1]] as const,
+  bayEdge: 3, blank: [0, 2, 4] as readonly number[], noPlinth: [3] as readonly number[],
   /**
    * 側面照（使用者 2026-11-24，陽台塔右手邊；edge 2 是正面照裡的素面量體，不動）：edge 1 一轉過角（`split` 以前）就是一條
    * 內凹直條，每層一扇深框窗、一樓上下兩排窗；後面每層一排深框窗（部分冷氣）、一樓上下兩排窗。edge 0（凸出那塊的側面）
@@ -123,6 +124,20 @@ const C1 = {
    * 壁柱分格每層一排窗＋冷氣、靠塔那段每層一條深的內凹橫窗帶；一樓上下兩排窗、高牆基。正面不動。
    */
   sideN: 5, stairW: 2.4, rowsEnd: 6.4,
+  /**
+   * 南面照（使用者 2026-11-24，edge 10，朝 C2 側門）：大部分素面；中間偏左一列窄長窗（2F 以上每層一扇，`southColumn`：
+   * 中心在牆長的這個比例、寬度 m），一樓偏右一扇寬的上下兩排窗（`southGround`：牆長的比例）。使用者：東側（edge 6、9）
+   * 跟靠 C2 那面一模一樣——`southLike` 都用這一套（edge 9 後來改成跟宿服中心上方對稱，見 `svcMirror`）。edge 6 原本北段有一個退縮凹口，使用者說沒有凹進去、是一個平面，已填平。
+   */
+  /**
+   * 宿服中心上方（使用者照片 2026-11-24）：服務中心屋頂以上兩面。`svcBack`（edge 7，北棟朝南那面）：靠斜角那端一條窄窗列，
+   * 其餘分三格，每層一條寬窗帶、上下凸出的深混凝土橫帶、格間壁柱、窗下掛冷氣。`svcDiag`（edge 8，OSM 小斜牆）：每層一個深凹的
+   * 開口（暗色內牆、窗、冷氣），整列疊上去。
+   */
+  svcBack: 7, svcDiag: 8, svcBays: 3,
+  /** 使用者：以宿服中心為中心，另一邊（edge 9，南翼朝東那面）一樣、對稱——窄窗列在靠斜角那端（右邊）。 */
+  svcMirror: 9,
+  southLike: [10, 6] as readonly number[], southColumn: { at: 0.45, w: 0.8 }, southGround: [0.532, 0.777] as readonly [number, number],
   /** Balcony tower on the bay edge: back width, front width, depth out from the wall. */
   bay: { back: 5.4, front: 4.0, depth: 1.6 },
   plinth: 1.3, window: { w: 1.6, y0: 1.0, y1: 2.3, every: 3.4 },
@@ -971,6 +986,39 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
         b.put(span(s2 - 0.05, s2 + 0.25, PL, H - 0.2, 0.02, 0.45), concrete, 2);
         twoBands(s2 + 0.45, L - 0.4);
         for (const fy of floors) framed(s2 + 0.45, L - 0.4, fy + 1.2, fy + 2.2, 0.7); // deep recessed band per floor
+      } else if (i === C1.svcBack || i === C1.svcMirror) {
+        // `u` is measured from the diagonal corner: on edge 7 that is x = 0 (left, seen from outside), on the mirrored
+        // edge 9 it is x = L (right). The service centre covers the ground floor.
+        const X = (u0: number, u1: number): [number, number] => (i === C1.svcMirror ? [L - u1, L - u0] : [u0, u1]);
+        const nc = 1.3, u0b = nc + 0.15, st = (L - 0.3 - u0b) / C1.svcBays;
+        for (const fy of floors) {
+          framed(...X(0.35, nc - 0.25), fy + 1.1, fy + 2.3, 0.3);
+          b.put(span(...X(u0b - 0.1, L - 0.1), fy + 0.8, fy + 0.98, 0.02, 0.45), concrete, 2); // sill band
+          b.put(span(...X(u0b - 0.1, L - 0.1), fy + 2.4, fy + 2.7, 0.02, 0.55), concrete, 2); // hood band
+          for (let q = 0; q < C1.svcBays; q++) {
+            const [x0, x1] = X(u0b + q * st + 0.15, u0b + (q + 1) * st - 0.15);
+            windowAt(b, x0, x1, fy + 0.98, fy + 2.4);
+            if (seeded() < 0.75) acUnit(b, (x0 + x1) / 2 + (seeded() - 0.5) * 0.6, fy + 0.25);
+          }
+        }
+        for (let q = 0; q <= C1.svcBays; q++) { const [x0, x1] = X(u0b + q * st - 0.12, u0b + q * st + 0.12); b.put(span(x0, x1, STOREY, H - 0.2, 0.02, 0.5), concrete, 2); }
+      } else if (i === C1.svcDiag) {
+        // One deep opening per floor: cheeks and slabs well out from the wall, a dark back with a window, an AC.
+        const x0 = 0.5, x1 = L - 0.5, D = 0.8;
+        for (const fy of floors) {
+          const y0 = fy + 0.9, y1 = fy + 2.6;
+          b.put(span(x0, x1, y0, y1, 0.03, 0.05), voidDark);
+          windowAt(b, x0 + 0.3, x1 - 0.3, y0 + 0.3, y1 - 0.2);
+          b.put(span(x0 - 0.25, x1 + 0.25, y1, y1 + 0.3, 0.02, D), concrete, 2);
+          b.put(span(x0 - 0.25, x1 + 0.25, y0 - 0.25, y0, 0.02, D), concrete, 2);
+          for (const sx of [x0 - 0.25, x1]) b.put(span(sx, sx + 0.25, y0, y1, 0.02, D), concrete, 2);
+          acUnit(b, x1 - 0.7, y0);
+        }
+      } else if (C1.southLike.includes(i)) {
+        // Mostly plain: a column of narrow windows a little left of the middle, one wide two-band window downstairs right of it.
+        const { at, w } = C1.southColumn, [g0, g1] = C1.southGround;
+        for (const fy of floors) framed(L * at - w / 2, L * at + w / 2, fy + 0.9, fy + 2.6, 0.35);
+        twoBands(L * g0, L * g1);
       } else if (!C1.blank.includes(i)) {
         // A row of windows per floor, each in a deep concrete frame (hood, cheeks, sill).
         const { w, y0: wy0, y1: wy1, every } = C1.window;

@@ -112,3 +112,9 @@
 | 學生宿舍C C2（使用者照片） | 中間凸出塊：內凹陽台紅花磚、兩側兩排棕框窗＋冷氣、一樓三格玻璃與「C2」、門前平台台階花台藍扶手；兩翼壁柱＋橫窗＋牆基；封閉無室內 | `dormCFacade.ts` `C2`；`campusFixes.ts` `sealBuildings`；`customFacades.ts` |
 | 學生宿舍C C1–C2 圍牆（使用者照片：門打不開）；C2 東側 | 素面牆改同款門樓＋花磚牆，固定白色方格鐵門、一直擋著；C2 靠 C1 的側面素面 | `dormYard.ts` `locked`；`dormCFacade.ts` `C2.plain` |
 | 學生宿舍C C1 北側（使用者側面照） | 樓梯間窄高窗、壁柱分格窗＋冷氣、靠塔那段深橫窗帶、一樓上下兩排窗、高牆基；正面不動 | `dormCFacade.ts` `C1.sideN` |
+| 學生宿舍C C1 東側（使用者街景照） | 東面大部分素面、南端一列窗（一樓上下兩排）；北邊退縮那段素面 | `dormCFacade.ts` `C1.sideE`、`blank` |
+| 學生宿舍C C1 南面（使用者照片） | 大部分素面、偏西一列窄長窗、一樓偏東一扇上下兩排寬窗 | `dormCFacade.ts` `C1.sideS` |
+| 學生宿舍C C1 東側＝南面（使用者） | 東側兩段（edge 8、11）改成跟南面同一套：素面、偏左窄長窗一列、一樓偏右上下兩排寬窗 | `dormCFacade.ts` `C1.southLike` |
+| 學生宿舍C C1 東側一個平面（使用者） | 東北角退縮凹口填平，東面整面一個平面（edge 6），服務中心錨點跟著改 edge 7 | `campusFixes.ts` `sealBuildings`、`dormCFacade.ts` `C1.ring`、`dormFeatures.ts` `C_CORNER` |
+| 學生宿舍C 宿服中心上方（使用者照片） | 北棟朝南那面：窄窗列＋三格寬窗帶、深橫帶、壁柱、冷氣；斜角每層一個深凹開口 | `dormCFacade.ts` `C1.svcBack`、`C1.svcDiag` |
+| 學生宿舍C 宿服中心兩側對稱（使用者） | 南翼朝東那面（edge 9）鏡射北棟朝南那面：窄窗列靠斜角、三格寬窗帶、深橫帶、冷氣 | `dormCFacade.ts` `C1.svcMirror` |

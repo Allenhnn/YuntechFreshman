@@ -64,7 +64,7 @@ export const STYLE_ALIAS: Readonly<Record<number, number>> = { [DORM_C.westWing]
 export const CUSTOM_FACADE_EDGES: Readonly<Record<number, readonly number[]>> = {
   // buildings/dormCFacade.ts
   // C1 (使用者照片 2026-11-24): every wall, so neither procedural details nor a shut door land on it.
-  [DORM_C.c1]: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
+  [DORM_C.c1]: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], // 12 edges once sealBuildings fills the north-east notch
   [DORM_C.c2]: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
   // The back faces too (使用者背面照): middle 0, 1, 9; east wing 0, 1, 2; west wing 3, 4, 5 — so no shut door lands on them.
   [DORM_C.middle]: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],

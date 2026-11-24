@@ -164,6 +164,26 @@ docker compose down             # 停止（加 -v 會連資料一起刪除）
 | `.env.example` 沒被 commit | 根目錄 `.gitignore` 有 `.env*`；需要時用 `git add -f backend/.env.example` |
 
 ## 變更紀錄
+### 2026-11-24（前端：學生宿舍C 宿服中心兩側對稱）— 分支 `feat/dorm-c-yard-walls`
+- 需求：以宿服中心為中心，另一邊也一樣、對稱
+- `frontend/src/buildings/dormCFacade.ts` `C1.svcMirror`（edge 9，南翼朝東那面）跟 `svcBack` 共用同一套、左右鏡射（窄窗列在靠斜角那端）；edge 9 從 `southLike` 移除（現在 [10, 6]）
+### 2026-11-24（前端：學生宿舍C 宿服中心上方照照片重做）— 分支 `feat/dorm-c-yard-walls`
+- 需求：宿服中心上方的房間照照片重新建模
+- `frontend/src/buildings/dormCFacade.ts` `C1.svcBack`（edge 7，北棟朝南那面）：靠斜角一條窄窗列，其餘 `svcBays` 三格，每層寬窗帶＋上下深混凝土橫帶、格間壁柱、窗下冷氣；`C1.svcDiag`（edge 8，小斜牆）：每層一個深凹開口（暗內牆、窗、冷氣）疊成一列；一樓被服務中心擋住不做
+### 2026-11-24（前端：學生宿舍C C1 東側填平成一個平面）— 分支 `feat/dorm-c-yard-walls`
+- 需求：C1 東側北段沒有凹進去，是一個平面（跟南面一樣）
+- `frontend/src/campus/campusFixes.ts` `sealBuildings`：C1 外環東北角凹口（OSM vertex 6、7）拿掉——北面（5 → 6）延伸到東面（8 → 9）那條線上，交點取代 vertex 6、7、8；外環從 14 點變 12 點，對不上 OSM 形狀就不動
+- `frontend/src/buildings/dormCFacade.ts` `C1.ring` 改成新外環；edge 編號往前移：`blank` [0, 2, 4]、`southLike` [10, 9, 6]（東面整面 edge 6）
+- `frontend/src/campus/customFacades.ts` C1 edges 0–11；`frontend/src/buildings/dormFeatures.ts` 宿舍服務中心錨點 C1 edge 9 → 7
+### 2026-11-24（前端：學生宿舍C C1 東側改成跟南面一模一樣）— 分支 `feat/dorm-c-yard-walls`
+- 需求：C1 右面那一側（東側）跟靠 C2 那一側（南面）完全一樣
+- `frontend/src/buildings/dormCFacade.ts` `C1.southLike`（edge 12、11、8）：同一套——大部分素面、中間偏左一列窄長窗（`southColumn` 以牆長比例定位）、一樓偏右一扇上下兩排寬窗（`southGround` 比例）；取代 `sideS`、`sideE`／`eastColumn`
+### 2026-11-24（前端：學生宿舍C C1 南面照照片重做）— 分支 `feat/dorm-c-yard-walls`
+- 需求：C1 南面（朝 C2 側門那面）照照片修
+- `frontend/src/buildings/dormCFacade.ts` `C1.sideS`（edge 12）：大部分素面；偏西一列窄長窗（2F 以上每層一扇，`southColumn`）、一樓偏東一扇寬的上下兩排窗（`southGround`）
+### 2026-11-24（前端：學生宿舍C C1 東側照照片重做）— 分支 `feat/dorm-c-yard-walls`
+- 需求：使用者給 C1 東側的遊戲截圖與街景照片
+- `frontend/src/buildings/dormCFacade.ts` `C1.sideE`（edge 8）：大部分素面，靠南端一列窗（`eastColumn`，每層一扇深框窗，一樓上下兩排）；北邊退縮的 edge 6 改素面（`blank`）。正面不變
 ### 2026-11-24（前端：學生宿舍C C1 北側照側面照重做）— 分支 `feat/dorm-c-yard-walls`
 - 需求：C1 另一邊的側面照片（朝 C3／前門那面），不要動到正面
 - `frontend/src/buildings/dormCFacade.ts` `C1.sideN`（edge 5）：從東端起樓梯間每層一扇窄高窗（`stairW`）、壁柱分格每層一排深框窗＋冷氣（到 `rowsEnd`）、靠塔那段每層一條深的內凹橫窗帶；一樓上下兩排窗；牆基 1.8 m（`tallPlinthEdges` 加 5）。正面（edge 2、3、4）不變
