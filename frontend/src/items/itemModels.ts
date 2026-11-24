@@ -26,7 +26,7 @@ export interface ItemModel {
   dispose(): void;
 }
 
-type Shape = 'card' | 'sheet' | 'book' | 'bottle' | 'can' | 'cup' | 'carton' | 'bowl' | 'bun' | 'box' | 'rice' | 'egg';
+type Shape = 'broom' | 'mop' | 'card' | 'sheet' | 'book' | 'bottle' | 'can' | 'cup' | 'carton' | 'bowl' | 'bun' | 'box' | 'rice' | 'egg';
 
 const SHAPE: Record<ItemId, Shape> = {
   studentCard: 'card', lostCard: 'card',
@@ -41,6 +41,7 @@ const SHAPE: Record<ItemId, Shape> = {
   bento: 'box', buffet: 'box',
   onigiri: 'rice',
   teaEgg: 'egg',
+  broom: 'broom', mop: 'mop',
 };
 
 const COLOR: Partial<Record<ItemId, string>> = {
@@ -352,6 +353,14 @@ export function createItemModel(id: ItemId, who?: CardInfo): ItemModel {
       const tri = add(new CylinderGeometry(0.48, 0.48, 0.22, 3), mat('#fafafa'), 0, 0, 0);
       tri.rotation.x = Math.PI / 2;
       add(new BoxGeometry(0.34, 0.36, 0.24), mat('#1b3a2b'), 0, -0.2, 0);
+      break;
+    }
+    case 'broom':
+    case 'mop': {
+      // Long stick (scaled to fit the view), head at the bottom.
+      add(new CylinderGeometry(0.025, 0.025, 1.1, 8), mat('#c9a46a'), 0, 0.15, 0);
+      if (SHAPE[id] === 'broom') add(new CylinderGeometry(0.05, 0.22, 0.32, 10).scale(1, 1, 0.45), mat('#d9b84a'), 0, -0.55, 0);
+      else add(new CylinderGeometry(0.16, 0.22, 0.28, 12), mat('#e8e6df'), 0, -0.55, 0);
       break;
     }
     case 'egg':

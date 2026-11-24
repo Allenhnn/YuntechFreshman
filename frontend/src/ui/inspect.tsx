@@ -14,6 +14,7 @@ function actionLabel(id: ItemId): string {
   if (id === 'campusMap') return '打開地圖';
   if (id === 'studentCard') return '看看證件';
   if (id === 'notebook') return '翻開看';
+  if (id === 'broom' || id === 'mop') return '放下';
   return '使用';
 }
 

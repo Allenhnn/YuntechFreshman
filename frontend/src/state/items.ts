@@ -20,6 +20,8 @@ export const ITEMS = {
   healthForm: { name: '健康資料表', icon: '📋', maxStack: 1, description: '新生健康檢查資料表，要交到健康中心。' },
   raceBib: { name: '號碼布', icon: '🎽', maxStack: 1, description: '雲科路跑的參賽號碼布。' },
   lostCard: { name: '撿到的學生證', icon: '🪪', maxStack: 1, description: '不是你的學生證，送到行政大樓或警衛室吧。' },
+  broom: { name: '掃把', icon: '🧹', maxStack: 1, description: '管理一館工具室拿的掃把。選在快捷欄就拿在手上；使用＝放在地上。' },
+  mop: { name: '拖把', icon: '🧽', maxStack: 1, description: '管理一館工具室拿的拖把。選在快捷欄就拿在手上；使用＝放在地上。' },
 } as const;
 
 export type ItemId = keyof typeof ITEMS;

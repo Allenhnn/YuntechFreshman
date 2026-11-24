@@ -1,4 +1,5 @@
-import { ACESFilmicToneMapping, Euler, PCFShadowMap, PerspectiveCamera, Quaternion, Scene, SRGBColorSpace, Vector3, WebGLRenderer } from 'three';
+import { ACESFilmicToneMapping, Euler, Group, PCFShadowMap, PerspectiveCamera, Quaternion, Scene, SRGBColorSpace, Vector3, WebGLRenderer } from 'three';
+import { createToolProps, type ToolSpot } from './items/toolProps';
 import { MY_ROOM } from './story/storyData';
 import { createWardrobePreview, wardrobeView } from './character/wardrobePreview';
 import { playerName, studentId } from './state/playerName';
@@ -14,7 +15,7 @@ import { dispatch, drainCommands, type GameCommand } from './state/commands';
 import { bindStreetView, updateStreetView } from './tools/streetViewSync';
 import { installSurvey } from './tools/svSurvey';
 import { START_MINUTES, actions, gameStore, type GameState } from './state/store';
-import { STALL_MENUS, type ItemId } from './state/items';
+import { ITEMS, STALL_MENUS, type ItemId } from './state/items';
 import type { Settings } from './state/settings';
 import { telemetry } from './state/telemetry';
 import { createCoinSystem } from './ecs/systems/coins';
@@ -147,6 +148,8 @@ const ITEM_MESSAGES: Readonly<Record<ItemId, string>> = {
   healthForm: '📋 新生健康資料表：記得交到健康中心',
   raceBib: '🎽 雲科路跑 參賽號碼布',
   lostCard: '🪪 別人的學生證，送到行政大樓或警衛室',
+  broom: '',
+  mop: '',
 };
 
 /** Gameplay effect of using an inventory item (runs inside the fixed step via the command queue). */
@@ -305,6 +308,21 @@ async function boot(): Promise<void> {
   const ma = byId('ma'), mb = byId('mb');
   const skyBridge = ma && mb ? createSkyBridge(scene, physics, sceneResources, { building: mb, at: [50.95, -2.3] }, { building: ma, at: [76.5, 12.75] }, 3.6) : null;
   const mgmtFeatures = createMgmtFeatures(scene, physics, sceneResources, ma);
+  // 管理一館 工具室 (every floor): a broom and a mop to pick up, a bucket.
+  const toolProps = (() => {
+    const spots: ToolSpot[] = [];
+    const buckets: { x: number; y: number; z: number }[] = [];
+    if (ma) {
+      const lean = ma.planFacing([0, -1]);
+      for (const [e, x0] of [[0, 63.8], [3.6, 63.8], [7.2, 64.5]] as const) {
+        const at = (px: number, py: number): [number, number] => ma.planToWorld(px, py);
+        const [bx, bz] = at(x0 + 0.45, 0.35), [mx, mz] = at(x0 + 0.9, 0.35), [kx, kz] = at(x0 + 1.5, 0.45);
+        spots.push({ x: bx, y: e + 0.08, z: bz, yaw: lean, tool: 'broom' }, { x: mx, y: e + 0.08, z: mz, yaw: lean, tool: 'mop' });
+        buckets.push({ x: kx, y: e + 0.08, z: kz });
+      }
+    }
+    return createToolProps(scene, sceneResources, spots, buckets);
+  })();
   addActivityEntrance(scene, sceneResources);
   addActivityAtrium(scene, sceneResources);
   addActivityCorner(scene, sceneResources);
@@ -516,6 +534,8 @@ async function boot(): Promise<void> {
   const joints = findMascotJoints(model.root);
   // Inspect view: the item held up in front of the camera (turned with the mouse) and in the hand.
   let held: { id: string; view: ItemModel; hand: ItemModel } | null = null;
+  /** The broom or mop in the right hand (selected on the hotbar). */
+  let handTool: { id: string; g: Group } | null = null;
   const heldTurn = { yaw: 0, pitch: 0, zoom: 1 };
   const heldEuler = new Euler(0, 0, 0, 'YXZ');
   const heldQ = new Quaternion();
@@ -971,6 +991,16 @@ async function boot(): Promise<void> {
       }
       case 'useItem': {
         const item = gameStore.getState().inventory[cmd.slot]?.id;
+        if (item === 'broom' || item === 'mop') {
+          // Put it down on the floor in front of you.
+          const yaw = Transform.rotY[eid]!;
+          const fx = Transform.x[eid]! + Math.sin(yaw) * 0.8, fz = Transform.z[eid]! + Math.cos(yaw) * 0.8;
+          toolProps.drop(item, fx, Transform.y[eid]!, fz, yaw + Math.PI / 2);
+          actions.consumeItem(cmd.slot);
+          actions.toast(`放下${ITEMS[item].name}`);
+          if (gameStore.getState().modal === 'inspect') api.closeModal();
+          return;
+        }
         useItem(cmd.slot, api);
         if (item && FOOD.has(item)) storyEvents.eat(item);
         if (item === 'studentCard') actions.toast(`🪪 國立雲林科技大學・${playerName()}　學號 ${studentId(storyStore.getState().progress.studentNo)}`);
@@ -1020,6 +1050,15 @@ async function boot(): Promise<void> {
             actions.toast(refused);
             audio.play('close');
           } else audio.play('click');
+          return;
+        }
+        if (target?.id.startsWith('tool:')) {
+          const tool = toolProps.take(target.id);
+          if (tool) {
+            if (actions.hasItem(tool)) { toolProps.drop(tool, target.x, target.y, target.z, 0); actions.toast(`你已經拿著${ITEMS[tool].name}了`); }
+            else if (actions.giveItem(tool)) { actions.toast(`🧹 拿起${ITEMS[tool].name}（快捷欄選它就拿在手上，背包裡使用＝放下）`); audio.play('click'); }
+            else { toolProps.drop(tool, target.x, target.y, target.z, 0); actions.toast('背包滿了'); }
+          }
           return;
         }
         if (target?.id === 'dormC-wardrobe') {
@@ -1215,7 +1254,7 @@ async function boot(): Promise<void> {
   const nearestInteractable = (): Interactable | null => {
     let best: Interactable | null = null;
     let bestD = Infinity;
-    for (const it of buildings().flatMap((b) => b.interactables)) {
+    for (const it of [...buildings().flatMap((b) => b.interactables), ...toolProps.interactables]) {
       const d = Math.hypot(Transform.x[eid]! - it.x, Transform.z[eid]! - it.z);
       if (d < it.radius && d < bestD && Math.abs(Transform.y[eid]! - it.y) < 1.5) {
         best = it;
@@ -1378,8 +1417,9 @@ async function boot(): Promise<void> {
         knock.speed *= Math.exp(-3.2 * FIXED_DT);
         Transform.rotY[eid] = Transform.prevRotY[eid] = knock.facing;
         if (knock.t >= knock.total) knock = null;
-      } else if (playing && !seat && !ui.tester.noclip && !ui.tester.fly) {
+      } else if (playing && !seat && !ui.tester.noclip && !ui.tester.fly && Math.abs(Transform.y[eid]!) < 1.5) {
         // People and vehicles are solid; a moving vehicle (or running into one fast) knocks you down.
+        // Only at street level: not from upstairs (or the underground dorm rooms) above / below where they walk.
         const c = traffic.collide(Transform.x[eid]!, Transform.z[eid]!, bikes.ridden >= 0 ? 0.55 : 0.32, Velocity.x[eid]!, Velocity.z[eid]!);
         if (c.push) shiftPlayer(c.push[0], c.push[1]);
         if (c.knock) knockDown(c.knock);
@@ -1511,6 +1551,25 @@ async function boot(): Promise<void> {
       const target = ui.nav ? { x: ui.nav.x, z: ui.nav.z, name: ui.nav.name, color: '#2f6fd0', icon: '🏁' }
         : mainPin && sst.enabled ? { x: mainPin.x, z: mainPin.z, name: sst.live.place ?? '主線目標', color: '#f08a24', icon: mainPin.icon } : null;
       navPointer.update(camera, target, px, pz, playing && ui.modal === 'none' && ui.mapMode === 'mini');
+    }
+    // A broom / mop selected on the hotbar is carried in the right hand.
+    {
+      const sel = ui.inventory[ui.hotbarIndex]?.id;
+      const want = (sel === 'broom' || sel === 'mop') && ui.modal !== 'inspect' ? sel : null;
+      if (handTool && handTool.id !== want) { handTool.g.removeFromParent(); handTool = null; }
+      if (want && !handTool) {
+        const arm = model.root.getObjectByName('armR');
+        if (arm) {
+          const g = new Group();
+          const m = toolProps.makeModel(want);
+          m.position.y = -0.8; // grip it a little above the middle of the stick
+          g.add(m);
+          g.scale.setScalar(1.6); // the arm joint is scaled down with the mascot
+          g.position.set(0, -0.3, 0.06);
+          arm.add(g);
+          handTool = { id: want, g };
+        }
+      }
     }
     // Held item (inspect view): in front of the camera, turned by the mouse; a small copy in the hand.
     {
