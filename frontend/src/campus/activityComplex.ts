@@ -59,7 +59,7 @@ export function buildActivityComplex(b: CampusBuilding, solid: GeoBuilder, glass
     // Photos 14–16 and 23–26: two open ends, galleries down the sides,
     // overhead bridges and a glazed ridge visible from inside the court.
     for (const x of [1, 32]) {
-      for (const z of [-22,-13,-4]) box(x,x+.65,z,z+.65,0,10.8);
+      for (const z of (x === 1 ? [-22,-4] : [-22,-13,-4])) box(x,x+.65,z,z+.65,0,10.8);
       for (const y of [3.6,7.2]) {
         box(x-1,x+2.6,-24,0,y-.32,.32);
         const inner = x < 10 ? x+2.4 : x-1;
@@ -110,10 +110,19 @@ export function buildActivityComplex(b: CampusBuilding, solid: GeoBuilder, glass
       section(glass,at,.1,35.5,z,z+.045,9.3,9.3,1.4,metal);
       for(let x=.25;x<35.5;x+=1.75) box(x,x+.09,z-.05,z+.07,9.3,1.4,steel);
     }
-    // Ceiling and column lines over the two covered ends of the level hall.
-    for(const [a,b] of [[.1,6],[28,35.7]] as const) box(a,b,-20,-3,6.82,.38,concrete);
-    // Backing wall and fixed display doors by room 107 (plan right).
-    // The room 107 wall belongs to the floor plan.
+    // The hall-side gallery crosses the sightline from the north stair.
+    // Its two outer piers leave the ground-floor axis open into the wing.
+    box(0,6,-20,-3,3.34,.26);
+    box(5.65,6,-20,-3,3.6,.57);
+    for (const z of [-19.75,-4.05]) {
+      box(5.3,6,z,z+.72,1.125,8.18);
+      box(.25,.85,z,z+.62,1.125,2.22);
+    }
+    for (const y of [4.32,4.54]) box(5.78,5.84,-19.7,-3.3,y,.055,steel);
+    for (let z=-19.5;z<-3.3;z+=2) box(5.78,5.84,z,z+.055,4.17,.42,steel);
+    box(5.4,6,-20,-3,7.04,.60);
+    // The opposite wing keeps its covered upper landing.
+    box(28,35.7,-20,-3,6.82,.38,concrete);
     for(const x of [6,25.5]) {
       box(x,x+2.3,-2.15,-1.55,1.46,.12,[.36,.24,.15]);
       for(const offset of [.18,1.9]) box(x+offset,x+offset+.17,-2.1,-1.6,1.125,.34,edge);
