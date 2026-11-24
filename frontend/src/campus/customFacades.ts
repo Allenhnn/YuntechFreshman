@@ -25,13 +25,14 @@ export const DORM_C = {
 /**
  * Each piece's ring (CCW): numbers are the OSM ring's vertices, names are points splitDormC makes —
  * p14 / p15: the west return slid a room further west; 4s … 11s: the east wing's vertices moved `eastShift`
- * east; Q: on the north face (3 → 4) straight up the east wing's inner face from 11s.
+ * east; Q: on the north face (3 → 4) straight up the east wing's inner face from 11s; B: on the north face (1 → 2)
+ * straight up the west wing's inner face from vertex 16 (so the west party wall is square, not diagonal from 2 to 16).
  * Edge k of a piece runs from its k-th to its (k+1)-th point.
  */
 export const DORM_C_PIECES = {
-  middle: [2, 3, 'Q', '11s', 12, 13, 'p14', 'p15', 16],
+  middle: [2, 3, 'Q', '11s', 12, 13, 'p14', 'p15', 16, 'B'],
   eastWing: ['Q', '4s', '5s', '6s', '7s', '8s', '9s', '10s', '11s'],
-  westWing: [16, 17, 18, 19, 0, 1, 2],
+  westWing: [16, 17, 18, 19, 0, 1, 'B'],
 } as const;
 
 /**
@@ -41,9 +42,9 @@ export const DORM_C_PIECES = {
  * generated interiors (one per piece) every piece keeps its full walls.
  */
 export const PARTY_WALLS: Readonly<Record<number, Readonly<Record<number, number>>>> = {
-  [DORM_C.middle]: { 2: DORM_C.wingLevels * 3.6, 8: DORM_C.wingLevels * 3.6 }, // Q→11s (east wing side), 16→2 (west wing side)
+  [DORM_C.middle]: { 2: DORM_C.wingLevels * 3.6, 8: DORM_C.wingLevels * 3.6 }, // Q→11s (east wing side), 16→B (west wing side)
   [DORM_C.eastWing]: { 8: 99 }, // 11s→Q
-  [DORM_C.westWing]: { 6: 99 }, // 2→16
+  [DORM_C.westWing]: { 6: 99 }, // B→16
 };
 
 /** Facade style by building id for the split pieces (facades.json only knows the OSM id). */

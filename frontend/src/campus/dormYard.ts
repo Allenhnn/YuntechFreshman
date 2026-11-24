@@ -54,7 +54,9 @@ interface GateMark {
 }
 
 export const DORM_GATES: readonly GateMark[] = [
-  { name: '學生宿舍C 後門', a: [-52.0, 341.5], b: [-28.1, 331.7] },
+  // 使用者平面圖（C 區，2026-11-24）：C2–C3 之間的圍牆沿兩棟的外側邊線——從 C3 西翼西南角往外 2.2 m，筆直接到 C2
+  // 西北角（不是從兩棟中間穿過）；門在中間。ends: C3 end, C2 end.
+  { name: '學生宿舍C 後門', a: [-54.6, 337.3], b: [-30.9, 333.8], ends: [[-44.47, 323.98], [-41.0, 347.1]] },
   { name: '學生宿舍C 前門', a: [1.8, 327.5], b: [27.9, 319.9], portal: true, ends: [[10.92, 327.66], [8.57, 319.27]] },
   { name: '學生宿舍B 前門', a: [38.3, 319.9], b: [62.2, 313.4] },
   { name: '學生宿舍B 後門', a: [92.7, 311.2], b: [117.7, 303.6] },
@@ -76,6 +78,14 @@ const CLOSED_GAPS: readonly [number, number][] = [
   [234786934, 234786935], // 學生宿舍B1 – B2
   [296668592, 296668595], // 學生宿舍C (west wing – east wing, toward the C/D courtyard)
   [296668593, 296668594], // 學生宿舍D (west wing – east wing, toward the C/D courtyard)
+];
+
+/**
+ * Short plain wall pieces (two ends, campus metres) that don't close a gap between wings on their own:
+ * 學生宿舍C 後門's wall leaves C3's west wing a little outside its corner (使用者平面圖) — this stub joins them.
+ */
+const WALL_STUBS: readonly (readonly [readonly [number, number], readonly [number, number]])[] = [
+  [[-42.3, 323.6], [-44.47, 323.98]],
 ];
 
 /** Bike parking rows (polylines). */
@@ -430,7 +440,8 @@ export function createDormYard(scene: Scene, physics: RAPIER.World, campus: Camp
     }
     return best;
   };
-  // Plain walls closing the third gap of each three-wing group.
+  // Plain walls closing the third gap of each three-wing group, and the stubs.
+  const plainWalls: { d: number; p: [number, number]; q: [number, number] }[] = [];
   for (const [ia, ib] of CLOSED_GAPS) {
     const A = dorms.find((b) => b.id === ia), B = dorms.find((b) => b.id === ib);
     if (!A || !B) continue;
@@ -440,7 +451,10 @@ export function createDormYard(scene: Scene, physics: RAPIER.World, campus: Camp
       const d = Math.hypot(p[0] - q[0], p[1] - q[1]);
       if (!best || d < best.d) best = { d, p, q };
     }
-    if (!best || best.d < 0.4 || best.d > 25) continue;
+    if (best && best.d >= 0.4 && best.d <= 25) plainWalls.push(best);
+  }
+  for (const [p, q] of WALL_STUBS) plainWalls.push({ d: Math.hypot(q[0] - p[0], q[1] - p[1]), p: [p[0], p[1]], q: [q[0], q[1]] });
+  for (const best of plainWalls) {
     const ux = (best.q[0] - best.p[0]) / best.d, uz = (best.q[1] - best.p[1]) / best.d;
     const cx = (best.p[0] + best.q[0]) / 2, cz = (best.p[1] + best.q[1]) / 2;
     const yaw = Math.atan2(-uz, ux);

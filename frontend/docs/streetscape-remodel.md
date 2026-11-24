@@ -100,3 +100,5 @@
 | 學生宿舍C 曬衣間破圖修正、拿掉窗邊衣架（使用者截圖） | 天花縫加梁封住；兩端牆角的縫補實心牆；鏡頭擋在天花下面；2 樓花磚旁的衣架拿掉；門改靠端牆開、洗手台整段加深、牆面材質統一 | `dormCUnitDecor.ts` 梁、擋板與頂板；`dormCFacade.ts` 2 樓不畫衣架 |
 | 學生宿舍C 交誼廳照照片（使用者：移除所有家具，改成照片的樣子） | 松木沙發組＋玻璃茶几、邊桌電話、暖氣機、吊扇、上下兩排窗、磨石子地 | `dormCUnitDecor.ts` 交誼廳重做 |
 | 學生宿舍C 交誼廳窗看得到外面（使用者） | 東側戶廳 2 樓窗改透明、外殼與室內牆開口，從裡面看得到中庭 | `customFacades.ts` `DORM_C_HALL_2F`；`dormCFacade.ts` 透明玻璃；`dormCUnit.ts`／`dormCUnitDecor.ts` 窗口與窗框 |
+| 學生宿舍C C2–C3 圍牆照平面圖（使用者） | 後門圍牆從兩棟中間移到外側：C3 西翼西南角 → C2 西北角，門在中間；補 C3 牆角短牆 | `dormYard.ts` `DORM_GATES` 後門 `ends`、`WALL_STUBS` |
+| 學生宿舍C C3 西翼分界不要斜（使用者） | 西翼與中段分界改沿西翼內側牆面筆直往北，中段 4 樓西牆不再斜 | `campusFixes.ts` `splitDormC` 點 `B`；`customFacades.ts` `DORM_C_PIECES` |

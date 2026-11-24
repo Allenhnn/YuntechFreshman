@@ -396,6 +396,8 @@ export function splitDormC(campus: CampusData): void {
   const pts: Record<string, P> = { p14, p15 };
   for (const k of [4, 5, 6, 7, 8, 9, 10, 11]) pts[`${k}s`] = sh(k);
   pts.Q = meet(pts['11s']!, [r[18]! - r[16]!, r[19]! - r[17]!], V(3), [r[8]! - r[6]!, r[9]! - r[7]!]);
+  // 使用者（2026-11-24）：西翼與中段的分界不要斜的——沿西翼內側牆面（vertex 16 → 17 的線）筆直往北，接到北面的 1 → 2 上。
+  pts.B = meet(V(16), [r[34]! - r[32]!, r[35]! - r[33]!], V(1), [r[4]! - r[2]!, r[5]! - r[3]!]);
   const ring = (ids: readonly (number | string)[]): number[] => ids.flatMap((k) => (typeof k === 'number' ? V(k) : pts[k]!));
   // 使用者（2026-11-23）：北棟的室內先整個拿掉——三塊都封起來（門畫成關著的，沒有室內）。故事的寢室在南邊那棟 C（296668592），不受影響。
   const piece = (id: number, ids: readonly (number | string)[], levels: number) => ({ ...b, id, outer: ring(ids), holes: [], levels, height: Math.round(levels * 3.6 * 10) / 10, sealed: true });

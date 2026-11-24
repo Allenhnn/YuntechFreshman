@@ -164,6 +164,11 @@ docker compose down             # 停止（加 -v 會連資料一起刪除）
 | `.env.example` 沒被 commit | 根目錄 `.gitignore` 有 `.env*`；需要時用 `git add -f backend/.env.example` |
 
 ## 變更紀錄
+### 2026-11-24（前端：學生宿舍C C2–C3 後門圍牆照平面圖移位）— 分支 `feat/dorm-c-yard-walls`
+- 需求：依 C 區平面圖調整宿舍圍牆，特別是平面圖右側 C2 與 C3 相連的那道牆
+- 平面圖與遊戲方向相差 180°（圖右＝遊戲西）。前門牆（C1–C3）與南側 C1–C2 封牆原本就對；後門牆原本從兩棟中間（x≈-33）穿過，改沿外側邊線
+- `frontend/src/campus/dormYard.ts`：`學生宿舍C 後門` 的 `ends` 改成 C3 西翼西南角外 (-44.47, 323.98) → C2 西北角 (-41.0, 347.1)，門在中間；新增 `WALL_STUBS` 補 C3 西翼牆角到圍牆起點的短牆；`CLOSED_GAPS` 迴圈改為先收集 `plainWalls` 再一起產生
+- C3 西翼與中段的分界原本從北面頂點 2 斜拉到南面頂點 16，中段比西翼高一層，4 樓西牆看起來斜斜的（使用者：平面圖中沒有斜斜的）。`campusFixes.ts` `splitDormC` 新增點 `B`（西翼內側牆面 16→17 的延長線與北面 1→2 的交點），`customFacades.ts` `DORM_C_PIECES`：中段 `[…, 16, 'B']`、西翼 `[16, 17, 18, 19, 0, 1, 'B']`——分界變成直的；邊號不變（中段多一條 B→2 的北面短牆，在最後）
 ### 2026-11-24（前端：學生宿舍C 寢室上下床改在樓梯旁）— 分支 `fix/dorm-c-front-gate`
 - 需求：上床下床改為靠近樓梯
 - `frontend/src/buildings/dormCUnit.ts` `dormCRoomBeds`：每張上鋪多一個 `ladder`——該側樓梯櫃前走道上的梯腳（靠窗那張在樓梯靠窗側、靠門那張在靠門側）
