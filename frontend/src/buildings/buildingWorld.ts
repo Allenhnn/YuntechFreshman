@@ -100,15 +100,34 @@ export interface Interactable {
   radius: number;
 }
 
+/** A chair to sit on or a bed to lie on (world space). */
+export interface Seat {
+  kind: 'chair' | 'bed';
+  x: number;
+  /** Seat top / mattress top. */
+  y: number;
+  z: number;
+  /** Floor under it. */
+  base: number;
+  /** Chair: the way a sitter faces. Bed: the direction of the head end. */
+  yaw: number;
+  building: string;
+  /** Code of the room it stands in (e.g. MA214), else its id. */
+  room: string;
+}
+
 export interface HandBuiltBuilding {
   readonly source: BuildingSource;
+  /** Chairs and beds (empty until the interior is loaded). */
+  readonly seats: readonly Seat[];
   /** World-space footprint rings of the ground floor (no-tree zones). */
   readonly footprintRings: Ring[];
   readonly interactables: Interactable[];
   /** Stair curtain doorways; interactable `<id>:stairs:<index>` uses the entry at that index. */
   readonly stairPortals: StairPortal[];
   /** Opens or closes room door `<id>:door:<index>` (E); returns a message when it won't open. */
-  toggleDoor(index: number): string | null;
+  /** Opens / shuts a door; `gate` may refuse opening one into a room (returns why). */
+  toggleDoor(index: number, gate?: (room: string | undefined) => string | null): string | null;
   planToWorld(x: number, y: number): [number, number];
   /** Furniture and stair-flight colliders block the player but not the camera's spring arm. */
   isCameraTransparent(handle: number): boolean;
@@ -490,6 +509,36 @@ export function createHandBuiltBuilding(
     });
   }
 
+  for (const [levelId, floor] of Object.entries(src.floors)) {
+    const y = src.levels.find((l) => l.id === levelId)?.elevation ?? 0;
+    (floor.fixtures ?? []).forEach((f, i) => {
+      if (f.kind !== 'vending') return;
+      const [x, z] = xf.toWorld(f.at[0] + f.facing[0] * 1.4, f.at[1] + f.facing[1] * 1.4);
+      interactables.push({ id: `${src.id}:vending:${levelId}:${i}`, prompt: '按 E 用販賣機買飲料', x, y, z, radius: 1.3 });
+    });
+  }
+
+  // Chairs (not taken by a student figure) and beds: lower bunk, loft top, single beds.
+  const seats: Seat[] = [];
+  for (const lvl of meshes.levels) {
+    for (const it of lvl.furniture) {
+      const [x, z] = xf.toWorld(it.x, it.z);
+      const sp = src.floors[lvl.id]?.spaces.find((q) => q.rects.some(([a, b, c, d]) => it.x >= a && it.x <= c && it.z >= b && it.z <= d));
+      const room = sp?.code ?? sp?.id ?? '';
+      if (it.kind === 'chair' && !it.taken) {
+        seats.push({ kind: 'chair', x, y: it.y + 0.42, z, base: it.y, yaw: planFacingOf(-Math.sin(it.ry), -Math.cos(it.ry)), building: src.name, room });
+      } else if (it.kind === 'bunk' || it.kind === 'loft' || it.kind === 'bed') {
+        const top = it.kind === 'bunk' ? 0.44 : it.kind === 'loft' ? 1.7 : 0.46;
+        seats.push({ kind: 'bed', x, y: it.y + top, z, base: it.y, yaw: planFacingOf(Math.sin(it.ry), Math.cos(it.ry)), building: src.name, room });
+      }
+    }
+  }
+  function planFacingOf(dx: number, dy: number): number {
+    const [x1, z1] = xf.toWorld(dx, dy);
+    const [x0, z0] = xf.toWorld(0, 0);
+    return Math.atan2(x1 - x0, z1 - z0);
+  }
+
   const footprintRings: Ring[] = meshes.footprint.map(([a, b, c, d]) => [
     ...xf.toWorld(a, b), ...xf.toWorld(c, b), ...xf.toWorld(c, d), ...xf.toWorld(a, d),
   ]);
@@ -499,12 +548,15 @@ export function createHandBuiltBuilding(
 
   return {
     source: src,
+    get seats() { return interior ? seats : []; },
     footprintRings,
     interactables,
     stairPortals: meshes.portals,
-    toggleDoor(i) {
+    toggleDoor(i, gate) {
       if (i < 0 || i >= doorOpen.length) return null;
       if (swingDoors[i]!.locked) return '實驗室上鎖了，非相關人員不可進入';
+      const refused = !doorOpen[i] && gate ? gate(swingDoors[i]!.roomId) : null;
+      if (refused) return refused;
       doorOpen[i] = !doorOpen[i];
       doorInteractables[i]!.prompt = doorOpen[i] ? '按 E 關門' : '按 E 開門';
       return null;

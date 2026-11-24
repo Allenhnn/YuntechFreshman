@@ -14,6 +14,7 @@ import {
   type Scene,
 } from 'three';
 import type { ResourceTracker } from '../core/resources';
+import { drawIcon, iconOf } from '../ui/icons';
 
 /**
  * Quest beacons: a soft column of light with a floating, bobbing icon badge over each quest target,
@@ -37,7 +38,8 @@ export interface Beacons {
 }
 
 export function createBeacons(scene: Scene, tracker: ResourceTracker): Beacons {
-  const beamGeo = tracker.geometry(new CylinderGeometry(0.9, 1.4, 40, 16, 1, true).translate(0, 20, 0));
+  const beamGeo = tracker.geometry(new CylinderGeometry(1.1, 1.6, 70, 18, 1, true).translate(0, 35, 0));
+  const coreGeo = tracker.geometry(new CylinderGeometry(0.25, 0.35, 70, 10, 1, true).translate(0, 35, 0));
   const ringGeo = tracker.geometry(new RingGeometry(1.6, 2.2, 32).rotateX(-Math.PI / 2));
   const textures = new Map<string, CanvasTexture>();
   const badge = (icon: string, color: number): CanvasTexture => {
@@ -60,10 +62,8 @@ export function createBeacons(scene: Scene, tracker: ResourceTracker): Beacons {
       g.beginPath();
       g.arc(64, 58, 46, 0, Math.PI * 2);
       g.stroke();
-      g.font = '56px system-ui, "Apple Color Emoji", "Segoe UI Emoji", sans-serif';
-      g.textAlign = 'center';
-      g.textBaseline = 'middle';
-      g.fillText(icon, 64, 62);
+      const glyph = iconOf(icon);
+      if (glyph) drawIcon(g, glyph, 64, 58, 54, '#ffffff', 2.2);
     }
     t = tracker.texture(new CanvasTexture(c));
     t.colorSpace = SRGBColorSpace;
@@ -71,7 +71,7 @@ export function createBeacons(scene: Scene, tracker: ResourceTracker): Beacons {
     return t;
   };
 
-  interface Live { group: Group; beam: Mesh; ring: Mesh; sprite: Sprite; b: Beacon; seed: number }
+  interface Live { group: Group; beam: Mesh; core: Mesh; ring: Mesh; sprite: Sprite; b: Beacon; seed: number }
   const live = new Map<string, Live>();
 
   const make = (b: Beacon): Live => {
@@ -79,15 +79,17 @@ export function createBeacons(scene: Scene, tracker: ResourceTracker): Beacons {
     const beamMat = tracker.material(new MeshBasicMaterial({ color: b.color, transparent: true, opacity: b.main ? 0.28 : 0.2, blending: AdditiveBlending, depthWrite: false, side: DoubleSide }));
     const beam = new Mesh(beamGeo, beamMat);
     beam.scale.set(b.main ? 1.2 : 0.8, b.main ? 1.3 : 1, b.main ? 1.2 : 0.8);
+    const core = new Mesh(coreGeo, tracker.material(new MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.55, blending: AdditiveBlending, depthWrite: false })));
+    core.scale.set(b.main ? 1.4 : 1, 1, b.main ? 1.4 : 1);
     const ringMat = tracker.material(new MeshBasicMaterial({ color: b.color, transparent: true, opacity: 0.6, depthWrite: false }));
     const ring = new Mesh(ringGeo, ringMat);
     ring.position.y = 0.06;
     const sprite = new Sprite(tracker.material(new SpriteMaterial({ map: badge(b.icon, b.color), depthTest: false, transparent: true })));
     sprite.renderOrder = 10;
-    group.add(beam, ring, sprite);
+    group.add(beam, core, ring, sprite);
     group.position.set(b.x, 0, b.z);
     scene.add(group);
-    return { group, beam, ring, sprite, b, seed: Math.random() * 10 };
+    return { group, beam, core, ring, sprite, b, seed: Math.random() * 10 };
   };
 
   return {
@@ -111,10 +113,12 @@ export function createBeacons(scene: Scene, tracker: ResourceTracker): Beacons {
         const size = 2.2 + near * 2.6;
         l.sprite.scale.set(size, size, 1);
         l.sprite.position.y = 5 + near * 6 + Math.sin(time * 2 + l.seed) * 0.4;
-        (l.beam.material as MeshBasicMaterial).opacity = (l.b.main ? 0.3 : 0.2) * (0.25 + 0.75 * near);
+        const pulse = 0.85 + Math.sin(time * 3 + l.seed) * 0.15;
+        (l.beam.material as MeshBasicMaterial).opacity = (l.b.main ? 0.5 : 0.32) * (0.3 + 0.7 * near) * pulse;
+        (l.core.material as MeshBasicMaterial).opacity = (l.b.main ? 0.7 : 0.45) * (0.3 + 0.7 * near) * pulse;
         l.ring.scale.setScalar(1 + ((time * 0.8 + l.seed) % 1) * 0.6);
         (l.ring.material as MeshBasicMaterial).opacity = 0.6 * (1 - ((time * 0.8 + l.seed) % 1));
-        l.group.visible = d < 260;
+        l.group.visible = d < 600;
       }
     },
     dispose() {

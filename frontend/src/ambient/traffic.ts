@@ -14,8 +14,10 @@ import {
   type Scene,
 } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { CircleGeometry, MeshBasicMaterial, SRGBColorSpace, TextureLoader } from 'three';
 import type { CampusData, CampusRoad } from '../campus/campusTypes';
 import type { ResourceTracker } from '../core/resources';
+import { isLongtanMain } from '../campus/longtanConst';
 
 /**
  * Ambient campus life: students walking the footpaths and campus lanes, students cycling the campus
@@ -31,8 +33,21 @@ export interface Traffic {
   setEnabled(kind: 'people' | 'vehicles', on: boolean): void;
   /** Headlights and tail lights glow after dark (0 day … 1 night). */
   setNight(night: number): void;
+  /** A cyclist within `r` of (x, z) (you could take their bike). */
+  cyclistNear(x: number, z: number, r: number): boolean;
+  /**
+   * Takes the bike of the nearest cyclist within `r`: they end up on foot beside it (knocked down,
+   * then walking off) and their bike leaves traffic. Returns where the bike was standing.
+   */
+  robCyclist(x: number, z: number, r: number): { x: number; z: number; yaw: number } | null;
   /** A walker within `r` of (x, z) is knocked over; true when someone was hit. */
   hit(x: number, z: number, r: number): boolean;
+  /**
+   * The player (circle radius `r` at x, z, moving at vx, vz) against walkers, cyclists, scooters and
+   * cars: `push` moves the player out of anyone they overlap; `knock` is set when a moving vehicle
+   * hits the player (or the player runs into one fast): the direction to be thrown and the speed.
+   */
+  collide(x: number, z: number, r: number, vx: number, vz: number): { push: [number, number] | null; knock: { dx: number; dz: number; speed: number } | null };
   update(dt: number, px: number, pz: number): void;
   dispose(): void;
 }
@@ -87,9 +102,14 @@ interface Agent {
   hidden: boolean;
   /** Seconds left lying on the ground after being hit by a bike (walkers). */
   fall: number;
+  /** Respawn beyond the fog next time (a robbed cyclist must not reappear in view). */
+  far?: boolean;
 }
 
 const RANGE = 175; // m: fog is opaque from 190 m
+/** Collision shapes: people are circles; vehicles boxes (half width, half length) around their centre. */
+const BODY_R: Partial<Record<Kind, number>> = { walker: 0.3, cyclist: 0.45 };
+const BOX: Partial<Record<Kind, [number, number]>> = { scooter: [0.4, 1.0], car: [1.0, 2.3] };
 const RESPAWN_MIN = 120;
 const COUNTS: Record<Kind, number> = { walker: 70, cyclist: 16, scooter: 22, car: 12 };
 const SPEED: Record<Kind, [number, number]> = { walker: [1.0, 1.5], cyclist: [3.2, 4.8], scooter: [7, 10], car: [7, 11] };
@@ -177,7 +197,7 @@ const LEG = 0.8;
 const ARM = 0.6;
 
 /** 大學路 (二段 / 三段) and 龍潭路, the public streets beside the main gate. */
-const streetByGate = (r: CampusRoad): boolean => r.kind !== 'walkway' && !!r.name && (r.name.startsWith('大學路') || r.name === '龍潭路');
+const streetByGate = (r: CampusRoad): boolean => r.kind !== 'walkway' && !!r.name && (r.name.startsWith('大學路') || isLongtanMain(r));
 
 /** `blocked`: places people must not walk over (sunken courtyards cut into the ground). */
 export function createTraffic(scene: Scene, campus: CampusData, tracker: ResourceTracker, blocked?: (x: number, z: number) => boolean): Traffic {
@@ -242,6 +262,30 @@ export function createTraffic(scene: Scene, campus: CampusData, tracker: Resourc
   const headLightM = inst(lights, headMat, COUNTS.car);
   const tailLightM = inst(tail, tailMat, COUNTS.car);
 
+  // Faces: the user's four photos (public/textures/faces/, local only), one instanced disc per photo on
+  // the front of the head. Missing files (a fresh clone) just leave the plain heads.
+  const FACE_FILES = ['face1', 'face2', 'face3', 'face4'];
+  const faceGeo = tracker.geometry(new CircleGeometry(0.105, 20).translate(0, 0.74, 0.128));
+  const loader = new TextureLoader();
+  const faceMeshes = FACE_FILES.map((f) => {
+    const mat = tracker.material(new MeshBasicMaterial({ transparent: true, alphaTest: 0.2 }));
+    const mesh = new InstancedMesh(faceGeo, mat, people);
+    mesh.count = 0;
+    mesh.frustumCulled = false;
+    mesh.visible = false;
+    loader.load(`/textures/faces/${f}.png`, (t) => {
+      t.colorSpace = SRGBColorSpace;
+      mat.map = tracker.texture(t);
+      mat.needsUpdate = true;
+      mesh.visible = true;
+    }, undefined, () => { mesh.visible = false; });
+    scene.add(mesh);
+    return mesh;
+  });
+  /** Person → [face mesh, slot in it]. */
+  const faceOf: [number, number][] = [];
+  const faceCount = FACE_FILES.map(() => 0);
+  for (let i = 0; i < people; i++) { const f = i % FACE_FILES.length; faceOf.push([f, faceCount[f]!++]); }
   const peopleMeshes = [torsoM, headM, hairM, legM, armM, bikeM, bikeWheelM];
   const vehicleMeshes = [scooterM, scooterWheelM, carM, cabinM, roofM, carWheelM, headLightM, tailLightM];
 
@@ -315,6 +359,7 @@ export function createTraffic(scene: Scene, campus: CampusData, tracker: Resourc
   const hide = (a: Agent): void => {
     if (a.person >= 0) {
       for (const m of [torsoM, headM, hairM]) m.setMatrixAt(a.person, zero);
+      { const [f, slot] = faceOf[a.person]!; faceMeshes[f]!.setMatrixAt(slot, zero); }
       for (const m of [legM, armM]) { m.setMatrixAt(a.person * 2, zero); m.setMatrixAt(a.person * 2 + 1, zero); }
     }
     const v = a.vehicle;
@@ -333,6 +378,7 @@ export function createTraffic(scene: Scene, campus: CampusData, tracker: Resourc
     torsoM.setMatrixAt(i, trunk);
     headM.setMatrixAt(i, trunk);
     hairM.setMatrixAt(i, trunk);
+    { const [f, slot] = faceOf[i]!; faceMeshes[f]!.setMatrixAt(slot, trunk); }
     for (const [k, side, ang] of [[0, -1, armL], [1, 1, armR]] as const) {
       const arm = armMat.copy(trunk).multiply(part.makeTranslation(side * 0.24, 0.55, 0)).multiply(m4.makeRotationX(ang)).multiply(part.makeRotationZ(side * 0.08));
       armM.setMatrixAt(i * 2 + k, arm);
@@ -346,7 +392,8 @@ export function createTraffic(scene: Scene, campus: CampusData, tracker: Resourc
   if (import.meta.env.DEV) {
     (window as unknown as { __traffic: unknown }).__traffic = {
       walkers: () => agents.filter((a) => a.kind === 'walker' && !a.hidden && a.edge >= 0).map((a) => ({ x: a.x, z: a.z, yaw: a.yaw, fall: a.fall })),
-      vehicles: () => agents.filter((a) => (a.kind === 'car' || a.kind === 'scooter') && !a.hidden && a.edge >= 0).map((a) => ({ kind: a.kind, x: a.x, z: a.z })),
+      cyclists: () => agents.filter((a) => a.kind === 'cyclist' && !a.hidden && a.edge >= 0).map((a) => ({ x: a.x, z: a.z, yaw: a.yaw })),
+      vehicles: () => agents.filter((a) => (a.kind === 'car' || a.kind === 'scooter') && !a.hidden && a.edge >= 0).map((a) => ({ kind: a.kind, x: a.x, z: a.z, yaw: a.yaw, cur: a.cur })),
       inCampus: (x: number, z: number) => inRing(x, z, campus.boundary),
     };
   }
@@ -358,6 +405,45 @@ export function createTraffic(scene: Scene, campus: CampusData, tracker: Resourc
       headMat.emissiveIntensity = night * 3;
       tailMat.emissiveIntensity = night * 1.5;
     },
+    cyclistNear(x, z, r) {
+      if (!enabled.people) return false;
+      return agents.some((a) => a.kind === 'cyclist' && !a.hidden && a.edge >= 0 && Math.hypot(a.x - x, a.z - z) < r);
+    },
+    robCyclist(x, z, r) {
+      if (!enabled.people) return null;
+      let best: Agent | null = null, bestD = r;
+      for (const a of agents) {
+        if (a.kind !== 'cyclist' || a.hidden || a.edge < 0) continue;
+        const d = Math.hypot(a.x - x, a.z - z);
+        if (d < bestD) { best = a; bestD = d; }
+      }
+      if (!best) return null;
+      const pose = { x: best.x, z: best.z, yaw: best.yaw };
+      best.edge = -1; // leaves traffic; comes back as someone else, far away
+      best.far = true;
+      // The rider, now on foot: a walker put on the nearest footpath, knocked down first.
+      const g = nets.walk;
+      let edge = -1, ed = Infinity, et = 0;
+      g.edges.forEach((e, i) => {
+        const dx = e.bx - e.ax, dz = e.bz - e.az, l2 = dx * dx + dz * dz || 1;
+        const t = Math.max(0, Math.min(1, ((pose.x - e.ax) * dx + (pose.z - e.az) * dz) / l2));
+        const d = Math.hypot(e.ax + dx * t - pose.x, e.az + dz * t - pose.z);
+        if (d < ed) { ed = d; edge = i; et = t; }
+      });
+      const walker = agents
+        .filter((a) => a.kind === 'walker' && !a.hidden && a.fall <= 0)
+        .sort((m, n) => Math.hypot(n.x - x, n.z - z) - Math.hypot(m.x - x, m.z - z))[0];
+      if (walker && edge >= 0 && ed < 25) {
+        const e = g.edges[edge]!;
+        walker.edge = edge;
+        walker.forward = Math.random() < 0.5;
+        walker.s = (walker.forward ? et : 1 - et) * e.len;
+        walker.x = NaN;
+        walker.fall = 2.2;
+        walker.speed = 1.6; // hurries off afterwards
+      }
+      return pose;
+    },
     hit(x, z, r) {
       if (!enabled.people) return false;
       for (const a of agents) {
@@ -368,6 +454,46 @@ export function createTraffic(scene: Scene, campus: CampusData, tracker: Resourc
         }
       }
       return false;
+    },
+    collide(x, z, r, vx, vz) {
+      let pushX = 0, pushZ = 0;
+      let knock: { dx: number; dz: number; speed: number } | null = null;
+      const pSpeed = Math.hypot(vx, vz);
+      for (const a of agents) {
+        if (a.hidden || a.edge < 0 || Number.isNaN(a.x)) continue;
+        const ox = x - a.x, oz = z - a.z;
+        if (ox * ox + oz * oz > 16) continue;
+        const circle = BODY_R[a.kind];
+        if (circle !== undefined) {
+          if (a.fall > 0) continue; // lying on the ground: step over
+          const d = Math.hypot(ox, oz), min = circle + r;
+          if (d < min && d > 1e-4) { pushX += (ox / d) * (min - d); pushZ += (oz / d) * (min - d); }
+          continue;
+        }
+        const box = BOX[a.kind];
+        if (!box) continue;
+        // Vehicle frame: f along its heading, l to its right.
+        const fx = Math.sin(a.yaw), fz = Math.cos(a.yaw);
+        const lf = ox * fx + oz * fz, ll = ox * fz - oz * fx;
+        const hw = box[0] + r, hl = box[1] + r;
+        if (Math.abs(lf) >= hl || Math.abs(ll) >= hw) continue;
+        // Out along the shallower side.
+        const penF = hl - Math.abs(lf), penL = hw - Math.abs(ll);
+        if (penF < penL) { const sgn = Math.sign(lf) || 1; pushX += fx * sgn * penF; pushZ += fz * sgn * penF; }
+        else { const sgn = Math.sign(ll) || 1; pushX += fz * sgn * penL; pushZ += -fx * sgn * penL; }
+        if (knock) continue;
+        if (a.cur > 1.5 && lf > 0) {
+          // Hit by its front: thrown ahead of it (and a bit to the side you were on).
+          const side = Math.sign(ll) * 0.35;
+          const dx = fx + fz * side, dz = fz - fx * side, dl = Math.hypot(dx, dz);
+          knock = { dx: dx / dl, dz: dz / dl, speed: a.cur };
+          a.cur = 0; // the driver brakes
+        } else if (pSpeed > 4.5) {
+          // You ran (or rode) into it: bounce back off it.
+          knock = { dx: -vx / pSpeed, dz: -vz / pSpeed, speed: pSpeed * 0.6 };
+        }
+      }
+      return { push: pushX || pushZ ? [pushX, pushZ] : null, knock };
     },
     update(dt, px, pz) {
       const jumped = !(Math.hypot(px - lastPx, pz - lastPz) < 60); // first frame or a teleport
@@ -381,7 +507,9 @@ export function createTraffic(scene: Scene, campus: CampusData, tracker: Resourc
         }
         if (a.hidden) { a.hidden = false; a.edge = -1; }
         if (a.edge < 0 || jumped || Math.hypot(a.x - px, a.z - pz) > RANGE + 15) {
-          if (!place(a, px, pz, a.edge < 0 || jumped)) { hide(a); continue; }
+          const initial = (a.edge < 0 || jumped) && !a.far;
+          a.far = false;
+          if (!place(a, px, pz, initial)) { hide(a); continue; }
           a.x = NaN;
         }
         let e = a.net.edges[a.edge]!;
@@ -460,6 +588,7 @@ export function createTraffic(scene: Scene, campus: CampusData, tracker: Resourc
       }
       // Instances are written at fixed indices per agent: draw up to the highest index in use.
       for (const m of [torsoM, headM, hairM]) { m.count = personNext; m.instanceMatrix.needsUpdate = true; }
+      faceMeshes.forEach((m, f) => { m.count = faceCount[f]!; m.instanceMatrix.needsUpdate = true; });
       for (const m of [legM, armM]) { m.count = personNext * 2; m.instanceMatrix.needsUpdate = true; }
       bikeM.count = vehicleNext.cyclist; bikeWheelM.count = vehicleNext.cyclist * 2;
       scooterM.count = vehicleNext.scooter; scooterWheelM.count = vehicleNext.scooter * 2;
@@ -468,7 +597,7 @@ export function createTraffic(scene: Scene, campus: CampusData, tracker: Resourc
       for (const m of [bikeM, bikeWheelM, scooterM, scooterWheelM, carM, cabinM, roofM, carWheelM, headLightM, tailLightM]) m.instanceMatrix.needsUpdate = true;
     },
     dispose() {
-      for (const m of [...peopleMeshes, ...vehicleMeshes]) {
+      for (const m of [...peopleMeshes, ...vehicleMeshes, ...faceMeshes]) {
         scene.remove(m);
         m.dispose();
       }

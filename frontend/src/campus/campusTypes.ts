@@ -16,6 +16,8 @@ export interface CampusBuilding {
   inCampus: boolean;
   /** Set when a hand-built building (src/buildings) replaces this OSM extrusion. */
   replacedBy?: string;
+  /** Closed to visitors: exterior unchanged (doors drawn shut), no interior, no way in. */
+  sealed?: boolean;
 }
 
 export type RoadKind = 'major' | 'minor' | 'service' | 'walkway';
@@ -66,6 +68,8 @@ export interface CampusData {
   trees: number[]; // flat [x, z, ...] from natural=tree nodes
   /** Scooter parks (added at load time, campus/scooterLots.ts) for the map. */
   parking?: { name: string; ring: Ring }[];
+  /** Ponds (added at load time, campus/ponds.ts) for the map. */
+  water?: { name: string; ring: Ring }[];
 }
 
 /** Chunk size for streaming (m). The campus + margin is roughly 6 x 6 chunks. */

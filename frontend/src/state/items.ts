@@ -13,6 +13,9 @@ export const ITEMS = {
   onigiri: { name: '鮪魚飯糰', icon: '🍙', maxStack: 5, description: '萊爾富的三角飯糰，使用後消耗一個。' },
   teaEgg: { name: '茶葉蛋', icon: '🥚', maxStack: 10, description: '超商必買，使用後消耗一個。' },
   sportsDrink: { name: '運動飲料', icon: '🥤', maxStack: 5, description: '流汗後補充電解質，使用後消耗一個。' },
+  mineralWater: { name: '礦泉水', icon: '💧', maxStack: 5, description: '販賣機的瓶裝水，使用後消耗一個。' },
+  greenTea: { name: '綠茶', icon: '🍵', maxStack: 5, description: '販賣機的無糖綠茶，使用後消耗一個。' },
+  cannedCoffee: { name: '罐裝咖啡', icon: '☕', maxStack: 5, description: '早八救星，使用後消耗一個。' },
   cupNoodles: { name: '泡麵', icon: '🍜', maxStack: 5, description: '宿舍宵夜首選，使用後消耗一個。' },
   healthForm: { name: '健康資料表', icon: '📋', maxStack: 1, description: '新生健康檢查資料表，要交到健康中心。' },
   raceBib: { name: '號碼布', icon: '🎽', maxStack: 1, description: '雲科路跑的參賽號碼布。' },
@@ -46,6 +49,8 @@ export const STALL_MENUS = {
   bento: [{ id: 'bento', price: 60 }, { id: 'bread', price: 20 }],
   drinks: [{ id: 'bubbleTea', price: 50 }, { id: 'soyMilk', price: 20 }],
   /** 萊爾富 (學生活動中心 1F). */
+  /** Drinks vending machines (dorm lobbies). */
+  vending: [{ id: 'mineralWater', price: 20 }, { id: 'greenTea', price: 25 }, { id: 'sportsDrink', price: 25 }, { id: 'cannedCoffee', price: 30 }],
   hilife: [{ id: 'onigiri', price: 35 }, { id: 'teaEgg', price: 13 }, { id: 'sportsDrink', price: 25 }, { id: 'cupNoodles', price: 39 }],
 } as const satisfies Record<string, readonly { id: ItemId; price: number }[]>;
 

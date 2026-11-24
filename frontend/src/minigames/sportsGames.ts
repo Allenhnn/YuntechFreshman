@@ -14,16 +14,18 @@ import {
 } from 'three';
 import type { ResourceTracker } from '../core/resources';
 import { actions, gameStore, type SportHud } from '../state/store';
-import { RIM_H, RIM_R, type Courts, type Hoop, type VolleyCourt } from './sportsCourts';
+import { type Courts, type Hoop, type VolleyCourt } from './sportsCourts';
+import { createStreetball } from './streetball';
 
 /**
- * Ball games:
- *  - 籃球 60 秒投籃挑戰: walk anywhere on the court, hold Space to charge (the meter swings),
- *    release to shoot at the hoop you started from; rim / backboard / floor bounces; 2 or 3 points.
- *  - 排球墊球: the ball comes over the net, a ring marks where it will come down; be there and press
- *    Space as it drops to bump it back. Count consecutive bumps; it ends when the ball lands.
- *  - 足球 PK: five penalties; aim with the camera, hold Space for power (too much flies over the
- *    bar), the keeper guesses a side and dives.
+ * Ball games, all third person:
+ *  - 籃球 3v3 鬥牛 (streetball.ts): a tutorial, then you and two teammates against three; K passes /
+ *    steals, J shoots (hold to charge) / blocks.
+ *  - 排球墊球比賽: the ball comes over the net, a ring marks where it will come down; be there and
+ *    press Space as it drops. The ball comes faster the longer the rally lasts. Against 阿凱's score.
+ *  - 足球射門大賽 (60 s): run to the ball, aim with the mouse, hold Space for power
+ *    and shoot past the keeper; the ball reappears somewhere else. You run faster as time goes on.
+ *    Against 阿凱's goals.
  */
 export interface Pitch {
   /** Pitch frame: a along the long axis (goal at a = +halfLength), b across. */
@@ -38,11 +40,15 @@ export interface SportsGames {
   /** Starts the game offered here; returns where to put the player (and facing), or null. */
   start(x: number, y: number, z: number): { x: number; z: number; facing: number } | null;
   readonly active: boolean;
-  /** The player must stand still (penalty kick). */
+  /** The player must stand still. */
   readonly frozen: boolean;
+  /** The game is played in first person. */
+  readonly firstPerson: boolean;
+  /** Movement speed multiplier (the soccer game speeds you up over time). */
+  readonly speedFactor: number;
   cancel(): void;
-  /** Per frame; returns coins earned. `viewYaw` is the camera yaw (view direction = −(sin, cos)). */
-  update(dt: number, time: number, px: number, py: number, pz: number, viewYaw: number): number;
+  /** Per frame; returns coins earned. `viewYaw` / `viewPitch` are the camera's (view = −dir). */
+  update(dt: number, time: number, px: number, py: number, pz: number, viewYaw: number, viewPitch?: number): number;
   dispose(): void;
 }
 
@@ -51,8 +57,11 @@ export const sportFinished = new Set<(kind: 'basketball' | 'volleyball' | 'socce
 
 const G = 9.8;
 const BALL_R = 0.12;
+/** Drawn ball sizes (bigger than real so they read at game scale); physics keeps BALL_R. */
+const BASKET_DRAW = 0.2, VOLLEY_DRAW = 0.18, SOCCER_DRAW = 0.21;
+const RIVAL = '阿凱';
 const BEST_KEY = 'yfm.sportBest.v1';
-const TITLES = { basketball: '🏀 投籃挑戰', volleyball: '🏐 排球墊球', soccer: '⚽ PK 射門' } as const;
+const TITLES = { basketball: '🏀 3v3 鬥牛', volleyball: '🏐 排球墊球比賽', soccer: '⚽ 射門大賽' } as const;
 type Kind = keyof typeof TITLES;
 
 function loadBest(): Record<Kind, number> {
@@ -109,9 +118,10 @@ export function createSportsGames(scene: Scene, tracker: ResourceTracker, courts
     scene.add(m);
     return m;
   };
-  const bballs = [0, 1, 2].map(() => makeBall(basketTex, BALL_R));
-  const vball = makeBall(volleyTex, 0.105);
-  const sball = makeBall(soccerTex, 0.11);
+  const bballs = [0, 1, 2].map(() => makeBall(basketTex, BASKET_DRAW));
+  const vball = makeBall(volleyTex, VOLLEY_DRAW);
+  const sball = makeBall(soccerTex, SOCCER_DRAW);
+  const streetball = createStreetball(scene, tracker, bballs[0]!, BASKET_DRAW);
   // Landing ring for volleyball.
   const ring = new Mesh(tracker.geometry(new RingGeometry(0.55, 0.75, 32).rotateX(-Math.PI / 2)), tracker.material(new MeshBasicMaterial({ color: 0xffd31a, transparent: true, opacity: 0.85 })));
   ring.visible = false;
@@ -138,7 +148,8 @@ export function createSportsGames(scene: Scene, tracker: ResourceTracker, courts
   // --- State -------------------------------------------------------------------------------------
   let kind: Kind | null = null;
   let score = 0;
-  let timeLeft = 0;
+  let rival = 0;
+  let elapsed = 0;
   let message = '';
   let messageUntil = 0;
   let charging: number | null = null; // time Space went down
@@ -156,11 +167,6 @@ export function createSportsGames(scene: Scene, tracker: ResourceTracker, courts
   window.addEventListener('keyup', onKey);
   const say = (m: string, secs = 1.6): void => { message = m; messageUntil = nowT + secs; };
 
-  // Basketball.
-  let hoop: Hoop | null = null;
-  interface Shot { mesh: Mesh; p: Vector3; v: Vector3; scored: boolean; age: number; points: number; settled: boolean }
-  const shots: Shot[] = [];
-  let cooldown = 0;
   // Volleyball.
   let court: VolleyCourt | null = null;
   const vp = new Vector3(), vv = new Vector3();
@@ -168,18 +174,25 @@ export function createSportsGames(scene: Scene, tracker: ResourceTracker, courts
   let vTarget = new Vector3();
   let vWait = 0;
   // Soccer.
-  let shotsLeft = 0;
   let kick: { p: Vector3; v: Vector3; t: number; T: number; b: number; h: number; keeperB: number; keeperGo: number; done: boolean } | null = null;
   let kickPause = 0;
   let keeperB = 0;
+  let soccerTime = 0;
 
   const hud = (charge: number | null = null, sweet: [number, number] | null = null): void => {
     if (!kind) { actions.setSport(null); return; }
-    const info = kind === 'basketball' ? `剩餘 ${Math.ceil(timeLeft)} 秒` : kind === 'soccer' ? `剩 ${shotsLeft} 球` : '連續墊球';
+    if (kind === 'basketball') {
+      const s = streetball.hud();
+      actions.setSport({ title: TITLES.basketball, score: s.you, info: s.info, best: best.basketball, charge: s.charge, sweet: s.charge !== null ? s.sweet : null, message: s.message, hint: s.hint, vs: { name: '紅隊', you: String(s.you), them: String(s.them) }, fp: false });
+      return;
+    }
+    const info = kind === 'soccer' ? `剩餘 ${Math.ceil(soccerTime)} 秒・跑速 ×${(1 + Math.min(1.2, elapsed / 50)).toFixed(1)}` : `連續墊球・球速 ×${(1.7 / volleyT()).toFixed(1)}`;
     const h: SportHud = {
       title: TITLES[kind], score, info, best: best[kind], charge, sweet,
       message: nowT < messageUntil ? message : '',
-      hint: kind === 'basketball' ? '按住 Space 蓄力，放開投籃 · Q 結束' : kind === 'volleyball' ? '跑到黃色圈圈，球落下時按 Space · Q 結束' : '轉動視角瞄準，按住 Space 蓄力射門 · Q 結束',
+      hint: kind === 'volleyball' ? '跑到黃色圈圈，球落下時按 Space · Q 結束' : '跑到球旁邊，滑鼠瞄準，按住 Space 蓄力射門 · Q 結束',
+      vs: { name: RIVAL, you: String(score), them: String(rival) },
+      fp: false,
     };
     actions.setSport(h);
   };
@@ -187,18 +200,19 @@ export function createSportsGames(scene: Scene, tracker: ResourceTracker, courts
   const finish = (): number => {
     if (!kind) return 0;
     const k = kind;
-    const coins = k === 'basketball' ? score : k === 'volleyball' ? score * 2 : score * 10;
+    const coins = k === 'basketball' ? score + (score > rival ? 30 : 0) : k === 'volleyball' ? score * 2 : score * 10;
     const record = score > best[k];
     if (record) { best[k] = score; saveBest(best); }
     for (const fn of sportFinished) fn(k, score);
-    actions.toast(`${TITLES[k]} 結束：${k === 'soccer' ? `進 ${score} 球` : `${score} 分`}${record ? '（新紀錄！）' : ''}　+NT$ ${coins}`);
+    const who = k === 'basketball' ? '紅隊' : RIVAL;
+    const vs = score > rival ? `　🏆 贏了${who}（${score}:${rival}）` : score === rival ? `　🤝 和${who}平手` : `　😣 輸給${who}（${score}:${rival}）`;
+    actions.toast(`${TITLES[k]} 結束：${k === 'soccer' ? `進 ${score} 球` : `${score} 分`}${record ? '（新紀錄！）' : ''}${vs}　+NT$ ${coins}`);
     cleanup();
     return coins;
   };
   const cleanup = (): void => {
+    if (kind === 'basketball') streetball.stop();
     kind = null;
-    for (const s of shots) s.mesh.visible = false;
-    shots.length = 0;
     vball.visible = sball.visible = ring.visible = aim.visible = keeper.visible = false;
     kick = null;
     charging = null;
@@ -227,12 +241,14 @@ export function createSportsGames(scene: Scene, tracker: ResourceTracker, courts
   /** Launch from p to land at q (height qy) in T seconds. */
   const launch = (p: Vector3, q: Vector3, T: number, out: Vector3): Vector3 => out.set((q.x - p.x) / T, (q.y - p.y + 0.5 * G * T * T) / T, (q.z - p.z) / T);
 
+  /** Flight time of the volleyball: shorter (faster) the longer the game has run. */
+  const volleyT = (): number => Math.max(0.72, 1.7 - elapsed * 0.028);
   const serveToPlayer = (from: Vector3): void => {
     const c = court!;
     const reach = Math.min(1, score / 25);
     vTarget = cw(c, -(2 + Math.random() * (5 + reach)), (Math.random() - 0.5) * (5 + reach * 2.5), BALL_R, new Vector3());
     vp.copy(from);
-    launch(vp, vTarget, Math.max(1.05, 1.7 - score * 0.03), vv);
+    launch(vp, vTarget, volleyT(), vv);
     vIncoming = true;
     ring.position.set(vTarget.x, 0.06, vTarget.z);
     ring.visible = true;
@@ -240,12 +256,14 @@ export function createSportsGames(scene: Scene, tracker: ResourceTracker, courts
 
   return {
     get active() { return kind !== null; },
-    get frozen() { return kind === 'soccer'; },
+    get frozen() { return false; },
+    get firstPerson() { return false; },
+    get speedFactor() { return kind === 'soccer' ? 1 + Math.min(1.2, elapsed / 50) : 1; },
     prompt(x, y, z) {
       if (kind || y > 1) return null;
-      if (nearestHoop(x, z)) return '按 E 開始 60 秒投籃挑戰';
+      if (nearestHoop(x, z)) return '按 E 開始 3v3 鬥牛';
       if (volleyAt(x, z)) return '按 E 開始排球墊球';
-      if (atSpot(x, z)) return '按 E 開始 PK 射門（5 球）';
+      if (atSpot(x, z)) return '按 E 開始射門大賽（60 秒）';
       return null;
     },
     start(x, _y, z) {
@@ -253,22 +271,19 @@ export function createSportsGames(scene: Scene, tracker: ResourceTracker, courts
       spacePressed = spaceReleased = false;
       charging = null;
       score = 0;
+      elapsed = 0;
       message = '';
       const h = nearestHoop(x, z);
       if (h) {
         kind = 'basketball';
-        hoop = h;
-        timeLeft = 60;
-        cooldown = 0;
-        say('開始！', 1.2);
-        // Free-throw line, facing the hoop.
-        const fx = h.x + h.nx * 4.6, fz = h.z + h.nz * 4.6;
-        return { x: fx, z: fz, facing: Math.atan2(-h.nx, -h.nz) };
+        rival = 0;
+        return streetball.start(h);
       }
       const c = volleyAt(x, z);
       if (c) {
         kind = 'volleyball';
         court = c;
+        rival = 9 + Math.floor(Math.random() * 9);
         vWait = 0;
         vball.visible = true;
         serveToPlayer(cw(c, 6, 0, 2.6, new Vector3()));
@@ -278,7 +293,8 @@ export function createSportsGames(scene: Scene, tracker: ResourceTracker, courts
       }
       if (pitch && spot && atSpot(x, z)) {
         kind = 'soccer';
-        shotsLeft = 5;
+        soccerTime = 60;
+        rival = 4 + Math.floor(Math.random() * 4);
         kick = null;
         kickPause = 0;
         keeperB = 0;
@@ -287,7 +303,7 @@ export function createSportsGames(scene: Scene, tracker: ResourceTracker, courts
         keeper.position.set(gx, 0, gz);
         const [ax0, az0] = pitch.toWorld(1, 0), [ox0, oz0] = pitch.toWorld(0, 0);
         keeper.rotation.y = Math.atan2(ox0 - ax0, oz0 - az0);
-        sball.position.set(spot[0], 0.11, spot[1]);
+        sball.position.set(spot[0], SOCCER_DRAW, spot[1]);
         const [px, pz] = pitch.toWorld(pitch.halfLength - 12.6, 0);
         return { x: px, z: pz, facing: Math.atan2(ax0 - ox0, az0 - oz0) };
       }
@@ -296,88 +312,20 @@ export function createSportsGames(scene: Scene, tracker: ResourceTracker, courts
     cancel() {
       if (kind) cleanup();
     },
-    update(dt, time, px, py, pz, viewYaw) {
+    update(dt, time, px, py, pz, viewYaw, viewPitch = 0) {
       nowT = time;
       if (!kind) return 0;
+      elapsed += dt;
       const pressed = spacePressed, released = spaceReleased;
       spacePressed = spaceReleased = false;
       let earned = 0;
 
-      if (kind === 'basketball' && hoop) {
-        timeLeft -= dt;
-        cooldown -= dt;
-        const dist = Math.hypot(hoop.x - px, hoop.z - pz);
-        if (pressed && cooldown <= 0 && shots.length < 3) charging = time;
-        const c = charging !== null ? swing(time - charging, 0.85) : null;
-        if (released && charging !== null && c !== null) {
-          charging = null;
-          cooldown = 0.35;
-          const mesh = bballs.find((b) => !shots.some((s) => s.mesh === b))!;
-          const p = new Vector3(px, py + 1.55, pz);
-          const dx = hoop.x - px, dz = hoop.z - pz, d = Math.hypot(dx, dz) || 1;
-          p.x += (dx / d) * 0.3; p.z += (dz / d) * 0.3;
-          const theta = (58 * Math.PI) / 180, dh = RIM_H - p.y, dd = d - 0.3;
-          const ideal = Math.sqrt((G * dd * dd) / (2 * Math.cos(theta) ** 2 * Math.max(0.3, dd * Math.tan(theta) - dh)));
-          const speed = ideal * (0.86 + 0.28 * c);
-          const err = (Math.abs(c - 0.5) * 0.12 + 0.012) * (Math.random() - 0.5) * 2;
-          const yaw = Math.atan2(dx, dz) + err;
-          const v = new Vector3(Math.sin(yaw) * Math.cos(theta) * speed, Math.sin(theta) * speed, Math.cos(yaw) * Math.cos(theta) * speed);
-          mesh.position.copy(p);
-          mesh.visible = true;
-          shots.push({ mesh, p, v, scored: false, age: 0, points: dist > 6.75 ? 3 : 2, settled: false });
-        }
-        // Physics: rim, backboard, floor.
-        const board = new Vector3(hoop.x - hoop.nx * 0.375, 0, hoop.z - hoop.nz * 0.375);
-        const tx = -hoop.nz, tz = hoop.nx; // along the board
-        for (const s of shots) {
-          s.age += dt;
-          const steps = 6, h = dt / steps;
-          for (let i = 0; i < steps; i++) {
-            const prevY = s.p.y;
-            s.v.y -= G * h;
-            s.p.addScaledVector(s.v, h);
-            // Rim: nearest point on the ring.
-            const rx = s.p.x - hoop.x, rz = s.p.z - hoop.z, rl = Math.hypot(rx, rz) || 1e-6;
-            const qx = hoop.x + (rx / rl) * RIM_R, qz = hoop.z + (rz / rl) * RIM_R;
-            const nx = s.p.x - qx, ny = s.p.y - RIM_H, nz = s.p.z - qz, nl = Math.hypot(nx, ny, nz);
-            if (nl < BALL_R + 0.012 && nl > 1e-6) {
-              const ux = nx / nl, uy = ny / nl, uz = nz / nl, vn = s.v.x * ux + s.v.y * uy + s.v.z * uz;
-              if (vn < 0) { s.v.x -= 1.55 * vn * ux; s.v.y -= 1.55 * vn * uy; s.v.z -= 1.55 * vn * uz; }
-              const push = BALL_R + 0.012 - nl;
-              s.p.x += ux * push; s.p.y += uy * push; s.p.z += uz * push;
-            }
-            // Backboard plane.
-            const bd = (s.p.x - board.x) * hoop.nx + (s.p.z - board.z) * hoop.nz;
-            const along = (s.p.x - board.x) * tx + (s.p.z - board.z) * tz;
-            if (bd < BALL_R && bd > -0.3 && Math.abs(along) < 0.9 && s.p.y > 2.9 && s.p.y < 3.95) {
-              const vn = s.v.x * hoop.nx + s.v.z * hoop.nz;
-              if (vn < 0) { s.v.x -= 1.6 * vn * hoop.nx; s.v.z -= 1.6 * vn * hoop.nz; }
-              s.p.x += (BALL_R - bd) * hoop.nx; s.p.z += (BALL_R - bd) * hoop.nz;
-            }
-            // Through the hoop (downward, inside the ring).
-            if (!s.scored && prevY >= RIM_H && s.p.y < RIM_H && Math.hypot(s.p.x - hoop.x, s.p.z - hoop.z) < RIM_R - 0.02) {
-              s.scored = true;
-              score += s.points;
-              say(s.points === 3 ? '三分球！+3' : '進球！+2');
-              s.v.multiplyScalar(0.35); // the net slows it
-            }
-            if (s.p.y < BALL_R) {
-              s.p.y = BALL_R;
-              s.v.y = Math.abs(s.v.y) * 0.62;
-              s.v.x *= 0.8; s.v.z *= 0.8;
-              if (s.v.y < 0.4) s.settled = true;
-            }
-          }
-          s.mesh.position.copy(s.p);
-          s.mesh.rotation.x += dt * 6;
-        }
-        for (let i = shots.length - 1; i >= 0; i--) {
-          const s = shots[i]!;
-          if (s.age > 4 || (s.settled && s.age > 1.5)) { s.mesh.visible = false; shots.splice(i, 1); }
-        }
-        hud(c, [0.42, 0.58]);
-        if (timeLeft <= 0) earned = finish();
-        return earned;
+      if (kind === 'basketball') {
+        const over = streetball.update(dt, time, px, py, pz, viewYaw);
+        score = streetball.you;
+        rival = streetball.them;
+        hud();
+        return over ? finish() : 0;
       }
 
       if (kind === 'volleyball' && court) {
@@ -395,7 +343,7 @@ export function createSportsGames(scene: Scene, tracker: ResourceTracker, courts
               say(`好球！${score}`, 0.9);
               const back = cw(c, 2 + Math.random() * 6, (Math.random() - 0.5) * 7, BALL_R, new Vector3());
               vp.set(px, py + 1.0, pz);
-              launch(vp, back, 1.45, vv);
+              launch(vp, back, Math.max(0.9, volleyT() * 0.85), vv);
               vIncoming = false;
               ring.visible = false;
             } else {
@@ -420,30 +368,34 @@ export function createSportsGames(scene: Scene, tracker: ResourceTracker, courts
       }
 
       if (kind === 'soccer' && pitch && spot) {
+        soccerTime -= dt;
         const [ba, bb] = pitch.toLocal(sball.position.x, sball.position.z);
         // Aim: where the view line from the ball crosses the goal line.
         const dxw = -Math.sin(viewYaw), dzw = -Math.cos(viewYaw);
         const [a1, b1] = pitch.toLocal(sball.position.x + dxw, sball.position.z + dzw);
         const da = a1 - ba, db = b1 - bb;
         const t = da > 0.05 ? (pitch.halfLength - ba) / da : 40;
-        const aimB = Math.max(-5, Math.min(5, bb + db * t));
+        const aimB = Math.max(-6, Math.min(6, bb + db * t));
         const c = charging !== null ? swing(time - charging, 0.9) : null;
-        const aimH = 0.25 + 2.55 * (c ?? 0.35);
+        const aimH = 0.25 + 2.55 * (c ?? 0.35) + Math.max(-0.3, Math.min(0.6, -viewPitch * 0.8));
         const [mx, mz] = pitch.toWorld(pitch.halfLength - 0.05, aimB);
         aim.position.set(mx, aimH, mz);
         const [gx0, gz0] = pitch.toWorld(pitch.halfLength, -1), [gx1, gz1] = pitch.toWorld(pitch.halfLength, 1);
         aim.rotation.y = Math.atan2(gx1 - gx0, gz1 - gz0) + Math.PI / 2;
-        aim.visible = !kick;
+        const near = Math.hypot(sball.position.x - px, sball.position.z - pz) < 1.9;
+        aim.visible = !kick && near;
         if (kickPause > 0) {
           kickPause -= dt;
           if (kickPause <= 0) {
-            if (shotsLeft <= 0) { earned = finish(); return earned; }
             kick = null;
-            sball.position.set(spot[0], 0.11, spot[1]);
+            // The next ball, somewhere else in front of the goal.
+            const [nx, nz] = pitch.toWorld(pitch.halfLength - 9 - Math.random() * 13, (Math.random() - 0.5) * 22);
+            sball.position.set(nx, SOCCER_DRAW, nz);
             keeperB = 0;
           }
         } else if (!kick) {
-          if (pressed) charging = time;
+          if (pressed && near) charging = time;
+          if (pressed && !near) say('先跑到球旁邊！', 0.8);
           if (released && charging !== null && c !== null) {
             charging = null;
             const speed = 17 + 10 * c, dist = pitch.halfLength - ba;
@@ -451,11 +403,10 @@ export function createSportsGames(scene: Scene, tracker: ResourceTracker, courts
             const [tx2, tz2] = pitch.toWorld(pitch.halfLength, aimB);
             const p = sball.position.clone();
             const v = launch(p, new Vector3(tx2, aimH, tz2), T, new Vector3());
-            // Keeper guesses: half the time the right side.
+            // Keeper guesses: half the time the right side; quicker as the game goes on.
             const guess = Math.random() < 0.5 ? Math.sign(aimB || 1) : Math.random() < 0.5 ? -1 : 1;
             const goB = Math.random() < 0.18 ? 0 : guess * (1.2 + Math.random() * 2);
             kick = { p, v, t: 0, T, b: aimB, h: aimH, keeperB: 0, keeperGo: goB, done: false };
-            shotsLeft--;
           }
         }
         if (kick && !kick.done) {
@@ -464,22 +415,23 @@ export function createSportsGames(scene: Scene, tracker: ResourceTracker, courts
           kick.p.addScaledVector(kick.v, dt);
           sball.position.copy(kick.p);
           sball.rotation.x += dt * 12;
-          if (kick.t > 0.18) keeperB += Math.sign(kick.keeperGo - keeperB) * Math.min(Math.abs(kick.keeperGo - keeperB), 7 * dt);
+          if (kick.t > 0.18) keeperB += Math.sign(kick.keeperGo - keeperB) * Math.min(Math.abs(kick.keeperGo - keeperB), (7 + elapsed * 0.05) * dt);
           if (kick.t >= kick.T) {
             kick.done = true;
             const [, kb2] = pitch.toLocal(kick.p.x, kick.p.z);
             const h = kick.p.y;
-            if (Math.abs(kb2) > 3.66) say('射偏了！', 1.4);
-            else if (h > 2.44) say('太高了！', 1.4);
-            else if (Math.abs(kb2 - keeperB) < 0.95 && h < 2.25) say('被守門員撲出！', 1.4);
-            else { score++; say('GOAL！進球！', 1.4); }
-            kickPause = 1.6;
+            if (Math.abs(kb2) > 3.66) say('射偏了！', 1.2);
+            else if (h > 2.44) say('太高了！', 1.2);
+            else if (Math.abs(kb2 - keeperB) < 0.95 && h < 2.25) say('被守門員撲出！', 1.2);
+            else { score++; say('GOAL！進球！', 1.2); }
+            kickPause = 1.1;
           }
         }
         const [kx, kz] = pitch.toWorld(pitch.halfLength - 0.6, keeperB);
         keeper.position.set(kx, 0, kz);
         keeper.rotation.z = kick && !kick.done ? -Math.sign(keeperB) * Math.min(1.1, Math.abs(keeperB) * 0.5) : 0;
         hud(c, null);
+        if (soccerTime <= 0 && (!kick || kick.done)) return finish();
         return earned;
       }
       return 0;
@@ -487,6 +439,7 @@ export function createSportsGames(scene: Scene, tracker: ResourceTracker, courts
     dispose() {
       window.removeEventListener('keydown', onKey);
       window.removeEventListener('keyup', onKey);
+      streetball.dispose();
       for (const m of [...bballs, vball, sball, ring, aim, keeper]) m.removeFromParent();
     },
   };

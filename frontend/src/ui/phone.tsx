@@ -1,8 +1,13 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { actions, useGame } from '../state/store';
+import { storyActions, useStory } from '../state/story';
+import { storyEvents } from '../story/storyRuntime';
+import { FRIEND, ROOMMATE } from '../story/storyData';
 import { deletePhoto, listPhotos, type Photo } from '../state/album';
 import { useApi } from './api';
+import { useEscape } from './escape';
 import { SettingsPanel } from './menus';
+import { Icon, Rich } from './icons';
 
 interface AppSpec {
   id: string;
@@ -75,10 +80,128 @@ function Album(): ReactNode {
   );
 }
 
+const AVATAR: Record<string, string> = { [ROOMMATE]: '🧑🏻', [FRIEND]: '👩🏻' };
+
+/** 聊天室: threads, then one thread with bubbles and the quick replies the story offers. */
+function Chat(): ReactNode {
+  const api = useApi();
+  const phone = useStory((s) => s.phone);
+  const [open, setOpen] = useState<string | null>(phone.focus);
+  const end = useRef<HTMLDivElement>(null);
+  const names = [...new Set([ROOMMATE, FRIEND, ...Object.keys(phone.threads)])];
+  useEffect(() => { if (phone.focus) { setOpen(phone.focus); storyActions.focusThread(null); } }, [phone.focus]);
+  useEscape(() => { if (!open) return false; setOpen(null); return true; }, 2); // Esc: thread → list
+  useEffect(() => { if (open) storyActions.readThread(open); }, [open, phone.threads]);
+  useEffect(() => { end.current?.scrollIntoView({ block: 'end' }); }, [open, phone.threads]);
+  if (open) {
+    const msgs = phone.threads[open] ?? [];
+    const replies = phone.replies[open] ?? [];
+    return (
+      <div className="chat-thread">
+        <div className="chat-head"><button className="btn small" onClick={() => { api.click(); setOpen(null); }}>‹</button><b><Rich t={AVATAR[open] ?? '🙂'} /> {open}</b></div>
+        <div className="chat-msgs">
+          {!msgs.length && <div className="desc">還沒有訊息</div>}
+          {msgs.map((m, i) => <div key={i} className={`bubble${m.me ? ' me' : ''}`}><Rich t={m.text} /></div>)}
+          <div ref={end} />
+        </div>
+        <div className="chat-replies">
+          {replies.length ? replies.map((r) => <button key={r.id} className="btn small" onClick={() => { api.click(); storyEvents.chat(open, r.id); }}><Rich t={r.text} /></button>)
+            : <span className="desc">（沒有可以回的話）</span>}
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="chat-list">
+      {names.map((n) => {
+        const msgs = phone.threads[n] ?? [];
+        const lastMsg = msgs[msgs.length - 1];
+        return (
+          <button key={n} className="chat-row" onClick={() => { api.click(); setOpen(n); }}>
+            <i><Rich t={AVATAR[n] ?? '🙂'} /></i>
+            <span><b>{n}</b><small><Rich t={lastMsg ? lastMsg.text : '（沒有訊息）'} /></small></span>
+            {(phone.unread[n] ?? 0) > 0 && <em>{phone.unread[n]}</em>}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** 點名系統: a 4-digit keypad for the open digital roll call. */
+function Rollcall(): ReactNode {
+  const api = useApi();
+  const rc = useStory((s) => s.phone.rollcall);
+  const [code, setCode] = useState('');
+  const [state, setState] = useState<'idle' | 'ok' | 'bad'>('idle');
+  const press = (k: string): void => {
+    api.click();
+    setState('idle');
+    if (k === '⌫') setCode((c) => c.slice(0, -1));
+    else if (code.length < 4) setCode((c) => c + k);
+  };
+  const submit = (): void => {
+    if (code.length !== 4) return;
+    if (storyEvents.rollcallCode(code)) { setState('ok'); actions.toast('✅ 數位點名簽到成功'); }
+    else { setState('bad'); setCode(''); }
+  };
+  if (!rc && state !== 'ok') return <div className="desc rc-none">目前沒有進行中的點名 <Icon name="checkCircle" /></div>;
+  return (
+    <div className="rc">
+      <div className="rc-course">{rc?.course ?? '已簽到'}</div>
+      {state === 'ok' ? <div className="rc-ok"><Icon name="checkCircle" size={30} /> 簽到成功！</div> : (
+        <>
+          <div className={`rc-code${state === 'bad' ? ' bad' : ''}`}>{[0, 1, 2, 3].map((i) => <span key={i}>{code[i] ?? ''}</span>)}</div>
+          <div className="rc-msg">{state === 'bad' ? <><Icon name="closeCircle" /> 點名碼錯誤，請重試</> : '輸入 4 位數點名碼'}</div>
+          <div className="rc-keys">
+            {['1', '2', '3', '4', '5', '6', '7', '8', '9', '⌫', '0', '✓'].map((k) => (
+              <button key={k} className={k === '✓' ? 'go' : ''} disabled={k === '✓' && code.length !== 4} onClick={() => (k === '✓' ? submit() : press(k))}><Rich t={k} /></button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Newest phone message as a banner at the top of the screen for a few seconds after it arrives.
+ * Shown once: remounting the HUD (closing a window) or opening the phone never brings it back.
+ */
+let noticeSeen = 0;
+const NOTICE_MS = 5000;
+export function PhoneNotice(): ReactNode {
+  const api = useApi();
+  const note = useStory((s) => s.phone.note);
+  const phoneOpen = useGame((s) => s.modal === 'phone');
+  const [, redraw] = useState(0);
+  useEffect(() => {
+    if (phoneOpen && note) noticeSeen = Math.max(noticeSeen, note.at); // read on the phone
+  }, [phoneOpen, note]);
+  useEffect(() => {
+    if (!note) return;
+    const left = note.at + NOTICE_MS - Date.now();
+    if (left <= 0) return;
+    const t = window.setTimeout(() => { noticeSeen = Math.max(noticeSeen, note.at); redraw((n) => n + 1); }, left);
+    return () => window.clearTimeout(t);
+  }, [note]);
+  if (!note || phoneOpen || note.at <= noticeSeen || Date.now() - note.at > NOTICE_MS) return null;
+  return (
+    <button className="phone-notice interactive" key={note.at} onClick={() => { api.click(); actions.setPhonePage('chat'); api.toggleModal('phone'); }}>
+      <i><Rich t={AVATAR[note.from] ?? '💬'} /></i>
+      <span><b>{note.from}</b><small><Rich t={note.text} /></small></span>
+      <em>按 P 查看</em>
+    </button>
+  );
+}
+
 export function PhoneDrawer(): ReactNode {
   const api = useApi();
   const minutes = useGame((s) => s.gameMinutes);
   const page = useGame((s) => s.phonePage);
+  const unread = useStory((s) => Object.values(s.phone.unread).reduce((a, b) => a + b, 0));
+  useEscape(() => { if (page === 'home') return false; actions.setPhonePage('home'); return true; }); // Esc: app → home
+  const rcOpen = useStory((s) => !!s.phone.rollcall);
   const setPage = (p: typeof page): void => {
     api.click();
     actions.setPhonePage(p);
@@ -99,7 +222,8 @@ export function PhoneDrawer(): ReactNode {
     { id: 'album', label: '相簿', icon: '🖼️', color: '#fff1b8', run: () => setPage('album') },
     { id: 'settings', label: '設定', icon: '⚙️', color: '#e5e5e5', run: () => setPage('settings') },
     { id: 'home', label: '回出生點', icon: '🏠', color: '#d7f5dd', run: api.respawn },
-    { id: 'msg', label: '訊息', icon: '💬', color: '#e8e0ff' },
+    { id: 'msg', label: '聊天室', icon: '💬', color: '#e8e0ff', run: () => setPage('chat') },
+    { id: 'rollcall', label: '點名系統', icon: '✅', color: '#d6f0ff', run: () => setPage('rollcall') },
   ];
 
   return (
@@ -108,13 +232,13 @@ export function PhoneDrawer(): ReactNode {
         <div className="notch" />
         <div className="statusbar">
           <span>{hh}:{mm}</span>
-          <span>📶 🔋</span>
+          <span><Icon name="signal" /> <Icon name="battery" /></span>
         </div>
         {page === 'home' ? (
           <div className="apps">
             {apps.map((a) => (
               <button key={a.id} className="app" disabled={!a.run} onClick={a.run} title={a.run ? a.label : '即將推出'}>
-                <span className="ico" style={{ background: a.color }}>{a.icon}</span>
+                <span className="ico" style={{ background: a.color }}><Rich t={a.icon} />{a.id === 'msg' && unread > 0 && <em className="badge">{unread}</em>}{a.id === 'rollcall' && rcOpen && <em className="badge">!</em>}</span>
                 {a.label}
               </button>
             ))}
@@ -122,10 +246,10 @@ export function PhoneDrawer(): ReactNode {
         ) : (
           <div className="page">
             <div className="modal-head">
-              <h2 style={{ fontSize: 17 }}>{page === 'album' ? '相簿' : '設定'}</h2>
+              <h2 style={{ fontSize: 17 }}>{page === 'album' ? '相簿' : page === 'chat' ? '聊天室' : page === 'rollcall' ? '點名系統' : '設定'}</h2>
               <button className="btn small" onClick={() => setPage('home')}>返回</button>
             </div>
-            {page === 'album' ? <Album /> : <SettingsPanel />}
+            {page === 'album' ? <Album /> : page === 'chat' ? <Chat /> : page === 'rollcall' ? <Rollcall /> : <SettingsPanel />}
           </div>
         )}
         <div style={{ flex: page === 'home' ? 1 : 0 }} />

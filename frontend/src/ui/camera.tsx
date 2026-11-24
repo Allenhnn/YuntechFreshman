@@ -3,6 +3,7 @@ import { listPhotos } from '../state/album';
 import { useGame } from '../state/store';
 import { useStory } from '../state/story';
 import { useApi } from './api';
+import { Icon } from './icons';
 
 /**
  * Phone camera mode overlay: drag anywhere to turn, shutter (or Space), flip lens (or R), album
@@ -66,19 +67,19 @@ export function CameraOverlay(): ReactNode {
       }}
       onPointerUp={() => (drag.current = null)}
     >
-      {photoSpot && <div className="photo-spot">📸 打卡點：{photoSpot}　按快門打卡！</div>}
+      {photoSpot && <div className="photo-spot"><Icon name="camera" /> 打卡點：{photoSpot}　按快門打卡！</div>}
       {flash > 0 && <div key={flash} className="camera-flash" />}
       <div className="camera-top">
-        <span className="camera-mode-name">{selfie ? '🤳 自拍' : '📷 拍照'}</span>
+        <span className="camera-mode-name">{selfie ? <><Icon name="selfie" /> 自拍</> : <><Icon name="camera" /> 拍照</>}</span>
         <span className="camera-hint">拖曳畫面轉視角 · <kbd>Space</kbd> 拍照 · <kbd>R</kbd> 切換鏡頭 · <kbd>Esc</kbd> 離開</span>
-        <button className="camera-close" aria-label="離開相機" onClick={api.closeModal}>✕</button>
+        <button className="camera-close" aria-label="離開相機" onClick={api.closeModal}><Icon name="close" /></button>
       </div>
       <div className="camera-bar">
         <button className="camera-album" aria-label="相簿" onClick={api.openAlbum}>
-          {thumb ? <img src={thumb} alt="" /> : <span>🖼️</span>}
+          {thumb ? <img src={thumb} alt="" /> : <span><Icon name="image" size={22} /></span>}
         </button>
         <button className="camera-shutter" aria-label="拍照" onClick={shoot} />
-        <button className="camera-flip" aria-label="切換鏡頭" onClick={api.flipCamera}>🔄</button>
+        <button className="camera-flip" aria-label="切換鏡頭" onClick={api.flipCamera}><Icon name="flip" size={22} /></button>
       </div>
     </div>
   );

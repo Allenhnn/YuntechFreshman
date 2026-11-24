@@ -27,8 +27,13 @@ export function ringArea(r: Ring): number {
   return Math.abs(a) / 2;
 }
 
-/** Campus buildings (not hand-built replacements, not slivers) get a generated interior. */
+/** Campus buildings (not hand-built replacements, not slivers, not sealed) get a generated interior. */
 export function hasInterior(b: CampusBuilding): boolean {
+  return enterableShape(b) && !b.sealed;
+}
+
+/** Would be enterable if it were open: where a sealed building still shows its (closed) doors. */
+export function enterableShape(b: CampusBuilding): boolean {
   return b.inCampus && !b.replacedBy && ringArea(b.outer) >= MIN_INTERIOR_AREA;
 }
 

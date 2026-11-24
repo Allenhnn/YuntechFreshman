@@ -16,8 +16,8 @@ import { clearProgress, loadProgress, notifySaveChanged, type SaveData } from '.
  */
 export type GamePhase = 'loading' | 'menu' | 'playing' | 'paused';
 export type MenuPanel = 'root' | 'controls' | 'settings';
-export type Modal = 'none' | 'inventory' | 'phone' | 'elevator' | 'shop' | 'chat' | 'camera' | 'story' | 'quests';
-export type PhonePage = 'home' | 'settings' | 'album';
+export type Modal = 'none' | 'inventory' | 'phone' | 'elevator' | 'shop' | 'chat' | 'camera' | 'story' | 'quests' | 'inspect';
+export type PhonePage = 'home' | 'settings' | 'album' | 'chat' | 'rollcall';
 export type MapMode = 'mini' | 'full';
 export type LookMode = 'pointerLock' | 'drag';
 
@@ -85,6 +85,8 @@ export interface RaceState {
   gate: number;
   gates: number;
   testing: boolean;
+  /** The classmate's lap time to beat (s). */
+  rival?: number;
 }
 
 export interface ShopMenu {
@@ -135,6 +137,10 @@ export interface SportHud {
   sweet: [number, number] | null;
   message: string;
   hint: string;
+  /** Match against a classmate: their name and score (or time), shown as a scoreboard. */
+  vs?: { name: string; you: string; them: string } | null;
+  /** First-person game: show the crosshair. */
+  fp?: boolean;
 }
 
 export interface GameState {
@@ -157,6 +163,8 @@ export interface GameState {
   hotbarIndex: number;
   /** Inventory slot picked up for moving, or null. */
   heldSlot: number | null;
+  /** Item being looked at in the hand (inspect view), by inventory slot. */
+  inspect: { slot: number; id: ItemId } | null;
   toast: Toast | null;
   areaBanner: AreaBanner | null;
   nav: NavState | null;
@@ -192,9 +200,13 @@ export interface GameState {
   /** Respawn point chosen on the map; null = the campus default (dorm C entrance). */
   customSpawn: SpawnPoint | null;
   ambient: AmbientState;
+  /** Big centre-screen 3-2-1 before a mini-game ('開始！' last), or null. */
+  countdown: { text: string; id: number } | null;
 }
 
 export const START_MINUTES = 8 * 60;
+/** Pocket money every new game starts with (NT$). */
+export const START_COINS = 200;
 
 export const gameStore = createStore<GameState>()(() => ({
   phase: 'loading',
@@ -210,6 +222,7 @@ export const gameStore = createStore<GameState>()(() => ({
   inventory: starterInventory(),
   hotbarIndex: 0,
   heldSlot: null,
+  inspect: null,
   toast: null,
   areaBanner: null,
   nav: null,
@@ -232,6 +245,7 @@ export const gameStore = createStore<GameState>()(() => ({
   chat: [],
   customSpawn: loadJson<SpawnPoint | null>(SPAWN_KEY, null),
   ambient: { people: true, vehicles: true, ...loadJson<Partial<AmbientState>>(AMBIENT_KEY, {}) },
+  countdown: null,
 }));
 
 export function useGame<T>(selector: (s: GameState) => T): T {
@@ -276,7 +290,7 @@ export const actions = {
     clearProgress();
     saveJson(RACE_BEST_KEY, null);
     saveJson(SPAWN_KEY, null);
-    set({ coins: 0, gameMinutes: START_MINUTES, inventory: starterInventory(), hotbarIndex: 0, heldSlot: null, raceBest: null, customSpawn: null, hasSave: false });
+    set({ coins: START_COINS, gameMinutes: START_MINUTES, inventory: starterInventory(), hotbarIndex: 0, heldSlot: null, raceBest: null, customSpawn: null, hasSave: false });
   },
   setRace(race: RaceState | null): void {
     set({ race });
@@ -328,7 +342,10 @@ export const actions = {
     set({ menuHint });
   },
   setModal(modal: Modal): void {
-    set({ modal, heldSlot: null });
+    set({ modal, heldSlot: null, ...(modal !== 'inspect' ? { inspect: null } : {}) });
+  },
+  setInspect(inspect: GameState['inspect']): void {
+    set({ inspect });
   },
   setLookMode(lookMode: LookMode): void {
     set({ lookMode });
@@ -439,6 +456,20 @@ export const actions = {
     saveJson(RACE_BEST_KEY, raceBest);
     saveJson(SPAWN_KEY, customSpawn);
     set({ raceBest, customSpawn, hasSave: loadProgress() !== null });
+  },
+  /** 3, 2, 1, 開始! in the middle of the screen, then `done` (the mini-game starts). */
+  startCountdown(done: () => void): void {
+    const steps = ['3', '2', '1', '開始！'];
+    let i = 0;
+    const tick = (): void => {
+      if (i < steps.length) {
+        set({ countdown: { text: steps[i]!, id: Date.now() + i } });
+        if (i === steps.length - 1) done();
+        i++;
+        window.setTimeout(tick, i === steps.length ? 650 : 800);
+      } else set({ countdown: null });
+    };
+    tick();
   },
   setAmbient(patch: Partial<AmbientState>): void {
     const ambient = { ...get().ambient, ...patch };

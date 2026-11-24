@@ -140,6 +140,95 @@ export function computeRidePose(pedal: number, clock: number, out: Pose): Pose {
   return out;
 }
 
+/**
+ * In deep water. Moving: front crawl — body flat on the water (tilted ~77° forward about the hips),
+ * arms windmilling in turn, legs flutter-kicking, head lifted to look ahead. Still: treading water —
+ * upright, arms sculling at the sides, slow kicks. `float` raises the hips to the water line (the body
+ * really stands on the pond bottom).
+ * @param stroke stroke phase (radians)
+ */
+export function computeSwimPose(stroke: number, clock: number, moving: boolean, float: number, out: Pose): Pose {
+  if (moving) {
+    const s = Math.sin(stroke);
+    out.lean = 1.35;
+    out.armLX = -1.7 + s * 1.9;
+    out.armRX = -1.7 - s * 1.9;
+    out.armSpread = 0.22;
+    out.legL = 0.12 + Math.sin(stroke * 3) * 0.32;
+    out.legR = 0.12 - Math.sin(stroke * 3) * 0.32;
+    out.headTilt = -0.95;
+    out.bob = float;
+    out.squash = 1;
+    out.leaf0 = -0.9 + Math.sin(stroke * 2) * 0.12;
+    out.leaf1 = -0.9 + Math.sin(stroke * 2 + 1) * 0.12;
+    out.leaf2 = -0.9 + Math.sin(stroke * 2 + 2) * 0.12;
+  } else {
+    const t = Math.sin(clock * 4);
+    out.lean = 0.12;
+    out.armLX = -0.3 + t * 0.15;
+    out.armRX = -0.3 - t * 0.15;
+    out.armSpread = 1.0 + t * 0.25;
+    out.legL = Math.sin(clock * 3) * 0.3;
+    out.legR = -Math.sin(clock * 3) * 0.3;
+    out.headTilt = 0;
+    out.bob = float;
+    out.squash = 1 + t * 0.01;
+    out.leaf0 = Math.sin(clock * 2) * 0.1;
+    out.leaf1 = Math.sin(clock * 2 + 1) * 0.1;
+    out.leaf2 = Math.sin(clock * 2 + 2) * 0.1;
+  }
+  return out;
+}
+
+/** Sitting on a chair (feet at the floor under it, seat top 0.42 m): thighs forward, hands on the desk. */
+export function computeSitPose(clock: number, out: Pose, handUp = false): Pose {
+  const b = Math.sin(clock * 1.6);
+  out.lean = 0.06;
+  out.legL = out.legR = -1.45;
+  out.armLX = out.armRX = -0.75;
+  if (handUp) out.armRX = -3.0 + Math.sin(clock * 9) * 0.08; // right arm straight up
+  out.armSpread = 0.22;
+  out.bob = 0.16;
+  out.squash = 1 + b * 0.008;
+  out.headTilt = 0.04 + b * 0.02;
+  out.leaf0 = b * 0.06; out.leaf1 = b * 0.06 + 0.02; out.leaf2 = b * 0.06 - 0.02;
+  return out;
+}
+
+/** Lying on the back (root on the mattress): body tipped back, head toward local −Z, slow breathing. */
+export function computeLiePose(clock: number, out: Pose): Pose {
+  const b = Math.sin(clock * 1.1);
+  out.lean = -Math.PI / 2;
+  out.legL = 0.05; out.legR = -0.05;
+  out.armLX = out.armRX = 0.1;
+  out.armSpread = 0.28;
+  out.bob = -0.15;
+  out.squash = 1 + b * 0.012;
+  out.headTilt = 0;
+  out.leaf0 = -0.3; out.leaf1 = -0.25; out.leaf2 = -0.35;
+  return out;
+}
+
+/**
+ * Knocked down: tip over backwards (first 0.25 s), lie flat with limbs thrown out, then sit up and
+ * stand (last 0.6 s). `t` is the time since the hit, `total` how long it lasts.
+ */
+export function computeFallPose(t: number, total: number, out: Pose): Pose {
+  const down = Math.min(1, t / 0.25);
+  const up = Math.min(1, Math.max(0, (total - t) / 0.6));
+  const k = Math.min(down, up);
+  const ease = k * k * (3 - 2 * k);
+  out.lean = -1.45 * ease;
+  out.bob = -0.17 * ease;
+  out.legL = 0.35 * ease; out.legR = -0.25 * ease;
+  out.armLX = -1.4 * ease; out.armRX = -1.1 * ease;
+  out.armSpread = 0.35 + 0.6 * ease;
+  out.squash = 1;
+  out.headTilt = 0.25 * ease;
+  out.leaf0 = -0.5 * ease; out.leaf1 = -0.4 * ease; out.leaf2 = -0.6 * ease;
+  return out;
+}
+
 export function applyPose(j: PoseJoints, p: Pose): void {
   j.legL.rotation.x = p.legL;
   j.legR.rotation.x = p.legR;

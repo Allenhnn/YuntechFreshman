@@ -31,6 +31,7 @@ import type { ResourceTracker } from '../core/resources';
 import type { CampusData } from '../campus/campusTypes';
 import type { CampusMaterials } from '../campus/campusMaterials';
 import { campusTreeGeometry } from '../campus/campusWorld';
+import { drawIcon } from '../ui/icons';
 
 /**
  * 宿舍區 C / D 棟外的設施（使用者實拍，2026-11-19；南北向宿舍路與 B2 / E 之間那條路的路口西側）：
@@ -270,10 +271,7 @@ function wallSection(windows: readonly [number, number][], sign: boolean): (g: C
       g.fillStyle = '#1f5fb8';
       g.fillRect(W - 70, 150, 44, 44);
       g.fillStyle = '#fff';
-      g.font = '900 34px system-ui, sans-serif';
-      g.textAlign = 'center';
-      g.textBaseline = 'middle';
-      g.fillText('♿', W - 48, 174);
+      drawIcon(g, 'accessible', W - 48, 172, 36, '#fff', 2.4);
     }
   };
 }

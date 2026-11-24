@@ -1,6 +1,7 @@
 import type { CampusBuilding } from '../campus/campusTypes';
 import type { Entrance } from '../campus/entrances';
-import type { BuildingSource, FloorPlan, FurnishKind, Opening, Rect, Space, Stair, Stall } from '../buildings/buildingTypes';
+import { planDormRoom } from '../buildings/furniture';
+import type { BuildingSource, Fixture, FloorPlan, FurnishKind, Opening, Rect, Space, Stair, Stall } from '../buildings/buildingTypes';
 
 /**
  * Procedural interior for an OSM building, in the same BuildingSource format as the hand-traced
@@ -27,6 +28,22 @@ const FLIGHT_W = 2.1;
 const LANDING = 1.3;
 const LIFT = 2.2;
 const DOOR = 1.0;
+
+/** Area of a ring (m²). */
+function ringArea(r: readonly number[]): number {
+  let a = 0;
+  for (let i = 0, n = r.length / 2; i < n; i++) {
+    const j = (i + 1) % n;
+    a += r[i * 2]! * r[j * 2 + 1]! - r[j * 2]! * r[i * 2 + 1]!;
+  }
+  return Math.abs(a) / 2;
+}
+
+/** True for the largest OSM part among the buildings sharing this dorm's name (one pair of machines per dorm). */
+export function dormVendingPart(b: CampusBuilding, all: readonly CampusBuilding[]): boolean {
+  const mine = ringArea(b.outer);
+  return !all.some((o) => o !== b && o.name === b.name && ringArea(o.outer) > mine);
+}
 
 export function buildingKind(name: string | undefined): BuildingKind {
   const n = name ?? '';
@@ -67,7 +84,11 @@ export interface GeneratedInterior {
   radius: number;
 }
 
-export function generateInterior(b: CampusBuilding, entrance: Entrance | null, id = `osm-${b.id}`): GeneratedInterior | null {
+/**
+ * @param vending dorms: put the pair of vending machines in this part (a dorm drawn as several OSM
+ *   parts gets them only in its main part — see dormVendingPart).
+ */
+export function generateInterior(b: CampusBuilding, entrance: Entrance | null, id = `osm-${b.id}`, vending = true): GeneratedInterior | null {
   const r = b.outer;
   const n = r.length / 2;
   // Dominant axis: the longest wall.
@@ -126,6 +147,8 @@ export function generateInterior(b: CampusBuilding, entrance: Entrance | null, i
   const fh = b.height / levels;
   const kind = buildingKind(b.name);
   const spec = KINDS[kind];
+  // Dorm room style: the older A / B halls have bunk beds (上下舖); C–G have lofts over desks (上床下書桌).
+  const dormFurnish: FurnishKind = /宿舍[CDEFG]/.test(b.name ?? '') ? 'dormLoft' : 'dorm';
 
   // --- Corridor row band (same on every floor) ----------------------------------------------
   let corridorRow = -1;
@@ -192,7 +215,11 @@ export function generateInterior(b: CampusBuilding, entrance: Entrance | null, i
   const run = Math.max(2.8, fh / 2 / Math.tan((33 * Math.PI) / 180));
   const coreLen = run + LANDING * 2;
   const coreW = Math.ceil(CORE_W / C), coreH = Math.ceil(coreLen / C), liftN = Math.ceil(LIFT / C);
-  type Core = { col: number; row: number; side: 0 | 1; liftCol: number | null };
+  /**
+   * `rot`: flights run along x (parallel to the corridor) for shallow room bands; the floor landing
+   * is at the core's low-x end and opens onto the corridor along its long side. w / h: cells.
+   */
+  type Core = { col: number; row: number; side: 0 | 1; rot: boolean; w: number; h: number; liftCol: number | null; liftRow: number };
   let core: Core | null = null;
   const free = (c0: number, r0: number, w: number, h: number): boolean => {
     for (let row = r0; row < r0 + h; row++) for (let col = c0; col < c0 + w; col++) {
@@ -220,9 +247,23 @@ export function generateInterior(b: CampusBuilding, entrance: Entrance | null, i
         // Elevator beside the core, on its landing end.
         const lr = t.side === 0 ? t.row + coreH - liftN : t.row;
         const liftCol = free(col + coreW, lr, liftN, liftN) ? col + coreW : free(col - liftN, lr, liftN, liftN) ? col - liftN : null;
-        core = { col, row: t.row, side: t.side, liftCol };
+        core = { col, row: t.row, side: t.side, rot: false, w: coreW, h: coreH, liftCol, liftRow: lr };
       }
       if (core) break;
+    }
+    // Room band too shallow for the flights to run away from the corridor: run them along it.
+    if (!core && corridorRow >= 0) {
+      for (const side of [0, 1] as const) {
+        const row = side === 0 ? corridorRow - coreW : corridorRow + CORRIDOR_CELLS;
+        for (let col = 0; col + coreH <= W && !core; col++) {
+          if (!free(col, row, coreH, coreW)) continue;
+          if (doorCell && doorCell[0] >= col - 1 && doorCell[0] < col + coreH + 1 && doorCell[1] >= row - 1 && doorCell[1] < row + coreW + 1) continue;
+          const lr = side === 0 ? corridorRow - liftN : corridorRow + CORRIDOR_CELLS;
+          const liftCol = free(col + coreH, lr, liftN, liftN) ? col + coreH : free(col - liftN, lr, liftN, liftN) ? col - liftN : null;
+          core = { col, row, side, rot: true, w: coreH, h: coreW, liftCol, liftRow: lr };
+        }
+        if (core) break;
+      }
     }
   }
 
@@ -245,9 +286,9 @@ export function generateInterior(b: CampusBuilding, entrance: Entrance | null, i
   levelIds.forEach((levelId, k) => {
     const cells = Int32Array.from(base);
     if (core) {
-      for (let row = core.row; row < core.row + coreH; row++) for (let col = core.col; col < core.col + coreW; col++) cells[row * W + col] = STAIR;
+      for (let row = core.row; row < core.row + core.h; row++) for (let col = core.col; col < core.col + core.w; col++) cells[row * W + col] = STAIR;
       if (core.liftCol !== null) {
-        const lr = core.side === 0 ? core.row + coreH - liftN : core.row;
+        const lr = core.liftRow;
         for (let row = lr; row < lr + liftN; row++) for (let col = core.liftCol; col < core.liftCol + liftN; col++) cells[row * W + col] = LIFT_CELL;
       }
     }
@@ -264,7 +305,7 @@ export function generateInterior(b: CampusBuilding, entrance: Entrance | null, i
       }
     }
 
-    tidyRooms(cells, W, H, roomCols);
+    tidyRooms(cells, W, H, roomCols, kind === 'dorm');
 
     // Region → space index.
     const spaces: Space[] = [];
@@ -291,7 +332,8 @@ export function generateInterior(b: CampusBuilding, entrance: Entrance | null, i
           continue;
         }
         roomNo++;
-        const { name, furnish } = spec.room(area);
+        const { name, furnish: f } = spec.room(area);
+        const furnish = f === 'dorm' ? dormFurnish : f;
         roomNames.add(name);
         const code = `${k + 1}${String(roomNo).padStart(2, '0')}`;
         space = { id: `${levelId}-${code}`, code, name, kind: 'room', ceiling, rects, furnishMain: true, ...(furnish ? { furnish } : {}) };
@@ -309,7 +351,7 @@ export function generateInterior(b: CampusBuilding, entrance: Entrance | null, i
 
     // Dorms: the room nearest the stairs on every floor is the shared restroom.
     if (kind === 'dorm') {
-      const [hx, hy] = core ? [(core.col + coreW / 2) * C, (core.row + coreH / 2) * C]
+      const [hx, hy] = core ? [(core.col + core.w / 2) * C, (core.row + core.h / 2) * C]
         : liftOnly ? [(liftOnly.col + liftN / 2) * C, (liftOnly.row + liftN / 2) * C]
         : doorCell ? [doorCell[0] * C, doorCell[1] * C] : [0, 0];
       // Nearest room big enough for stalls and sinks (else the biggest one).
@@ -324,35 +366,75 @@ export function generateInterior(b: CampusBuilding, entrance: Entrance | null, i
           cx += ((x0 + x1) / 2) * a;
           cy += ((y0 + y1) / 2) * a;
         }
-        const score = area >= 18 ? Math.hypot(cx / area - hx, cy / area - hy) : 1e6 - area;
+        // Stalls (1.4 m) + sinks (0.55 m) + an aisle need a main rect at least 2.8 × 3 m.
+        const [mx0, my0, mx1, my1] = sp.rects.reduce((p, q) => ((q[2] - q[0]) * (q[3] - q[1]) > (p[2] - p[0]) * (p[3] - p[1]) ? q : p));
+        const fits = Math.min(mx1 - mx0, my1 - my0) >= 2.8 && Math.max(mx1 - mx0, my1 - my0) >= 3;
+        const score = area >= 18 && fits ? Math.hypot(cx / area - hx, cy / area - hy) : (fits ? 1e5 : 1e6) - area;
         if (score < pickScore) { pickScore = score; pick = sp; }
       }
-      if (pick) {
-        pick.name = '共用廁所';
-        pick.kind = 'toilet';
-        pick.furnish = 'restroom';
+      const centre = (sp: Space): [number, number, number] => {
+        let area = 0, cx = 0, cy = 0;
+        for (const [x0, y0, x1, y1] of sp.rects) {
+          const a = (x1 - x0) * (y1 - y0);
+          area += a; cx += ((x0 + x1) / 2) * a; cy += ((y0 + y1) / 2) * a;
+        }
+        return [cx / area, cy / area, area];
+      };
+      const makeToilet = (sp: Space): void => {
+        sp.name = '共用廁所';
+        sp.kind = 'toilet';
+        sp.furnish = 'restroom';
         roomNames.add('共用廁所');
+      };
+      if (pick) {
+        makeToilet(pick);
+        // Long floors get a second restroom at the far end, so nobody walks the whole wing.
+        const rooms = spaces.filter((sp) => sp.kind === 'room');
+        if (rooms.length >= 14) {
+          const [px, py] = centre(pick);
+          let far: Space | null = null, farD = 0;
+          for (const sp of rooms) {
+            const [x, y, a] = centre(sp);
+            const d = Math.hypot(x - px, y - py);
+            const [mx0, my0, mx1, my1] = sp.rects.reduce((p, q) => ((q[2] - q[0]) * (q[3] - q[1]) > (p[2] - p[0]) * (p[3] - p[1]) ? q : p));
+            if (a >= 15 && Math.min(mx1 - mx0, my1 - my0) >= 2.8 && d > farD) { farD = d; far = sp; }
+          }
+          if (far && farD > 25) makeToilet(far);
+        }
       }
     }
 
     // Doors: each room gets one 1 m door on its longest run of boundary with the circulation.
-    for (const [id] of spaceOf) {
+    for (const [id, index] of spaceOf) {
       if (id < 0) continue;
-      const door = doorOnto(cells, W, H, id, (v) => v === CORRIDOR || v === HALL);
+      const sp = spaces[index]!;
+      const bedroom = sp.furnish === 'dorm' || sp.furnish === 'dormLoft';
+      // Bedrooms: the door goes at a corner of a long wall, so the lane along that wall stays long.
+      const door = doorOnto(cells, W, H, id, (v) => v === CORRIDOR || v === HALL, bedroom);
       if (door) openings.push({ kind: 'door', a: door[0], b: door[1] });
+      if (bedroom) {
+        // Every bedroom sleeps four with a desk each; one too cramped for that is the floor's common room.
+        const main = sp.rects.reduce((p, q) => ((q[2] - q[0]) * (q[3] - q[1]) > (p[2] - p[0]) * (p[3] - p[1]) ? q : p));
+        const plan = planDormRoom(main, door ? { a: door[0], b: door[1] } : undefined, sp.furnish === 'dormLoft');
+        if (plan.pieces.length < plan.wanted) {
+          sp.name = '交誼廳';
+          sp.furnish = 'discussion';
+          roomNames.add('交誼廳');
+        }
+      }
     }
     // Stair landing opens onto the corridor / hall; the elevator gets its sliding door.
     let elevator: FloorPlan['elevator'];
     if (core) {
-      const edgeRow = core.side === 0 ? core.row + coreH : core.row;
+      const edgeRow = core.side === 0 ? core.row + core.h : core.row;
       const y = edgeRow * C;
-      const x0 = core.col * C, x1 = (core.col + coreW) * C;
-      if (circulationAlong(cells, W, H, core.col, core.col + coreW, core.side === 0 ? edgeRow : edgeRow - 1)) {
-        openings.push({ kind: 'open', a: [x0 + 0.3, y], b: [x1 - 0.3, y] });
+      const x0 = core.col * C, x1 = core.rot ? x0 + LANDING : (core.col + core.w) * C;
+      if (circulationAlong(cells, W, H, core.col, core.rot ? core.col + Math.ceil(LANDING / C) : core.col + core.w, core.side === 0 ? edgeRow : edgeRow - 1)) {
+        openings.push({ kind: 'open', a: [x0 + (core.rot ? 0.1 : 0.3), y], b: [x1 - (core.rot ? 0.1 : 0.3), y] });
       }
       if (core.liftCol !== null) {
         const lx0 = core.liftCol * C, lx1 = (core.liftCol + liftN) * C;
-        const lr = core.side === 0 ? core.row + coreH - liftN : core.row;
+        const lr = core.liftRow;
         const ly = core.side === 0 ? (lr + liftN) * C : lr * C;
         const dir = core.side === 0 ? 1 : -1;
         openings.push({ kind: 'elevator', a: [lx0 + 0.3, ly], b: [lx1 - 0.3, ly], label: '電梯' });
@@ -365,14 +447,28 @@ export function generateInterior(b: CampusBuilding, entrance: Entrance | null, i
       elevator = { landing: [(x0 + x1) / 2, y + 1.3], facing: [0, -1] };
     }
     const stalls = k === 0 && kind === 'dining' ? placeStalls(cells, W, H, doorCell) : [];
-    floors[levelId] = { bandTop: fh, spaces, openings, signs: [], ...(elevator ? { elevator } : {}), ...(stalls.length ? { stalls } : {}) };
+    // Dorms: a pair of drinks vending machines in the ground-floor lobby (else along the corridor).
+    const fixtures = k === 0 && kind === 'dorm' && vending ? placeVending(cells, W, H, openings, doorCell) : [];
+    floors[levelId] = { bandTop: fh, spaces, openings, signs: [], ...(elevator ? { elevator } : {}), ...(stalls.length ? { stalls } : {}), ...(fixtures.length ? { fixtures } : {}) };
     directory.push({ level: levelId, items: [...roomNames].slice(0, 3) });
   });
 
   // --- Stairs: two flights per storey, floor landing at the corridor end ------------------------------
   const stairs: Stair[] = [];
   const landings: NonNullable<BuildingSource['landings']> = [];
-  if (core) {
+  if (core?.rot) {
+    // Flights along x: floor landing at the low-x end (opening onto the corridor), mid landing at the far end.
+    const x0 = core.col * C, xFar = x0 + coreLen;
+    const y0 = core.side === 0 ? (core.row + core.h) * C - CORE_W : core.row * C;
+    for (let k = 0; k < levels; k++) {
+      const low = k * fh;
+      landings.push({ rect: [x0, y0, x0 + LANDING, y0 + CORE_W], elevation: low });
+      if (k === levels - 1) break;
+      stairs.push({ id: `${id}-s${k}a`, name: '樓梯', rect: [x0 + LANDING, y0, xFar - LANDING, y0 + FLIGHT_W], axis: 'x', up: '+', low, high: low + fh / 2 });
+      landings.push({ rect: [xFar - LANDING, y0, xFar, y0 + CORE_W], elevation: low + fh / 2 });
+      stairs.push({ id: `${id}-s${k}b`, name: '樓梯', rect: [x0 + LANDING, y0 + CORE_W - FLIGHT_W, xFar - LANDING, y0 + CORE_W], axis: 'x', up: '-', low: low + fh / 2, high: low + fh });
+    }
+  } else if (core) {
     const x0 = core.col * C;
     const yNear = core.side === 0 ? (core.row + coreH) * C : core.row * C; // corridor end
     const sgn = core.side === 0 ? -1 : 1; // direction from the corridor end into the core
@@ -412,6 +508,70 @@ export function generateInterior(b: CampusBuilding, entrance: Entrance | null, i
       directory,
     },
   };
+}
+
+const VENDING_W = 0.95;
+/**
+ * Two vending machines side by side against a wall of the circulation: the run of wall nearest the
+ * entrance with 2.5 m clear of doors and openings and 2 m of floor in front, lobby before corridor.
+ * `at` is on the wall line (cell boundary), `facing` points into the circulation.
+ */
+function placeVending(cells: Int32Array, W: number, H: number, openings: readonly Opening[], door: [number, number] | null): Fixture[] {
+  const isCirc = (c: number, r: number): boolean => c >= 0 && r >= 0 && c < W && r < H && (cells[r * W + c] === CORRIDOR || cells[r * W + c] === HALL);
+  const isWall = (c: number, r: number): boolean => c >= 0 && r >= 0 && c < W && r < H && cells[r * W + c] !== OUT && !isCirc(c, r);
+  const NEED = 5, DEPTH = 4, MARGIN = 0.4;
+  let best: { score: number; fixtures: Fixture[] } | null = null;
+  // Wall lines: horizontal (between rows) and vertical (between cols). For each, `here` cells face away from `there`.
+  for (const horiz of [true, false]) {
+    const lines = horiz ? H - 1 : W - 1, along = horiz ? W : H;
+    for (let line = 0; line < lines; line++) {
+      for (const dirSign of [-1, 1] as const) {
+        // dirSign −1: the circulation is on the low side of the line, facing −; +1: high side, facing +.
+        const pos = (line + 1) * C;
+        const blocked = (t: number): boolean => openings.some((o) => {
+          const onLine = horiz ? Math.abs(o.a[1] - pos) < 0.05 && Math.abs(o.b[1] - pos) < 0.05 : Math.abs(o.a[0] - pos) < 0.05 && Math.abs(o.b[0] - pos) < 0.05;
+          if (!onLine) return false;
+          const lo = Math.min(horiz ? o.a[0] : o.a[1], horiz ? o.b[0] : o.b[1]), hi = Math.max(horiz ? o.a[0] : o.a[1], horiz ? o.b[0] : o.b[1]);
+          return hi > t * C - MARGIN && lo < (t + 1) * C + MARGIN;
+        });
+        const ok = (t: number): boolean => {
+          const hereLine = dirSign < 0 ? line : line + 1, thereLine = dirSign < 0 ? line + 1 : line;
+          const cr = (l: number): [number, number] => (horiz ? [t, l] : [l, t]);
+          if (!isWall(...cr(thereLine))) return false;
+          for (let d = 0; d < DEPTH; d++) if (!isCirc(...cr(hereLine + dirSign * d))) return false;
+          return !blocked(t);
+        };
+        let start = -1;
+        for (let t = 0; t <= along; t++) {
+          const good = t < along && ok(t);
+          if (good && start < 0) start = t;
+          if (good || start < 0) continue;
+          if (t - start >= NEED) {
+            const mid = ((start + t) / 2) * C;
+            const hereLine = dirSign < 0 ? line : line + 1;
+            const lobby = cells[(horiz ? hereLine * W + Math.floor((start + t) / 2) : Math.floor((start + t) / 2) * W + hereLine)] === HALL;
+            const [mx, my] = horiz ? [mid, pos] : [pos, mid];
+            const dist = door ? Math.hypot(mx - door[0] * C, my - door[1] * C) : 0;
+            const score = dist + (lobby ? 0 : 15);
+            if (!best || score < best.score) {
+              const facing: [number, number] = horiz ? [0, dirSign] : [dirSign, 0];
+              best = {
+                score,
+                fixtures: [-1, 1].map((k) => ({
+                  kind: 'vending' as const,
+                  at: (horiz ? [mid + k * (VENDING_W / 2 + 0.05), pos] : [pos, mid + k * (VENDING_W / 2 + 0.05)]) as [number, number],
+                  facing,
+                  width: VENDING_W,
+                })),
+              };
+            }
+          }
+          start = -1;
+        }
+      }
+    }
+  }
+  return best?.fixtures ?? [];
 }
 
 const STALL_LINEUP: readonly Pick<Stall, 'name' | 'menu'>[] = [
@@ -537,7 +697,26 @@ function connectHalls(base: Int32Array, W: number, H: number, corridorRow: numbe
   });
 }
 
-function tidyRooms(cells: Int32Array, W: number, H: number, roomCols: number): void {
+/**
+ * Dorm room width along the corridor for a room band `depth` metres deep: deep bands take the
+ * standard 3.6 m room (beds along the depth); shallow ones get wide rooms so two lanes of four
+ * beds and desks run along the corridor instead.
+ */
+function dormRoomCols(depth: number): number {
+  return Math.round((depth >= 4.8 ? 3.6 : 7.0) / C);
+}
+
+/** The dorm room's largest rectangle (where furniture.ts lays it out) holds four beds and four desks. */
+function dormRoomy(cells: Int32Array, W: number, H: number, id: number): boolean {
+  let L = 0, S = 0, best = 0;
+  for (const [c0, r0, c1, r1] of mergeCells(cells, W, H, id)) {
+    const a = (c1 - c0) * (r1 - r0);
+    if (a > best) { best = a; L = Math.max(c1 - c0, r1 - r0) * C; S = Math.min(c1 - c0, r1 - r0) * C; }
+  }
+  return S >= 2.9 && L >= (S >= 3.5 ? 4.8 : 5.5);
+}
+
+function tidyRooms(cells: Int32Array, W: number, H: number, roomCols: number, dorm = false): void {
   for (const side of [0, 1]) {
     const has = new Uint8Array(W);
     for (let i = 0; i < cells.length; i++) if (cells[i]! >= 0 && Math.floor(cells[i]! / 10000) === side) has[i % W] = 1;
@@ -546,7 +725,17 @@ function tidyRooms(cells: Int32Array, W: number, H: number, roomCols: number): v
       if (!has[c0]) continue;
       let c1 = c0;
       while (c1 < W && has[c1]) c1++;
-      const len = c1 - c0, parts = Math.max(1, Math.round(len / roomCols));
+      let cols = roomCols;
+      if (dorm) {
+        // Average depth of the band over this run of columns.
+        let n = 0;
+        for (let i = 0; i < cells.length; i++) {
+          const col = i % W;
+          if (col >= c0 && col < c1 && cells[i]! >= 0 && Math.floor(cells[i]! / 10000) === side) n++;
+        }
+        cols = dormRoomCols((n / (c1 - c0)) * C);
+      }
+      const len = c1 - c0, parts = Math.max(1, Math.round(len / cols));
       for (let row = 0; row < H; row++) {
         for (let col = c0; col < c1; col++) {
           const v = cells[row * W + col]!;
@@ -558,7 +747,7 @@ function tidyRooms(cells: Int32Array, W: number, H: number, roomCols: number): v
     }
   }
   const MIN_AREA = 9 / (C * C), MIN_SPAN = 2.4 / C;
-  for (let pass = 0; pass < 6; pass++) {
+  for (let pass = 0; pass < (dorm ? 12 : 6); pass++) {
     const stat = new Map<number, { n: number; c0: number; c1: number; r0: number; r1: number; circ: number; nb: Map<number, number> }>();
     for (let row = 0; row < H; row++) {
       for (let col = 0; col < W; col++) {
@@ -583,9 +772,12 @@ function tidyRooms(cells: Int32Array, W: number, H: number, roomCols: number): v
     for (const [id, s] of [...stat].sort((a, b) => a[1].n - b[1].n)) {
       if (merged.has(id)) continue;
       const bad = s.n < MIN_AREA || Math.min(s.c1 - s.c0 + 1, s.r1 - s.r0 + 1) < MIN_SPAN || s.circ < 2;
-      if (!bad) continue;
+      // Dorms: a room too cramped for four beds and desks grows into its neighbour (never into the hall).
+      const cramped = dorm && !bad && !dormRoomy(cells, W, H, id);
+      if (!bad && !cramped) continue;
       let into = HALL, most = 0;
       for (const [o, k] of s.nb) if (!merged.has(o) && k > most) { most = k; into = o; }
+      if (cramped && into === HALL) continue;
       // An isolated pocket with no room beside it and no way in is not floor space at all.
       if (into === HALL && s.circ === 0) into = OUT;
       for (let i = 0; i < cells.length; i++) if (cells[i] === id) cells[i] = into;
@@ -631,7 +823,7 @@ function circulationAlong(cells: Int32Array, W: number, H: number, c0: number, c
  * A door (two plan points, 1 m apart) on the room's boundary with cells matching `onto`, centred on
  * the longest straight run of that boundary.
  */
-function doorOnto(cells: Int32Array, W: number, H: number, id: number, onto: (v: number) => boolean): [[number, number], [number, number]] | null {
+function doorOnto(cells: Int32Array, W: number, H: number, id: number, onto: (v: number) => boolean, corner = false): [[number, number], [number, number]] | null {
   const cellsNeeded = Math.round(DOOR / C);
   let best: { len: number; pts: [[number, number], [number, number]] } | null = null;
   // Horizontal boundaries (between row and row + 1), scanning runs along x.
@@ -644,7 +836,8 @@ function doorOnto(cells: Int32Array, W: number, H: number, id: number, onto: (v:
         if (!ok && start >= 0) {
           const len = col - start;
           if (len >= cellsNeeded && (!best || len > best.len)) {
-            const mid = Math.floor((start + col - cellsNeeded) / 2);
+            // `corner`: on a run of 4.8 m or more, half a metre in from its start instead of centred.
+            const mid = corner && len * C >= 4.8 ? start + 1 : Math.floor((start + col - cellsNeeded) / 2);
             const y = (row + 1) * C;
             best = { len, pts: [[mid * C, y], [(mid + cellsNeeded) * C, y]] };
           }
@@ -663,7 +856,7 @@ function doorOnto(cells: Int32Array, W: number, H: number, id: number, onto: (v:
         if (!ok && start >= 0) {
           const len = row - start;
           if (len >= cellsNeeded && (!best || len > best.len)) {
-            const mid = Math.floor((start + row - cellsNeeded) / 2);
+            const mid = corner && len * C >= 4.8 ? start + 1 : Math.floor((start + row - cellsNeeded) / 2);
             const x = (col + 1) * C;
             best = { len, pts: [[x, mid * C], [x, (mid + cellsNeeded) * C]] };
           }

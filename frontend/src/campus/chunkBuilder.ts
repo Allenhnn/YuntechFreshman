@@ -12,7 +12,7 @@ import {
   type Ring,
 } from './campusTypes';
 import { addFacadeDetails } from './facadeDetails';
-import { DOOR_HEIGHT, DOOR_WIDTH, buildingEntrance, hasInterior, type Entrance } from './entrances';
+import { DOOR_HEIGHT, DOOR_WIDTH, buildingEntrance, enterableShape, hasInterior, type Entrance } from './entrances';
 import { SHELL_WALL, buildingKind, generateInterior } from '../interiors/generateInterior';
 import type { BuildingSource } from '../buildings/buildingTypes';
 import { RoadMarker } from './roadMarkings';
@@ -33,6 +33,27 @@ const WALL_BASE = -0.3;
 
 /** Growable geometry accumulator (worker-side, so plain arrays are fine). */
 const STREET_TREE_STEP = 8;
+
+/** A closed glass double door on the outside face of a wall (sealed buildings): light frame, dark leaves. */
+function addShutDoor(g: GeoBuilder, ring: readonly number[], e: Entrance): void {
+  const n = ring.length / 2, j = (e.edge + 1) % n;
+  const ax = ring[e.edge * 2]!, az = ring[e.edge * 2 + 1]!, dx = ring[j * 2]! - ax, dz = ring[j * 2 + 1]! - az;
+  const len = Math.hypot(dx, dz);
+  if (len < DOOR_WIDTH) return;
+  const ux = dx / len, uz = dz / len, nx = dz / len, nz = -dx / len; // CCW ring: (dz, -dx) points out
+  const quad = (a0: number, a1: number, y0: number, y1: number, off: number, c: readonly [number, number, number]): void => {
+    const p = (a: number, y: number): number => g.vertex(ax + ux * (e.along + a) + nx * off, y, az + uz * (e.along + a) + nz * off, nx, 0, nz, 0, 0, c);
+    const v0 = p(a0, y0), v1 = p(a1, y0), v2 = p(a1, y1), v3 = p(a0, y1);
+    g.tri(v0, v2, v1);
+    g.tri(v0, v3, v2);
+  };
+  const half = DOOR_WIDTH / 2;
+  quad(-half - 0.08, half + 0.08, 0, DOOR_HEIGHT + 0.08, 0.03, [0.78, 0.8, 0.81]); // frame
+  quad(-half + 0.04, -0.03, 0.06, DOOR_HEIGHT - 0.04, 0.045, [0.17, 0.22, 0.26]); // left leaf
+  quad(0.03, half - 0.04, 0.06, DOOR_HEIGHT - 0.04, 0.045, [0.17, 0.22, 0.26]); // right leaf
+  quad(-0.5, -0.12, 1.0, 1.06, 0.06, [0.85, 0.86, 0.86]); // push bars
+  quad(0.12, 0.5, 1.0, 1.06, 0.06, [0.85, 0.86, 0.86]);
+}
 
 export class GeoBuilder {
   readonly pos: number[] = [];
@@ -585,19 +606,24 @@ export class ChunkBuilder {
       const photoEdges = new Set(shots?.edges.keys() ?? []);
       // Plan-traced buildings open where the plans have exits; others get one entrance facing the road.
       const fallback = hasInterior(b) ? buildingEntrance(b, this.data.roads, photoEdges) : null;
-      const doors = this.entrances[String(b.id)]?.filter((d) => !photoEdges.has(d.edge)) ?? (fallback ? [fallback] : []);
+      // Sealed buildings keep their doors on the outside (canopy, frame) but shut: no gap in the wall.
+      const shut = b.sealed
+        ? this.entrances[String(b.id)]?.filter((d) => !photoEdges.has(d.edge)) ?? (enterableShape(b) ? [buildingEntrance(b, this.data.roads, photoEdges)].filter((e): e is Entrance => !!e) : [])
+        : [];
+      const doors = b.sealed ? [] : this.entrances[String(b.id)]?.filter((d) => !photoEdges.has(d.edge)) ?? (fallback ? [fallback] : []);
       // Generated teaching interiors: real windows where a classroom meets the outside wall.
       // Buildings with a generated interior get a heavy shell: thick outer walls and a slab per storey.
       const interior = !this.entrances[String(b.id)] && hasInterior(b) ? generateInterior(b, fallback)?.source ?? null : null;
       // Plan-traced interiors too: their rooms stop at a 0.25 m raster, so on curved or slanted walls
       // the gap to the outline would show the ground; the thick wall's inner face hides it.
-      const thick = interior || this.entrances[String(b.id)] ? { out: details, t: SHELL_WALL } : undefined;
+      const thick = interior || (this.entrances[String(b.id)] && !b.sealed) ? { out: details, t: SHELL_WALL } : undefined;
       const cuts = interior && buildingKind(b.name) === 'teaching' ? classroomWindows(b, interior, fallback, photoEdges) : null;
       addWalls(facade, b.outer, b.height, floors, style, shots && photoOut ? { edges: shots.edges, out: photoOut } : undefined, doors,
         cuts?.size ? { cuts, glass, frames: details } : undefined, thick);
       for (const h of b.holes) addWalls(facade, h, b.height, floors, style, undefined, [], undefined, thick);
       if (interior) addSlabs(details, slabs, b, interior);
-      addFacadeDetails(details, b, this.rawStyles[styleIndex]!, { wall: style.wall, trim: style.trim }, this.data.roads, photoEdges, doors);
+      addFacadeDetails(details, b, this.rawStyles[styleIndex]!, { wall: style.wall, trim: style.trim }, this.data.roads, photoEdges, b.sealed ? shut : doors);
+      for (const e of shut) addShutDoor(details, b.outer, e);
       const photoMesh = photoOut?.build();
       if (shots && photoMesh) photoWalls.push({ building: b.id, atlas: shots.atlas, mesh: photoMesh });
       addPolygon(roof, b.outer, b.holes, b.height, 4);
