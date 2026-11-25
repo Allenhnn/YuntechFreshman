@@ -164,11 +164,6 @@ docker compose down             # 停止（加 -v 會連資料一起刪除）
 | `.env.example` 沒被 commit | 根目錄 `.gitignore` 有 `.env*`；需要時用 `git add -f backend/.env.example` |
 
 ## 變更紀錄
-### 2026-11-24（前端：學生活動中心北面入口照照片重新建模）— 分支 `feat/dorm-c-yard-walls`
-- 需求：學生活動中心北面照使用者照片重新建模，不用管舊有的模型
-- `frontend/src/campus/activityComplex.ts` 活動中心那段整個重寫（表演廳那段不動）：左半邊 7 階大台階＋扶手；右半邊一整排花台（前段矮牆＋綠籬、後段高牆）；門廊四根方柱、深挑簷、簷口橫幅梁、每根橫梁梁頭往下收窄的 V 形托架；門廊後二樓走廊＋欄杆、上面一排窗；中庭屋頂、二樓迴廊、兩座上二樓的樓梯；橫幅正後方玻璃金字塔天窗（深色鋼框）露出橫幅上方；西端樓梯塔（實心上半＋正面深方形開口、左下圓弧陽台厚弧牆＋欄杆、陽台下暗的入口），塔縮到圓弧轉角牆（`activityCorner.ts`，照片最右邊那道掛淺藍布條的弧牆，保留）之前
-- `frontend/src/buildings/activityEntrance.ts` 重寫：橫幅、台階前紅磚廣場、右側往樓梯塔的灰色地磚、花台裡紅色朱蕉、花台前兩台腳踏車
-- 刪掉 `frontend/src/buildings/activityAtrium.ts`（舊模型的中庭地板／遮陽／天窗，照片沒有，地板還會跟新平台打架），`main.ts` 不再呼叫
 ### 2026-11-23（前端：學生宿舍C 北棟門廳大門置中）— 分支 `fix/dorm-c-front-gate`
 - 需求：使用者說的「大門沒有置中」是北棟一樓門廳的棕框雙開門（截圖紅線，「C」字正下方），不是中庭的前門
 - `frontend/src/buildings/dormCFacade.ts`：雙開門改在門廳正中，對齊「C」字與地上紅磚帶
