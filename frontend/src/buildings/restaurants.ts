@@ -1,7 +1,6 @@
 /**
  * The two restaurants in 員生餐廳 (學生餐廳 1F): 猩猩複合式餐飲 and 猴子食堂. Their names, what they
- * serve, opening hours (minutes of the day; checked when you order) and the logos painted on their
- * storefront signs.
+ * serve and the logos painted on their storefront signs (always open: no opening hours).
  */
 export type RestaurantId = 'gorilla' | 'monkey';
 
@@ -10,9 +9,6 @@ export interface Restaurant {
   /** Short name on the sign's second line. */
   sub: string;
   serves: string;
-  /** Opening periods [from, to) in minutes of the day. */
-  hours: readonly [number, number][];
-  hoursText: string;
   /** Storefront colours: main, accent, ink. */
   color: string;
   accent: string;
@@ -24,8 +20,6 @@ export const RESTAURANTS: Readonly<Record<RestaurantId, Restaurant>> = {
     name: '猩猩複合式餐飲',
     sub: '員生餐廳',
     serves: '早午餐・咖啡・飲料・點心',
-    hours: [[7 * 60 + 30, 16 * 60]],
-    hoursText: '7:30–16:00（不休息・無晚餐）',
     color: '#2f4a3a',
     accent: '#f2c230',
     ink: '#fffdf4',
@@ -34,17 +28,11 @@ export const RESTAURANTS: Readonly<Record<RestaurantId, Restaurant>> = {
     name: '猴子食堂',
     sub: '員生餐廳',
     serves: '炒飯・炒麵・水餃・湯麵乾麵・湯品・小菜',
-    hours: [[10 * 60 + 30, 13 * 60], [16 * 60 + 30, 18 * 60 + 30]],
-    hoursText: '10:30–13:00・16:30–18:30',
     color: '#b5562b',
     accent: '#ffe0b2',
     ink: '#fffdf4',
   },
 };
-
-export function isOpen(id: RestaurantId, minuteOfDay: number): boolean {
-  return RESTAURANTS[id].hours.some(([a, b]) => minuteOfDay >= a && minuteOfDay < b);
-}
 
 /** Logo: a round badge with the animal's face (drawn, not an emoji), size × size at (cx, cy). */
 export function paintLogo(g: CanvasRenderingContext2D, id: RestaurantId, cx: number, cy: number, size: number): void {

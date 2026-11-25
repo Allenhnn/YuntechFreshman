@@ -1,4 +1,5 @@
 import {
+  BoxGeometry,
   BufferAttribute,
   BufferGeometry,
   CanvasTexture,
@@ -42,7 +43,11 @@ export const PONDS: readonly Pond[] = [
     ring: [
       33.5, 205, 62, 198, 94, 197, 110, 195.5, 125, 193, 138, 190, 160, 188, 191, 187, 212, 188.5, 212.6, 192.6,
       191, 192.8, 167, 193.0, 147, 194.8, 138, 197.5, 132, 202, 127, 210, 116, 216, 111, 226, 109, 240, 100, 254,
-      74, 259.5, 48, 259.5, 33.5, 249, 28.7, 227,
+      74, 259.5, 48, 259.5, 33.5, 249,
+      // The west arm: under the 未來學院 service road (a bridge carries it) into the lawn between
+      // 未來學院 and 學生宿舍G.
+      26, 241, 18, 239.5, 8, 241.5, -5, 245, -20, 246.5, -35, 246, -47, 243, -53, 238, -52, 232, -44, 228.5,
+      -30, 227.5, -15, 229, 0, 229.5, 12, 228.5, 20, 227.5, 28.7, 222,
     ],
     lotus: 1.2,
   },
@@ -63,6 +68,24 @@ export const PONDS: readonly Pond[] = [
     lotus: 2.5,
   },
 ];
+
+/**
+ * Road bridges over a pond: centre, unit along the road, length and width (m). The deck is walked on
+ * as ground (pondAt is null on it), with stone parapets and railings either side.
+ */
+export interface Bridge { x: number; z: number; ux: number; uz: number; length: number; width: number }
+export const BRIDGES: readonly Bridge[] = [
+  // 雲夢湖's west arm under the service road from 未來學院 south (road 13.5,210.2 → 22.8,258.0).
+  { x: 18.13, z: 234.0, ux: 0.191, uz: 0.9816, length: 17, width: 7 },
+];
+function onBridge(x: number, z: number, pad = 0): Bridge | null {
+  for (const b of BRIDGES) {
+    const dx = x - b.x, dz = z - b.z;
+    const a = dx * b.ux + dz * b.uz, c = -dx * b.uz + dz * b.ux;
+    if (Math.abs(a) <= b.length / 2 + pad && Math.abs(c) <= b.width / 2 + pad) return b;
+  }
+  return null;
+}
 
 export const WATER_Y = -0.3;
 const MAX_DEPTH = 1.5;
@@ -88,6 +111,7 @@ function edgeDist(x: number, z: number, r: Ring): number {
 
 /** The pond (by name) containing (x, z), or null. */
 export function pondAt(x: number, z: number): Pond | null {
+  if (onBridge(x, z)) return null;
   return PONDS.find((p) => inRing(x, z, p.ring)) ?? null;
 }
 
@@ -194,6 +218,7 @@ export function createPonds(scene: Scene, physics: RAPIER.World, tracker: Resour
       const len = Math.hypot(dx, dz);
       for (let t = 0; t < len && kn < 2000; t += 0.55) {
         const k = 0.8 + rnd() * 0.5;
+        if (onBridge(ax + (dx * t) / len, az + (dz * t) / len, 0.3)) continue;
         kerb.setMatrixAt(kn++, m4.compose(new Vector3(ax + (dx * t) / len, 0, az + (dz * t) / len), q.setFromAxisAngle(up, rnd() * 6), s.set(k, 0.8 + rnd() * 0.6, k)));
       }
     }
@@ -216,6 +241,37 @@ export function createPonds(scene: Scene, physics: RAPIER.World, tracker: Resour
       made++;
     }
   }
+  // Bridges: a concrete deck under the road (its top just below the road surface), granite edge
+  // beams, a balustrade of posts and a rail on both sides, a little arch face over the water.
+  const deckMat = tracker.material(new MeshStandardMaterial({ color: 0x9a968d, roughness: 0.9 }));
+  const parapetMat = tracker.material(new MeshStandardMaterial({ color: 0xd8d1c1, roughness: 0.8 }));
+  for (const b of BRIDGES) {
+    const rot = Math.atan2(-b.uz, b.ux); // local +x along the road
+    const vx = -b.uz, vz = b.ux; // across
+    const put = (geo: BoxGeometry | CylinderGeometry, m: MeshStandardMaterial, a: number, y: number, c: number): void => {
+      const mesh = new Mesh(tracker.geometry(geo), m);
+      mesh.position.set(b.x + b.ux * a + vx * c, y, b.z + b.uz * a + vz * c);
+      mesh.rotation.y = rot;
+      mesh.castShadow = mesh.receiveShadow = true;
+      scene.add(mesh);
+      meshes.push(mesh);
+    };
+    const L = b.length, W = b.width;
+    put(new BoxGeometry(L, 0.3, W), deckMat, 0, -0.165, 0);
+    for (const s of [-1, 1]) {
+      const c = s * (W / 2 - 0.2);
+      put(new BoxGeometry(L + 0.4, 0.55, 0.4), parapetMat, 0, -0.05, c); // edge beam
+      put(new BoxGeometry(L + 0.2, 0.12, 0.26), parapetMat, 0, 0.95, c); // hand rail
+      put(new BoxGeometry(L + 0.2, 0.1, 0.2), parapetMat, 0, 0.27, c); // bottom rail
+      for (let a = -L / 2; a <= L / 2 + 0.01; a += L / Math.round(L / 1.1)) put(new BoxGeometry(0.16, 0.7, 0.16), parapetMat, a, 0.6, c); // balusters
+      for (const e of [-1, 1]) put(new BoxGeometry(0.45, 1.25, 0.45), parapetMat, e * (L / 2 + 0.1), 0.62, c); // end piers
+      // Collider: the parapet is solid to waist height.
+      const wx = b.x + vx * c, wz = b.z + vz * c;
+      colliders.push(physics.createCollider(RAPIER.ColliderDesc.cuboid(L / 2 + 0.3, 0.55, 0.2)
+        .setTranslation(wx, 0.5, wz).setRotation({ x: 0, y: Math.sin(rot / 2), z: 0, w: Math.cos(rot / 2) })));
+    }
+  }
+
   const leafMesh = new InstancedMesh(tracker.geometry(new CylinderGeometry(0.5, 0.5, 0.02, 10, 1, false, 0.3, Math.PI * 2 - 0.6)), leafMat, Math.max(1, leaves.length));
   leaves.forEach((m, i) => leafMesh.setMatrixAt(i, m));
   leafMesh.count = leaves.length;

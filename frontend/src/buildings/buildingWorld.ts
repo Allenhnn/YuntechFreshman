@@ -79,7 +79,7 @@ function buildStorefront(st: Stall, brand: RestaurantId, tracker: ResourceTracke
       g.textAlign = 'right'; g.fillStyle = R.accent; g.fillText('$' + it.price, 462, y);
     });
     g.fillStyle = 'rgba(255,255,255,0.75)'; g.font = '500 22px ' + font; g.textAlign = 'center';
-    g.fillText('營業時間 ' + R.hoursText, 256, 476, 470);
+    g.fillText(R.serves, 256, 476, 470);
   });
   const brandMat = tracker.material(new MeshStandardMaterial({ color: R.color, roughness: 0.7 }));
   const wood = tracker.material(new MeshStandardMaterial({ color: 0xb98a55, roughness: 0.55 }));

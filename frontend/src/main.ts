@@ -1,5 +1,4 @@
 import { ACESFilmicToneMapping, Euler, Group, PCFShadowMap, PerspectiveCamera, Quaternion, Scene, SRGBColorSpace, Vector3, WebGLRenderer } from 'three';
-import { RESTAURANTS, isOpen } from './buildings/restaurants';
 import { createToolProps, type ToolSpot } from './items/toolProps';
 import { MY_ROOM } from './story/storyData';
 import { createWardrobePreview, wardrobeView } from './character/wardrobePreview';
@@ -554,7 +553,7 @@ async function boot(): Promise<void> {
     snapToRoad,
     walkSpeed: CHARACTER.walkSpeed,
   });
-  const onSport = (kind: 'basketball' | 'volleyball' | 'soccer', score: number): void => storyEvents.sport(kind, score);
+  const onSport = (kind: 'basketball' | 'volleyball' | 'soccer' | 'tennis', score: number): void => { if (kind !== 'tennis') storyEvents.sport(kind, score); };
   const onTrack = (t: number): void => storyEvents.track(t);
   sportFinished.add(onSport);
   trackFinished.add(onTrack);
@@ -1071,11 +1070,6 @@ async function boot(): Promise<void> {
         if (target?.id.includes(':stall:')) {
           const [buildingId, , levelId, index] = target.id.split(':');
           const stall = buildingById(buildingId ?? '')?.source.floors[levelId ?? '']?.stalls?.[Number(index)];
-          if (stall?.brand && !isOpen(stall.brand, gameStore.getState().gameMinutes % 1440)) {
-            actions.toast('🕒 ' + RESTAURANTS[stall.brand].name + ' 休息中（營業時間 ' + RESTAURANTS[stall.brand].hoursText + '）');
-            audio.play('close');
-            return;
-          }
           if (stall?.menu) {
             actions.setShop({ title: stall.name, items: STALL_MENUS[stall.menu], menu: stall.menu });
             api.openModal('shop');

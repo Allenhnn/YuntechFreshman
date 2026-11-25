@@ -24,6 +24,8 @@ import type { CampusData } from '../campus/campusTypes';
 /**
  * The outdoor courts west of 司令台 (the three OSM `court` areas): the north and south areas are
  * basketball (2 × 2 full courts each), the middle one volleyball (2 × 2 courts with nets).
+ * The long court area east of the road by 雲夢湖（東池）is the tennis centre: 4 × 2 hard courts with
+ * nets inside a green chain-link fence (gates in the middle of each side).
  * Each area has its own local frame: +a along its long side, +b across it.
  */
 export const RIM_H = 3.05;
@@ -49,14 +51,23 @@ export interface VolleyCourt {
   vz: number;
 }
 
+/** A tennis court: centre, unit along its length (across the net), unit across (world). */
+export type TennisCourt = VolleyCourt;
+
 export interface Courts {
   hoops: Hoop[];
   volley: VolleyCourt[];
+  tennis: TennisCourt[];
   dispose(): void;
 }
 
 const BB = { L: 28, W: 15, key: 4.9, keyD: 5.8, three: 6.75, threeSide: 0.9, rimFromBase: 1.575, boardFromBase: 1.2 };
 const VB = { L: 18, W: 9 };
+/** Tennis: doubles court, singles width, service line from the net, net post height / spacing. */
+export const TN = { L: 23.77, W: 10.97, SW: 8.23, service: 6.4, netH: 0.914, postH: 1.07, postB: 6.4 };
+/** Tennis centre layout: court blocks (a, b) and the fence (half sizes in the area frame). */
+const TENNIS_BLOCKS: [number, number][] = [-51.75, -17.25, 17.25, 51.75].flatMap((a) => [[a, -8.75], [a, 8.75]] as [number, number][]);
+const FENCE = { a: 70.5, b: 18, h: 3.6, gate: 2.4 };
 
 export function createCourts(scene: Scene, physics: RAPIER.World, campus: CampusData, tracker: ResourceTracker): Courts {
   const areas = campus.fields.filter((f) => f.kind === 'court' && f.outer.length === 8)
@@ -67,6 +78,7 @@ export function createCourts(scene: Scene, physics: RAPIER.World, campus: Campus
     .sort((p, q) => p.cz - q.cz);
   const hoops: Hoop[] = [];
   const volley: VolleyCourt[] = [];
+  const tennis: TennisCourt[] = [];
   const colliders: RAPIER.Collider[] = [];
   const groups: Group[] = [];
 
@@ -97,6 +109,39 @@ export function createCourts(scene: Scene, physics: RAPIER.World, campus: Campus
   })();
 
   const netMat = tracker.material(new MeshStandardMaterial({ map: netTex, transparent: true, alphaTest: 0.25, side: DoubleSide, color: 0xffffff, roughness: 0.8 }));
+  // Tennis: green surround, blue playing area, a fine black net, green chain-link fence.
+  const tnOutMat = surfaceMat(0x3d8a5c);
+  const tnInMat = surfaceMat(0x2e62a3);
+  const meshTex = (stroke: string, cell: number, lw: number, diamond: boolean): CanvasTexture => {
+    const c = document.createElement('canvas');
+    c.width = c.height = 64;
+    const g = c.getContext('2d');
+    if (g) {
+      g.strokeStyle = stroke;
+      g.lineWidth = lw;
+      if (diamond) {
+        for (let i = -64; i <= 128; i += cell) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i + 64, 64); g.stroke(); g.beginPath(); g.moveTo(i, 64); g.lineTo(i + 64, 0); g.stroke(); }
+      } else {
+        for (let i = 0; i <= 64; i += cell) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i, 64); g.stroke(); g.beginPath(); g.moveTo(0, i); g.lineTo(64, i); g.stroke(); }
+      }
+    }
+    const t = tracker.texture(new CanvasTexture(c));
+    t.colorSpace = SRGBColorSpace;
+    t.wrapS = t.wrapT = RepeatWrapping;
+    t.generateMipmaps = false;
+    t.minFilter = LinearFilter;
+    return t;
+  };
+  const tnNetMat = tracker.material(new MeshStandardMaterial({ map: meshTex('#16181a', 8, 3, false), transparent: true, alphaTest: 0.2, side: DoubleSide, roughness: 0.8 }));
+  const fenceMat = tracker.material(new MeshStandardMaterial({ map: meshTex('#2f8a3e', 16, 4, true), transparent: true, alphaTest: 0.3, side: DoubleSide, roughness: 0.7 }));
+  const fenceSteel = tracker.material(new MeshStandardMaterial({ color: 0x2c6e36, roughness: 0.5, metalness: 0.4 }));
+  /** A plane whose texture tiles every `tile` metres (UVs scaled; the shared texture keeps repeat 1). */
+  const tiled = (w: number, h: number, tile: number): PlaneGeometry => {
+    const geo = new PlaneGeometry(w, h);
+    const uv = geo.getAttribute('uv');
+    for (let i = 0; i < uv.count; i++) uv.setXY(i, (uv.getX(i) * w) / tile, (uv.getY(i) * h) / tile);
+    return geo;
+  };
   areas.forEach(({ o }, i) => {
     const cx = (o[0]! + o[2]! + o[4]! + o[6]!) / 4, cz = (o[1]! + o[3]! + o[5]! + o[7]!) / 4;
     const e0 = Math.hypot(o[2]! - o[0]!, o[3]! - o[1]!), e1 = Math.hypot(o[4]! - o[2]!, o[5]! - o[3]!);
@@ -138,8 +183,58 @@ export function createCourts(scene: Scene, physics: RAPIER.World, campus: Campus
       else meshes.set(m, [geo]);
     };
     const isVolley = i === 1;
-    const offsets: [number, number][] = isVolley ? [[-15, -10], [15, -10], [-15, 10], [15, 10]] : [[-16, -9.5], [16, -9.5], [-16, 9.5], [16, 9.5]];
+    const isTennis = Math.max(e0, e1) > 100;
+    const offsets: [number, number][] = isTennis ? TENNIS_BLOCKS : isVolley ? [[-15, -10], [15, -10], [-15, 10], [15, 10]] : [[-16, -9.5], [16, -9.5], [-16, 9.5], [16, 9.5]];
+    if (isTennis) {
+      rect(tnOutMat, -FENCE.a, -FENCE.b, FENCE.a, FENCE.b, 0.04);
+      // Fence: chain-link panels between posts, gates (gaps) in the middle of every side.
+      const fence = (a0: number, b0: number, a1: number, b1: number): void => {
+        const len = Math.hypot(a1 - a0, b1 - b0);
+        if (len < 0.2) return;
+        const ma = (a0 + a1) / 2, mb = (b0 + b1) / 2, yaw = Math.atan2(-(b1 - b0), a1 - a0);
+        const panel = new Mesh(tracker.geometry(tiled(len, FENCE.h, 0.9).rotateY(yaw).translate(ma, FENCE.h / 2, mb)), fenceMat);
+        g.add(panel);
+        add(fenceSteel, new BoxGeometry(len, 0.07, 0.07).rotateY(-yaw).translate(ma, FENCE.h, -mb)); // top rail
+        add(fenceSteel, new BoxGeometry(len, 0.05, 0.05).rotateY(-yaw).translate(ma, 0.12, -mb)); // bottom rail
+        const posts = Math.max(1, Math.round(len / 3));
+        for (let k = 0; k <= posts; k++) {
+          const t = k / posts, pa = a0 + (a1 - a0) * t, pb = b0 + (b1 - b0) * t;
+          add(fenceSteel, new CylinderGeometry(0.045, 0.045, FENCE.h + 0.1, 8).translate(pa, (FENCE.h + 0.1) / 2, -pb));
+        }
+        const [wx, wz] = toWorld(ma, mb);
+        const [ux2, uz2] = [((a1 - a0) * lx + (b1 - b0) * bx) / len, ((a1 - a0) * lz + (b1 - b0) * bz) / len];
+        const rot = Math.atan2(-uz2, ux2);
+        colliders.push(tracker.collider(physics.createCollider(RAPIER.ColliderDesc.cuboid(len / 2, FENCE.h / 2, 0.06)
+          .setTranslation(wx, FENCE.h / 2, wz).setRotation({ x: 0, y: Math.sin(rot / 2), z: 0, w: Math.cos(rot / 2) }))));
+      };
+      const A = FENCE.a, B = FENCE.b, gh = FENCE.gate / 2;
+      for (const s of [-1, 1]) {
+        fence(-A, s * B, -gh, s * B); fence(gh, s * B, A, s * B); // long sides
+        fence(s * A, -B, s * A, -gh); fence(s * A, gh, s * A, B); // ends
+      }
+    }
     for (const [ca, cb] of offsets) {
+      if (isTennis) {
+        const hl = TN.L / 2, hw = TN.W / 2, sw = TN.SW / 2;
+        rect(tnInMat, ca - hl - 1.2, cb - hw - 1.0, ca + hl + 1.2, cb + hw + 1.0, 0.05);
+        outline(ca - hl, cb - hw, ca + hl, cb + hw, 0.05); // doubles
+        for (const s of [-1, 1]) rect(lineMat, ca - hl, cb + s * sw - 0.025, ca + hl, cb + s * sw + 0.025, 0.06); // singles sidelines
+        for (const s of [-1, 1]) rect(lineMat, ca + s * TN.service - 0.025, cb - sw, ca + s * TN.service + 0.025, cb + sw, 0.06); // service lines
+        rect(lineMat, ca - TN.service, cb - 0.025, ca + TN.service, cb + 0.025, 0.06); // centre service line
+        for (const s of [-1, 1]) rect(lineMat, ca + s * (hl - 0.15), cb - 0.025, ca + s * hl, cb + 0.025, 0.06); // centre marks
+        // Net posts and the net across the court (along b) at a = ca.
+        for (const s of [-1, 1]) {
+          add(fenceSteel, new CylinderGeometry(0.04, 0.04, TN.postH, 10).translate(ca, TN.postH / 2, -(cb + s * TN.postB)));
+          solid(ca, cb + s * TN.postB, 0.06, TN.postH / 2);
+        }
+        const nw = TN.postB * 2;
+        g.add(new Mesh(tracker.geometry(tiled(nw, TN.netH - 0.05, 0.12).rotateY(Math.PI / 2).translate(ca, (TN.netH - 0.05) / 2 + 0.03, cb)), tnNetMat));
+        add(white, new BoxGeometry(0.03, 0.07, nw).translate(ca, TN.netH - 0.03, -cb)); // headband
+        add(white, new BoxGeometry(0.02, TN.netH, 0.05).translate(ca, TN.netH / 2, -cb)); // centre strap
+        const [wx, wz] = toWorld(ca, cb);
+        tennis.push({ x: wx, z: wz, ux: lx, uz: lz, vx: bx, vz: bz });
+        continue;
+      }
       if (isVolley) {
         const hl = VB.L / 2, hw = VB.W / 2;
         rect(vbMat, ca - hl - 3, cb - hw - 2.5, ca + hl + 3, cb + hw + 2.5, 0.045);
@@ -215,6 +310,7 @@ export function createCourts(scene: Scene, physics: RAPIER.World, campus: Campus
   return {
     hoops,
     volley,
+    tennis,
     dispose() {
       for (const c of colliders) physics.removeCollider(c, false);
       for (const g of groups) g.removeFromParent();
