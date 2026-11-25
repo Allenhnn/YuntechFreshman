@@ -164,6 +164,11 @@ docker compose down             # 停止（加 -v 會連資料一起刪除）
 | `.env.example` 沒被 commit | 根目錄 `.gitignore` 有 `.env*`；需要時用 `git add -f backend/.env.example` |
 
 ## 變更紀錄
+### 2026-11-25（前端：學生宿舍D1 入口整區換成跟 B1 一樣）— 分支 `feat/dorm-c-yard-walls`
+- 需求：D1 外面的花圃改得跟 B1 一樣；再調整：花圃那一整區都換成跟 B 棟一樣
+- `frontend/src/campus/customFacades.ts` `DORM_B_SPECS`：新增 D1（D 東棟）那筆 `cornerOnly` 入口——照 B1 的規則從 D1 自己的內凹轉角重算：斜牆兩端 `at`、雨遮（沿牆約 9.4／8.0 m、直段 4.45／4.24 m、斜的正面「D」）、六角花台、兩樘門（離斜牆端 4.35／4.2 m）、平台兩塊、台階、坡道（東翼那面牆、從門旁降到牆端、寬 1.2 m）
+- `frontend/src/buildings/dormCFacade.ts` site B：`cornerOnly` 只做轉角那幾面牆的一樓（方墩、鐵柵門、格柵、暗牆）和雨遮花台平台台階坡道，牆面與樓上照舊由 D 的外觀做；暗牆往外挪一點避免跟牆皮打架
+- `frontend/src/buildings/dormFeatures.ts`：拿掉舊的 D 入口（雨遮、門、綠籬花台、平台台階坡道、入口廣場）與只給它用的常數／貼圖（`D_WING`、`D_CANOPY`、`D_DOORS`、`dBand`、`noticeBoard`、`addDormDCanopy`）；`D_CORNER` 留給不長樹的範圍
 ### 2026-11-25（前端：學生宿舍B 三道圍牆與門照平面圖紅線＋照片）— 分支 `feat/dorm-c-yard-walls`
 - 需求：一樓平面圖紅線是圍牆位置；照片 A、B、C 三道圍牆（C 照片糊，推算）
 - `frontend/src/campus/dormYard.ts`：三道 L 形圍牆，平面圖紅線換算到校園、端點貼到建築轉角——門在較長那段（`DORM_GATES` 用 `ends`），短段放 `WALL_STUBS`。A（西，B2–B3，腳踏車停車場旁）：同款門樓、藍色門會開；C（東北，B1–B3）：跟 A 同款（推算）；B（東南，B1–B2）：新 `GateMark.barred`——沒有門樓，兩根奶油色墩（灰色帽）夾一樘 3 m 藍色鐵柵雙開門（固定），兩側同款花磚牆

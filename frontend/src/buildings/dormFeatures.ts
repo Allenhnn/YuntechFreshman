@@ -40,9 +40,8 @@ import { drawIcon } from '../ui/icons';
  *    深色窗的實牆段；店面上方深灰招牌（藍色 C、金字「國立雲林科技大學 學生宿舍服務中心」、右側紅色 LED 板），
  *    招牌下白色出挑簷口。前方 0.6 m 高的平台，外緣一圈三階台階（西端接坡道矮牆、東端接北棟牆面）；
  *    無障礙坡道從平台西南角沿南翼牆面往外下降，外側混凝土矮牆（藍色指標牌）與扶手。廣場上紅色花盆、樹穴、燈柱。
- *  - 學生宿舍D（入口正面照＋使用者要求與服務中心一樣）：東北向的凹角用同一套「切角輪廓」：上方雨遮（45° 前緣＋
- *    兩端垂直接牆的短段，前緣混凝土帶有藍色 D、三根方柱）、兩樘門（斜牆與北翼東面）與中間綠籬花台、0.6 m 平台、
- *    外緣一圈三階台階（東端接北翼牆面）、沿東翼北面往外下降的無障礙坡道；廣場鋪面、細高的樹穴樹、花盆、燈柱。
+ *  - 學生宿舍D 入口：使用者（2026-11-25）整區換成跟學生宿舍B1 一樣，改由 dormCFacade.ts site 'B' 做；這裡只留
+ *    `D_CORNER` 給不長樹的範圍（dormTreeFree）。
  * 每個設施都掛在一面 OSM 外牆上（建築 id ＋ 邊編號，端點對不上就略過）：局部 +x 沿牆、+z 朝外、
  * 原點在牆的終點（外環為逆時針，這樣 +z 才會朝外）。
  *
@@ -55,8 +54,6 @@ interface WallAnchor { id: number; edge: number; a: [number, number]; b: [number
 // 使用者（2026-11-24）：D 區換成 C 區的鏡射（campusFixes.ts copyDormCToD），東棟外環跟著換；入口斜牆、北翼東面改成新外環的邊（C1 宿服中心那道斜牆＝edge 2），
 // 斜牆中點不動，雨遮、台階、坡道照舊做在上面。
 const D_RECESS: WallAnchor = { id: 296668594, edge: 2, a: [21.85, 380.88], b: [25.85, 383.45] };
-/** 學生宿舍D 北翼東面（入口右手邊凸出的那面牆）。 */
-const D_WING: WallAnchor = { id: 296668594, edge: 1, a: [19.7, 370.73], b: [21.85, 380.88] };
 
 // ---------------------------------------------------------------- dimensions (m)
 /**
@@ -137,9 +134,6 @@ const SHOP = { x0: 1.8, x1: 8.6 };
 /** 店面上方的招牌與白色簷口：x 範圍、高度、從牆面出挑 out、簷底厚度。 */
 const FASCIA = { x0: 1.6, x1: 8.8, y0: 3.12, y1: 4.0, out: 1.0, soffit: 0.12 };
 const SVC_ROOF = 3.4;
-/** 學生宿舍D 雨遮：頂板高度、前緣混凝土帶高度、D 字位置（0..1）。兩樘門：斜牆（D_RECESS x）、北翼東面（D_WING x）。 */
-const D_CANOPY = { y: 3.35, band: 0.95, letterX: 0.42 };
-const D_DOORS = { recess: [0.5, 2.3] as const, wing: [1.2, 2.8] as const };
 
 /** Paving pattern repeat (m): the red bands form a grid this size. */
 const PAVING_BAND = 4;
@@ -293,31 +287,6 @@ function plazaPaving(g: CanvasRenderingContext2D): void {
       g.fillRect(x + 1, y + 1, 0.2 * cell - 2, 0.1 * cell - 2);
     }
   }
-}
-
-/** 學生宿舍D 門廊前緣的混凝土帶：灰白底、細的上下分縫，藍色 D 在 letterX（0..1）處。 */
-function dBand(g: CanvasRenderingContext2D): void {
-  const W = 1024, H = 96;
-  g.fillStyle = '#d9d8d2';
-  g.fillRect(0, 0, W, H);
-  g.fillStyle = '#c4c3bd';
-  g.fillRect(0, 0, W, 6);
-  g.fillRect(0, H - 8, W, 8);
-  g.fillStyle = '#2a6fb0';
-  g.font = '800 70px system-ui, sans-serif';
-  g.textAlign = 'center';
-  g.textBaseline = 'middle';
-  g.fillText('D', W * D_CANOPY.letterX, H / 2 + 2);
-}
-
-/** 白色告示牌（門口旁的立牌）。 */
-function noticeBoard(g: CanvasRenderingContext2D): void {
-  g.fillStyle = '#f4f4f0';
-  g.fillRect(0, 0, 128, 160);
-  g.fillStyle = '#2f5d8a';
-  g.fillRect(10, 10, 108, 22);
-  g.fillStyle = '#8a8a86';
-  for (let k = 0; k < 6; k++) g.fillRect(14, 46 + k * 18, 100 - (k % 3) * 18, 7);
 }
 
 // ---------------------------------------------------------------- geometry helpers
@@ -599,55 +568,6 @@ function addPaving(ctx: Ctx, f: Frame, outline: readonly (readonly [number, numb
   f.add(new ShapeGeometry(shape).rotateX(-Math.PI / 2).translate(0, 0.025, 0), paving, false);
 }
 
-/**
- * 學生宿舍D：雨遮（與服務中心量體同一個輪廓：頂板、前緣與短段的混凝土帶、藍色 D、方柱）、兩樘門、
- * 斜牆前的綠籬花台、白色告示牌。地面（平台、台階、坡道）與廣場由 addEntryGround / addEntryPlaza 做。
- */
-function addDormDCanopy(ctx: Ctx, f: Frame, g: CornerGeom, recess: Frame | null, wing: Frame | null): void {
-  const band = ctx.mat(0xd9d8d2, { roughness: 0.85 });
-  const concrete = ctx.mat(CONCRETE, { roughness: 0.9 });
-  const { y: CY, band: bh } = D_CANOPY;
-  const top = TERRACE_TOP;
-  prism(ctx, f, entryBody(g), CY, CY + 0.3, band, false);
-
-  // Front band with the blue D along the 45° edge, plain bands on the two returns.
-  const { ff, len } = frontFrame(ctx, f, g, '學生宿舍D 雨遮');
-  const face = ctx.tracker.material(new MeshStandardMaterial({ map: canvasTexture(1024, 96, dBand, ctx.tracker), roughness: 0.8 }));
-  const front = ff.add(new BoxGeometry(len + 0.3, bh, 0.3), [band, band, band, band, face, band]);
-  front.position.set(len / 2, CY + bh / 2 - 0.05, -0.15);
-  const fr = entryFront(g);
-  for (const [a, b] of [[fr.wingPt, fr.west], [fr.east, fr.northPt]] as const) {
-    const l = Math.hypot(b[0] - a[0], b[1] - a[1]), yaw = Math.atan2(-(b[1] - a[1]), b[0] - a[0]);
-    const m = f.add(new BoxGeometry(l, bh, 0.3), band);
-    m.position.set((a[0] + b[0]) / 2, CY + bh / 2 - 0.05, (a[1] + b[1]) / 2);
-    m.rotation.y = yaw;
-  }
-  // Square columns just inside the front edge.
-  for (const x of [0.5, len / 2, len - 0.5]) {
-    ff.add(span(x - 0.22, x + 0.22, top, CY, -0.6, -0.16), band);
-    ff.solid(x, (top + CY) / 2, -0.38, 0.22, (CY - top) / 2, 0.22);
-  }
-
-  // Doors: dark glass in grey frames, on the diagonal wall and on the north wing's face; a clipped-hedge
-  // planter on the diagonal between them; the notice board by the west column.
-  const frame = ctx.mat(0x5c6166, { metalness: 0.4 }), glass = ctx.mat(0x232b31, { roughness: 0.15, metalness: 0.4 });
-  const door = (fr2: Frame, x0: number, x1: number): void => {
-    fr2.add(span(x0, x1, top, top + 2.6, 0, 0.08), frame);
-    fr2.add(span(x0 + 0.12, x1 - 0.12, top + 0.05, top + 2.45, 0.08, 0.1), glass, false);
-    fr2.add(span((x0 + x1) / 2 - 0.02, (x0 + x1) / 2 + 0.02, top + 0.05, top + 2.45, 0.1, 0.12), frame, false);
-  };
-  if (recess) {
-    door(recess, D_DOORS.recess[0], D_DOORS.recess[1]);
-    recess.add(span(2.6, 4.9, top, top + 0.45, 0.1, 0.9), concrete);
-    recess.add(span(2.68, 4.82, top + 0.45, top + 0.95, 0.18, 0.82), ctx.mat(0x3e6f2e, { roughness: 0.95 }));
-    recess.solid(3.75, top + 0.475, 0.5, 1.15, 0.475, 0.4);
-  }
-  if (wing) door(wing, D_DOORS.wing[0], D_DOORS.wing[1]);
-  const board = ctx.tracker.material(new MeshStandardMaterial({ map: canvasTexture(128, 160, noticeBoard, ctx.tracker), roughness: 0.6 }));
-  const nb = ff.add(new BoxGeometry(0.6, 0.75, 0.05), [frame, frame, frame, frame, board, frame]);
-  nb.position.set(0.9, top + 1.25, 0.6);
-  ff.add(span(0.88, 0.92, top, top + 0.9, 0.58, 0.62), frame);
-}
 
 // ---------------------------------------------------------------- public
 /** Tree-free rings over the features (campus tree scatter), in world x/z. */
@@ -677,14 +597,8 @@ export function createDormFeatures(scene: Scene, physics: RAPIER.World, campus: 
     addEntryGround(ctx, c.f, c.g);
     addEntryPlaza(ctx, c.f, c.g, C_PLAZA, trees);
   }
-  const d = cornerFrame(ctx, campus, D_CORNER, '學生宿舍D 入口');
-  if (d) {
-    const recess = wallFrame(ctx, campus, D_RECESS, '學生宿舍D 斜牆');
-    const wing = wallFrame(ctx, campus, D_WING, '學生宿舍D 北翼');
-    addDormDCanopy(ctx, d.f, d.g, recess, wing);
-    addEntryGround(ctx, d.f, d.g);
-    addEntryPlaza(ctx, d.f, d.g, D_PLAZA, trees);
-  }
+  // 學生宿舍D 入口：使用者（2026-11-25）整區換成跟學生宿舍B1 一樣——改由 dormCFacade.ts site 'B'（customFacades.ts DORM_B_SPECS 的
+  // D1 那筆）做，這裡的雨遮、平台台階坡道、廣場都不做了。
   return {
     dispose() {
       for (const col of ctx.colliders) physics.removeCollider(col, false);

@@ -129,3 +129,4 @@
 | 學生宿舍B1 花圃／門／坡道（使用者平面圖標記） | 門照紅色標記（只做外觀）、坡道照藍框（門邊高往牆外端降）、花台 0.4 m 緣石＋灌木、平台繞開坡道、台階沿外緣 | `customFacades.ts` `corner`、`dormCFacade.ts` site B |
 | 學生宿舍B1 花圃上方（使用者） | 雨遮在花圃正上方開口、邊梁一圈，花圃露天 | `dormCFacade.ts` site B |
 | 學生宿舍B 圍牆 A／B／C（使用者平面圖紅線＋照片） | 三道 L 形花磚圍牆（短段也有 1～2 片花磚、同色調）；A、C 同款門樓（藍門會開），B 兩墩夾藍色鐵柵雙開門（固定） | `dormYard.ts` `DORM_GATES`、`WALL_STUBS`、`barred` |
+| 學生宿舍D1 入口（使用者：整區跟 B1 一樣） | 內凹轉角照 B1 規則重做：雨遮「D」、露天六角花台、兩樘鐵柵門、方墩格柵、平台台階、坡道；舊 D 雨遮與廣場拿掉 | `customFacades.ts` `DORM_B_SPECS`（D1）、`dormCFacade.ts` site B、`dormFeatures.ts` |

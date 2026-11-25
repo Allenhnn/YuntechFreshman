@@ -620,15 +620,20 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
       const atCorner = (k: number): boolean => !!cor && cor.at.some((p) => Math.hypot(r[k * 2]! - p[0], r[k * 2 + 1]! - p[1]) < 0.3);
       /** The middle of the inner corner (its chamfer). */
       const cc: XZ = cor ? [cor.at.reduce((a, p) => a + p[0], 0) / cor.at.length, cor.at.reduce((a, p) => a + p[1], 0) / cor.at.length] : [0, 0];
+      /** Only the corner entrance (學生宿舍D1：牆面由 D 的外觀做，這裡只做入口那一區). */
+      const only = !!spec.cornerOnly;
       for (let i = 0; i < n; i++) {
         const j = (i + 1) % n;
+        if (only && !(atCorner(i) || atCorner(j))) continue;
         const f = edgeFrame(campus, { id: spec.id, i, a: [r[i * 2]!, r[i * 2 + 1]!], b: [r[j * 2]!, r[j * 2 + 1]!] });
         if (!f || f.len < 0.3) continue;
         const L = f.len, b = build(f);
-        skin(b, f, H, []);
-        b.put(span(-0.05, L + 0.05, H - 0.2, H + PARAPET, 0.02, 0.14), concrete, 2);
-        b.put(span(-0.02, L + 0.02, -0.3, PL, 0.02, 0.18), plinthGrey, 2);
-        b.solid(0, L, 0, PL, 0.02, 0.18);
+        if (!only) {
+          skin(b, f, H, []);
+          b.put(span(-0.05, L + 0.05, H - 0.2, H + PARAPET, 0.02, 0.14), concrete, 2);
+          b.put(span(-0.02, L + 0.02, -0.3, PL, 0.02, 0.18), plinthGrey, 2);
+          b.solid(0, L, 0, PL, 0.02, 0.18);
+        }
         /** Room bays between x0 and x1: pilasters every ~3.4 m (平面圖：一間 340 cm), two strip bands per upper floor with ACs, dark windows downstairs. */
         const bays = (x0: number, x1: number, ground = true): void => {
           const P = 0.45, k = Math.max(1, Math.round((x1 - x0 - P) / 3.4)), st = (x1 - x0 - P) / k;
@@ -680,16 +685,16 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
         } else if (cor && atCorner(i) && atCorner(j)) {
           // The chamfer at the back of the inner corner (平面圖紅框右下角), behind the planter: dark recess and a mesh screen
           // downstairs, a column of narrow windows above.
-          b.put(span(0.2, L - 0.2, T, STOREY - 0.3, 0.02, 0.06), voidDark);
-          screen(b, 0.45, L - 0.45, T + 0.6, STOREY - 0.7, 0.08);
+          b.put(span(0.2, L - 0.2, T, STOREY - 0.3, 0.065, 0.09), voidDark);
+          screen(b, 0.45, L - 0.45, T + 0.6, STOREY - 0.7, 0.1);
           for (const x of [0, L]) b.put(span(x - 0.28, x + 0.28, T, STOREY - 0.3, 0.02, 0.62), concrete, 2);
           b.put(span(0.1, L - 0.1, STOREY - 0.3, STOREY, 0.02, 0.62), concrete, 2);
-          for (const fy of floors) windowAt(b, L / 2 - 0.45, L / 2 + 0.45, fy + 1.0, fy + 2.6);
+          if (!only) for (const fy of floors) windowAt(b, L / 2 - 0.45, L / 2 + 0.45, fy + 1.0, fy + 2.6);
         } else if (cor && (atCorner(i) || atCorner(j)) && L >= 6.5) {
           // Under the corner canopy (街景照＋平面圖): the wall set back and dark behind square concrete piers; the door (平面圖紅框，
           // 只做外觀、不會開) a 2.5 m blue-white barred double gate with a white notice board on the pier beside it; the other bays
           // brown mesh screens, split evenly between the piers.
-          bays(0, L, false);
+          if (!only) bays(0, L, false);
           const GW = 2.5, PH = 0.28;
           const doorsHere = cor.doors.map(([dx, dz]) => ({ x: (dx - f.ox) * f.rx + (dz - f.oz) * f.rz, z: (dx - f.ox) * f.nx + (dz - f.oz) * f.nz }))
             .filter((d) => Math.abs(d.z) < 1 && d.x > 0.4 + GW / 2 && d.x < L - 0.4 - GW / 2).map((d) => d.x).sort((p, q) => p - q);
@@ -708,7 +713,7 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
             at = d1;
           }
           if (L - 0.4 - at > 0.8) fill(at, L - 0.4); else piers[piers.length - 1] = L - 0.4;
-          b.put(span(0.4, L - 0.4, T, STOREY - 0.3, 0.02, 0.06), voidDark);
+          b.put(span(0.4, L - 0.4, T, STOREY - 0.3, 0.065, 0.09), voidDark);
           for (const x of piers) {
             b.put(span(x - PH, x + PH, T, STOREY - 0.3, 0.02, 0.62), concrete, 2);
             b.solid(x - PH, x + PH, T, STOREY - 0.3, 0.02, 0.62);

@@ -80,6 +80,8 @@ export type XZ = readonly [number, number];
  */
 export const DORM_B_SPECS: readonly {
   id: number; sign: string; entrance?: XZ; edges: number;
+  /** Only the corner entrance (the building's walls are drawn by another module). */
+  cornerOnly?: boolean;
   corner?: {
     at: readonly XZ[]; canopy: readonly XZ[]; platform: readonly (readonly XZ[])[]; planter: readonly XZ[];
     doors: readonly XZ[]; steps: readonly (readonly [XZ, XZ])[]; ramp: { wallHigh: XZ; wallLow: XZ; outerLow: XZ };
@@ -104,6 +106,21 @@ export const DORM_B_SPECS: readonly {
     steps: [[[121.45, 331.19], [125.82, 330.36]], [[125.82, 330.36], [131.36, 321.91]], [[131.36, 321.91], [130.79, 318.91]]],
     // 無障礙坡道（平面圖藍框）：沿東邊那面牆，門旁邊（跟平台同高）往牆的外端降到地面，寬約 1.2 m，外緣藍色扶手。
     ramp: { wallHigh: [127.15, 318.39], wallLow: [130.78, 317.7], outerLow: [131.0, 318.87] },
+  } },
+  // 學生宿舍D1（D 東棟，使用者 2026-11-25：花圃那一整區換成跟 B1 一樣）：入口內凹轉角照 B1 的規則重算——斜牆（4.8 m）兩端
+  // `at`；雨遮沿兩面牆各約 9.4／8.0 m、直段 4.45／4.24 m、斜的正面掛「D」；六角花台（斜牆＋沿牆 2.86／3.16 m、往外 2.04／1.85 m）；
+  // 兩樘門離斜牆端 4.35／4.2 m；坡道在東翼那面牆（D 原本的坡道那側）從門旁降到牆端，寬 1.2 m；牆面本身由 D 的外觀做（`cornerOnly`）。
+  { id: DORM_D.c1, sign: 'D', edges: 12, cornerOnly: true, corner: {
+    at: [[21.846, 380.877], [25.854, 383.453]],
+    canopy: [[19.89, 371.63], [24.25, 370.71], [33.1, 378.02], [33.76, 382.2], [25.854, 383.453], [21.846, 380.877]],
+    platform: [
+      [[19.89, 371.63], [24.25, 370.71], [30.3, 375.71], [31.39, 382.58], [25.854, 383.453], [21.846, 380.877]],
+      [[30.3, 375.71], [33.1, 378.02], [33.57, 381.02], [31.2, 381.39]],
+    ],
+    planter: [[28.98, 382.96], [28.69, 381.13], [23.25, 377.66], [21.26, 378.08], [21.846, 380.877], [25.854, 383.453]],
+    doors: [[20.95, 376.62], [30.0, 382.8]],
+    steps: [[[19.89, 371.63], [24.25, 370.71]], [[24.25, 370.71], [33.1, 378.02]], [[33.1, 378.02], [33.57, 381.02]]],
+    ramp: { wallHigh: [31.39, 382.58], wallLow: [33.76, 382.2], outerLow: [33.57, 381.02] },
   } },
   { id: DORM_B.b2, sign: 'B2', entrance: [71.9, 326.07], edges: 12 },
   { id: DORM_B.b3, sign: 'B3', entrance: [79.91, 299.89], edges: 12 },
