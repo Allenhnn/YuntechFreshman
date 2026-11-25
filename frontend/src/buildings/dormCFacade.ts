@@ -2,6 +2,7 @@ import {
   BoxGeometry,
   CanvasTexture,
   DoubleSide,
+  IcosahedronGeometry,
   CylinderGeometry,
   ExtrudeGeometry,
   Group,
@@ -25,7 +26,7 @@ import { RAPIER } from '../physics/physics';
 import type { ResourceTracker } from '../core/resources';
 import { mulberry32 } from '../core/math';
 import type { CampusData, Ring } from '../campus/campusTypes';
-import { DORM_C, DORM_C_BALCONY as BAL, DORM_C_BALCONY_SPAN, DORM_C_HALL_2F as HALL, DORM_C_LOBBY as LOBBY, DORM_B_SPECS, DORM_C_TO_D_MATRIX, dormCToD } from '../campus/customFacades';
+import { DORM_C, DORM_C_BALCONY as BAL, DORM_C_BALCONY_SPAN, DORM_C_HALL_2F as HALL, DORM_C_LOBBY as LOBBY, DORM_B_SPECS, type XZ, DORM_C_TO_D_MATRIX, dormCToD } from '../campus/customFacades';
 
 /**
  * 學生宿舍C 北棟（OSM 296668596，U 形），依使用者實拍＋遊戲截圖與小地圖（2026-11-22）。載入時切成三塊
@@ -149,7 +150,13 @@ export function dormCFacadeTreeFree(campus: CampusData): Ring[] {
   if (!f) return [];
   // Out to the halls either side (and the ground the east wing gave up); the same ground at D (its mirrored copy).
   const c = [f.world(-7, 0), f.world(f.len + 7, 0), f.world(f.len + 7, 9), f.world(-7, 9)];
-  return [c.flat(), c.map(([x, z]) => dormCToD(x, z)).reverse().flat()];
+  // 學生宿舍B1 入口轉角（雨遮、台階）前面也不長樹：雨遮外框往外 4 m 的方框。
+  const b1 = DORM_B_SPECS.flatMap((sp) => (sp.corner ? [sp.corner.canopy] : [])).map((pts) => {
+    const xs = pts.map((p) => p[0]), zs = pts.map((p) => p[1]);
+    const x0 = Math.min(...xs) - 4, x1 = Math.max(...xs) + 4, z0 = Math.min(...zs) - 4, z1 = Math.max(...zs) + 4;
+    return [x0, z0, x1, z0, x1, z1, x0, z1];
+  });
+  return [c.flat(), c.map(([x, z]) => dormCToD(x, z)).reverse().flat(), ...b1];
 }
 
 // ---------------------------------------------------------------- wall frames
@@ -569,6 +576,25 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
   // --- 學生宿舍B（使用者 2026-11-25：B 區平面圖的外形，外觀用 D 區那一套風格） ------------------------------------------
   if (site === 'B') {
     const bGlass = mat(0x7d898d, { metalness: 0.35, roughness: 0.18 });
+    const gateBlue = mat(0x9fc6dc, { metalness: 0.3, roughness: 0.45 }), railBlueB = mat(0x5fb2e0, { metalness: 0.3, roughness: 0.4 });
+    // Orange-brown wire-mesh screens over the ground-floor windows (B1 街景照).
+    const screenBrown = tracker.material(new MeshStandardMaterial({
+      map: canvasTexture(tracker, 64, 64, (g) => {
+        g.fillStyle = '#5a3a22'; g.fillRect(0, 0, 64, 64);
+        g.fillStyle = '#b8743a';
+        for (let k = 0; k < 64; k += 4) { g.fillRect(k, 0, 2, 64); g.fillRect(0, k, 64, 2); }
+      }),
+      roughness: 0.85,
+    }));
+    /** A brown mesh screen x0..x1, y0..y1 in a concrete frame, set in from the wall face. */
+    const screen = (b: ReturnType<typeof build>, x0: number, x1: number, y0: number, y1: number, z = 0.06): void => {
+      const g = span(x0, x1, y0, y1, z, z + 0.04), uv = g.getAttribute('uv');
+      for (let k = 0; k < uv.count; k++) uv.setXY(k, (uv.getX(k) * (x1 - x0)) / 0.5, (uv.getY(k) * (y1 - y0)) / 0.5);
+      b.put(g, screenBrown);
+      for (const [a, c] of [[x0 - 0.12, x0], [x1, x1 + 0.12]] as const) b.put(span(a, c, y0 - 0.12, y1 + 0.12, 0.02, z + 0.2), concrete, 2);
+      b.put(span(x0 - 0.12, x1 + 0.12, y1, y1 + 0.12, 0.02, z + 0.2), concrete, 2);
+      b.put(span(x0 - 0.12, x1 + 0.12, y0 - 0.12, y0, 0.02, z + 0.25), concrete, 2);
+    };
     /** Two strip-window bands in brown frames (the C2 / D2 side faces). */
     const strip = (b: ReturnType<typeof build>, x0: number, x1: number, y0: number, y1: number): void => {
       b.put(span(x0, x1, y0, y1, 0.05, 0.08), bGlass);
@@ -585,10 +611,15 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
       const r = bd.outer, n = r.length / 2;
       // The courtyard entrance: the wall whose middle is nearest the spec's point.
       let entrance = -1, best = Infinity;
-      for (let i = 0; i < n; i++) {
+      for (let i = 0; spec.entrance && i < n; i++) {
         const j = (i + 1) % n, d = Math.hypot((r[i * 2]! + r[j * 2]!) / 2 - spec.entrance[0], (r[i * 2 + 1]! + r[j * 2 + 1]!) / 2 - spec.entrance[1]);
         if (d < best) { best = d; entrance = i; }
       }
+      const cor = spec.corner;
+      /** Is vertex k the corner entrance's? */
+      const atCorner = (k: number): boolean => !!cor && cor.at.some((p) => Math.hypot(r[k * 2]! - p[0], r[k * 2 + 1]! - p[1]) < 0.3);
+      /** The middle of the inner corner (its chamfer). */
+      const cc: XZ = cor ? [cor.at.reduce((a, p) => a + p[0], 0) / cor.at.length, cor.at.reduce((a, p) => a + p[1], 0) / cor.at.length] : [0, 0];
       for (let i = 0; i < n; i++) {
         const j = (i + 1) % n;
         const f = edgeFrame(campus, { id: spec.id, i, a: [r[i * 2]!, r[i * 2 + 1]!], b: [r[j * 2]!, r[j * 2 + 1]!] });
@@ -599,12 +630,14 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
         b.put(span(-0.02, L + 0.02, -0.3, PL, 0.02, 0.18), plinthGrey, 2);
         b.solid(0, L, 0, PL, 0.02, 0.18);
         /** Room bays between x0 and x1: pilasters every ~3.4 m (平面圖：一間 340 cm), two strip bands per upper floor with ACs, dark windows downstairs. */
-        const bays = (x0: number, x1: number): void => {
+        const bays = (x0: number, x1: number, ground = true): void => {
           const P = 0.45, k = Math.max(1, Math.round((x1 - x0 - P) / 3.4)), st = (x1 - x0 - P) / k;
-          for (let q = 0; q <= k; q++) b.put(span(x0 + q * st, x0 + q * st + P, PL, H - 0.2, 0.02, 0.3), concrete, 2);
+          for (let q = 0; q <= k; q++) b.put(span(x0 + q * st, x0 + q * st + P, ground ? PL : STOREY - 0.3, H - 0.2, 0.02, 0.3), concrete, 2);
           for (let q = 0; q < k; q++) {
             const a = x0 + q * st + P + 0.12, c = x0 + (q + 1) * st - 0.12;
-            windowAt(b, a, c, PL + 0.25, STOREY - 0.5);
+            // B1 街景照：一樓的窗都是橘咖啡色鐵網格柵。
+            if (ground && cor) screen(b, a + 0.1, c - 0.1, PL + 0.35, STOREY - 0.6);
+            else if (ground) windowAt(b, a, c, PL + 0.25, STOREY - 0.5);
             b.put(span(a - 0.1, c + 0.1, STOREY - 0.5, STOREY - 0.25, 0.02, 0.3), concrete, 2);
             for (const fy of floors) {
               b.put(span(a - 0.1, c + 0.1, fy + 0.85, fy + 0.97, 0.02, 0.3), concrete, 2);
@@ -644,6 +677,60 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
           }
           if (c0 - 0.5 >= 3.2) bays(0, c0 - 0.5);
           if (L - c1 - 0.5 >= 3.2) bays(c1 + 0.5, L);
+        } else if (cor && atCorner(i) && atCorner(j)) {
+          // The chamfer at the back of the inner corner (平面圖紅框右下角), behind the planter: dark recess and a mesh screen
+          // downstairs, a column of narrow windows above.
+          b.put(span(0.2, L - 0.2, T, STOREY - 0.3, 0.02, 0.06), voidDark);
+          screen(b, 0.45, L - 0.45, T + 0.6, STOREY - 0.7, 0.08);
+          for (const x of [0, L]) b.put(span(x - 0.28, x + 0.28, T, STOREY - 0.3, 0.02, 0.62), concrete, 2);
+          b.put(span(0.1, L - 0.1, STOREY - 0.3, STOREY, 0.02, 0.62), concrete, 2);
+          for (const fy of floors) windowAt(b, L / 2 - 0.45, L / 2 + 0.45, fy + 1.0, fy + 2.6);
+        } else if (cor && (atCorner(i) || atCorner(j)) && L >= 6.5) {
+          // Under the corner canopy (街景照＋平面圖): the wall set back and dark behind square concrete piers; the door (平面圖紅框，
+          // 只做外觀、不會開) a 2.5 m blue-white barred double gate with a white notice board on the pier beside it; the other bays
+          // brown mesh screens, split evenly between the piers.
+          bays(0, L, false);
+          const GW = 2.5, PH = 0.28;
+          const doorsHere = cor.doors.map(([dx, dz]) => ({ x: (dx - f.ox) * f.rx + (dz - f.oz) * f.rz, z: (dx - f.ox) * f.nx + (dz - f.oz) * f.nz }))
+            .filter((d) => Math.abs(d.z) < 1 && d.x > 0.4 + GW / 2 && d.x < L - 0.4 - GW / 2).map((d) => d.x).sort((p, q) => p - q);
+          const piers: number[] = [0.4];
+          const gates = new Set<number>();
+          const fill = (from: number, to: number): void => {
+            const k = Math.max(1, Math.round((to - from) / 2.6));
+            for (let q = 1; q <= k; q++) piers.push(from + ((to - from) * q) / k);
+          };
+          let at = 0.4;
+          for (const xc of doorsHere) {
+            const d0 = xc - GW / 2 - PH, d1 = xc + GW / 2 + PH;
+            if (d0 - at > 0.8) fill(at, d0); else piers[piers.length - 1] = d0;
+            gates.add(piers.length - 1);
+            piers.push(d1);
+            at = d1;
+          }
+          if (L - 0.4 - at > 0.8) fill(at, L - 0.4); else piers[piers.length - 1] = L - 0.4;
+          b.put(span(0.4, L - 0.4, T, STOREY - 0.3, 0.02, 0.06), voidDark);
+          for (const x of piers) {
+            b.put(span(x - PH, x + PH, T, STOREY - 0.3, 0.02, 0.62), concrete, 2);
+            b.solid(x - PH, x + PH, T, STOREY - 0.3, 0.02, 0.62);
+          }
+          for (let q = 0; q + 1 < piers.length; q++) {
+            const a = piers[q]! + PH + 0.02, c = piers[q + 1]! - PH - 0.02;
+            if (gates.has(q)) {
+              // Double gate (近照): two leaves, each a frame with vertical bars, top / bottom rails, a latch box where they meet.
+              const top = STOREY - 0.35, m = (a + c) / 2, z0 = 0.3, z1 = 0.34;
+              b.put(span(a, c, T, top, 0.06, 0.08), voidDark);
+              for (const [l0, l1] of [[a, m - 0.02], [m + 0.02, c]] as const) {
+                for (const x of [l0, l1 - 0.05]) b.put(span(x, x + 0.05, T, top, z0, z1 + 0.01), gateBlue);
+                for (const y of [T, T + 0.12, top - 0.17, top - 0.05]) b.put(span(l0, l1, y, y + 0.05, z0, z1 + 0.01), gateBlue);
+                const nb = Math.max(3, Math.round((l1 - l0) / 0.12));
+                for (let k = 1; k < nb; k++) { const x = l0 + ((l1 - l0) * k) / nb; b.put(span(x - 0.012, x + 0.012, T + 0.12, top - 0.12, z0 + 0.01, z1), gateBlue); }
+              }
+              b.put(span(m - 0.12, m + 0.12, T + 1.0, T + 1.18, z1, z1 + 0.04), paint); // the white latch box
+              b.solid(a, c, T, top, z0, z1);
+              b.put(span(c + 0.05, c + 0.35, T + 1.0, T + 1.75, 0.62, 0.66), paint); // notice board on the pier
+            } else if (c - a > 0.6) screen(b, a, c, T + 0.25, STOREY - 0.7, 0.08);
+          }
+          b.put(span(0.1, L - 0.1, STOREY - 0.3, STOREY, 0.02, 0.62), concrete, 2); // beam over the piers
         } else if (L >= 6.5) {
           bays(0, L);
         } else if (L >= 2.5) {
@@ -658,6 +745,113 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
           }
         }
         b.done();
+      }
+      if (cor) {
+        // Corner entrance (街景照＋一樓平面圖，照平面圖比例): the canopy slab, the platform under it (it steps round the ramp), the
+        // hexagonal planter (0.4 m curb, dark shrubs filling it), a deep fascia on the canopy's free edges with the big 「B」 on the
+        // diagonal front, steps along the free edges, and the accessible ramp along the wall at the canopy's end (平面圖藍框).
+        const ring = cor.canopy;
+        /** A frame on p→q with +z out, away from the inner corner. */
+        const mk = (a: XZ, q: XZ): Frame => {
+          let [p0, p1] = [a, q];
+          const one = (u: XZ, v: XZ): Frame => {
+            const len = Math.hypot(v[0] - u[0], v[1] - u[1]), dx = (v[0] - u[0]) / len, dz = (v[1] - u[1]) / len;
+            const rx = -dx, rz = -dz, nx = dz, nz = -dx;
+            return { len, ox: v[0], oz: v[1], rx, rz, nx, nz, yaw: Math.atan2(dz, -dx), world: (x, z) => [v[0] + rx * x + nx * z, v[1] + rz * x + nz * z] };
+          };
+          let f = one(p0, p1);
+          if ((cc[0] - f.ox) * f.nx + (cc[1] - f.oz) * f.nz > 0) { [p0, p1] = [p1, p0]; f = one(p0, p1); }
+          return f;
+        };
+        const free: [XZ, XZ][] = [[ring[0]!, ring[1]!], [ring[1]!, ring[2]!], [ring[2]!, ring[3]!]];
+        const front = free[1]!;
+        const f0 = mk(front[0], front[1]), b0 = build(f0);
+        const local = (pts: readonly XZ[]): Vector2[] => pts.map(([x, z]) => new Vector2((x - f0.ox) * f0.rx + (z - f0.oz) * f0.rz, (x - f0.ox) * f0.nx + (z - f0.oz) * f0.nz));
+        const prism = (pts: readonly XZ[], y0: number, y1: number, mm: Material, solid: boolean): void => {
+          const g = new ExtrudeGeometry(new Shape(local(pts)), { depth: y1 - y0, bevelEnabled: false });
+          b0.put(g.rotateX(Math.PI / 2).translate(0, y1, 0), mm, 2);
+          if (!solid) return;
+          const v: number[] = [];
+          for (const [px, pz] of pts) v.push(px, y0, pz, px, y1, pz);
+          const d = RAPIER.ColliderDesc.convexHull(new Float32Array(v));
+          if (d) colliders.push(physics.createCollider(d));
+        };
+        // Canopy slab, open over the planter (使用者：花圃正上方是空的): the outline runs round the planter's free edges instead of the
+        // inner corner, and a deep rim lines the opening.
+        const pl = cor.planter, wallIdx = pl.map((p) => ring.findIndex((q) => Math.hypot(q[0] - p[0], q[1] - p[1]) < 0.05));
+        const openRing: XZ[] = [ring[0]!, ring[1]!, ring[2]!, ring[3]!];
+        const holeEdge = pl.filter((_, k) => wallIdx[k]! < 0); // planter corners off the inner corner, in order
+        openRing.push(...holeEdge);
+        prism(openRing, STOREY - 0.3, STOREY + 0.05, concrete, false);
+        for (let k = 0; k + 1 < holeEdge.length; k++) {
+          const f = mk(holeEdge[k]!, holeEdge[k + 1]!), b = build(f);
+          b.put(span(-0.1, f.len + 0.1, STOREY - 0.6, STOREY + 0.4, 0, 0.3), concrete, 2);
+          b.done();
+        }
+        for (const piece of cor.platform) prism(piece, 0, T, steps, true); // platform (convex pieces round the ramp)
+        prism(cor.planter, T, T + 0.4, concrete, true);           // planter curb, 0.4 m (使用者)
+        prism(cor.planter, T + 0.36, T + 0.38, mat(0x3b2f24, { roughness: 1 }), false);
+        {
+          // Dark shrubs filling the planter (照片): small low-poly clumps on a grid, an uneven top about 1 m above the curb.
+          const poly = local(cor.planter);
+          const inside = (x: number, z: number): boolean => {
+            let c = false;
+            for (let a = 0, b = poly.length - 1; a < poly.length; b = a++) {
+              const pa = poly[a]!, pb = poly[b]!;
+              if ((pa.y > z) !== (pb.y > z) && x < ((pb.x - pa.x) * (z - pa.y)) / (pb.y - pa.y) + pa.x) c = !c;
+            }
+            return c;
+          };
+          const shrubs = [mat(0x263d1d, { roughness: 0.95, flatShading: true }), mat(0x334f26, { roughness: 0.95, flatShading: true }), mat(0x1f3318, { roughness: 0.95, flatShading: true })];
+          const rnd = mulberry32(234786934), base = T + 0.38;
+          const xs = poly.map((p) => p.x), zs = poly.map((p) => p.y);
+          for (let x = Math.min(...xs) + 0.25; x <= Math.max(...xs); x += 0.42) for (let z = Math.min(...zs) + 0.25; z <= Math.max(...zs); z += 0.42) {
+            const px = x + (rnd() - 0.5) * 0.2, pz = z + (rnd() - 0.5) * 0.2;
+            if (!inside(px, pz)) continue;
+            const rr = 0.3 + rnd() * 0.15, top = base + 1.0 + (rnd() - 0.5) * 0.4;
+            b0.put(new IcosahedronGeometry(rr, 0).scale(1.3, (top - base) / (2 * rr), 1.3).rotateY(rnd() * 3).translate(px, (top + base) / 2, pz), shrubs[Math.floor(rnd() * 3)]!);
+          }
+        }
+        b0.put(new PlaneGeometry(3.2, 1.6).translate(f0.len / 2, STOREY - 0.25, 0.06), letters); // the big teal 「B」 (照片)
+        b0.done();
+        for (const [p, q] of free) {
+          const f = mk(p, q), L = f.len, b = build(f);
+          b.put(span(-0.15, L + 0.15, STOREY - 0.95, STOREY + 0.4, -0.45, 0.02), concrete, 2); // deep fascia (照片)
+          b.done();
+        }
+        for (const [p, q] of cor.steps) {
+          // Two steps down from the platform along its free edges (the ramp's end has none).
+          const f = mk(p, q), L = f.len, b = build(f);
+          for (let s2 = 1; s2 <= 2; s2++) {
+            const top = T - s2 * 0.15, z0 = (s2 - 1) * 0.38, z1 = s2 * 0.38;
+            b.put(span(-0.3, L + 0.3, -0.3, top, z0, z1), steps, 2);
+            b.solid(-0.3, L + 0.3, 0, top, z0, z1);
+          }
+          b.done();
+        }
+        {
+          // Accessible ramp (平面圖藍框): along the wall from beside the door (platform height) down to the ground at the wall's outer
+          // end; the blue handrail on its outer edge (two rails on posts), a kerb under it.
+          const { wallHigh: WH, wallLow: WL, outerLow: OL } = cor.ramp;
+          const Lr = Math.hypot(WH[0] - WL[0], WH[1] - WL[1]), W = Math.hypot(OL[0] - WL[0], OL[1] - WL[1]);
+          const nx = (OL[0] - WL[0]) / W, nz = (OL[1] - WL[1]) / W, yaw = Math.atan2(nx, nz), rx = Math.cos(yaw), rz = -Math.sin(yaw);
+          const dir = (WH[0] - WL[0]) * rx + (WH[1] - WL[1]) * rz > 0 ? 1 : -1;
+          const f: Frame = { len: Lr, ox: WL[0], oz: WL[1], rx, rz, nx, nz, yaw, world: (x, z) => [WL[0] + rx * x + nx * z, WL[1] + rz * x + nz * z] };
+          const b = build(f), X = (x: number): number => dir * x; // x: 0 at the low end, Lr at the high end
+          const prof = new Shape([new Vector2(X(0), 0), new Vector2(X(Lr), 0), new Vector2(X(Lr), T)]);
+          b.put(new ExtrudeGeometry(prof, { depth: W, bevelEnabled: false }), steps, 2);
+          {
+            const v: number[] = [];
+            for (const z of [0, W]) for (const [x, y] of [[0, 0], [Lr, 0], [Lr, T]] as const) { const [wx, wz] = f.world(X(x), z); v.push(wx, y, wz); }
+            const d = RAPIER.ColliderDesc.convexHull(new Float32Array(v));
+            if (d) colliders.push(physics.createCollider(d));
+          }
+          const zr = W - 0.06, len = Math.hypot(Lr, T), ang = Math.atan2(T, Lr);
+          for (const h of [0.45, 0.9]) b.put(new BoxGeometry(len, 0.05, 0.05).rotateZ(dir * ang).translate(X(Lr / 2), T / 2 + h, zr), railBlueB);
+          b.put(new BoxGeometry(len, 0.12, 0.12).rotateZ(dir * ang).translate(X(Lr / 2), T / 2 + 0.06, W - 0.06), concrete, 2);
+          for (const x of [0.15, Lr / 2, Lr - 0.15]) { const y = (T * x) / Lr; b.put(span(X(x) - 0.025, X(x) + 0.025, y, y + 0.92, zr - 0.025, zr + 0.025), railBlueB); }
+          b.done();
+        }
       }
     }
     return {

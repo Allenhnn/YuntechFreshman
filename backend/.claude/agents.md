@@ -164,6 +164,32 @@ docker compose down             # 停止（加 -v 會連資料一起刪除）
 | `.env.example` 沒被 commit | 根目錄 `.gitignore` 有 `.env*`；需要時用 `git add -f backend/.env.example` |
 
 ## 變更紀錄
+### 2026-11-25（前端：學生宿舍B1 雨遮在花圃正上方開口）— 分支 `feat/dorm-c-yard-walls`
+- 需求：花圃的正上方是空的
+- `frontend/src/buildings/dormCFacade.ts` site B：雨遮板改成繞過花台——外框沿花台不貼牆的那幾個邊走，花圃露天；開口一圈混凝土邊梁
+### 2026-11-25（前端：學生宿舍B1 花圃、門、無障礙坡道照平面圖比例重建）— 分支 `feat/dorm-c-yard-walls`
+- 需求：重新看平面圖建花圃；紅色標記是門、藍框是無障礙坡道，照平面圖比例；使用者答：門只做外觀（不會開）、花台牆矮的約 0.4 m、坡道門邊高往外端降到地面
+- `frontend/src/campus/customFacades.ts` `DORM_B_SPECS.corner`：照平面圖（1 px ≈ 4.4 cm）量出 `doors`（兩樘門中心）、`platform`（雨遮下平台繞開坡道切兩塊凸多邊形）、`steps`（三段外緣，第三段到坡道外緣為止）、`ramp`（wallHigh／wallLow／outerLow：沿東邊那面牆、門旁邊到牆外端、寬約 1.2 m、長約 3.7 m）；雨遮外形照平面圖（左側直段到坡道外緣）
+- `frontend/src/buildings/dormCFacade.ts` site B：雨遮下牆面改成照門的位置排——門那格 2.5 m 藍白鐵柵雙開門（只做外觀）＋墩上白色公告板，其他段平均分成鐵網格柵格；花台緣石 0.4 m、灌木鋪滿約 1 m 高；台階只沿 `steps`；無障礙坡道照 `ramp` 做斜坡（凸包碰撞體）、外緣緣石＋藍色扶手；拿掉原本沿東面牆往北的坡道
+### 2026-11-25（前端：學生宿舍B1 花圃照照片重做）— 分支 `feat/dorm-c-yard-walls`
+- 需求：對照前面的照片重新建模花圃
+- `frontend/src/buildings/dormCFacade.ts` site B：花台緣石降到 0.25 m；深綠灌木改成鋪滿整個六角花台（0.42 m 格點、點在多邊形內才放），貼著後面的斜牆，一大團約 1.3 m 高、頂面參差不齊、稍微蓋過緣石，三種深綠
+### 2026-11-25（前端：學生宿舍B1 內轉角改成斜切）— 分支 `feat/dorm-c-yard-walls`
+- 需求：平面圖紅框右下角（入口內轉角）是斜的
+- `frontend/src/campus/customFacades.ts`：B1 外環 14 點（內轉角換成一道約 2.9 m 的斜牆，六角花台貼著它）；`corner.at` 改成斜牆兩端、`canopy` 貼牆那側跟著斜（前三個邊是外緣）
+- `frontend/src/buildings/dormCFacade.ts` site B：斜牆一樓退縮暗牆＋鐵網格柵、兩側墩、上面一道梁，樓上每層一扇窗；`atCorner`／雨遮外緣／坡道方向改用斜牆中點
+### 2026-11-25（前端：學生宿舍B1 門、花圃、無障礙坡道照近照修）— 分支 `feat/dorm-c-yard-walls`
+- 需求：門、花圃、無障礙坡道的地方怪怪的（兩張近照）
+- `frontend/src/buildings/dormCFacade.ts` site B：鐵柵門改成真的雙開門——兩扇各自外框＋直欄＋上下橫檔、中間白色門閂盒，退進門洞、後面暗的門廳（碰撞體擋住）；花圃改成一團低矮濃密不規則的深綠灌木（低多邊形小團，不是圓球）；無障礙坡道改成從雨遮東端沿東面牆往北下降（先一段跟平台同高的平台、再斜坡），外緣緣石＋藍色扶手（兩道扶手、立柱，平台段水平、坡道段斜），那一端的簷口外不做台階；原本從台階往外伸的扶手拿掉
+- `frontend/src/campus/customFacades.ts`：`DORM_B_SPECS.corner.ramp`（沿哪面牆、長、寬）
+- 使用者再調整：門跟左邊一格牆交換（從外面看）——雨遮下兩面牆的鐵柵門各往左移一格
+### 2026-11-25（前端：學生宿舍B1 入口細節照街景照修）— 分支 `feat/dorm-c-yard-walls`
+- 需求：B1 入口再修細節（兩張近照）
+- `frontend/src/buildings/dormCFacade.ts` site B：B1 一樓的窗全換成橘咖啡色鐵網格柵（`screen`，混凝土框）；雨遮下兩面牆改成每 ~2.5 m 一根方形混凝土墩、墩間退縮的暗牆，每面一格藍白鐵柵雙開門（旁邊墩上白色公告板）、其他格鐵網格柵，墩上一道梁；雨遮簷口加厚到約 1.35 m、「B」放大；花台改成矮緣石＋一叢深綠灌木；藍色扶手改成從平台沿台階右端往下斜的扶手；`dormCFacadeTreeFree` 加 B1 入口（雨遮外 4 m 不長樹）
+### 2026-11-25（前端：學生宿舍B1 照街景照與一樓平面圖紅框重新建模入口轉角）— 分支 `feat/dorm-c-yard-walls`
+- 需求：B1 外側照街景照修正對應平面圖；再補一樓平面圖紅框（街景照拍的就是這塊），照平面圖數字比例重新建模
+- `frontend/src/campus/customFacades.ts`：B1 外環照一樓平面圖（2720 × 2720，340／680／510 分格）重描成 13 點——兩翼之間 12.4 × 11.9 m 的內凹轉角（平面圖左上，實際東南）、對角的斜切牆、左下樓梯間；同一個平面圖→校園轉換，B2、B3 不動；`DORM_B_SPECS.corner`：`at` 轉角、`canopy` 雨遮（平面圖雙線：直段＋斜的正面＋直段，空出外角三角）、`planter` 轉角裡的六角形花台；B1 不做紅花磚陽台、招牌「B」
+- `frontend/src/buildings/dormCFacade.ts` site B：`corner` 入口——雨遮板、雨遮下平台（凸包碰撞體）、六角花台＋綠叢、雨遮外緣三段簷口、斜的正面大「B」、外緣兩階台階、右端藍色扶手；轉角兩面牆一樓整段暗的入口＋藍色鐵柵門＋咖啡色格柵
 ### 2026-11-25（前端：學生宿舍B 照一樓平面圖調整三棟外形與分布、外觀用 D 區那一套）— 分支 `feat/dorm-c-yard-walls`
 - 需求：照 B 區平面圖調整整體宿舍，再把 D 區的宿舍模型（風格）套過去；使用者選「外形照平面圖＋D 的風格」；再補一樓平面圖：各棟相對位置就是實際分布；B 區圍牆、大門先不要做
 - `frontend/src/campus/customFacades.ts`：`DORM_B`、`DORM_B_RINGS`（一樓平面圖描三棟外框，北朝下、1 px ≈ 8.5 cm，三棟一起用同一個旋轉 −10.7°＋平移，擬合三棟中心跟 OSM 差 0.5 m 內；B1 八角形＋斜角入口、B2、B3）、`DORM_B_SPECS`（招牌、朝中庭入口的牆）、B 的 `CUSTOM_FACADE_EDGES`

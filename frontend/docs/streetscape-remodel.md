@@ -121,3 +121,10 @@
 | 學生宿舍C C2 背面（使用者照片） | 洗石子（色調跟 C2 正面一樣）、壁柱分格、陽台矮牆掛冷氣、一樓紅花磚帶＋咖啡框窗；東端凸出的洗石子樓梯間；C1–C2 側門牆接樓梯間東角、門樓往 C1 移 | `dormCFacade.ts` `C2.back`、`dormYard.ts` `shift` |
 | 學生宿舍D ＝ C 區鏡射（使用者） | D 三棟外環換成 C 三棟鏡射過來的，外觀、門樓、圍牆、前門廣場同一套；招牌 D1–D3；D 入口雨遮保留（周圍牆面改成同一套洗石子）；不做室內、門進不去 | `customFacades.ts` `dormCToD`、`campusFixes.ts` `copyDormCToD`、`dormCFacade.ts` `site`、`dormYard.ts` |
 | 學生宿舍B（使用者一樓平面圖＋D 區風格） | 三棟照一樓平面圖描外框、一起定位（相對位置照平面圖）；D 區風格外觀（壁柱分格窗帶＋冷氣、樓梯間窄窗、紅花磚陽台入口＋招牌＋台階）、不做室內；圍牆大門先拿掉 | `customFacades.ts` `DORM_B`、`campusFixes.ts` `reshapeDormB`、`dormCFacade.ts` site B、`dormYard.ts` |
+| 學生宿舍B1 入口（使用者街景照＋一樓平面圖紅框） | 照平面圖比例重描 L 形；內凹轉角雨遮（雙線外形、斜正面大「B」）、六角花台、平台台階、藍色鐵柵門與咖啡色格柵、藍色扶手 | `customFacades.ts` `DORM_B_SPECS.corner`、`dormCFacade.ts` site B |
+| 學生宿舍B1 入口細節（使用者近照） | 一樓窗改鐵網格柵；雨遮下方墩分格、藍白鐵柵門＋公告板、格柵；厚簷口大「B」；矮花台深綠灌木；斜扶手；入口前不長樹 | `dormCFacade.ts` site B |
+| 學生宿舍B1 門／花圃／坡道（使用者近照） | 雙開鐵柵門（外框、直欄、門閂盒）；低矮濃密深綠灌木；沿東面牆下降的無障礙坡道＋藍色扶手 | `dormCFacade.ts` site B、`customFacades.ts` `corner.ramp` |
+| 學生宿舍B1 內轉角（使用者平面圖紅框右下角） | 入口內轉角改成斜牆（花台貼著）、雨遮跟著斜 | `customFacades.ts`、`dormCFacade.ts` site B |
+| 學生宿舍B1 花圃（使用者照片） | 深綠灌木鋪滿六角花台、約 1.3 m、頂面參差、貼著斜牆 | `dormCFacade.ts` site B |
+| 學生宿舍B1 花圃／門／坡道（使用者平面圖標記） | 門照紅色標記（只做外觀）、坡道照藍框（門邊高往牆外端降）、花台 0.4 m 緣石＋灌木、平台繞開坡道、台階沿外緣 | `customFacades.ts` `corner`、`dormCFacade.ts` site B |
+| 學生宿舍B1 花圃上方（使用者） | 雨遮在花圃正上方開口、邊梁一圈，花圃露天 | `dormCFacade.ts` site B |
