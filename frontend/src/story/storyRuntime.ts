@@ -98,6 +98,8 @@ export type SceneResult =
   | { kind: 'summary' }
   | { kind: 'stayAwake'; ok: boolean }
   | { kind: 'vn'; id: string }
+  /** 撐住別睡著 abandoned to sneak out of class (翹課). */
+  | { kind: 'sneakOut' }
   | { kind: 'wardrobe' };
 
 export interface StoryRuntime {
@@ -754,6 +756,11 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
           d.sound('close');
           window.setTimeout(() => { if (currentStep()?.cond.t === 'scene' && !st().scene) playScene('stayAwake'); }, 1400);
         }
+        return;
+      case 'sneakOut':
+        // Off the chair, crouched: the sneak starts next frame (seated last frame, not now).
+        wasInClass = true;
+        d.standUp();
         return;
       case 'vn':
         if (r.id === 'wakeVn' && step?.cond.t === 'getUp') { d.standUp(); advance(true); }

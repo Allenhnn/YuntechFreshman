@@ -774,6 +774,7 @@ function StayAwake(): ReactNode {
             按住提神（或按住 Space）
           </button>
           <small className="awake-hint">把指針維持在綠色安全區：按住往右、放開往左；離開安全區太久或掉到最左邊就會睡著</small>
+          <button className="btn link awake-skip" onClick={() => storyEvents.finishScene({ kind: 'sneakOut' })}>🤫 撐不住了…偷偷溜出教室（翹課，可能被郭教授發現）</button>
         </>
       ) : done ? (
         <>
@@ -784,6 +785,7 @@ function StayAwake(): ReactNode {
         <>
           <p className="story-text">Zzz…「這位同學！上課睡覺？」（被教授抓包）</p>
           <button className="btn primary" onClick={() => storyEvents.finishScene({ kind: 'stayAwake', ok: false })}>重新挑戰這堂課</button>
+          <button className="btn link awake-skip" onClick={() => storyEvents.finishScene({ kind: 'sneakOut' })}>🤫 不上了，偷偷溜出教室（翹課）</button>
         </>
       )}
     </div>
