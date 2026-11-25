@@ -394,15 +394,16 @@ function addWalls(
     const here = height > DOOR_HEIGHT + 0.2 ? doors.filter((d) => d.edge === i).sort((a, b) => a.along - b.along) : [];
     let from = 0;
     for (const d of here) {
-      const d0 = Math.max(from, d.along - DOOR_WIDTH / 2), d1 = Math.min(len, d.along + DOOR_WIDTH / 2);
+      const w = d.width ?? DOOR_WIDTH, dh = Math.min(height - 0.2, d.height ?? DOOR_HEIGHT);
+      const d0 = Math.max(from, d.along - w / 2), d1 = Math.min(len, d.along + w / 2);
       if (d1 - d0 < 0.5) continue;
       piece(from, d0, WALL_BASE, height);
-      piece(d0, d1, DOOR_HEIGHT, height); // lintel over the entrance
+      piece(d0, d1, dh, height); // lintel over the entrance
       piece(from, d0, 0, height, inner);
-      piece(d0, d1, DOOR_HEIGHT, height, inner);
-      reveal(d0, 0, d0, DOOR_HEIGHT);
-      reveal(d1, 0, d1, DOOR_HEIGHT);
-      reveal(d0, DOOR_HEIGHT, d1, DOOR_HEIGHT);
+      piece(d0, d1, dh, height, inner);
+      reveal(d0, 0, d0, dh);
+      reveal(d1, 0, d1, dh);
+      reveal(d0, dh, d1, dh);
       from = d1;
     }
     piece(from, len, WALL_BASE, height);
