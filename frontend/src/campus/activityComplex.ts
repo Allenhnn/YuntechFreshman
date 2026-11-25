@@ -209,20 +209,36 @@ export function buildActivityComplex(b: CampusBuilding, solid: GeoBuilder, glass
       }
       section(solid,at,x,x+.06,-20-steps*tread,-20,platformY+1.03,4.52,.06,metal);
     }
-    // Level threshold from the plaza platform to the descending basement flight.
-    box(0,2,-23.2,-21,0,1.125);
-    for(const z of [-23.2,-21]) {
-      box(0,.08,z,z+.055,1.125,.92,metal);
-      box(0,1.75,z,z+.055,2.045,.06,metal);
+    // Plaza-left entrance beside the planter. The straight flight meets the
+    // bookshop door's platform beneath the projecting concrete balcony.
+    const leftFoot=-30.9, leftTop=-27.89, leftSteps=7;
+    const leftTread=(leftTop-leftFoot)/leftSteps;
+    for(let i=0;i<leftSteps;i++) {
+      const z=leftFoot+i*leftTread;
+      box(-1.2,1.55,z,z+leftTread,0,platformY*(i+1)/leftSteps,concrete);
+    }
+    box(-1.2,1.8,leftTop,-25,0,platformY);
+    box(-1.43,-1.2,leftFoot,-24.9,0,7.5);
+    section(solid,at,-1.12,-1.06,leftFoot,leftTop,1,platformY+.94,.06,metal);
+    for(let i=0;i<leftSteps;i+=3) {
+      const z=leftFoot+(i+.5)*leftTread;
+      box(-1.12,-1.06,z,z+.06,platformY*(i+1)/leftSteps,.9,metal);
+    }
+    // The slab and parapet turn back toward the planting bed.
+    for(let i=0;i<10;i++) {
+      const x=-1.43+i*.36, next=x+.36;
+      const lip=(u:number)=>-30.9+.9*Math.pow(Math.max(0,(u-.75)/1.42),2);
+      strip(x,next,lip(x),lip(next),6.2,3.65,.32,concrete);
+      strip(x,next,lip(x),lip(next),.16,3.97,.71,concrete);
+      strip(x,next,lip(x),lip(next),.06,4.82,.06,steel);
+      if(i%3===0) box(x,x+.06,lip(x),lip(x)+.06,4.68,.16,steel);
     }
     // Central stair, level side bypasses and the paired stepped planting beds.
     for (let i=0;i<7;i++) box(12.5,23.5,-30.9+i*.43,-30.47+i*.43,.075,(i+1)*.15,edge);
     // Both exterior stairs terminate on one continuous first-floor platform.
     box(1.8,32.5,-27.89,.55,0,platformY,concrete);
     box(32.5,36,-20,-3,0,1.125,concrete);
-    box(0,1.8,-14.9,-3,0,1.125,concrete);
-    section(solid,at,.15,1.8,-27.89,-14.9,0,1.05,.075,edge);
-    box(.15,1.8,-14.9,.55,0,1.125,concrete);
+    box(0,1.8,leftTop,.55,0,platformY);
     for(const x of [1.6,24.1]) {
       box(x,x+10.1,-29.4,-26.1,.08,.65);
       box(x+.15,x+9.95,-28.85,-26.3,.73,.52);

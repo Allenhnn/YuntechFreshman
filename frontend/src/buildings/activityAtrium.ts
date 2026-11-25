@@ -94,13 +94,6 @@ export function addActivityAtrium(scene: Scene, tracker: ResourceTracker) {
     block(x,1.19,16.15,.07,.57,.07,0x858780);
     block(x,1.76,16.15,.43,.09,.38,0x9c6355);
   }
-  // Basement stair: the rails follow the same rise and run as the B1 treads.
-  for(const z of [21.05,23.15]) {
-    member([-11,-1.48,z],[0,2.12,z],.07,.07,0x808782);
-    for(let i=0;i<=5;i++){
-      const f=i/5;block(-11+11*f,-2.475+3.6*f,z,.06,1,.06,0x808782);
-    }
-  }
   const batch=new InstancedMesh(new BoxGeometry(),new MeshStandardMaterial({roughness:.9}),members.length);
   const temp=new Object3D(), direction=new Vector3(),axis=new Vector3(0,1,0);
   members.forEach(({p,q,w,h,color},i)=>{
