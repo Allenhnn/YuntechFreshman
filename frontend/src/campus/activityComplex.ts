@@ -59,7 +59,7 @@ export function buildActivityComplex(b: CampusBuilding, solid: GeoBuilder, glass
     // Photos 14–16 and 23–26: two open ends, galleries down the sides,
     // overhead bridges and a glazed ridge visible from inside the court.
     for (const x of [1, 32]) {
-      for (const z of (x === 1 ? [-24.1,-4] : [-22,-13,-4])) box(x,x+.65,z,z+.65,0,10.8);
+      for (const z of (x === 1 ? [-4] : [-22,-13,-4])) box(x,x+.65,z,z+.65,0,10.8);
       for (const y of [3.6,7.2]) {
         box(x-1,x+2.6,-24,0,y-.32,.32);
         const inner = x < 10 ? x+2.4 : x-1;
@@ -81,7 +81,7 @@ export function buildActivityComplex(b: CampusBuilding, solid: GeoBuilder, glass
     }
     for (const z of [-26.2,-23.8]) box(.1,35.5,z,z+.22,9.15,.41,sand);
     for (const x of [2,11.6,23.7,33]) {
-      box(x,x+.65,-25.1,-24.35,0,9.54,shadow);
+      if (x !== 2) box(x,x+.65,-25.1,-24.35,0,9.54,shadow);
       box(x-.42,x+1.07,-26.2,-23.5,8.64,.38,sand);
     }
     // The triangular glass gable presents its end to the entrance.
@@ -199,16 +199,13 @@ export function buildActivityComplex(b: CampusBuilding, solid: GeoBuilder, glass
       const t=(i+.5)*tread, y=(i+1)*platformY/count;
       section(solid,stairAt,.79,.85,t,t+.055,y,y,.86,metal);
     }
-    // Paired stairs at the ends of the upper gallery, separate from the
-    // straight ground-level approach. Their last tread meets the 2F bridge.
-    for(const x of [4.5,29]) {
-      const steps=16, rise=(3.6-platformY)/steps, tread=.31;
-      for(let i=0;i<steps;i++) {
-        const z=-20-(steps-i)*tread;
-        box(x,x+1.65,z,z+tread,platformY,(i+1)*rise,edge);
-      }
-      section(solid,at,x,x+.06,-20-steps*tread,-20,platformY+1.03,4.52,.06,metal);
+    // The opposite end of the gallery retains its original flight.
+    const eastSteps=16, eastTread=.31;
+    for(let i=0;i<eastSteps;i++) {
+      const z=-20-(eastSteps-i)*eastTread;
+      box(29,30.65,z,z+eastTread,platformY,(i+1)*(3.6-platformY)/eastSteps,edge);
     }
+    section(solid,at,29,29.06,-20-eastSteps*eastTread,-20,platformY+1.03,4.52,.06,metal);
     // Plaza-left entrance beside the planter. The straight flight meets the
     // bookshop door's platform beneath the projecting concrete balcony.
     const leftFoot=-30.9, leftTop=-27.89, leftSteps=7;
@@ -230,16 +227,31 @@ export function buildActivityComplex(b: CampusBuilding, solid: GeoBuilder, glass
     }
     // Shallow storage bay beside the stairs, beneath the sloping soffit.
     box(1.12,1.25,leftFoot,leftTop,0,platformY,tile);
-    box(1.25,3.75,-28.15,-27.89,0,3.65,reveal);
+    // Return flight over the blue drums. Enter from the first-floor
+    // platform, climb toward the plaza and turn left onto the balcony.
+    const bottomZ=-26, landingZ=-30.55, balconyY=3.86, returnSteps=17;
+    const returnTread=(bottomZ-landingZ)/returnSteps, rise=(balconyY-platformY)/returnSteps;
     box(3.52,3.75,-31.7,-27.89,0,7.65,tile);
-    section(solid,at,1.25,3.52,-31.7,-28.15,3.54,1.68,.14,tile);
+    for(let i=0;i<returnSteps;i++) {
+      const z=bottomZ-i*returnTread, top=platformY+(i+1)*rise;
+      box(1.25,3.52,z-returnTread,z,top-rise-.14,rise+.14,tile);
+    }
+    section(solid,at,1.25,3.52,landingZ,bottomZ,balconyY-rise-.17,platformY-.17,.07,tile);
+    for(const x of [1.27,3.44]) {
+      section(solid,at,x,x+.055,landingZ,bottomZ,balconyY+.9,platformY+.9,.055,metal);
+      for(let i=1;i<returnSteps;i+=4) {
+        const z=bottomZ-(i+.5)*returnTread, top=platformY+(i+1)*rise;
+        box(x,x+.055,z,z+.055,top,.9,metal);
+      }
+    }
     // Both curved fascias share the same radius. Between them the
     // balcony is open, with its rear doorway set back from the rail.
     const lip=(x:number)=>-32+1.15*(1-Math.sqrt(1-Math.min(1,Math.max(0,(x-2.25)/1.5))**2));
     for(let i=0;i<16;i++) {
       const x=-1.48+i*5.23/16, next=x+5.23/16;
       const z=lip(x), end=lip(next);
-      strip(x,next,z,end,7.2,3.58,.28,tile);
+      // Extend each curved front panel only to the head of the stairs.
+      strip(x,next,z,end,Math.max(landingZ-z,landingZ-end)+.01,3.58,.28,tile);
       strip(x,next,z,end,.17,3.86,.90,tile);
       for(const y of [4.84,4.99]) strip(x,next,z+.04,end+.04,.055,y,.055,metal);
       if(i%3===0) box(x,x+.055,z+.04,z+.095,4.76,.28,metal);
@@ -252,7 +264,11 @@ export function buildActivityComplex(b: CampusBuilding, solid: GeoBuilder, glass
     box(-1.48,3.75,-28.92,-28.56,11.21,1.05,tile);
     box(-1.48,3.75,-28.56,-24.8,12.1,.16,tile);
     box(-1.48,-1.2,-28.56,-24.8,7.95,4.15,tile);
-    box(-1.2,3.5,-25.22,-25,3.86,3.26,reveal);
+    box(-1.48,1.25,landingZ,-25.8,3.58,.28,tile);
+    // Level out onto the existing 2F gallery (3.60 m) through the return.
+    section(solid,at,0,1.25,-25.8,-24,3.58,3.32,.28,tile);
+    box(-1.2,0,-25.22,-25,balconyY,3.26,reveal);
+    box(1.5,3.5,-25.22,-25,balconyY,3.26,reveal);
     // Rounded wing in front of the existing side facade, with two window ribbons.
     for(let i=0;i<20;i++) {
       const angle=i*Math.PI/40, next=(i+1)*Math.PI/40;
