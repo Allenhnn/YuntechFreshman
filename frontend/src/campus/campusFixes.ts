@@ -1,7 +1,7 @@
 import type { CampusData } from './campusTypes';
 import type { TracedIndex } from '../buildings/buildingTypes';
 import type { Entrance } from './entrances';
-import { DORM_C, DORM_C_PIECES, DORM_C_TO_D_IDS, dormCToD } from './customFacades';
+import { DORM_B_RINGS, DORM_B_SPECS, DORM_C, DORM_C_PIECES, DORM_C_TO_D_IDS, dormCToD } from './customFacades';
 import buildingRings from './buildingRings.json';
 
 /**
@@ -443,6 +443,20 @@ export function copyDormCToD(campus: CampusData): void {
     const at = campus.buildings.findIndex((b) => b.id === id);
     if (at >= 0) campus.buildings[at] = d;
     else campus.buildings.push(d);
+  }
+}
+
+/**
+ * 學生宿舍B（使用者 2026-11-25，B 區一樓平面圖）：三棟的外環換成照平面圖描的（customFacades.ts `DORM_B_RINGS`）；三棟都封起來
+ * （外觀由 dormCFacade.ts site 'B' 做，不做室內）。
+ */
+export function reshapeDormB(campus: CampusData): void {
+  for (const { id } of DORM_B_SPECS) {
+    const b = campus.buildings.find((x) => x.id === id);
+    if (!b) continue;
+    const ring = DORM_B_RINGS[id];
+    if (ring) { b.outer = ring.flatMap(([x, z]) => [x, z]); b.holes = []; }
+    b.sealed = true;
   }
 }
 

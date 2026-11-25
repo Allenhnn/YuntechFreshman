@@ -75,7 +75,7 @@ import { createMbLobby } from './buildings/mbLobby';
 import { MAIN_GATE_GUARDHOUSE, createMainGate, gateTreeExclusions, inGateZone } from './campus/mainGate';
 import { addBoundaryZone } from './campus/boundaryZone';
 import { createBlockWallZone, createBlockWalls } from './campus/blockWall';
-import { applyBuildingFixes, copyDormCToD, divideLongtan, includeLongtanRoad, remapSplitTraced, sealBuildings, splitDormC, streetscapeFixes, widenCampusRoads, widenCentralAxis } from './campus/campusFixes';
+import { applyBuildingFixes, copyDormCToD, reshapeDormB, divideLongtan, includeLongtanRoad, remapSplitTraced, sealBuildings, splitDormC, streetscapeFixes, widenCampusRoads, widenCentralAxis } from './campus/campusFixes';
 import { createLongtanSidewalks } from './campus/longtanRoad';
 import { createStreetscape, staffGateZone } from './campus/streetscape';
 import { SCOOTER_LOTS, createScooterLots } from './campus/scooterLots';
@@ -204,6 +204,7 @@ async function boot(): Promise<void> {
   applyBuildingFixes(campus);
   splitDormC(campus); // 學生宿舍C 北棟：4 層中段＋3 層兩翼
   copyDormCToD(campus); // 學生宿舍D：C 區三棟的外環鏡射過去（外觀由 dormCFacade.ts 同一套做）
+  reshapeDormB(campus); // 學生宿舍B：照平面圖的外環、封起來（外觀由 dormCFacade.ts site 'B' 做）
   widenCampusRoads(campus);
   widenCentralAxis(campus);
   streetscapeFixes(campus);
@@ -305,6 +306,7 @@ async function boot(): Promise<void> {
   const dormFeatures = createDormFeatures(scene, physics, campus, sceneResources, env.materials);
   const dormCFacade = createDormCFacade(scene, physics, campus, sceneResources);
   const dormDFacade = createDormCFacade(scene, physics, campus, sceneResources, 'D'); // 學生宿舍D：C 區外觀鏡射過去
+  const dormBFacade = createDormCFacade(scene, physics, campus, sceneResources, 'B'); // 學生宿舍B：D 區同一套風格
   const dormCourtyard = createDormCourtyard(scene, physics, sceneResources);
   const dormYard = createDormYard(scene, physics, campus, sceneResources);
   const hilife = createHilifeStore(scene, physics, campus, sceneResources);
@@ -1558,6 +1560,7 @@ async function boot(): Promise<void> {
     dormFeatures.dispose();
     dormCFacade.dispose();
     dormDFacade.dispose();
+    dormBFacade.dispose();
     unitDecor?.dispose();
     dormCourtyard.dispose();
     dormYard.dispose();

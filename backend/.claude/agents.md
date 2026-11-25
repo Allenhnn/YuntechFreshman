@@ -164,6 +164,12 @@ docker compose down             # 停止（加 -v 會連資料一起刪除）
 | `.env.example` 沒被 commit | 根目錄 `.gitignore` 有 `.env*`；需要時用 `git add -f backend/.env.example` |
 
 ## 變更紀錄
+### 2026-11-25（前端：學生宿舍B 照一樓平面圖調整三棟外形與分布、外觀用 D 區那一套）— 分支 `feat/dorm-c-yard-walls`
+- 需求：照 B 區平面圖調整整體宿舍，再把 D 區的宿舍模型（風格）套過去；使用者選「外形照平面圖＋D 的風格」；再補一樓平面圖：各棟相對位置就是實際分布；B 區圍牆、大門先不要做
+- `frontend/src/campus/customFacades.ts`：`DORM_B`、`DORM_B_RINGS`（一樓平面圖描三棟外框，北朝下、1 px ≈ 8.5 cm，三棟一起用同一個旋轉 −10.7°＋平移，擬合三棟中心跟 OSM 差 0.5 m 內；B1 八角形＋斜角入口、B2、B3）、`DORM_B_SPECS`（招牌、朝中庭入口的牆）、B 的 `CUSTOM_FACADE_EDGES`
+- `frontend/src/campus/campusFixes.ts` `reshapeDormB`（main.ts 在 copyDormCToD 之後）：換外環、三棟 sealed（不做室內）
+- `frontend/src/buildings/dormCFacade.ts` `createDormCFacade(..., 'B')`：每面洗石子＋牆基＋簷口；長牆每 3.4 m 一根壁柱、樓上每層兩排棕框窗帶＋冷氣、一樓深色窗；短牆（樓梯間）一列深框窄窗；朝中庭的入口：紅花磚陽台、玻璃門廳、B1／B2／B3 招牌、台階
+- `frontend/src/campus/dormYard.ts`：B 區前門、後門、B1–B2 之間的牆都拿掉（使用者：圍牆大門之後再說）
 ### 2026-11-24（前端：整個 C 區的配置複製到 D 區）— 分支 `feat/dorm-c-yard-walls`
 - 需求：C 區配置複製到 D 區；D 入口雨遮那塊不要動；不複製室內，只要外觀，門進不去
 - `frontend/src/campus/customFacades.ts`：`DORM_D`（D 三棟＋南棟兩翼新 id）、`dormCToD`／`DORM_C_TO_D_MATRIX`（C → D 鏡射：旋轉取三棟一起擬合，平移讓 C1 宿服中心斜牆中點落在 D 入口斜牆中點）、`dormDEdge`；D 的 `CUSTOM_FACADE_EDGES`、`STYLE_ALIAS`、南棟中段陽台／門廳開口（`FacadeOpening.fromEnd`，`chunkBuilder.ts` 支援）

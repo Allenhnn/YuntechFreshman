@@ -55,6 +55,29 @@ export const DORM_C_TO_D_IDS: readonly (readonly [number, number])[] = [
 export const dormDEdge = (i: number, n: number): number => (((n - 2 - i) % n) + n) % n;
 
 /**
+ * 學生宿舍B（使用者 2026-11-25：照 B 區平面圖調整整體宿舍，外觀用 D 區那一套風格）。用一樓平面圖（三棟畫在同一張、相對位置就是
+ * 實際分布；北朝下畫，1 px ≈ 8.5 cm，標註 B1 2720 × 2720、B2 5100 × 2210、B3 5440 × 1700）描三棟外框，三棟一起用同一個
+ * 旋轉＋平移放到校園上（擬合三棟的中心，跟 OSM 差 0.5 m 內）。三棟都 4 層、不做室內（sealed）。外觀由 dormCFacade.ts
+ * `site` 'B' 做：`entrance` 是朝中庭那個入口（紅花磚陽台、玻璃門廳、招牌、台階）所在牆面的大約中點。
+ * 使用者：B 區的圍牆、大門先不要做（dormYard.ts 沒有 B 的門）。
+ */
+export const DORM_B = {
+  b1: 234786934,
+  b2: 234786935,
+  b3: 234786936,
+} as const;
+export const DORM_B_RINGS: Readonly<Record<number, readonly (readonly [number, number])[]>> = {
+  [DORM_B.b1]: [[125.7, 330.57], [107.75, 333.98], [107.03, 330.22], [109.12, 329.82], [107.17, 319.55], [115.25, 308.33], [115.09, 307.49], [128.79, 304.89], [131.17, 317.42], [130.57, 318.4], [131.17, 321.57]],
+  [DORM_B.b2]: [[90.85, 336.14], [56.2, 342.72], [54.49, 333.7], [47.8, 334.97], [45.11, 320.77], [58.22, 318.28], [60.12, 328.3], [83.59, 323.85], [82.64, 318.84], [97.42, 316.04], [99.96, 329.4], [89.93, 331.3]],
+  [DORM_B.b3]: [[107.95, 299.94], [93.42, 302.69], [92.44, 297.52], [67.38, 302.27], [68.37, 307.45], [53.5, 310.27], [51.01, 297.15], [60.78, 295.3], [59.8, 290.12], [94.96, 283.45], [95.94, 288.63], [105.46, 286.83]],
+};
+export const DORM_B_SPECS: readonly { id: number; sign: string; entrance: readonly [number, number]; edges: number }[] = [
+  { id: DORM_B.b1, sign: 'B1', entrance: [111.21, 313.94], edges: 11 },
+  { id: DORM_B.b2, sign: 'B2', entrance: [71.9, 326.07], edges: 12 },
+  { id: DORM_B.b3, sign: 'B3', entrance: [79.91, 299.89], edges: 12 },
+];
+
+/**
  * Each piece's ring (CCW): numbers are the OSM ring's vertices, names are points splitDormC makes —
  * p14 / p15: the west return slid a room further west; 4s … 11s: the east wing's vertices moved `eastShift`
  * east; Q: on the north face (3 → 4) straight up the east wing's inner face from 11s; B: on the north face (1 → 2)
@@ -103,6 +126,8 @@ export const CUSTOM_FACADE_EDGES: Readonly<Record<number, readonly number[]>> = 
   [DORM_D.middle]: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
   [DORM_D.eastWing]: [0, 1, 2, 3, 4, 5, 6, 7, 8],
   [DORM_D.westWing]: [0, 1, 2, 3, 4, 5, 6],
+  // 學生宿舍B（dormCFacade.ts site 'B'）：每面都是。
+  ...Object.fromEntries(DORM_B_SPECS.map((b) => [b.id, Array.from({ length: b.edges }, (_, i) => i)])),
 };
 
 /**

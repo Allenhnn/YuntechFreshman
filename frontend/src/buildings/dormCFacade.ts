@@ -25,7 +25,7 @@ import { RAPIER } from '../physics/physics';
 import type { ResourceTracker } from '../core/resources';
 import { mulberry32 } from '../core/math';
 import type { CampusData, Ring } from '../campus/campusTypes';
-import { DORM_C, DORM_C_BALCONY as BAL, DORM_C_BALCONY_SPAN, DORM_C_HALL_2F as HALL, DORM_C_LOBBY as LOBBY, DORM_C_TO_D_MATRIX, dormCToD } from '../campus/customFacades';
+import { DORM_C, DORM_C_BALCONY as BAL, DORM_C_BALCONY_SPAN, DORM_C_HALL_2F as HALL, DORM_C_LOBBY as LOBBY, DORM_B_SPECS, DORM_C_TO_D_MATRIX, dormCToD } from '../campus/customFacades';
 
 /**
  * 學生宿舍C 北棟（OSM 296668596，U 形），依使用者實拍＋遊戲截圖與小地圖（2026-11-22）。載入時切成三塊
@@ -309,10 +309,10 @@ export interface DormCFacade { dispose(): void }
  * D's entrance canopy stands (dormFeatures.ts): they get the same skin and upper floors (使用者：色調一樣的風格), the canopy
  * and its doors stay in front of them.
  */
-export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: CampusData, tracker: ResourceTracker, site: 'C' | 'D' = 'C'): DormCFacade {
+export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: CampusData, tracker: ResourceTracker, site: 'C' | 'D' | 'B' = 'C'): DormCFacade {
   const D = site === 'D';
   const root = new Group();
-  root.name = D ? '學生宿舍D facade (C 區鏡射)' : '學生宿舍C south facade';
+  root.name = D ? '學生宿舍D facade (C 區鏡射)' : site === 'B' ? '學生宿舍B facade' : '學生宿舍C south facade';
   if (D) {
     root.matrixAutoUpdate = false;
     root.matrix.fromArray(DORM_C_TO_D_MATRIX as number[]);
@@ -565,6 +565,108 @@ export function createDormCFacade(scene: Scene, physics: RAPIER.World, campus: C
     }
     b.put(span(mid - 0.6, mid + 0.6, top - 0.03, top, zb + 0.6, zb + 0.9), tube);
   };
+
+  // --- 學生宿舍B（使用者 2026-11-25：B 區平面圖的外形，外觀用 D 區那一套風格） ------------------------------------------
+  if (site === 'B') {
+    const bGlass = mat(0x7d898d, { metalness: 0.35, roughness: 0.18 });
+    /** Two strip-window bands in brown frames (the C2 / D2 side faces). */
+    const strip = (b: ReturnType<typeof build>, x0: number, x1: number, y0: number, y1: number): void => {
+      b.put(span(x0, x1, y0, y1, 0.05, 0.08), bGlass);
+      const n = Math.max(1, Math.round((x1 - x0) / 0.75));
+      for (let k = 0; k <= n; k++) { const x = x0 + ((x1 - x0) * k) / n; b.put(span(Math.max(x0, x - 0.03), Math.min(x1, x + 0.03), y0, y1, 0.05, 0.12), brownFrame); }
+      for (const y of [y0, y1 - 0.05]) b.put(span(x0, x1, y, y + 0.05, 0.05, 0.12), brownFrame);
+    };
+    const T = 0.45, PL = 0.9;
+    for (const spec of DORM_B_SPECS) {
+      const bd = campus.buildings.find((x) => x.id === spec.id);
+      if (!bd) continue;
+      const H = bd.height, floors = Array.from({ length: Math.max(0, bd.levels - 1) }, (_, k) => (k + 1) * STOREY);
+      const letters = tracker.material(new MeshStandardMaterial({ map: canvasTexture(tracker, 256, 128, letterSign(spec.sign)), transparent: true, roughness: 0.5 }));
+      const r = bd.outer, n = r.length / 2;
+      // The courtyard entrance: the wall whose middle is nearest the spec's point.
+      let entrance = -1, best = Infinity;
+      for (let i = 0; i < n; i++) {
+        const j = (i + 1) % n, d = Math.hypot((r[i * 2]! + r[j * 2]!) / 2 - spec.entrance[0], (r[i * 2 + 1]! + r[j * 2 + 1]!) / 2 - spec.entrance[1]);
+        if (d < best) { best = d; entrance = i; }
+      }
+      for (let i = 0; i < n; i++) {
+        const j = (i + 1) % n;
+        const f = edgeFrame(campus, { id: spec.id, i, a: [r[i * 2]!, r[i * 2 + 1]!], b: [r[j * 2]!, r[j * 2 + 1]!] });
+        if (!f || f.len < 0.3) continue;
+        const L = f.len, b = build(f);
+        skin(b, f, H, []);
+        b.put(span(-0.05, L + 0.05, H - 0.2, H + PARAPET, 0.02, 0.14), concrete, 2);
+        b.put(span(-0.02, L + 0.02, -0.3, PL, 0.02, 0.18), plinthGrey, 2);
+        b.solid(0, L, 0, PL, 0.02, 0.18);
+        /** Room bays between x0 and x1: pilasters every ~3.4 m (平面圖：一間 340 cm), two strip bands per upper floor with ACs, dark windows downstairs. */
+        const bays = (x0: number, x1: number): void => {
+          const P = 0.45, k = Math.max(1, Math.round((x1 - x0 - P) / 3.4)), st = (x1 - x0 - P) / k;
+          for (let q = 0; q <= k; q++) b.put(span(x0 + q * st, x0 + q * st + P, PL, H - 0.2, 0.02, 0.3), concrete, 2);
+          for (let q = 0; q < k; q++) {
+            const a = x0 + q * st + P + 0.12, c = x0 + (q + 1) * st - 0.12;
+            windowAt(b, a, c, PL + 0.25, STOREY - 0.5);
+            b.put(span(a - 0.1, c + 0.1, STOREY - 0.5, STOREY - 0.25, 0.02, 0.3), concrete, 2);
+            for (const fy of floors) {
+              b.put(span(a - 0.1, c + 0.1, fy + 0.85, fy + 0.97, 0.02, 0.3), concrete, 2);
+              strip(b, a, c, fy + 0.97, fy + 1.9);
+              strip(b, a, c, fy + 1.98, fy + 2.7);
+              b.put(span(a - 0.1, c + 0.1, fy + 2.7, fy + 2.95, 0.02, 0.35), concrete, 2);
+              if (seeded() < 0.6) acUnit(b, a + 0.5 + seeded() * Math.max(0, c - a - 1.0), fy + 0.97);
+            }
+          }
+        };
+        if (i === entrance) {
+          // Middle: a red-lattice balcony column (D 區同款), a glass lobby with doors, the sign, a terrace with steps.
+          const w = Math.min(L - 1.2, 6.5), c0 = (L - w) / 2, c1 = c0 + w;
+          for (const x of [c0 - 0.5, c1]) { b.put(span(x, x + 0.5, 0, H - 0.2, 0.02, 0.4), concrete, 2); b.solid(x, x + 0.5, 0, 2.6, 0.02, 0.4); }
+          for (const fy of floors) {
+            b.put(span(c0, c1, fy - 0.3, fy + 0.25, 0.02, 0.32), concrete, 2);
+            b.put(span(c0, c1, fy + 0.25, fy + STOREY - 0.3, 0.06, 0.07), voidDark);
+            const l0 = c0 + Math.min(1.15, w * 0.18), l1 = c1 - Math.min(1.15, w * 0.18);
+            latticePanel(b, l0, l1, fy + 0.25, fy + STOREY - 0.3, 0.2);
+            for (const x of [l0, l1]) b.put(span(x - 0.06, x + 0.06, fy + 0.25, fy + STOREY - 0.3, 0.12, 0.3), paint);
+            for (const x of [c0 + 0.45, c1 - 0.45]) pipe(b, x, fy + 0.25, fy + STOREY - 0.3, 0.22);
+            for (const [a, c] of [[c0, l0], [l1, c1]] as const) b.put(span(a, c, fy + 1.0, fy + 1.05, 0.24, 0.28), paint);
+          }
+          b.put(span(c0, c1, T, STOREY - 0.3, 0.06, 0.1), glass);
+          b.put(span(c0, c1, T, T + 0.4, 0.1, 0.12), kick);
+          for (let x = c0; x <= c1 + 1e-6; x += (c1 - c0) / 4) b.put(span(Math.max(c0, x - 0.03), Math.min(c1, x + 0.03), T, STOREY - 0.3, 0.06, 0.14), brownFrame);
+          b.put(span(c0, c1, T + 2.3, T + 2.36, 0.06, 0.14), brownFrame);
+          b.put(span(c0 - 0.5, c1 + 0.5, STOREY - 0.3, STOREY + 0.25, 0.02, 0.3), concrete, 2);
+          b.put(new PlaneGeometry(1.2, 0.6).translate((c0 + c1) / 2, STOREY - 0.02, 0.32), letters);
+          const TD = 2.4;
+          b.put(span(c0 - 0.5, c1 + 0.5, -0.3, T, 0.02, TD), steps, 2);
+          b.solid(c0 - 0.5, c1 + 0.5, 0, T, 0.02, TD);
+          for (let k = 1; k <= 2; k++) {
+            const top = T - k * 0.15, z1 = TD + k * 0.35;
+            b.put(span(c0 - 0.5 + 0.35 * k, c1 + 0.5 - 0.35 * k, -0.3, top, TD, z1), steps, 2);
+            b.solid(c0 - 0.5 + 0.35 * k, c1 + 0.5 - 0.35 * k, 0, top, TD, z1);
+          }
+          if (c0 - 0.5 >= 3.2) bays(0, c0 - 0.5);
+          if (L - c1 - 0.5 >= 3.2) bays(c1 + 0.5, L);
+        } else if (L >= 6.5) {
+          bays(0, L);
+        } else if (L >= 2.5) {
+          // Stair towers and short returns: a column of narrow windows in deep frames (D 區樓梯間).
+          const xc = L / 2;
+          for (const fy of [0, ...floors]) {
+            const y0 = fy + (fy === 0 ? PL + 0.6 : 1.5), y1 = fy + 3.0;
+            windowAt(b, xc - 0.4, xc + 0.4, y0, y1);
+            b.put(span(xc - 0.58, xc + 0.58, y1, y1 + 0.18, 0.02, 0.35), concrete, 2);
+            for (const s of [xc - 0.58, xc + 0.4]) b.put(span(s, s + 0.18, y0 - 0.12, y1, 0.02, 0.35), concrete, 2);
+            b.put(span(xc - 0.58, xc + 0.58, y0 - 0.12, y0, 0.02, 0.25), concrete, 2);
+          }
+        }
+        b.done();
+      }
+    }
+    return {
+      dispose() {
+        for (const c of colliders) physics.removeCollider(c, false);
+        root.removeFromParent();
+      },
+    };
+  }
 
   // --- Centre bay (middle edge 4) -------------------------------------------------------------------
   const centre = edgeFrame(campus, EDGES.centre);
