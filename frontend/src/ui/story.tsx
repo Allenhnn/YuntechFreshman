@@ -9,6 +9,7 @@ import { storyEvents } from '../story/storyRuntime';
 import { dispatch } from '../state/commands';
 import { useApi } from './api';
 import { Icon, Rich } from './icons';
+import { Dance, Drums, Exam, Lunch } from './storyGames';
 
 /** Hints for side quests not started yet. */
 const SIDE_HINTS: Record<string, string> = {
@@ -18,6 +19,9 @@ const SIDE_HINTS: Record<string, string> = {
   photo: '用手機相機（P → 相機）拍一張照片',
   athlete: '先到籃球場玩一次投籃挑戰',
   foodie: '到學生餐廳的攤位買點東西',
+  promo: '人科一館和龍潭路的轉角好像有人在發東西',
+  mystery: '聽說校園裡住著三位神秘人物……',
+  dance: '管理二館一樓的大鏡子前常有人在練舞',
 };
 
 function sideText(id: string, p: StoryProgress): string {
@@ -28,10 +32,10 @@ function sideText(id: string, p: StoryProgress): string {
   return q.text.replace('{n}', String(s.done.length)).replace('{total}', String(q.total)).replace('{target}', s.target ?? next);
 }
 
-const STEP_ICON: Record<string, string> = { talk: '💬', buy: '🛒', eat: '🍱', sport: '🏀', class: '📚', sleep: '🛏️', run: '🏁', quiz: '📝', enter: '📍', scene: '📚', getUp: '⏰', phoneRollcall: '📱', outfit: '👕', tutorial: '🎮' };
+const STEP_ICON: Record<string, string> = { pickup: '💾', talk: '💬', buy: '🛒', eat: '🍱', sport: '🏀', class: '📚', sleep: '🛏️', run: '🏁', quiz: '📝', enter: '📍', scene: '📚', getUp: '⏰', phoneRollcall: '📱', outfit: '👕', tutorial: '🎮' };
 const WHO: Record<string, string> = {
   wakeD1: '書桌', nurse: '健康中心護理師', roommateD2: '室友阿凱', bibD3: '室友阿凱', summary: '室友阿凱', mixer: '聯誼的同學',
-  assembly: '週會座位', clubFair: '社團攤位', study: '圖書館的座位',
+  assembly: '週會座位', clubFair: '社團攤位', study: '圖書館的座位', lunch: '學餐餐桌的室友', returnUsb: '室友阿凱', drums: '熱音社攤位',
 };
 
 /** A plain instruction for the step: where to go and what to press. */
@@ -51,7 +55,8 @@ function howTo(step: Step): string {
     case 'outfit': return `進宿舍到${MY_ROOM.number}（${MY_ROOM.label}），在衣櫃前按 E，至少穿上 3 件再出門`;
     case 'sleep': return `進宿舍到${MY_ROOM.number}（${MY_ROOM.label}），爬上自己的床躺下就會睡著`;
     case 'run': return '跟著箭頭依序穿過拱門；Shift 衝刺會消耗體力';
-    case 'quiz': return `走進${step.place}，按 E 入座考試`;
+    case 'quiz': return `走進${step.place}${step.room ? ` 的 ${step.room}` : ''}，按 E 入座考試；考試中按左/右 Shift 可以偷看隔壁（小心教授）`;
+    case 'pickup': return `走進${step.place}${step.room ? ` 的 ${step.room}` : ''}，走到發亮的東西旁邊就會撿起來`;
     case 'enter': return `走到${step.place}`;
   }
 }
@@ -327,6 +332,10 @@ export function StoryModal(): ReactNode {
         {scene.kind === 'clubFair' && <ClubFair />}
         {scene.kind === 'summary' && <Summary />}
         {scene.kind === 'stayAwake' && <StayAwake />}
+        {scene.kind === 'lunch' && <Lunch />}
+        {scene.kind === 'drums' && <Drums />}
+        {scene.kind === 'exam' && <Exam />}
+        {scene.kind === 'dance' && <Dance />}
       </div>
     </div>
   );
@@ -887,7 +896,7 @@ function Summary(): ReactNode {
       <div className="summary-grid">
         <span>點名</span><b>{p.rollcalls.ok}/{p.rollcalls.total}</b>
         <span>翹課</span><b>{f.skipped ?? 0} 次</b>
-        <span>小考</span><b>{f.quizScore !== undefined ? `${f.caught ? 0 : f.quizScore * 20} 分` : '—'}</b>
+        <span>小考</span><b>{f.quizScore !== undefined ? `${f.caught ? 0 : f.quizScore} 分` : '—'}</b>
         <span>路跑</span><b>{f.runTime ? `${Math.floor(f.runTime / 60)} 分 ${f.runTime % 60} 秒` : '未完賽'}</b>
         <span>成就</span><b>{got}/{ACHIEVEMENTS.length}</b>
         <span>零用錢</span><b>NT$ {coins}</b>

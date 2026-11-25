@@ -19,7 +19,9 @@ export const ACTIVITY = '學生活動中心';
 export type SceneId =
   | 'wakeD1' | 'nurse' | 'roommateD2' | 'mixer' | 'bibD3' | 'assembly' | 'office'
   | 'clubFair' | 'summary' | 'lostFound' | 'rollcall' | 'quiz' | 'sleep' | 'study' | 'hilife'
-  | 'stayAwake' | 'wardrobe' | 'rollcallOk';
+  | 'stayAwake' | 'wardrobe' | 'rollcallOk'
+  /** Day 1 lunch with the roommates (猜拳輸的請客), Day 2 the USB stick handed back, Day 4 熱音社. */
+  | 'lunch' | 'returnUsb' | 'drums';
 
 export type SportKind = 'basketball' | 'soccer' | 'volleyball' | 'track';
 
@@ -50,8 +52,10 @@ export type Cond =
   | { t: 'sleep'; until: number | 'nextDay' }
   /** The road race (checkpoints). */
   | { t: 'run' }
-  /** The quiz (with the option to peek). */
-  | { t: 'quiz' };
+  /** The exam (in `room`; peeking at the neighbours with Shift while the professor walks the rows). */
+  | { t: 'quiz' }
+  /** Walk over an item lying in the place (in `room` if set) to pick it up. */
+  | { t: 'pickup'; item: ItemId };
 
 export interface Step {
   id: string;
@@ -144,6 +148,10 @@ export interface VnLine {
 }
 
 export const ROOMMATE = '室友阿凱';
+/** The other roommate (Day 1 lunch). */
+export const ROOMMATE2 = '室友小胖';
+/** What each of the three pays for lunch when one treats (NT$). */
+export const LUNCH_EACH = 60;
 /** Your room in 學生宿舍C (寢室 4 of the flat, where a new game starts): you sleep in its bed, its wardrobe is yours. */
 export const MY_ROOM = { label: '寢室 4', number: 'C214' } as const;
 export const FRIEND = '同學小芳';
@@ -175,45 +183,50 @@ export const TUTORIAL_DONE_VN: VnLine[] = [
 
 export const DAYS: Day[] = [
   {
-    title: '遲到危機與翹課日常',
+    title: '遲到危機與學餐猜拳',
     steps: [
       { id: '1-1', text: '睡過頭了！快下床', place: DORM, cond: { t: 'getUp' }, at: hm(7, 52), wake: true, quietMsg: true, msg: { from: ROOMMATE, text: '老師正準備點名！你人咧？？快來管一！' } },
       { id: '1-T', text: '新手教學：學會基本操作', place: DORM, cond: { t: 'tutorial' } },
       { id: '1-2', text: '衝去管理一館 2F 的 MA214 教室，找空位坐下，被點到時舉手', place: CLASS1, room: 'MA214', cond: { t: 'class' } },
       { id: '1-3', text: '教授開始上課…撐住別睡著！', place: CLASS1, room: 'MA214', cond: { t: 'scene', scene: 'stayAwake' } },
-      { id: '1-4', text: '下課了，去學生餐廳買午餐', place: CAFETERIA, cond: { t: 'buy', shop: 'cafeteria' }, at: hm(12, 0) },
-      { id: '1-5', text: '把午餐吃掉（背包或快捷欄使用）', place: CAFETERIA, cond: { t: 'eat' } },
-      { id: '1-6', text: '下午的課翹掉！用手機問點名碼，在「點名系統」簽到', place: CAFETERIA, cond: { t: 'phoneRollcall' }, at: hm(13, 10), msg: { from: FRIEND, text: '下午那堂改數位點名喔，要輸 4 位數的點名碼～' } },
-      { id: '1-7', text: '翹課成功，去籃球場打球打到天黑', place: '籃球場', cond: { t: 'sport', kind: 'basketball' }, doneAt: hm(19, 0) },
-      { id: '1-8', text: '天黑了，回宿舍 C214 寢室的床上睡覺', place: DORM, cond: { t: 'sleep', until: 'nextDay' } },
+      { id: '1-4', text: '下課了，到學生餐廳和室友同一桌吃飯：猜拳輸的人請客！', place: CAFETERIA, cond: { t: 'talk', prompt: '按 E 和室友一起吃飯（猜拳）', scene: 'lunch' }, at: hm(12, 0), msg: { from: ROOMMATE, text: '我跟小胖在學餐佔好位子了，快來！今天老規矩，猜拳輸的請客 ✊✌️🖐' } },
+      { id: '1-5', text: '吃飽了，回宿舍 C214 寢室的床上睡覺', place: DORM, cond: { t: 'sleep', until: 'nextDay' } },
     ],
   },
   {
-    title: '夜生活與聯誼準備',
+    title: '聯誼與跑腿',
     steps: [
-      { id: '2-1', text: '睡到晚上才醒…下床準備出門', place: DORM, cond: { t: 'getUp' }, at: hm(18, 30), wake: true, msg: { from: ROOMMATE, text: '今晚聯誼別忘了！穿帥一點啊 😎' } },
+      { id: '2-1', text: '起床！今天早上有聯誼', place: DORM, cond: { t: 'getUp' }, at: hm(8, 30), wake: true, msg: { from: ROOMMATE, text: '早上十點活動中心聯誼別忘了！穿帥一點啊 😎' } },
       { id: '2-2', text: '回 C214 寢室打開衣櫃，換一套帥氣穿搭', place: DORM, cond: { t: 'outfit' } },
-      { id: '2-3', text: '到學生活動中心參加聯誼，把好感度聊滿', place: ACTIVITY, cond: { t: 'talk', prompt: '按 E 加入聯誼', scene: 'mixer' } },
-      { id: '2-4', text: '聯誼結束，回 C214 寢室的床上睡覺', place: DORM, cond: { t: 'sleep', until: 'nextDay' } },
+      { id: '2-3', text: '到學生活動中心參加聯誼，把好感度聊滿', place: ACTIVITY, cond: { t: 'talk', prompt: '按 E 加入聯誼', scene: 'mixer' }, at: hm(10, 0) },
+      { id: '2-4', text: '阿凱的隨身碟忘在管理二館 MB109，去幫他拿', place: CLASS2, room: 'MB109', cond: { t: 'pickup', item: 'usbDrive' }, msg: { from: ROOMMATE, text: '救命！我的隨身碟忘在管二 MB109 的桌上了，報告檔案全在裡面 😭 可以幫我拿回宿舍嗎？會給你跑腿費！' } },
+      { id: '2-5', text: '把隨身碟拿回宿舍交給阿凱', place: DORM, cond: { t: 'talk', prompt: '按 E 把隨身碟交給阿凱', scene: 'returnUsb' } },
+      { id: '2-6', text: '回 C214 寢室的床上睡覺', place: DORM, cond: { t: 'sleep', until: 'nextDay' } },
     ],
   },
   {
     title: '校園路跑',
     steps: [
-      { id: '3-1', text: '早起！今天是雲科路跑，下床', place: DORM, cond: { t: 'getUp' }, at: hm(7, 0), wake: true, give: 'raceBib', msg: { from: ROOMMATE, text: '號碼布幫你領了，在你桌上！起點在游泳館旁邊' } },
-      { id: '3-2', text: '到路跑起點（游泳館旁）報到', place: '路跑起點', cond: { t: 'enter' } },
+      { id: '3-1', text: '早起！今天是雲科路跑，下床', place: DORM, cond: { t: 'getUp' }, at: hm(7, 0), wake: true, give: 'raceBib', msg: { from: ROOMMATE, text: '號碼布幫你領了，在你桌上！七點半操場集合' } },
+      { id: '3-2', text: '到操場集合', place: '操場', cond: { t: 'enter' } },
       { id: '3-3', text: '跑完全程：依路線通過所有檢查點（不能騎車）', place: '路跑起點', cond: { t: 'run' } },
       { id: '3-4', text: '累死了，回 C214 寢室的床上睡一整天', place: DORM, cond: { t: 'sleep', until: 'nextDay' } },
     ],
   },
   {
-    title: '體育課與運動競賽',
+    title: '社團博覽會：熱音社',
     steps: [
-      { id: '4-1', text: '起床，今天有體育課', place: DORM, cond: { t: 'getUp' }, at: hm(8, 0), wake: true, msg: { from: ROOMMATE, text: '體育課在操場集合，今天要比賽喔！' } },
-      { id: '4-2', text: '足球：PK 大賽，贏過阿凱', place: '足球場', cond: { t: 'sport', kind: 'soccer' } },
-      { id: '4-3', text: '排球：墊球比賽，比阿凱多', place: '排球場', cond: { t: 'sport', kind: 'volleyball' } },
-      { id: '4-4', text: '跑操場：逆時針一圈計時賽', place: '操場', cond: { t: 'sport', kind: 'track' } },
-      { id: '4-5', text: '回宿舍，和室友聊聊這一週', place: DORM, cond: { t: 'talk', prompt: '按 E 回顧這一週', scene: 'summary' } },
+      { id: '4-1', text: '起床，今天活動中心有社團博覽會', place: DORM, cond: { t: 'getUp' }, at: hm(9, 30), wake: true, msg: { from: ROOMMATE, text: '活動中心今天有社團擺攤！聽說熱音社在找鼓手 🥁 去試試看？' } },
+      { id: '4-2', text: '到學生活動中心的熱音社攤位，挑戰打鼓', place: ACTIVITY, cond: { t: 'talk', prompt: '按 E 挑戰熱音社打鼓', scene: 'drums' } },
+      { id: '4-3', text: '玩夠了，回 C214 寢室的床上睡覺', place: DORM, cond: { t: 'sleep', until: 'nextDay' } },
+    ],
+  },
+  {
+    title: '期中小考',
+    steps: [
+      { id: '5-1', text: '起床！今天 MB109 小考', place: DORM, cond: { t: 'getUp' }, at: hm(8, 0), wake: true, msg: { from: ROOMMATE, text: '今天九點 MB109 小考！物件導向的筆記借你看 📒' } },
+      { id: '5-2', text: '到管理二館 MB109 考試（10 題）', place: CLASS2, room: 'MB109', cond: { t: 'quiz' }, at: hm(8, 40) },
+      { id: '5-3', text: '回宿舍，和室友聊聊這一週', place: DORM, cond: { t: 'talk', prompt: '按 E 回顧這一週', scene: 'summary' } },
     ],
   },
 ];
@@ -231,6 +244,17 @@ export interface SideQuest {
 export const TOUR_STOPS = ['圖書館', '行政大樓', '雲泰表演廳', '觀雲閣', '設計學院'];
 export const PHOTO_SPOTS = ['圖書館', '行政大樓', '雲泰表演廳', '大門', '操場'];
 export const STALL_IDS = ['gorilla', 'monkey'];
+/** 三位神秘人物 (side quest): who, where (a place the runtime resolves), what they say. */
+export const MYSTERY: readonly { id: 'cat' | 'bird' | 'dog'; name: string; place: string; lines: string[] }[] = [
+  { id: 'cat', name: '管院貓咪', place: '管院貓咪', lines: ['喵。', '（牠盯著你看了很久，好像知道你翹過課。）', '……喵嗚。（尾巴指向操場的方向）'] },
+  { id: 'dog', name: '操場黑狗', place: '操場黑狗', lines: ['汪！', '（黑狗在跑道上跟著你跑了半圈，又跑回來聞了聞你的手。）', '汪汪！（牠朝宿舍的方向叫了兩聲）'] },
+  { id: 'bird', name: '宿舍大笨鳥', place: '宿舍大笨鳥', lines: ['嘎——！', '（大笨鳥在宿舍門口原地繞了三圈，差點跌倒。）', '嘎嘎！（牠用嘴叼來一包東西放在你腳邊）'] },
+];
+/** 街宣活動 at the corner of 人科一館 and 龍潭路. */
+export const PROMO_LINES: Line[] = [
+  { who: '街宣學長', text: '同學同學！雲科校慶活動宣傳中～' },
+  { who: '街宣學長', text: '拿出手機（P → 相機）在我們攤位前拍照打卡，就送你一個小禮物！' },
+];
 
 export const SIDE_QUESTS: SideQuest[] = [
   { id: 'lostFound', title: '失物招領', text: '把撿到的學生證送到行政大樓或警衛室', total: 1, reward: { coins: 50 } },
@@ -239,6 +263,9 @@ export const SIDE_QUESTS: SideQuest[] = [
   { id: 'photo', title: '拍照打卡', text: '用手機在打卡點拍照 {n}/{total}：{target}', total: PHOTO_SPOTS.length, reward: { coins: 40 } },
   { id: 'athlete', title: '運動健將', text: '墊球 10 下、PK 進 3 球、跑完田徑計時賽（{n}/{total}）', total: 3, reward: { coins: 60 } },
   { id: 'foodie', title: '學餐美食家', text: '在學生餐廳的猩猩複合式餐飲、猴子食堂各買一次（{n}/{total}）', total: STALL_IDS.length, reward: { coins: 30 } },
+  { id: 'promo', title: '街宣打卡', text: '在人科一館和龍潭路轉角的街宣攤位前，用手機拍照打卡', total: 1, reward: {} },
+  { id: 'mystery', title: '三位神秘人物', text: '找到管院貓咪、操場黑狗、宿舍大笨鳥，和牠們說話（{n}/{total}）', total: 3, reward: {} },
+  { id: 'dance', title: '熱舞社', text: '在管理二館的鏡子前跟熱舞社跳一首，拿到 2000 分', total: 1, reward: { coins: 50 } },
 ];
 
 // ---------- Achievements ----------
@@ -270,6 +297,11 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: 'mixerStar', title: '聯誼之星', icon: '💫', desc: '聯誼時三個話題都選到最佳回答' },
   { id: 'selfie', title: '自拍一張', icon: '🤳', desc: '用手機相機的自拍模式拍一張照' },
   { id: 'graduateWeek', title: '第一週畢業', icon: '🎓', desc: '完成第一週的主線' },
+  { id: 'treated', title: '被請客', icon: '🍱', desc: '午餐猜拳贏了，室友請客' },
+  { id: 'appeal', title: '上訴成功', icon: '⚖️', desc: '猜拳輸了上訴，結果翻盤' },
+  { id: 'drummer', title: '鼓手', icon: '🥁', desc: '熱音社打鼓挑戰過 5 關' },
+  { id: 'dancer', title: '舞王', icon: '🕺', desc: '熱舞社的方向鍵舞拿到全部 Perfect 的一輪 ×5' },
+  { id: 'catFood', title: '吃貓飼料', icon: '🐟', desc: '把神秘人物給的貓飼料吃掉', secret: true },
 ];
 
 // ---------- Scene content ----------
@@ -303,6 +335,11 @@ export const DIALOGS: Partial<Record<SceneId, Line[]>> = {
   office: [
     { who: '老師', text: '同學，考試的時候眼睛要看自己的考卷。' },
     { who: '老師', text: '這次就算了，下次再被我看到就直接零分。' },
+  ],
+  returnUsb: [
+    { who: '室友阿凱', text: '我的隨身碟！！你是我的救命恩人 😭' },
+    { who: '室友阿凱', text: '報告明天就要交，沒有它我就完了。' },
+    { who: '室友阿凱', text: '這是跑腿費，拿去買飲料！' },
   ],
   lostFound: [
     { who: '服務人員', text: '撿到學生證？謝謝你！我們會通知失主。' },
@@ -371,6 +408,22 @@ export const MIXER: { who: string; look: string; qs: MixerQ[] }[] = [
 ];
 export const MIXER_START = 40;
 export const MIXER_GOAL = 60;
+
+/** Day 5 MB109 小考 (物件導向軟體工程): 5 easy, 3 medium, 2 hard; points by difficulty (total 100). */
+export interface ExamQ { q: string; options: string[]; answer: number; level: 'easy' | 'mid' | 'hard' }
+export const EXAM_POINTS = { easy: 8, mid: 10, hard: 15 } as const;
+export const EXAM: ExamQ[] = [
+  { level: 'easy', q: '物件導向的三大特性「不包含」哪一個？', options: ['封裝', '繼承', '多型', '編譯'], answer: 3 },
+  { level: 'easy', q: '「物件」和「類別」的關係是？', options: ['物件是類別的實例', '類別是物件的實例', '兩者完全無關', '物件是類別的註解'], answer: 0 },
+  { level: 'easy', q: 'UML 的全名是？', options: ['Universal Machine Language', 'Unified Modeling Language', 'User Menu Layout', 'Unique Method List'], answer: 1 },
+  { level: 'easy', q: '把資料和操作資料的方法包在一起、外面只看得到介面，叫做？', options: ['多型', '繼承', '封裝', '遞迴'], answer: 2 },
+  { level: 'easy', q: '子類別直接沿用父類別的屬性和方法，叫做？', options: ['繼承', '封裝', '多載', '例外'], answer: 0 },
+  { level: 'mid', q: '同一個方法呼叫，不同的物件有不同的行為，叫做？', options: ['封裝', '多型', '抽象', '序列化'], answer: 1 },
+  { level: 'mid', q: 'UML 類別圖中，空心三角形箭頭的線表示？', options: ['組合', '相依', '一般化（繼承）', '關聯'], answer: 2 },
+  { level: 'mid', q: '「建構子」（constructor）的主要用途是？', options: ['刪除物件', '建立物件時初始化它', '比較兩個物件', '把物件印出來'], answer: 1 },
+  { level: 'hard', q: 'SOLID 原則中的「O」代表什麼？', options: ['單一職責原則', '開放封閉原則', '介面隔離原則', '依賴反轉原則'], answer: 1 },
+  { level: 'hard', q: '確保一個類別只有一個實例的設計模式是？', options: ['Observer', 'Factory Method', 'Singleton', 'Adapter'], answer: 2 },
+];
 
 /** Day 5 quiz: campus questions whose answers the week has shown. */
 export const QUIZ: { q: string; options: string[]; answer: number }[] = [

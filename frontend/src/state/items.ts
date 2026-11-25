@@ -30,6 +30,9 @@ export const ITEMS = {
   sideDish: { name: '滷味小菜', icon: '🥢', maxStack: 5, description: '豆干、海帶、滷蛋的小菜拼盤，使用後消耗一個。' },
   broom: { name: '掃把', icon: '🧹', maxStack: 1, description: '管理一館工具室拿的掃把。選在快捷欄就拿在手上；使用＝放在地上。' },
   mop: { name: '拖把', icon: '🧽', maxStack: 1, description: '管理一館工具室拿的拖把。選在快捷欄就拿在手上；使用＝放在地上。' },
+  usbDrive: { name: '阿凱的隨身碟', icon: '💾', maxStack: 1, description: '阿凱忘在 MB109 的隨身碟，報告檔案都在裡面。拿回宿舍給他。' },
+  catFood: { name: '貓飼料', icon: '🐟', maxStack: 5, description: '三位神秘人物給的貓飼料。沒什麼用……但好像可以吃？' },
+  keychain: { name: '雲科鑰匙圈', icon: '🔑', maxStack: 3, description: '街宣活動拍照打卡送的小禮物。' },
 } as const;
 
 export type ItemId = keyof typeof ITEMS;

@@ -124,7 +124,10 @@ function onlyTraced(t: TracedIndex, ids: readonly string[]): TracedIndex {
   return { buildings, entrances: Object.fromEntries(Object.entries(t.entrances).filter(([id]) => osm.has(id))) };
 }
 
-const FOOD: ReadonlySet<ItemId> = new Set<ItemId>(['brunchSet', 'latte', 'waffle', 'friedRice', 'friedNoodles', 'dumplings', 'wontonSoup', 'sideDish', 'bread', 'bento', 'buffet', 'beefNoodles', 'plainNoodles', 'bubbleTea', 'soyMilk', 'onigiri', 'teaEgg', 'sportsDrink', 'cupNoodles', 'mineralWater', 'greenTea', 'cannedCoffee']);
+/** Day 1 lunch: the roommates' table in 學生餐廳 (dining hall), and the 街宣 stand by 人科一館 / 龍潭路 (world). */
+const CAFETERIA_TABLE = { x: 153.97, z: 212.18 };
+const PROMO_STAND = { x: -18.5, z: -76 };
+const FOOD: ReadonlySet<ItemId> = new Set<ItemId>(['catFood', 'brunchSet', 'latte', 'waffle', 'friedRice', 'friedNoodles', 'dumplings', 'wontonSoup', 'sideDish', 'bread', 'bento', 'buffet', 'beefNoodles', 'plainNoodles', 'bubbleTea', 'soyMilk', 'onigiri', 'teaEgg', 'sportsDrink', 'cupNoodles', 'mineralWater', 'greenTea', 'cannedCoffee']);
 
 const ITEM_MESSAGES: Readonly<Record<ItemId, string>> = {
   bento: '排骨便當好吃！',
@@ -150,6 +153,9 @@ const ITEM_MESSAGES: Readonly<Record<ItemId, string>> = {
   lostCard: '🪪 別人的學生證，送到行政大樓或警衛室',
   broom: '',
   mop: '',
+  usbDrive: '💾 阿凱的隨身碟：拿回宿舍給他',
+  catFood: '嘎吱嘎吱……貓飼料的味道……意外地不差？',
+  keychain: '🔑 街宣活動送的雲科鑰匙圈',
   brunchSet: '總匯三明治配薯餅，早午餐吃飽飽！',
   latte: '拿鐵香濃，精神來了！',
   waffle: '鬆餅好香，蜂蜜甜甜的。',
@@ -480,6 +486,13 @@ async function boot(): Promise<void> {
       if (name === '足球場' && playground) { const [x, z] = playground.pitch.toWorld(playground.pitch.halfLength - 11, 0); return { x, z }; }
       if (name === '路跑起點') return snapToRoad(RACE_ROUTE[0]!.x, RACE_ROUTE[0]!.z);
       if (name === 'MA214' && ma) { const [x, z] = ma.planToWorld(47.75, 19.25); return { x, z }; }
+      if (name === 'MB109' && mb) { const [x, z] = mb.planToWorld(26, 49); return { x, z }; }
+      if (name === '熱舞社' && mb) { const [x, z] = mb.planToWorld(44.6, 50.15); return { x, z }; }
+      if (name === '學餐餐桌') return { ...CAFETERIA_TABLE };
+      if (name === '街宣') return { ...PROMO_STAND };
+      if (name === '管院貓咪') { const c = centreOf('管理一館'); return c ? snapToRoad(c.x, c.z) : null; }
+      if (name === '操場黑狗' && playground) { const [x, z] = playground.pitch.toWorld(-24, 12); return { x, z }; }
+      if (name === '宿舍大笨鳥') return { x: -9.5, z: 335 };
       if (name === '操場') return playground ? { ...playground.startSpot } : null;
       if (name === '大門') return centreOf('警衛室');
       // 學生宿舍C is three OSM parts; the story's dorm is the courtyard by the C entrance where you start.
@@ -545,6 +558,7 @@ async function boot(): Promise<void> {
       }, 350);
     },
     shove: (dx, dz) => shiftPlayer(dx, dz),
+    teleportTo: (x, z) => { teleport(x, 0.3, z); renderSyncSystem(world, 1); },
     openPhone: (from) => {
       storyActions.focusThread(from);
       actions.setPhonePage('chat');

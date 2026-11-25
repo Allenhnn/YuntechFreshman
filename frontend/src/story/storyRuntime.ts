@@ -7,7 +7,8 @@ import { actions, gameStore } from '../state/store';
 import { achievementById, sideById, storyActions, storyStore, type StoryProgress, type StoryScene } from '../state/story';
 import {
   ABSENT_FINE, ACTIVITY, LECTURE, RACE_ROUTE, TUTORIAL, CAFETERIA, DAYS, DIALOGS, DORM, FRIEND, PHOTO_SPOTS, ROOMMATE, STALL_IDS, TOUR_FACTS, TOUR_STOPS,
-  type SceneId, type SportKind, type Step, WAKE_VN, TUTORIAL_DONE_VN, BIKE_VN, type VnLine, MY_ROOM, PROFESSOR, COURSE } from './storyData';
+  type SceneId, type SportKind, type Step, WAKE_VN, TUTORIAL_DONE_VN, BIKE_VN, type VnLine, MY_ROOM, PROFESSOR, COURSE, ROOMMATE2, LUNCH_EACH, MYSTERY, PROMO_LINES } from './storyData';
+import { createCritters, type CritterSpec } from './critters';
 import { createBeacons, type Beacon } from './beacons';
 import { createNpcs, type NpcSpec } from './npcs';
 import { insidePoint as insidePointOf } from '../campus/insidePoint';
@@ -60,6 +61,8 @@ export interface StoryDeps {
   shove(dx: number, dz: number): void;
   /** Pops the phone up on a chat thread (a message the story wants you to read now). */
   openPhone(from: string): void;
+  /** Puts the player at (x, z) on the ground (the race start). */
+  teleportTo(x: number, z: number): void;
 }
 
 export interface StoryFrame {
@@ -100,7 +103,13 @@ export type SceneResult =
   | { kind: 'vn'; id: string }
   /** 撐住別睡著 abandoned to sneak out of class (翹課). */
   | { kind: 'sneakOut' }
-  | { kind: 'wardrobe' };
+  | { kind: 'wardrobe' }
+  /** Lunch: who pays; whether you appealed and won the appeal. */
+  | { kind: 'lunch'; payer: 'me' | 'kai' | 'fat'; appealWon: boolean }
+  /** Drums: levels cleared. */
+  | { kind: 'drums'; level: number }
+  /** Dance: points and how many rounds were all Perfect. */
+  | { kind: 'dance'; score: number; perfect: number };
 
 export interface StoryRuntime {
   update(dt: number, f: StoryFrame): void;
@@ -303,6 +312,8 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
   } | null = null;
   let speedFactor = 1;
   let pendingScene: SceneId | null = null;
+  /** The item to pick up (step `pickup`): where it lies. */
+  let pickupAt: { x: number; y: number; z: number } | null = null;
   const resetTransient = (): void => {
     cls = { phase: 'idle', t: 0, limit: 0 };
     wakeFor = 0;
@@ -323,7 +334,15 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
     storyActions.setRollcall(null);
     clearRun();
     speedFactor = 1;
+    pickupAt = null;
+    pickupMesh.removeFromParent();
   };
+  const pickupMesh = new Mesh(new BoxGeometry(0.34, 0.1, 0.12), new MeshStandardMaterial({ color: 0x37474f, emissive: 0x4fc3f7, emissiveIntensity: 0.6 }));
+  {
+    const halo = new Mesh(new CylinderGeometry(0.7, 0.7, 0.02, 24), new MeshBasicMaterial({ color: 0x4fc3f7, transparent: true, opacity: 0.35 }));
+    halo.position.y = -0.25;
+    pickupMesh.add(halo);
+  }
 
   // --- Race checkpoints -----------------------------------------------------------------------
   const ringMat = d.tracker.material(new MeshBasicMaterial({ color: 0xf2c230, transparent: true, opacity: 0.85 }));
@@ -578,7 +597,20 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
     const scene = step?.cond.t === 'talk' ? step.cond.scene : null;
     const dormYard = near(d.placeOf(DORM), 3, 2);
     if (scene === 'nurse') add('nurse', '健康中心護理師', near(insidePoint(ACTIVITY), -3, 0), LOOKS.nurse, true);
-    if (scene === 'roommateD2' || scene === 'bibD3' || scene === 'summary') add('roommate', '室友阿凱', dormYard, LOOKS.roommate, true);
+    if (scene === 'roommateD2' || scene === 'bibD3' || scene === 'summary' || scene === 'returnUsb') add('roommate', '室友阿凱', dormYard, LOOKS.roommate, true);
+    if (scene === 'lunch') {
+      const t = d.placeOf('學餐餐桌');
+      add('roommate', ROOMMATE, t, LOOKS.roommate, true);
+      add('roommate2', ROOMMATE2, near(t, 1.3, 0.3), { shirt: 0xf08a24, pants: 0x34495e, hair: 0x1c1a19 }, true);
+    }
+    if (scene === 'drums') {
+      const c = insidePoint(ACTIVITY);
+      add('band', '🥁 熱音社', near(c, 0, 3), { shirt: 0x1f1f24, pants: 0x1f1f24, hair: 0x8a2be2 }, true);
+      add('band2', '🎸 熱音社', near(c, 1.6, 3.4), { shirt: 0xd8353a, pants: 0x1f1f24, hair: 0x151515 });
+    }
+    add('dance', '💃 熱舞社', d.placeOf('熱舞社'), { shirt: 0xff4fa3, pants: 0x1f1f24, hair: 0x151515 }, side('dance')?.state !== 'done');
+    add('dance2', '🕺 熱舞社', near(d.placeOf('熱舞社'), 0.4, 1.4), { shirt: 0x00b8d4, pants: 0x34495e, hair: 0x2b211b });
+    add('promo', '📣 街宣學長', d.placeOf('街宣'), { shirt: 0xf2c230, pants: 0x2d3a5c, hair: 0x1c1a19, hat: 0xd8353a }, side('promo')?.state !== 'done');
     if (scene === 'assembly') add('principal', '校長', insidePoint('國際會議廳'), LOOKS.principal, true);
     if (scene === 'mixer') {
       const c = insidePoint(ACTIVITY);
@@ -592,7 +624,7 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
       add('cl2', '📷 攝影社', near(c, 0, 4), { shirt: 0x26a69a, pants: 0x34495e, hair: 0x2b211b }, true);
       add('cl3', '🏀 籃球社', near(c, 3, 3), { shirt: 0xf08a24, pants: 0x1f1f24, hair: 0x1c1a19 }, true);
     }
-    if (step && step.cond.t === 'quiz') add('teacher', '老師', insidePoint(step.place), LOOKS.teacher);
+    if (step && step.cond.t === 'quiz') add('teacher', `${PROFESSOR}教授`, near(step.room ? d.placeOf(step.room) : insidePoint(step.place), 0, 0), LOOKS.teacher);
     if (d.hilife) add('clerk', '萊爾富店員', d.hilife.clerk, LOOKS.clerk);
     if (side('lostFound')?.state === 'active' && actions.hasItem('lostCard')) {
       add('desk', '服務台人員', insidePoint('行政大樓'), LOOKS.staff, true);
@@ -604,6 +636,43 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
   const SCENE_NPCS: Partial<Record<SceneId, string[]>> = {
     nurse: ['nurse'], roommateD2: ['roommate'], bibD3: ['roommate'], summary: ['roommate'], assembly: ['principal'],
     mixer: ['mx1', 'mx2', 'mx3'], clubFair: ['cl1', 'cl2', 'cl3'], lostFound: ['desk', 'guard'],
+    lunch: ['roommate', 'roommate2'], returnUsb: ['roommate'], drums: ['band'],
+  };
+  // 三位神秘人物 (and the 熱音社 drum kit while its step is on): animals and props.
+  const critters = createCritters(d.scene, d.tracker);
+  const critterSpecs = (): CritterSpec[] => {
+    const out: CritterSpec[] = [];
+    const myst = side('mystery');
+    for (const m of MYSTERY) {
+      const p = d.placeOf(m.place);
+      if (p) out.push({ key: m.id, kind: m.id, name: m.name, x: p.x, z: p.z, y: d.groundAt(p.x, p.z), talk: !myst?.done.includes(m.id) });
+    }
+    const step = on() ? currentStep() : null;
+    if (step?.cond.t === 'talk' && step.cond.scene === 'drums') {
+      const c = near(insidePoint(ACTIVITY), -1.4, 3.6);
+      if (c) out.push({ key: 'drumkit', kind: 'drumkit', name: '', x: c.x, z: c.z, y: d.groundAt(c.x, c.z) });
+    }
+    return out;
+  };
+  let lastCritters: CritterSpec[] = [];
+  /** Who you can talk to here outside the main story: the animals, 熱舞社, 街宣. */
+  const freeSpot = (f: StoryFrame): { id: string; prompt: string } | null => {
+    for (const c of lastCritters) {
+      if (c.kind === 'drumkit' || Math.hypot(c.x - f.x, c.z - f.z) > 3 || Math.abs(c.y - f.y) > 1.5) continue;
+      return { id: `mystery:${c.key}`, prompt: `按 E 和${c.name}說話` };
+    }
+    for (const n of lastNpcs) {
+      if (Math.hypot(n.x - f.x, n.z - f.z) > TALK_R || Math.abs((n.y ?? 0) - f.y) > 1.5) continue;
+      if (n.key === 'dance') return { id: 'dance', prompt: '按 E 跟熱舞社一起跳舞（方向鍵＋Space）' };
+      if (n.key === 'promo') return { id: 'promo', prompt: '按 E 和街宣學長聊聊' };
+    }
+    return null;
+  };
+  const playFree = (id: string): void => {
+    if (id === 'dance') { pendingScene = 'dance' as SceneId; open({ kind: 'dance' }); return; }
+    if (id === 'promo') { pendingScene = 'promo' as SceneId; open({ kind: 'dialog', id: 'promo', lines: PROMO_LINES }); return; }
+    const m = MYSTERY.find((x) => `mystery:${x.id}` === id);
+    if (m) { pendingScene = id as SceneId; open({ kind: 'dialog', id, lines: m.lines.map((text) => ({ who: m.name, text })) }); }
   };
   const TALK_R = 2.6;
   let lastNpcs: NpcSpec[] = [];
@@ -622,7 +691,7 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
     if (step.room) { const r = d.placeOf(step.room); if (r) return r; }
     return d.placeOf(step.place);
   };
-  const ICON: Record<string, string> = { talk: '💬', buy: '🛒', eat: '🍱', sport: '🏀', class: '📚', sleep: '🛏️', run: '🏁', quiz: '📝', enter: '📍', scene: '📚', getUp: '⏰', phoneRollcall: '📱', outfit: '👕' };
+  const ICON: Record<string, string> = { pickup: '💾', talk: '💬', buy: '🛒', eat: '🍱', sport: '🏀', class: '📚', sleep: '🛏️', run: '🏁', quiz: '📝', enter: '📍', scene: '📚', getUp: '⏰', phoneRollcall: '📱', outfit: '👕' };
   const beaconList = (f: StoryFrame): Beacon[] => {
     const out: Beacon[] = [];
     const add = (key: string, p: { x: number; z: number } | null, icon: string, color: number, main = false): void => {
@@ -647,6 +716,11 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
     const bike = side('bikeReturn');
     if (bike?.state === 'active') { const t = d.bikeStations.find((b) => b.name === bike.target); if (t) add('bike', t, '🚲', 0xd8553a); }
     if (side('foodie')?.state === 'active') add('foodie', d.placeOf(CAFETERIA), '🍱', 0xf2c230);
+    const promo = side('promo');
+    if (promo?.state === 'active') add('promo', d.placeOf('街宣'), '📣', 0xf2c230);
+    const myst = side('mystery');
+    if (myst?.state === 'active') for (const m of MYSTERY) if (!myst.done.includes(m.id)) add(`myst:${m.id}`, d.placeOf(m.place), '❓', 0x8a5bd6);
+    if (side('dance')?.state === 'active') add('dance', d.placeOf('熱舞社'), '💃', 0xff4fa3);
     const ath = side('athlete');
     if (ath?.state === 'active') {
       if (!ath.done.includes('volleyball')) add('ath:v', d.placeOf('排球場'), '🏐', 0x8a5bd6);
@@ -713,6 +787,8 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
   };
   const playScene = (id: SceneId): void => {
     pendingScene = id;
+    if (id === 'lunch') return open({ kind: 'lunch' });
+    if (id === 'drums') return open({ kind: 'drums' });
     if (id === 'rollcall') return; // opened by the class flow
     if (id === 'mixer') return open({ kind: 'mixer' });
     if (id === 'assembly') return open({ kind: 'wake' });
@@ -746,7 +822,45 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
           return; // the office dialog ends the step
         }
         advance();
-        toast(`📝 小考成績：${r.score * 20} 分`);
+        toast(`📝 小考成績：${r.score} 分${r.cheated ? '（偷看了隔壁…）' : ''}`);
+        return;
+      }
+      case 'lunch': {
+        setFlags({ lunchPayer: r.payer });
+        if (r.appealWon) unlock('appeal');
+        if (r.payer === 'me') {
+          const pay = Math.min(LUNCH_EACH * 3, gameStore.getState().coins);
+          actions.addCoins(-pay);
+          toast(`💸 猜拳輸了，你請客！付了 NT$ ${pay}`);
+        } else {
+          unlock('treated');
+          toast(`🎉 ${r.payer === 'kai' ? ROOMMATE : ROOMMATE2} 請客！這餐免費`);
+        }
+        d.sound('coin');
+        window.setTimeout(() => open({ kind: 'vn', id: 'lunchVn', lines: [
+          { who: '', text: '三個人擠在學餐的小桌子，一邊吃一邊聊早上的課。' },
+          { who: ROOMMATE2, text: r.payer === 'me' ? '謝啦～下次換我請（大概）。' : r.payer === 'fat' ? '可惡……我的零用錢……' : '阿凱破費了！' },
+          { who: ROOMMATE, text: '吃飽了，下午沒課，回宿舍睡個覺吧。' },
+        ] }), 300);
+        return;
+      }
+      case 'drums': {
+        setFlags({ drumLevel: Math.max(r.level, prog().flags.drumLevel ?? 0) });
+        const coins = r.level * 15;
+        if (coins) actions.addCoins(coins);
+        if (r.level >= 5) unlock('drummer');
+        toast(`🥁 打鼓挑戰：過了 ${r.level} 關${coins ? `　+NT$ ${coins}` : ''}`);
+        if (step?.cond.t === 'talk' && step.cond.scene === 'drums') advance();
+        return;
+      }
+      case 'dance': {
+        setFlags({ danceBest: Math.max(r.score, prog().flags.danceBest ?? 0) });
+        const coins = Math.floor(r.score / 100);
+        if (coins) actions.addCoins(coins);
+        if (r.perfect >= 5) unlock('dancer');
+        startSide('dance');
+        if (r.score >= 2000) sideProgress('dance', 'cleared');
+        toast(`🕺 熱舞社：${r.score} 分${coins ? `　+NT$ ${coins}` : ''}`);
         return;
       }
       case 'stayAwake':
@@ -769,6 +883,10 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
           d.goOutsideDorm(() => window.setTimeout(() => open({ kind: 'vn', id: 'bikeVn', lines: BIKE_VN }), 500));
         }
         if (r.id === 'bikeVn' && step?.cond.t === 'tutorial') advance(true);
+        if (r.id === 'lunchVn' && step?.cond.t === 'talk' && step.cond.scene === 'lunch') {
+          d.setClock(gameStore.getState().gameMinutes + 50);
+          advance();
+        }
         if (r.id === 'skipVn' && step?.cond.t === 'scene') advance(true);
         if (r.id === 'caughtVn' && step?.room) {
           sneak = null;
@@ -798,6 +916,25 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
         break;
     }
     // Dialog endings.
+    if (id === 'returnUsb') {
+      actions.takeItem('usbDrive');
+      actions.addCoins(100);
+      toast('💰 阿凱給了跑腿費 +NT$ 100');
+      d.sound('coin');
+    }
+    const sid = id as string | null;
+    if (sid === 'promo') startSide('promo');
+    if (sid?.startsWith('mystery:')) {
+      const who = sid.slice(8);
+      startSide('mystery');
+      const before = side('mystery')?.state;
+      sideProgress('mystery', who);
+      if (before === 'active' && side('mystery')?.state === 'done') {
+        actions.giveItem('catFood');
+        window.setTimeout(() => toast('🐟 三位神秘人物都見過了……拿到「貓飼料」（可以吃，但沒什麼用）'), 1500);
+      }
+      return;
+    }
     if (id === 'lostFound') {
       actions.takeItem('lostCard');
       sideProgress('lostFound', 'returned');
@@ -836,6 +973,7 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
   storyEvents.eat = (item) => {
     const step = currentStep();
     if (on() && step?.cond.t === 'eat' && (!step.cond.item || step.cond.item === item)) advance();
+    if (item === 'catFood') unlock('catFood');
   };
   storyEvents.steal = (item) => {
     if (!actions.giveItem(item)) { toast('背包滿了'); return; }
@@ -846,6 +984,13 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
   };
   storyEvents.photo = (area, selfie) => {
     if (selfie) unlock('selfie');
+    // 街宣打卡: a photo in front of the promo stand.
+    const stand = d.placeOf('街宣');
+    if (stand && Math.hypot(stand.x - lastX, stand.z - lastZ) < 12 && side('promo')?.state !== 'done') {
+      startSide('promo');
+      if (actions.giveItem('keychain')) toast('📣 街宣學長：「打卡成功！這個鑰匙圈送你～」');
+      sideProgress('promo', 'photo');
+    }
     if (!area) return;
     startSide('photo');
     if (PHOTO_SPOTS.includes(area)) sideProgress('photo', area);
@@ -968,6 +1113,7 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
     const now = performance.now() / 1000;
     beacons.update(now, f.x, f.z);
     npcs.update(dt, now, f.x, f.z);
+    critters.update(dt, now, f.x, f.z);
     if (now - visualsAt > 0.5) {
       visualsAt = now;
       // Tour stops: walking in, or up to a closed (sealed) building's walls, counts as a visit.
@@ -992,6 +1138,8 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
       beacons.set(list);
       storyActions.setPins(list.filter((b) => b.key !== 'nav' && b.key !== 'card'));
       npcs.set(lastNpcs);
+      lastCritters = critterSpecs();
+      critters.set(lastCritters);
       const ph = side('photo');
       storyActions.setLive({ photoSpot: f.area && PHOTO_SPOTS.includes(f.area) && !(ph?.done.includes(f.area)) && ph?.state !== 'done' ? f.area : null });
     }
@@ -1178,9 +1326,42 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
     }
     // Enter.
     if (step?.cond.t === 'enter' && inPlace(f, step.place)) advance();
+    // Pick up: the item lies in the room (or place); walk over it.
+    if (step?.cond.t === 'pickup') {
+      if (!pickupAt) {
+        const p = d.placeOf(step.room ?? step.place);
+        if (p) {
+          const y = d.groundAt(p.x, p.z);
+          pickupAt = { x: p.x, y, z: p.z };
+          pickupMesh.position.set(p.x, y + 0.35, p.z);
+          d.scene.add(pickupMesh);
+        }
+      }
+      if (pickupAt) {
+        pickupMesh.rotation.y += dt * 2;
+        pickupMesh.position.y = pickupAt.y + 0.35 + Math.sin(performance.now() / 300) * 0.05;
+        if (Math.hypot(pickupAt.x - f.x, pickupAt.z - f.z) < 1.4 && Math.abs(pickupAt.y - f.y) < 1.5) {
+          const item = step.cond.item;
+          if (actions.giveItem(item)) {
+            pickupMesh.removeFromParent();
+            pickupAt = null;
+            toast(`拿到了「${ITEMS[item].name}」！`);
+            advance();
+          } else if (tick % 120 === 0) toast('背包滿了，先整理一下');
+        }
+      }
+    }
     // Race.
     if (step?.cond.t === 'run') {
-      if (!run) startRun();
+      if (!run) {
+        // From the 操場 assembly to the start line.
+        const s0 = d.placeOf('路跑起點');
+        if (s0 && Math.hypot(s0.x - f.x, s0.z - f.z) > 12 && !f.riding) {
+          toast('🏃 集合完畢！大家移動到起跑線（游泳館旁）');
+          d.fade(() => d.teleportTo(s0.x, s0.z));
+        }
+        startRun();
+      }
       if (run && run.started) {
         run.t += dt;
         // Speed pads: run over one for a few seconds of boost.
@@ -1281,8 +1462,10 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
     if (step && inPlace(f, step.place)) {
       if (step.cond.t === 'talk' && closeTo(step.cond.scene, f)) return step.cond.prompt;
 
-      if (step.cond.t === 'quiz') return '按 E 入座開始小考';
+      if (step.cond.t === 'quiz') return step.room && d.roomAt(f.x, f.y, f.z) !== step.room ? `考場在 ${step.room}，進教室再按 E` : '按 E 入座開始小考';
     }
+    const free = freeSpot(f);
+    if (free) return free.prompt;
     if (atCounter(f)) return '按 E 逛萊爾富';
     return null;
   };
@@ -1295,9 +1478,11 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
         playScene(step.cond.scene);
         return 'done';
       }
-      if (step.cond.t === 'quiz') { pendingScene = 'quiz'; open({ kind: 'quiz' }); return 'done'; }
+      if (step.cond.t === 'quiz' && (!step.room || d.roomAt(f.x, f.y, f.z) === step.room)) { pendingScene = 'quiz'; open({ kind: 'exam' }); return 'done'; }
 
     }
+    const free = freeSpot(f);
+    if (free) { playFree(free.id); return 'done'; }
     if (atCounter(f)) return 'hilife';
     return null;
   };
@@ -1364,6 +1549,8 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
     dispose() {
       beacons.dispose();
       npcs.dispose();
+      critters.dispose();
+      pickupMesh.removeFromParent();
       clearRun();
       d.scene.remove(cardMesh);
       for (const k of Object.keys(storyEvents) as (keyof typeof storyEvents)[]) (storyEvents as Record<string, unknown>)[k] = () => undefined;

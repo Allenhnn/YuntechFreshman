@@ -42,6 +42,7 @@ const SHAPE: Record<ItemId, Shape> = {
   onigiri: 'rice',
   teaEgg: 'egg',
   broom: 'broom', mop: 'mop',
+  usbDrive: 'card', catFood: 'can', keychain: 'card',
   brunchSet: 'box', latte: 'cup', waffle: 'bun', friedRice: 'bowl', friedNoodles: 'bowl', dumplings: 'box', wontonSoup: 'bowl', sideDish: 'box',
 };
 
@@ -49,6 +50,7 @@ const COLOR: Partial<Record<ItemId, string>> = {
   studentCard: '#2c6fd6', lostCard: '#8a5bd6', healthForm: '#ffffff', raceBib: '#ffffff', campusMap: '#e9f3e1', notebook: '#d8553a',
   waterBottle: '#4fc3f7', mineralWater: '#b3e5fc', sportsDrink: '#29b6f6', greenTea: '#7cb342', cannedCoffee: '#5d4037',
   bubbleTea: '#d7b899', soyMilk: '#fff8e1', beefNoodles: '#f5f5f0', plainNoodles: '#f5f5f0', cupNoodles: '#e53935',
+  usbDrive: '#37474f', catFood: '#ff8f00', keychain: '#1f8f4a',
   brunchSet: '#f2c230', latte: '#c8a17a', waffle: '#e3b062', friedRice: '#f5f5f0', friedNoodles: '#f5f5f0', dumplings: '#b5562b', wontonSoup: '#f5f5f0', sideDish: '#6d4c41',
   bread: '#e8a94e', bento: '#c62828', buffet: '#2e7d32', onigiri: '#fafafa', teaEgg: '#6d4c41',
 };

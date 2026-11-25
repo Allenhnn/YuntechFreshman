@@ -33,6 +33,10 @@ export interface StoryProgress {
     mixer?: number;
     badRecord?: number;
     runTime?: number;
+    /** Who paid for the Day 1 lunch. */
+    lunchPayer?: 'me' | 'kai' | 'fat';
+    drumLevel?: number;
+    danceBest?: number;
     /** Bike metres ridden since the last hit. */
     safeMetres?: number;
   };
@@ -71,6 +75,14 @@ export type StoryScene =
   | { kind: 'summary' }
   | { kind: 'stayAwake' }
   | { kind: 'wardrobe' }
+  /** Day 1 lunch: rock-paper-scissors, the loser treats (one appeal). */
+  | { kind: 'lunch' }
+  /** 熱音社: repeat the drum pattern (pads and rhythm), harder every level. */
+  | { kind: 'drums' }
+  /** MB109 小考: 10 questions, peek with Shift while the professor walks the rows. */
+  | { kind: 'exam' }
+  /** 熱舞社: arrow sequences, then Space on the beat. */
+  | { kind: 'dance' }
   /** Visual-novel scene (full screen, click through); ends like a dialog with its id. */
   | { kind: 'vn'; id: string; lines: VnLine[] };
 
