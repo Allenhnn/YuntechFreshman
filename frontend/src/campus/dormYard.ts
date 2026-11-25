@@ -69,6 +69,11 @@ interface GateMark {
   shift?: number;
   /** 學生宿舍D's mirrored copy of a 學生宿舍C gate (its approach uses D_FRONT). */
   site?: 'D';
+  /**
+   * 學生宿舍B B 圍牆（使用者照片 2026-11-25）：same lattice walls, but no gatehouse — two cream piers hold a wide pale-blue
+   * barred double gate, fixed shut (`portal` must be set too).
+   */
+  barred?: boolean;
 }
 
 const BASE_GATES: readonly GateMark[] = [
@@ -83,7 +88,12 @@ const BASE_GATES: readonly GateMark[] = [
   // 使用者 C2 背面照（2026-11-24）：牆從 C2 樓梯間（凸出 1.6 m，dormCFacade.ts C2.tower）正面的東角接到 C1 西面；門樓靠 C1，
   // C1 那側只剩窄窄一段、C2 那側約 2.4 m。
   { name: '學生宿舍C C1–C2 側門', a: [-1.67, 347.6], b: [-0.43, 357.6], portal: true, locked: true, ends: [[-4.24, 354.6], [2.69, 354.5]], shift: 0.9 },
-  // 學生宿舍B：使用者（2026-11-25）B 區的圍牆、大門先不要做（之後再說）——前門、後門、B1–B2 之間的牆都拿掉。
+  // 學生宿舍B（使用者一樓平面圖紅線＋照片，2026-11-25）：三道 L 形圍牆，門在較長那段，短的那段是 WALL_STUBS。
+  // A（西邊，B2–B3，腳踏車停車場旁）：同款門樓、藍色門會開。B（東南，B1–B2）：沒有門樓，兩根奶油色墩夾一樘藍色鐵柵雙開門（固定）。
+  // C（東北，B1–B3，照片糊，推算）：跟 A 同款。`a` 在中庭那側。
+  { name: '學生宿舍B A 門', a: [55.0, 314.5], b: [48.8, 315.7], portal: true, ends: [[52.7, 319.3], [51.1, 310.96]] },
+  { name: '學生宿舍B B 門', a: [104.4, 331.5], b: [105.0, 337.6], portal: true, barred: true, ends: [[108.24, 334.18], [101.07, 334.99]] },
+  { name: '學生宿舍B C 門', a: [111.2, 303.7], b: [117.4, 302.6], portal: true, ends: [[115.15, 307.91], [113.47, 298.45]] },
   { name: '學生宿舍A 前門', a: [143.8, 296.0], b: [164.5, 289.5] },
   { name: '學生宿舍A 後門', a: [211.2, 286.2], b: [231.9, 279.6] },
   { name: '學生宿舍E.F 前門', a: [54.6, 397.2], b: [80.7, 388.5] },
@@ -120,6 +130,14 @@ const CLOSED_GAPS: readonly [number, number][] = [
 const WALL_STUBS: readonly (readonly [readonly [number, number], readonly [number, number]])[] = [
   [[-42.3, 323.6], [-44.47, 323.98]],
   [toD([-42.3, 323.6]), toD([-44.47, 323.98])], // 學生宿舍D 的同一段
+];
+/**
+ * 學生宿舍B 三道 L 形圍牆的短段（平面圖紅線）。使用者：不要全白——跟門那段同一款：奶油色牆、灰色牆基與壓頂、1～2 片紅花磚。
+ */
+const LATTICE_STUBS: readonly (readonly [readonly [number, number], readonly [number, number]])[] = [
+  [[51.1, 310.96], [53.5, 310.27]],
+  [[101.07, 334.99], [99.96, 329.4]],
+  [[113.47, 298.45], [107.95, 299.94]],
 ];
 
 /** Bike parking rows (polylines). */
@@ -524,6 +542,27 @@ export function createDormYard(scene: Scene, physics: RAPIER.World, campus: Camp
     solid(cx, WALL_H / 2, cz, w / 2, WALL_H / 2, WALL_T / 2 + 0.05, yaw);
   }
 
+  // 學生宿舍B 圍牆短段: the gate walls' style (cream wall, grey plinth and coping) with one or two red lattice panels.
+  for (const [p, q] of LATTICE_STUBS) {
+    const d = Math.hypot(q[0] - p[0], q[1] - p[1]), ux = (q[0] - p[0]) / d, uz = (q[1] - p[1]) / d;
+    const cx = (p[0] + q[0]) / 2, cz = (p[1] + q[1]) / 2, yaw = Math.atan2(-uz, ux), w = d + 0.1;
+    const grp = new Group();
+    grp.position.set(cx, 0, cz);
+    grp.rotation.y = yaw;
+    root.add(grp);
+    const put = (geo: BufferGeometry, m: MeshStandardMaterial): void => {
+      const mesh = new Mesh(tracker.geometry(geo), m);
+      mesh.castShadow = mesh.receiveShadow = true;
+      grp.add(mesh);
+    };
+    put(box(w, WALL_H, WALL_T, 0, WALL_H / 2, 0), cream);
+    put(box(w, 0.2, WALL_T + 0.06, 0, 0.1, 0), plinth);
+    put(box(w + 0.04, 0.13, WALL_T + 0.18, 0, WALL_H + 0.065, 0), plinth);
+    const PP = PORTAL.panel, n = w >= 3.6 ? 2 : 1;
+    for (let k = 0; k < n; k++) put(box(PP, 1.8, WALL_T + 0.03, n === 1 ? 0 : (k === 0 ? -1 : 1) * w / 4, 1.1, 0), lattice);
+    solid(cx, WALL_H / 2, cz, w / 2, WALL_H / 2, WALL_T / 2 + 0.05, yaw);
+  }
+
   for (const g of DORM_GATES) {
     const mx = (g.a[0] + g.b[0]) / 2, mz = (g.a[1] + g.b[1]) / 2;
     const br = g.ends ? { p: [g.ends[0][0], g.ends[0][1]] as [number, number], q: [g.ends[1][0], g.ends[1][1]] as [number, number] } : bridge(mx, mz);
@@ -590,7 +629,9 @@ export function createDormYard(scene: Scene, physics: RAPIER.World, campus: Camp
       // the walls with a door-sized opening, a brass dome lamp either side of it on both faces, a grey
       // light box above the opening and a small card reader; a pale-blue gate in the opening.
       const { open: GO, width: PW, height: PH, depth: PD, lintel: PL, panel: PP, pier: PR } = PORTAL;
-      for (const [s0, s1, dir] of [[-left, -PW / 2, -1], [PW / 2, right, 1]] as const) {
+      /** Half-width of what stands in the gap: the gatehouse, or (barred) the gate between its two piers. */
+      const BO = 3.0, BP = 0.5, inner = g.barred ? BO / 2 + BP : PW / 2;
+      for (const [s0, s1, dir] of [[-left, -inner, -1], [inner, right, 1]] as const) {
         const w = s1 - s0;
         if (w < 0.3) continue;
         const mid = (s0 + s1) / 2;
@@ -604,11 +645,32 @@ export function createDormYard(scene: Scene, physics: RAPIER.World, campus: Camp
         const n = Math.max(1, Math.floor((avail + PIER_MIN) / (PP + PIER_MIN)));
         const pier = n > 1 ? Math.min(PR, (avail - n * PP) / (n - 1)) : 0;
         for (let k = 0; k < n; k++) {
-          const near = PW / 2 + 0.05 + k * (PP + pier), far = near + PP;
+          const near = inner + 0.05 + k * (PP + pier), far = near + PP;
           add(box(PP, 1.8, WALL_T + 0.03, dir * (near + far) / 2, 1.1, 0), lattice);
         }
         const [wx, wz] = world(mid, 0);
         solid(wx, WALL_H / 2, wz, w / 2, WALL_H / 2, WALL_T / 2 + 0.05, yaw);
+      }
+      if (g.barred) {
+        // Two cream piers with a grey cap, and a pale-blue barred double gate fixed between them (照片).
+        for (const s of [-1, 1]) {
+          add(box(BP, WALL_H + 0.35, BP, s * (BO / 2 + BP / 2), (WALL_H + 0.35) / 2, 0), cream);
+          add(box(BP + 0.08, 0.12, BP + 0.08, s * (BO / 2 + BP / 2), WALL_H + 0.41, 0), plinth);
+          const [px, pz] = world(s * (BO / 2 + BP / 2), 0);
+          solid(px, (WALL_H + 0.35) / 2, pz, BP / 2, (WALL_H + 0.35) / 2, BP / 2, yaw);
+        }
+        const LW2 = BO / 2 - 0.04, bars: BufferGeometry[] = [];
+        for (const s of [-1, 1]) {
+          const c = s * (LW2 / 2 + 0.02);
+          for (const y of [0.12, 0.95, 1.95]) bars.push(box(LW2, 0.05, 0.05, c, y, 0));
+          for (const x of [c - LW2 / 2 + 0.03, c + LW2 / 2 - 0.03]) bars.push(box(0.05, 1.9, 0.05, x, 1.05, 0));
+          for (let k = 1; k < 10; k++) bars.push(box(0.025, 1.8, 0.025, c - LW2 / 2 + (LW2 * k) / 10, 1.05, 0));
+        }
+        bars.push(box(0.1, 0.2, 0.06, 0, 1.0, 0.04));
+        add(merged(bars), mat(0x3d8fd6, { metalness: 0.3, roughness: 0.45 })); // bright blue (照片)
+        const [lx, lz] = world(0, 0);
+        solid(lx, 1.05, lz, BO / 2, 1.05, 0.12, yaw);
+        continue;
       }
       const sideW = (PW - GO) / 2;
       for (const s of [-1, 1]) {

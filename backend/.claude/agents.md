@@ -164,6 +164,10 @@ docker compose down             # 停止（加 -v 會連資料一起刪除）
 | `.env.example` 沒被 commit | 根目錄 `.gitignore` 有 `.env*`；需要時用 `git add -f backend/.env.example` |
 
 ## 變更紀錄
+### 2026-11-25（前端：學生宿舍B 三道圍牆與門照平面圖紅線＋照片）— 分支 `feat/dorm-c-yard-walls`
+- 需求：一樓平面圖紅線是圍牆位置；照片 A、B、C 三道圍牆（C 照片糊，推算）
+- `frontend/src/campus/dormYard.ts`：三道 L 形圍牆，平面圖紅線換算到校園、端點貼到建築轉角——門在較長那段（`DORM_GATES` 用 `ends`），短段放 `WALL_STUBS`。A（西，B2–B3，腳踏車停車場旁）：同款門樓、藍色門會開；C（東北，B1–B3）：跟 A 同款（推算）；B（東南，B1–B2）：新 `GateMark.barred`——沒有門樓，兩根奶油色墩（灰色帽）夾一樘 3 m 藍色鐵柵雙開門（固定），兩側同款花磚牆
+- 使用者再調整：圍牆不要全白——三道的短段改成 `LATTICE_STUBS`，跟門那段同一款（奶油色牆、灰色牆基與壓頂），短的 1 片、長的 2 片紅花磚
 ### 2026-11-25（前端：學生宿舍B1 雨遮在花圃正上方開口）— 分支 `feat/dorm-c-yard-walls`
 - 需求：花圃的正上方是空的
 - `frontend/src/buildings/dormCFacade.ts` site B：雨遮板改成繞過花台——外框沿花台不貼牆的那幾個邊走，花圃露天；開口一圈混凝土邊梁
