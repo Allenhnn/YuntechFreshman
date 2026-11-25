@@ -1,4 +1,5 @@
 import { ACESFilmicToneMapping, Euler, Group, PCFShadowMap, PerspectiveCamera, Quaternion, Scene, SRGBColorSpace, Vector3, WebGLRenderer } from 'three';
+import { RESTAURANTS, isOpen } from './buildings/restaurants';
 import { createToolProps, type ToolSpot } from './items/toolProps';
 import { MY_ROOM } from './story/storyData';
 import { createWardrobePreview, wardrobeView } from './character/wardrobePreview';
@@ -124,7 +125,7 @@ function onlyTraced(t: TracedIndex, ids: readonly string[]): TracedIndex {
   return { buildings, entrances: Object.fromEntries(Object.entries(t.entrances).filter(([id]) => osm.has(id))) };
 }
 
-const FOOD: ReadonlySet<ItemId> = new Set<ItemId>(['bread', 'bento', 'buffet', 'beefNoodles', 'plainNoodles', 'bubbleTea', 'soyMilk', 'onigiri', 'teaEgg', 'sportsDrink', 'cupNoodles', 'mineralWater', 'greenTea', 'cannedCoffee']);
+const FOOD: ReadonlySet<ItemId> = new Set<ItemId>(['brunchSet', 'latte', 'waffle', 'friedRice', 'friedNoodles', 'dumplings', 'wontonSoup', 'sideDish', 'bread', 'bento', 'buffet', 'beefNoodles', 'plainNoodles', 'bubbleTea', 'soyMilk', 'onigiri', 'teaEgg', 'sportsDrink', 'cupNoodles', 'mineralWater', 'greenTea', 'cannedCoffee']);
 
 const ITEM_MESSAGES: Readonly<Record<ItemId, string>> = {
   bento: '排骨便當好吃！',
@@ -150,6 +151,14 @@ const ITEM_MESSAGES: Readonly<Record<ItemId, string>> = {
   lostCard: '🪪 別人的學生證，送到行政大樓或警衛室',
   broom: '',
   mop: '',
+  brunchSet: '總匯三明治配薯餅，早午餐吃飽飽！',
+  latte: '拿鐵香濃，精神來了！',
+  waffle: '鬆餅好香，蜂蜜甜甜的。',
+  friedRice: '粒粒分明的蛋炒飯，好吃！',
+  friedNoodles: '什錦炒麵，鑊氣十足！',
+  dumplings: '十顆水餃一下就吃光了。',
+  wontonSoup: '餛飩湯暖暖的。',
+  sideDish: '滷味小菜，越吃越涮嘴。',
 };
 
 /** Gameplay effect of using an inventory item (runs inside the fixed step via the command queue). */
@@ -1062,6 +1071,11 @@ async function boot(): Promise<void> {
         if (target?.id.includes(':stall:')) {
           const [buildingId, , levelId, index] = target.id.split(':');
           const stall = buildingById(buildingId ?? '')?.source.floors[levelId ?? '']?.stalls?.[Number(index)];
+          if (stall?.brand && !isOpen(stall.brand, gameStore.getState().gameMinutes % 1440)) {
+            actions.toast('🕒 ' + RESTAURANTS[stall.brand].name + ' 休息中（營業時間 ' + RESTAURANTS[stall.brand].hoursText + '）');
+            audio.play('close');
+            return;
+          }
           if (stall?.menu) {
             actions.setShop({ title: stall.name, items: STALL_MENUS[stall.menu], menu: stall.menu });
             api.openModal('shop');

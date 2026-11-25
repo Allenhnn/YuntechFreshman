@@ -76,7 +76,9 @@ export interface Stall {
   facing: Vec2;
   width: number;
   /** Key into STALL_MENUS; absent for non-shop counters (tray return). */
-  menu?: 'buffet' | 'noodles' | 'bento' | 'drinks';
+  menu?: 'buffet' | 'noodles' | 'bento' | 'drinks' | 'gorilla' | 'monkey';
+  /** A restaurant's storefront (logo sign, menu board, brand colours) instead of a plain stall. */
+  brand?: 'gorilla' | 'monkey';
 }
 
 /** A hand-placed wall fitting: `at` is on the wall line, `facing` points into the room / corridor. */

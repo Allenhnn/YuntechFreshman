@@ -230,7 +230,7 @@ export interface SideQuest {
 
 export const TOUR_STOPS = ['圖書館', '行政大樓', '雲泰表演廳', '觀雲閣', '設計學院'];
 export const PHOTO_SPOTS = ['圖書館', '行政大樓', '雲泰表演廳', '大門', '操場'];
-export const STALL_IDS = ['buffet', 'noodles', 'bento', 'drinks'];
+export const STALL_IDS = ['gorilla', 'monkey'];
 
 export const SIDE_QUESTS: SideQuest[] = [
   { id: 'lostFound', title: '失物招領', text: '把撿到的學生證送到行政大樓或警衛室', total: 1, reward: { coins: 50 } },
@@ -238,7 +238,7 @@ export const SIDE_QUESTS: SideQuest[] = [
   { id: 'tour', title: '校園導覽員', text: '走訪導覽景點 {n}/{total}：{target}', total: TOUR_STOPS.length, reward: { title: '導覽達人' } },
   { id: 'photo', title: '拍照打卡', text: '用手機在打卡點拍照 {n}/{total}：{target}', total: PHOTO_SPOTS.length, reward: { coins: 40 } },
   { id: 'athlete', title: '運動健將', text: '墊球 10 下、PK 進 3 球、跑完田徑計時賽（{n}/{total}）', total: 3, reward: { coins: 60 } },
-  { id: 'foodie', title: '學餐美食家', text: '在學餐 4 個攤位各買一次（{n}/{total}）', total: STALL_IDS.length, reward: { coins: 30 } },
+  { id: 'foodie', title: '學餐美食家', text: '在學生餐廳的猩猩複合式餐飲、猴子食堂各買一次（{n}/{total}）', total: STALL_IDS.length, reward: { coins: 30 } },
 ];
 
 // ---------- Achievements ----------
