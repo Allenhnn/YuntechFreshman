@@ -66,10 +66,29 @@ export const DORM_B = {
   b2: 234786935,
   b3: 234786936,
 } as const;
-export const DORM_B_RINGS: Readonly<Record<number, readonly (readonly [number, number])[]>> = {
+/**
+ * 學生宿舍A（使用者 2026-11-25：A 棟跟 B 棟只有方向不一樣，其他都一樣）：A 區平面圖就是 B 區左右翻過來（A1 右上、A2 左上、A3 下）。
+ * `dormBToA` 把 B 區座標鏡射到 A 區（旋轉＋平移擬合三棟中心到 OSM 的 A1／A2／A3，差 1 m 內）；外環（反轉頂點順序維持逆時針）、
+ * 外觀、A1 入口轉角、三道圍牆都從 B 那一套轉過去。
+ */
+export const DORM_A = { a1: 234786931, a2: 234786932, a3: 234786933 } as const;
+const A_XF = { c: 0.9319389268408599, s: 0.3626152735871813, tx: 158.20479907219146, tz: -29.648466892743215 };
+/** B 區 → A 區（鏡射：行列式 −1）。 */
+export function dormBToA(x: number, z: number): [number, number] {
+  return [-A_XF.c * x + A_XF.s * z + A_XF.tx, A_XF.s * x + A_XF.c * z + A_XF.tz];
+}
+const toA = (p: readonly [number, number]): [number, number] => dormBToA(p[0], p[1]);
+const B_RINGS: Readonly<Record<number, readonly (readonly [number, number])[]>> = {
   [DORM_B.b1]: [[121.54, 331.66], [108.24, 334.18], [107.48, 330.2], [109.31, 329.85], [107.38, 319.7], [112.12, 318.8], [116.18, 313.34], [115.15, 307.91], [124.62, 306.11], [124.17, 303.75], [128.54, 302.92], [131.33, 317.6], [121.31, 319.5], [119.68, 321.87]],
   [DORM_B.b2]: [[90.85, 336.14], [56.2, 342.72], [54.49, 333.7], [47.8, 334.97], [45.11, 320.77], [58.22, 318.28], [60.12, 328.3], [83.59, 323.85], [82.64, 318.84], [97.42, 316.04], [99.96, 329.4], [89.93, 331.3]],
   [DORM_B.b3]: [[107.95, 299.94], [93.42, 302.69], [92.44, 297.52], [67.38, 302.27], [68.37, 307.45], [53.5, 310.27], [51.01, 297.15], [60.78, 295.3], [59.8, 290.12], [94.96, 283.45], [95.94, 288.63], [105.46, 286.83]],
+};
+/** B 區三棟＋照 B 轉過去的 A 區三棟（B1 → A1、B2 → A2、B3 → A3）。 */
+export const DORM_B_RINGS: Readonly<Record<number, readonly (readonly [number, number])[]>> = {
+  ...B_RINGS,
+  [DORM_A.a1]: [...B_RINGS[DORM_B.b1]!].reverse().map(toA),
+  [DORM_A.a2]: [...B_RINGS[DORM_B.b2]!].reverse().map(toA),
+  [DORM_A.a3]: [...B_RINGS[DORM_B.b3]!].reverse().map(toA),
 };
 export type XZ = readonly [number, number];
 /**
@@ -78,7 +97,7 @@ export type XZ = readonly [number, number];
  * 再一小段直的接回牆，只空出外角那塊三角；前三個邊是外緣，其餘貼著牆），正面掛「B」；`planter` 轉角裡的六角形花台（照片裡雨遮下那叢綠）；雨遮下平台、外緣台階；
  * 兩面牆一樓暗的入口、方墩，`doors` 是平面圖紅色標記的門（藍白鐵柵雙開門），其他格咖啡色格柵；`ramp` 無障礙坡道（平面圖藍框）。
  */
-export const DORM_B_SPECS: readonly {
+interface DormBSpec {
   id: number; sign: string; entrance?: XZ; edges: number;
   /** Only the corner entrance (the building's walls are drawn by another module). */
   cornerOnly?: boolean;
@@ -86,7 +105,8 @@ export const DORM_B_SPECS: readonly {
     at: readonly XZ[]; canopy: readonly XZ[]; platform: readonly (readonly XZ[])[]; planter: readonly XZ[];
     doors: readonly XZ[]; steps: readonly (readonly [XZ, XZ])[]; ramp: { wallHigh: XZ; wallLow: XZ; outerLow: XZ };
   };
-}[] = [
+}
+const BASE_SPECS: readonly DormBSpec[] = [
   // B1：一樓平面圖左上（實際東南）是兩翼之間的方形內凹，入口就在這個轉角（街景照）；照片沒有紅花磚陽台。座標都照平面圖比例
   // （1 px ≈ 4.4 cm）量出來再用同一個平面圖→校園轉換。
   { id: DORM_B.b1, sign: 'B', edges: 14, corner: {
@@ -125,6 +145,20 @@ export const DORM_B_SPECS: readonly {
   { id: DORM_B.b2, sign: 'B2', entrance: [71.9, 326.07], edges: 12 },
   { id: DORM_B.b3, sign: 'B3', entrance: [79.91, 299.89], edges: 12 },
 ];
+/** B 區三棟的設定，轉到 A 區（招牌 B → A）。 */
+const B_TO_A_IDS: Readonly<Record<number, number>> = { [DORM_B.b1]: DORM_A.a1, [DORM_B.b2]: DORM_A.a2, [DORM_B.b3]: DORM_A.a3 };
+const specToA = (b: DormBSpec): DormBSpec => ({
+  ...b,
+  id: B_TO_A_IDS[b.id]!,
+  sign: b.sign.replace('B', 'A'),
+  ...(b.entrance ? { entrance: toA(b.entrance) } : {}),
+  ...(b.corner ? { corner: {
+    at: b.corner.at.map(toA), canopy: b.corner.canopy.map(toA), platform: b.corner.platform.map((p) => p.map(toA)),
+    planter: b.corner.planter.map(toA), doors: b.corner.doors.map(toA), steps: b.corner.steps.map(([p, q]) => [toA(p), toA(q)] as const),
+    ramp: { wallHigh: toA(b.corner.ramp.wallHigh), wallLow: toA(b.corner.ramp.wallLow), outerLow: toA(b.corner.ramp.outerLow) },
+  } } : {}),
+});
+export const DORM_B_SPECS: readonly DormBSpec[] = [...BASE_SPECS, ...BASE_SPECS.filter((b) => B_TO_A_IDS[b.id]).map(specToA)];
 
 /**
  * Each piece's ring (CCW): numbers are the OSM ring's vertices, names are points splitDormC makes —

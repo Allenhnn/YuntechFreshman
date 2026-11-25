@@ -24,7 +24,7 @@ import { RAPIER } from '../physics/physics';
 import type { ResourceTracker } from '../core/resources';
 import { mulberry32 } from '../core/math';
 import type { CampusData, Ring } from './campusTypes';
-import { dormCToD } from './customFacades';
+import { dormBToA, dormCToD } from './customFacades';
 
 /**
  * Dorm area layout from the user's marked map (2026-11-20) and Street View:
@@ -94,8 +94,7 @@ const BASE_GATES: readonly GateMark[] = [
   { name: '學生宿舍B A 門', a: [55.0, 314.5], b: [48.8, 315.7], portal: true, ends: [[52.7, 319.3], [51.1, 310.96]] },
   { name: '學生宿舍B B 門', a: [104.4, 331.5], b: [105.0, 337.6], portal: true, barred: true, ends: [[108.24, 334.18], [101.07, 334.99]] },
   { name: '學生宿舍B C 門', a: [111.2, 303.7], b: [117.4, 302.6], portal: true, ends: [[115.15, 307.91], [113.47, 298.45]] },
-  { name: '學生宿舍A 前門', a: [143.8, 296.0], b: [164.5, 289.5] },
-  { name: '學生宿舍A 後門', a: [211.2, 286.2], b: [231.9, 279.6] },
+  // 學生宿舍A：使用者（2026-11-25）跟 B 一樣——前門、後門、A1–A2 之間的牆換成 B 那三道圍牆轉過去（見下面 DORM_GATES）。
   { name: '學生宿舍E.F 前門', a: [54.6, 397.2], b: [80.7, 388.5] },
   { name: '學生宿舍E.F 後門', a: [97.0, 388.3], b: [118.7, 380.6] },
 ];
@@ -106,8 +105,14 @@ const toD = (p: readonly [number, number]): [number, number] => dormCToD(p[0], p
  * 學生宿舍D（使用者 2026-11-24：整個 C 區的配置複製到 D 區）：C 的後門、前門、C1–C2 側門鏡射過去，取代 D 原本的兩道感應門和
  * D1–D2 之間的素面牆；同一款門樓、花磚牆，前門的步道／廣場／平台（D_FRONT）、後門的消防水管、側門打不開，都一樣。
  */
+const toA = (p: readonly [number, number]): [number, number] => dormBToA(p[0], p[1]);
 export const DORM_GATES: readonly GateMark[] = [
   ...BASE_GATES,
+  // 學生宿舍A（使用者 2026-11-25：跟 B 一樣）：B 區三道圍牆的門鏡射過去。
+  ...BASE_GATES.filter((g) => g.name.startsWith('學生宿舍B')).map((g): GateMark => ({
+    ...g, name: g.name.replace('學生宿舍B', '學生宿舍A'), a: toA(g.a), b: toA(g.b),
+    ...(g.ends ? { ends: [toA(g.ends[0]), toA(g.ends[1])] as const } : {}),
+  })),
   ...BASE_GATES.filter((g) => g.name.startsWith('學生宿舍C')).map((g): GateMark => ({
     ...g, name: g.name.replace(/C/g, 'D'), a: toD(g.a), b: toD(g.b), site: 'D',
     ...(g.ends ? { ends: [toD(g.ends[0]), toD(g.ends[1])] as const } : {}),
@@ -120,7 +125,6 @@ export const DORM_GATES: readonly GateMark[] = [
  * wall (OSM building ids of the two wings; the wall follows the shortest segment between them).
  */
 const CLOSED_GAPS: readonly [number, number][] = [
-  [234786931, 234786932], // 學生宿舍A1 – A2
 ];
 
 /**
@@ -138,6 +142,10 @@ const LATTICE_STUBS: readonly (readonly [readonly [number, number], readonly [nu
   [[51.1, 310.96], [53.5, 310.27]],
   [[101.07, 334.99], [99.96, 329.4]],
   [[113.47, 298.45], [107.95, 299.94]],
+  // 學生宿舍A 的同三段（B 轉過去）。
+  [toA([51.1, 310.96]), toA([53.5, 310.27])],
+  [toA([101.07, 334.99]), toA([99.96, 329.4])],
+  [toA([113.47, 298.45]), toA([107.95, 299.94])],
 ];
 
 /** Bike parking rows (polylines). */

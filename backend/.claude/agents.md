@@ -164,6 +164,11 @@ docker compose down             # 停止（加 -v 會連資料一起刪除）
 | `.env.example` 沒被 commit | 根目錄 `.gitignore` 有 `.env*`；需要時用 `git add -f backend/.env.example` |
 
 ## 變更紀錄
+### 2026-11-25（前端：學生宿舍A 整區照 B 區做）— 分支 `feat/dorm-c-yard-walls`
+- 需求：A 棟跟 B 棟只有方向不一樣（A 區平面圖是 B 區左右翻過來），先調整 A 區整體架構，再把整個 B 區的模型複製過去，A1 外面的花圃那一區也跟 B 一樣
+- `frontend/src/campus/customFacades.ts`：`DORM_A`、`dormBToA`（B → A 鏡射，旋轉＋平移擬合三棟中心到 OSM 的 A1／A2／A3，差 1 m 內）；`DORM_B_RINGS` 加 A 三棟（B 的外環轉過去、反轉頂點順序）；`DORM_B_SPECS` = B 那幾筆＋轉到 A 的（`specToA`：招牌 B → A、入口點、A1 入口轉角的雨遮／平台／花台／門／台階／坡道都轉過去）
+- `frontend/src/campus/dormYard.ts`：`DORM_GATES` 加 B 區三道圍牆的門轉到 A（A、C 門樓款、B 那道藍色鐵柵雙開門），`LATTICE_STUBS` 加 A 的三段；拿掉 A 原本的前門、後門與 A1–A2 素面牆
+- 三棟 sealed、不做室內（`reshapeDormB` 也處理 A）；外觀由 dormCFacade.ts site 'B' 一起做
 ### 2026-11-25（前端：學生宿舍D1 入口整區換成跟 B1 一樣）— 分支 `feat/dorm-c-yard-walls`
 - 需求：D1 外面的花圃改得跟 B1 一樣；再調整：花圃那一整區都換成跟 B 棟一樣
 - `frontend/src/campus/customFacades.ts` `DORM_B_SPECS`：新增 D1（D 東棟）那筆 `cornerOnly` 入口——照 B1 的規則從 D1 自己的內凹轉角重算：斜牆兩端 `at`、雨遮（沿牆約 9.4／8.0 m、直段 4.45／4.24 m、斜的正面「D」）、六角花台、兩樘門（離斜牆端 4.35／4.2 m）、平台兩塊、台階、坡道（東翼那面牆、從門旁降到牆端、寬 1.2 m）
