@@ -22,7 +22,9 @@ for(const [index,[id,base]] of levels.entries()) {
   };
   // The auditorium and club wings have different depths on the pond side.
   const west:Rect[]=[[36,0,88,25],[40,-8,75,0],[46,25,86,29],[39,0,82,28]];
-  const east:Rect[]=[[-59,-5,0,25],[-55,-10,-5,-5],[-40,-15,-16,-10],[-58,25,-6,30]];
+  // On 1F the bookshop facade continues the inside face of the plaza stair wall.
+  const wingEdge=id==='1F'?-1.3:0;
+  const east:Rect[]=[[-59,-5,wingEdge,25],[-55,-10,-5,-5],[-40,-15,-16,-10],[-58,25,-6,30]];
   if(id==='3F') {
     space('三樓連廊','corridor',[[-33,3,0,27],[36,2,68,26]],{group:'hall'});
   } else space('兩翼走廊','corridor',[...west,...east],{group:'hall'});
@@ -135,15 +137,15 @@ for(const [index,[id,base]] of levels.entries()) {
     box(x,z,y,w,h,d,'partition');
   // At the entrance the well meets the wall between the two doors. Only
   // the far end has a cross passage, behind the paired stair flights.
-  if(id!=='B1') space('書城通高樓井','void',[bookshopWell],
+  if(id!=='B1') space('書城通高樓井','void',[[bookshopWell[0],bookshopWell[1],wingEdge,bookshopWell[3]]],
     {noCeiling:true,customEdge:true,ceiling:height+.12});
   space('樓梯後方橫廊','corridor',[[-29,3,-26,23]],{group:'hall'});
   if(id==='1F') {
     concreteBox(-29.1,13,0,.2,height,20);
-    concreteBox(-.08,12.8,0,.16,height,5.6);
-    concreteBox(-1,19,0,2.1,height,.16);
-    concreteBox(-13,6.7,0,26,height,.16);
-    f.blankWalls=[{a:[0,10],b:[0,15.6]}];
+    concreteBox(wingEdge-.08,12.8,0,.16,height,5.6);
+    concreteBox((-2+wingEdge)/2,19,0,2+wingEdge,height,.16);
+    concreteBox((-26+wingEdge)/2,6.7,0,26+wingEdge,height,.16);
+    f.blankWalls=[{a:[wingEdge,10],b:[wingEdge,15.6]}];
   }
   // The rear landing is flush with the cross passage. The opposite landing
   // has a semicircular nose and a short level connection to each side.
@@ -170,7 +172,7 @@ for(const [index,[id,base]] of levels.entries()) {
   }
   for(const z of [10.03,15.57]){
     // The rounded landings open onto the side galleries on B1 and 2F.
-    const spans=index%2===0?[[-26,-18],[-16.5,0]]:[[-26,0]];
+    const spans=index%2===0?[[-26,-18],[-16.5,wingEdge]]:[[-26,wingEdge]];
     for(const [a,b] of spans){
       concreteBox((a+b)/2,z,0,b-a,.73,.11);
       concreteBox((a+b)/2,z,.94,b-a,.065,.065);
@@ -210,8 +212,8 @@ for(const [index,[id,base]] of levels.entries()) {
   // itself is the exterior platform, entered at the mouths of both corridors.
   if(id==='1F') {
     open('v',36,13,4,'open','中庭');
-    open('v',0,17.4,1.8,'exit','雲院書城');
-    open('v',0,8.4,1.8,'exit','翼廊');
+    open('v',wingEdge,17.4,1.8,'exit','雲院書城');
+    open('v',wingEdge,8.4,1.8,'exit','翼廊');
   }
   if(id==='B1') open('h',-8,17.5,19,'open','Courtyard');
   if(id==='3F') open('v',36,13,1.4,'door','303');

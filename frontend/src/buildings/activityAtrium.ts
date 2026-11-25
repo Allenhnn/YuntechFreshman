@@ -1,4 +1,4 @@
-import { DoubleSide, BoxGeometry, CanvasTexture, Color, Group, InstancedMesh, Mesh, MeshStandardMaterial, Object3D, PlaneGeometry, RepeatWrapping, SRGBColorSpace, Vector3, type Scene } from 'three';
+import { DoubleSide, BoxGeometry, CanvasTexture, Color, Group, InstancedMesh, Mesh, MeshStandardMaterial, Object3D, PlaneGeometry, Shape, ShapeGeometry, RepeatWrapping, SRGBColorSpace, Vector3, type Scene } from 'three';
 import type { ResourceTracker } from '../core/resources';
 
 /** The interior references use plan-right towards room 107 (local +X)
@@ -22,8 +22,16 @@ export function addActivityAtrium(scene: Scene, tracker: ResourceTracker) {
     }
   });
   tile.wrapS=tile.wrapT=RepeatWrapping; tile.repeat.set(12,10);
-  const floor=new Mesh(new PlaneGeometry(30.7,28.44),new MeshStandardMaterial({map:tile,roughness:.88}));
-  floor.position.set(17.15,1.128,13.67); floor.rotation.x=-Math.PI/2; floor.receiveShadow=true; root.add(floor);
+  // Match the platform outline around the storage recess. ShapeGeometry
+  // uses metres for UVs, so normalize against the original tile repeat.
+  const platform=new Shape();
+  platform.moveTo(1.8,.55).lineTo(32.5,.55).lineTo(32.5,-27.89)
+    .lineTo(3.75,-27.89).lineTo(3.75,-22.5).lineTo(1.8,-22.5).closePath();
+  const surface=new ShapeGeometry(platform);
+  const uv=surface.getAttribute('uv');
+  for(let i=0;i<uv.count;i++) uv.setXY(i,(uv.getX(i)-1.8)/30.7,(uv.getY(i)+27.89)/28.44);
+  const floor=new Mesh(surface,new MeshStandardMaterial({map:tile,roughness:.88}));
+  floor.position.y=1.128; floor.rotation.x=-Math.PI/2; floor.receiveShadow=true; root.add(floor);
 
   const shadeMap=texture(128,8,c=>{
     const shade=c.createLinearGradient(0,0,128,0);
@@ -106,7 +114,7 @@ export function addActivityAtrium(scene: Scene, tracker: ResourceTracker) {
     m.position.set(x,y,z);m.rotation.y=yaw;root.add(m);
   };
   // Display glazing beside the corridor mouth, facing the landing.
-  panel(5.6,1.18,.18,2.28,12.9,Math.PI/2,texture(512,128,c=>{
+  panel(5.6,1.18,-1.12,2.28,12.9,Math.PI/2,texture(512,128,c=>{
     c.fillStyle='#494740'; c.fillRect(0,0,512,128);
     for(let i=0;i<6;i++){
       const x=5+i*84;

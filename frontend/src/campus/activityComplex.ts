@@ -220,8 +220,10 @@ export function buildActivityComplex(b: CampusBuilding, solid: GeoBuilder, glass
       box(-1.2,1.12,z,z+leftTread,0,top,tile);
       box(-1.2,1.12,z,z+.055,top-.025,.032,edge);
     }
-    box(-1.2,0,leftTop,-25,0,platformY,tile);
-    box(-1.48,-1.2,-28.5,-21.4,0,7.5,tile);
+    box(-1.3,0,leftTop,-25,0,platformY,tile);
+    box(-1.3,0,-25,0,0,platformY,tile);
+    box(-1.48,-1.2,-28.5,-25,0,7.5,tile);
+    box(-1.48,-1.2,-25,-21.4,3.6,3.9,tile);
     for(const x of [-1.12,1.03]) {
       section(solid,at,x,x+.055,leftFoot,leftTop,.94,platformY+.94,.055,metal);
       for(let i=0;i<leftSteps;i+=3) {
@@ -297,7 +299,8 @@ export function buildActivityComplex(b: CampusBuilding, solid: GeoBuilder, glass
     box(3.75,32.5,-27.89,.55,0,platformY,concrete);
     box(1.8,3.75,bottomZ,.55,0,platformY,concrete);
     box(32.5,36,-20,-3,0,1.125,concrete);
-    box(0,1.8,leftTop,.55,0,platformY);
+    box(0,1.25,leftTop,bottomZ,0,platformY);
+    box(0,1.8,bottomZ,.55,0,platformY);
     for(const start of [1.6,24.1]) {
       const x=start<2?3.78:start, end=start+10.1;
       box(x,end,-29.4,-26.1,.08,.65);
