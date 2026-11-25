@@ -85,19 +85,62 @@ export function addActivityAtrium(scene: Scene, tracker: ResourceTracker) {
   for(const h of [1.26,1.77,2.28]) for(let i=0;i<6;i++)
     block(-14.96+i*.31,h,18.4,.17,.25,.23,[0xa77652,0x748b86,0xd5bc79][i%3]!);
   // The bottom of the well is the finished B1 lobby floor.
-  const basementTile=tile.clone();basementTile.repeat.set(10,2);
-  const wellFloor=new Mesh(new PlaneGeometry(26,5.6),new MeshStandardMaterial({
-    map:basementTile,color:0xc5baa6,roughness:.9
+  const basementTile=texture(512,512,c=>{
+    c.fillStyle='#a18a77';c.fillRect(0,0,512,512);
+    for(let row=0;row<16;row++) for(let col=0;col<16;col++){
+      const border=row===0 || col===0;
+      const ring=Math.max(Math.abs(col%8-4),Math.abs(row%8-4))===2;
+      c.fillStyle=border?'#526b69':ring?'#b77562':['#d7b397','#d1aa91','#caa18a'][(row+2*col)%3]!;
+      c.fillRect(col*32+1,row*32+1,31,31);
+    }
+  });
+  basementTile.wrapS=basementTile.wrapT=RepeatWrapping;
+  basementTile.repeat.set(5,2);
+  const wellFloor=new Mesh(new PlaneGeometry(26,10.4),new MeshStandardMaterial({
+    map:basementTile,roughness:.9
   }));
   wellFloor.rotation.x=-Math.PI/2;wellFloor.position.set(-13,-2.388,12.8);
   root.add(wellFloor);
-  // Translucent roof above the multi-storey bookshop stairwell.
-  const skylight=new Mesh(new PlaneGeometry(26,5.6),new MeshStandardMaterial({
-    color:0xb0c6ce,transparent:true,opacity:.48,roughness:.5,side:DoubleSide
-  }));
-  skylight.position.set(-13,10.85,12.8);skylight.rotation.x=-Math.PI/2;root.add(skylight);
-  for(let x=-26;x<=0;x+=2) block(x,10.68,12.8,.09,.14,5.6,0x666a69);
-  block(-13,10.70,12.8,26,.12,.08,0x666a69);
+
+  const eaves=10.8, rise=1.85, halfSpan=2.8, ridgeZ=12.8;
+  const roofGlass=new MeshStandardMaterial({
+    color:0xd2e0de,emissive:0x343e40,transparent:true,opacity:.82,roughness:.65,side:DoubleSide
+  });
+  for(const side of [-1,1]){
+    const roof=new Mesh(new PlaneGeometry(26,Math.hypot(halfSpan,rise)),roofGlass);
+    roof.rotation.x=-Math.PI/2+side*Math.atan2(rise,halfSpan);
+    roof.position.set(-13,eaves+rise/2,ridgeZ+side*halfSpan/2);root.add(roof);
+    for(const fraction of [.5,1]){
+      block(-13,eaves+rise*(1-fraction),ridgeZ+side*halfSpan*fraction,26,.08,.08,0x6c706b);
+    }
+  }
+  for(let x=-26;x<=0;x+=1){
+    const truss=(x+26)%4===0;
+    const width=truss ? .18 : .055;
+    for(const z of [10,15.6])
+      member([x,eaves,z],[x,eaves+rise,ridgeZ],width,width,truss?0xb5ad9f:0x676e6b);
+    if(truss) member([x,eaves,10],[x,eaves,15.6],.18,.24,0xb5ad9f);
+  }
+  for(const z of [10,15.6]) block(-13,10.68,z,26,.16,.18,0xa9a69b);
+  // Glazed upper gallery facing the bookstore. Its lower edge sits on the parapet.
+  for(const y of [3.6,7.2]){
+    block(-13,y,9.97,26,1.20,.15,0xb9b5aa);
+    block(-13,y+2.59,9.97,26,1.01,.15,0xb9b5aa);
+    for(let x=-25;x<0;x+=2){
+      block(x,y+1.2,9.97,1.94,1.39,.08,0x526268);
+      block(x,y+1.2,10.025,.055,1.39,.045,0x383e40);
+      block(x-.97,y+1.2,10, .10,1.39,.14,0xaaa79e);
+    }
+  }
+  // A curved planting bed hugs the B1 stair nose. Both side entrances stay clear.
+  for(let i=0;i<18;i++){
+    const point=(j:number,y:number,r:number)=>{
+      const angle=(j/18-.5)*Math.PI*.82;
+      return [-16.5+(1.65+r)*Math.cos(angle),y,12.8+(2.8+r)*Math.sin(angle)];
+    };
+    member(point(i,-2.20,.32),point(i+1,-2.20,.32),.40,.38,0xa29c8e);
+    member(point(i,-1.99,.24),point(i+1,-1.99,.24),.26,.2,i%3?0x798757:0x94a36a);
+  }
   for(const x of [-6.8,-11.3]) {
     block(x,1.13,16.15,.42,.06,.42,0x767974);
     block(x,1.19,16.15,.07,.57,.07,0x858780);
@@ -114,6 +157,21 @@ export function addActivityAtrium(scene: Scene, tracker: ResourceTracker) {
     const m=new Mesh(new PlaneGeometry(w,h),new MeshStandardMaterial({map,roughness:.88}));
     m.position.set(x,y,z);m.rotation.y=yaw;root.add(m);
   };
+  for(const [i,x] of [-5,-12,-19].entries()){
+    const z=i%2?11.1:14.25;
+    const top=10.7-i*.24;
+    const banner=texture(128,384,c=>{
+      c.fillStyle=['#bd815c','#658896','#9b6980'][i]!;
+      c.fillRect(0,0,128,384);c.fillStyle='#f4ecdb';c.textAlign='center';
+      c.font='bold 29px sans-serif';
+      Array.from('雲林科技大學').forEach((ch,j)=>c.fillText(ch,64,42+j*34));
+      c.beginPath();c.arc(64,266,32,0,Math.PI*2);c.fill();
+      c.fillStyle='#414547';c.fillRect(52,263,4,6);c.fillRect(72,263,4,6);
+      c.font='bold 21px sans-serif';c.fillText('YunTech',64,343);
+    });
+    const flag=new Mesh(new PlaneGeometry(.88,2.9),new MeshStandardMaterial({map:banner,side:DoubleSide}));
+    flag.position.set(x,top-1.45,z);flag.rotation.y=Math.PI*.43;root.add(flag);
+  }
   // Display glazing beside the corridor mouth, facing the landing.
   panel(5.6,1.18,-1.12,2.28,12.9,Math.PI/2,texture(512,128,c=>{
     c.fillStyle='#494740'; c.fillRect(0,0,512,128);

@@ -12,7 +12,7 @@ const source: BuildingSource = {
   transform:{angleDeg:Math.atan2(6.28,-35.17)*180/Math.PI,planCentroid:[0,0],worldCentroid:[128.18,168.83]},
   floorHeight:3.6, levels:levels.map(([id,elevation])=>({id,elevation,built:true})),
   floors:{},shell:{},directory:[],undergroundLevel:'B1',style:{clerestory:false,windows:true},
-  groundOpenings:[bookshopWell,[50,9,58,13],[7,-8,28,1.9]],
+  groundOpenings:[[-29,6,0,19],[50,9,58,13],[7,-8,28,1.9]],
 };
 for(const [index,[id,base]] of levels.entries()) {
   const height=(levels[index+1]?.[1]??10.8)-base;

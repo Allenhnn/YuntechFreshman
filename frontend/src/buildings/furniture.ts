@@ -716,7 +716,7 @@ function corridorProps(plan: FloorPlan, grid: FloorGrid, base: number, keepOut: 
       const mid = alongX ? (y0 + y1) / 2 : (x0 + x1) / 2;
       for (let t = lo + 4; t <= hi - 4; t += 14) {
         const px = alongX ? t : mid, py = alongX ? mid : t;
-        if (!clear(px, py, 0.4)) continue;
+        if (s.noCeiling || spaceAt(px, py) !== s || !clear(px, py, 0.4)) continue;
         for (const dir of [1, -1]) {
           const ahead = ORDER.filter((label) => targets.some((g) => g.label === label && ((alongX ? g.x - px : g.y - py) * dir) > 2.5 && Math.hypot(g.x - px, g.y - py) < 70));
           if (!ahead.length) continue;
