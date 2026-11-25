@@ -91,7 +91,7 @@ import { createOutfitter } from './character/outfit';
 import { createItemModel, type ItemModel } from './items/itemModels';
 import { inspectView } from './items/inspectView';
 import { RACE_ROUTE } from './story/storyData';
-import { BODY_REST_Y, CLOCK_RATE, applyPose, computeFallPose, computeLiePose, computeRidePose, computeSitPose, computeSwimPose, createPose } from './character/pose';
+import { BODY_REST_Y, CLOCK_RATE, applyPose, computeCrouchPose, computeFallPose, computeLiePose, computeRidePose, computeSitPose, computeSwimPose, createPose } from './character/pose';
 import { safeTeleportTarget } from './game/teleport';
 import { buildNavGraph, pathAhead, progressOn } from './game/navGraph';
 import { createNavLine } from './game/navLine';
@@ -494,6 +494,33 @@ async function boot(): Promise<void> {
     hilife: hilife ? { counter: hilife.counter, clerk: hilife.clerk } : null,
     putInBed: (place) => putInBed(place),
     standUp: () => standUp(),
+    roomAt: (x, y, z) => {
+      for (const b of buildings()) {
+        // Plan coordinates by inverting the plan → world transform (two basis points).
+        const [ax, az] = b.planToWorld(0, 0), [bx, bz] = b.planToWorld(1, 0), [cx, cz] = b.planToWorld(0, 1);
+        const ux = bx - ax, uz = bz - az, vx = cx - ax, vz = cz - az, det = ux * vz - uz * vx;
+        if (Math.abs(det) < 1e-9) continue;
+        const rx = x - ax, rz = z - az;
+        const px = (rx * vz - rz * vx) / det, py = (ux * rz - uz * rx) / det;
+        const levels = [...b.source.levels].sort((p, q) => p.elevation - q.elevation);
+        const lvl = levels.filter((l) => l.elevation <= y + 0.5).pop();
+        const plan = lvl ? b.source.floors[lvl.id] : undefined;
+        const sp = plan?.spaces.find((q) => q.rects.some(([x0, y0, x1, y1]) => px >= x0 && px <= x1 && py >= y0 && py <= y1));
+        if (sp) return sp.code ?? sp.id;
+      }
+      return null;
+    },
+    seatIn: (_building, room) => {
+      let best: Seat | null = null, bestD = Infinity;
+      for (const b of buildings()) for (const st of b.seats) {
+        if (st.kind !== 'chair' || st.room !== room) continue;
+        const d = Math.hypot(st.x - Transform.x[eid]!, st.z - Transform.z[eid]!);
+        if (d < bestD) { bestD = d; best = st; }
+      }
+      if (!best) return false;
+      sitOn(best);
+      return true;
+    },
     goOutsideDorm: (after) => {
       // In front of the 學生宿舍C lobby (the dorm courtyard spawn if that door isn't known).
       actions.setFading(true);
@@ -534,6 +561,9 @@ async function boot(): Promise<void> {
   const joints = findMascotJoints(model.root);
   // Inspect view: the item held up in front of the camera (turned with the mouse) and in the hand.
   let held: { id: string; view: ItemModel; hand: ItemModel } | null = null;
+  /** 蹲下: held Ctrl (or the story's sneak); the duck-walk phase. */
+  let crouching = false;
+  let crouchGait = 0;
   /** The broom or mop in the right hand (selected on the hotbar). */
   let handTool: { id: string; g: Group } | null = null;
   const heldTurn = { yaw: 0, pitch: 0, zoom: 1 };
@@ -1398,8 +1428,10 @@ async function boot(): Promise<void> {
       moveMods.noclip = ui.tester.noclip && !riding;
       if (seat && (input.held() & MOVE_BITS)) tryStandUp();
       // Not while a story scene (dialogue, mini-game) is on screen: you move again once it is closed.
-      moveMods.speed = seat || knock || storyStore.getState().scene || playground?.frozen || sports.frozen || (ui.countdown && ui.countdown.text !== '開始！') ? 0 : ui.tester.speed * story.speedFactor * sports.speedFactor * (bikes.riddenKind === 'scooter' ? SCOOTER_SPEED_FACTOR : 1) * (inWater ? 0.55 : 1);
-      moveMods.noJump = sports.active || !!knock;
+      // 蹲下 (Ctrl held, or sneaking out of class): slow and low.
+      crouching = !seat && !knock && bikes.ridden < 0 && !inWater && !sports.active && ((input.held() & Action.Crouch) !== 0 || story.forceCrouch);
+      moveMods.speed = seat || knock || storyStore.getState().scene || playground?.frozen || sports.frozen || (ui.countdown && ui.countdown.text !== '開始！') ? 0 : ui.tester.speed * story.speedFactor * sports.speedFactor * (bikes.riddenKind === 'scooter' ? SCOOTER_SPEED_FACTOR : 1) * (inWater ? 0.55 : 1) * (crouching ? 0.4 : 1);
+      moveMods.noJump = sports.active || !!knock || crouching;
       moveMods.bike = riding;
       moveMods.blocked = riding ? insideBuilding : null;
       controller.update(world, FIXED_DT, input.consumePressed(), rig.yaw, groundFilter, moveMods);
@@ -1465,6 +1497,10 @@ async function boot(): Promise<void> {
       applyPose(joints, computeFallPose(knock.t, knock.total, ridePose));
     } else if (seat && joints) {
       applyPose(joints, seat.s.kind === 'bed' ? computeLiePose(time, ridePose) : computeSitPose(time, ridePose, storyStore.getState().handUp));
+    } else if (crouching && joints) {
+      const speed = Math.hypot(Velocity.x[eid]!, Velocity.z[eid]!);
+      crouchGait += dt * speed * 4.5;
+      applyPose(joints, computeCrouchPose(crouchGait, time * CLOCK_RATE, speed > 0.2, ridePose));
     } else if (bikes.ridden >= 0 && objects[eid]) {
       const o = objects[eid]!;
       bikes.update(dt, o.position.x, o.position.y, o.position.z, o.rotation.y, Math.hypot(Velocity.x[eid]!, Velocity.z[eid]!));

@@ -343,7 +343,7 @@ export function createItemModel(id: ItemId, who?: CardInfo): ItemModel {
       break;
     }
     case 'bun':
-      add(new SphereGeometry(0.42, 24, 16), [face], 0, 0, 0).scale.set(1, 0.62, 1);
+      add(new SphereGeometry(0.42, 24, 16), face, 0, 0, 0).scale.set(1, 0.62, 1);
       break;
     case 'box':
       add(new BoxGeometry(0.9, 0.22, 0.62), mat('#212121'), 0, -0.04, 0);

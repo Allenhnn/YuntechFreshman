@@ -139,6 +139,20 @@ export function LectureOverlay(): ReactNode {
 }
 
 /** Top-centre countdown (the roll call): label, mm:ss, a shrinking bar that turns red, and where to. */
+/** 翹課: while sneaking out of class, how close the professor is to noticing. */
+export function SneakMeter(): ReactNode {
+  const sneak = useStory((s) => s.live.sneak);
+  if (!sneak) return null;
+  const pct = Math.round(sneak.risk * 100);
+  return (
+    <div className={`sneak-meter${pct > 60 ? ' hot' : ''}`}>
+      <div className="sneak-title">🤫 偷偷溜出教室・蹲著走到門外</div>
+      <div className="sneak-bar"><i style={{ width: `${pct}%` }} /></div>
+      <small>被發現風險 {pct}%・走動會增加，停下來比較安全</small>
+    </div>
+  );
+}
+
 export function TopCountdown(): ReactNode {
   const cd = useStory((s) => s.live.countdown);
   const modal = useGame((s) => s.modal);

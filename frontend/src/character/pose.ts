@@ -180,6 +180,26 @@ export function computeSwimPose(stroke: number, clock: number, moving: boolean, 
   return out;
 }
 
+/**
+ * Crouching (蹲下): knees bent and hips low, leaning forward, arms forward for balance; while
+ * moving, short duck-walk steps. `gait` advances with the distance walked.
+ */
+export function computeCrouchPose(gait: number, clock: number, moving: boolean, out: Pose): Pose {
+  const s = moving ? Math.sin(gait) : 0;
+  const b = Math.sin(clock * 1.4);
+  out.lean = 0.42;
+  out.legL = -1.05 + s * 0.35;
+  out.legR = -1.05 - s * 0.35;
+  out.armLX = -0.7 - s * 0.2;
+  out.armRX = -0.7 + s * 0.2;
+  out.armSpread = 0.3;
+  out.bob = -0.13 + Math.abs(s) * 0.015;
+  out.squash = 0.97 + b * 0.006;
+  out.headTilt = -0.15;
+  out.leaf0 = b * 0.05; out.leaf1 = b * 0.05 + 0.02; out.leaf2 = b * 0.05 - 0.02;
+  return out;
+}
+
 /** Sitting on a chair (feet at the floor under it, seat top 0.42 m): thighs forward, hands on the desk. */
 export function computeSitPose(clock: number, out: Pose, handUp = false): Pose {
   const b = Math.sin(clock * 1.6);

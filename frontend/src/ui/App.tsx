@@ -14,7 +14,7 @@ import { PhoneDrawer } from './phone';
 import { ElevatorModal, Fade, InteractPrompt, ShopModal } from './elevator';
 import { ChatBox } from './chat';
 import { CameraOverlay } from './camera';
-import { AchievementPopup, BigCountdown, Celebration, QuestLog, QuestTracker, StoryModal, TopCountdown, TutorialCard, LectureOverlay } from './story';
+import { SneakMeter, AchievementPopup, BigCountdown, Celebration, QuestLog, QuestTracker, StoryModal, TopCountdown, TutorialCard, LectureOverlay } from './story';
 import './ui.css';
 
 function App(): ReactNode {
@@ -43,6 +43,7 @@ function App(): ReactNode {
       {hud && modal !== 'camera' && <TopCountdown />}
       {hud && modal !== 'camera' && <TutorialCard />}
       {hud && modal !== 'camera' && <LectureOverlay />}
+      {hud && <SneakMeter />}
       {hud && <InteractPrompt />}
       <Fade />
       {phase === 'loading' && <LoadingScreen />}

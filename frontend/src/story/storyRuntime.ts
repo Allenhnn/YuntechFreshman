@@ -7,7 +7,7 @@ import { actions, gameStore } from '../state/store';
 import { achievementById, sideById, storyActions, storyStore, type StoryProgress, type StoryScene } from '../state/story';
 import {
   ABSENT_FINE, ACTIVITY, LECTURE, RACE_ROUTE, TUTORIAL, CAFETERIA, DAYS, DIALOGS, DORM, FRIEND, PHOTO_SPOTS, ROOMMATE, STALL_IDS, TOUR_FACTS, TOUR_STOPS,
-  type SceneId, type SportKind, type Step, WAKE_VN, TUTORIAL_DONE_VN, BIKE_VN, type VnLine, MY_ROOM } from './storyData';
+  type SceneId, type SportKind, type Step, WAKE_VN, TUTORIAL_DONE_VN, BIKE_VN, type VnLine, MY_ROOM, PROFESSOR, COURSE } from './storyData';
 import { createBeacons, type Beacon } from './beacons';
 import { createNpcs, type NpcSpec } from './npcs';
 import { insidePoint as insidePointOf } from '../campus/insidePoint';
@@ -37,6 +37,10 @@ export interface StoryDeps {
   sound(name: 'coin' | 'open' | 'close' | 'click' | 'bell' | 'buzz'): void;
   /** Gets the player off a seat or out of bed (where they would step off). */
   standUp(): void;
+  /** Code of the room the player stands in ('MA214'), or null. */
+  roomAt(x: number, y: number, z: number): string | null;
+  /** Sits the player on a free chair in `room` of `building` (false when none). */
+  seatIn(building: string, room: string): boolean;
   /** Fades and puts the player outside the dorm's front door (then `after`). */
   goOutsideDorm(after: () => void): void;
   bikeStations: readonly { name: string; x: number; z: number }[];
@@ -113,6 +117,8 @@ export interface StoryRuntime {
   seatLock(): string | null;
   /** The race step is on (the campus clears its traffic, the runners take the course). */
   readonly racing: boolean;
+  /** Sneaking out of class: the player can only crouch-walk. */
+  readonly forceCrouch: boolean;
   /** Movement speed multiplier (race stamina). */
   readonly speedFactor: number;
   /** Navigate to the current objective. */
@@ -247,6 +253,10 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
   let wrongRoomToast = false;
   /** Seconds lying in your own bed during a sleep step; the night is passing; told it's not your bed. */
   let sleepT = 0;
+  /** 翹課: crouch-walking out of the lecture; `risk` 0–1 of the professor noticing. */
+  let sneak: { risk: number; x: number; z: number; caught: boolean } | null = null;
+  /** Seated in the class's room during the lecture (last frame). */
+  let wasInClass = false;
   let sleeping = false;
   let bedNag = false;
   /** Day 1: told once that the class is upstairs, on entering 管理一館 on the ground floor. */
@@ -298,6 +308,9 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
     floorHint = false;
     wakeVnT = 0;
     wakeVnDone = false;
+    sneak = null;
+    wasInClass = false;
+    storyActions.setLive({ sneak: null });
     tut = null;
     lectureT = 0;
     bellRung = false;
@@ -749,6 +762,12 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
           d.goOutsideDorm(() => window.setTimeout(() => open({ kind: 'vn', id: 'bikeVn', lines: BIKE_VN }), 500));
         }
         if (r.id === 'bikeVn' && step?.cond.t === 'tutorial') advance(true);
+        if (r.id === 'skipVn' && step?.cond.t === 'scene') advance(true);
+        if (r.id === 'caughtVn' && step?.room) {
+          sneak = null;
+          storyActions.setLive({ sneak: null });
+          if (!d.seatIn(step.place, step.room)) toast(`回到 ${step.room} 坐好`);
+        }
         return;
       case 'wardrobe':
         if (step?.cond.t === 'outfit') { advance(); toast('😎 帥！出發去聯誼'); }
@@ -1094,6 +1113,47 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
         storyActions.setLive({ tutorial: { i: tut.i, done } });
       }
     }
+    // 翹課: getting up during the lecture starts sneaking out (crouched). Moving fills the professor's
+    // attention; out of the room unseen = skipped (the lecture step is over); seen = back to the seat.
+    if (step?.cond.t === 'scene' && step.room && !st().scene) {
+      const seated = f.seatedIn === step.place && f.seatedRoom === step.room;
+      if (wasInClass && !seated && !sneak) {
+        sneak = { risk: 0, x: f.x, z: f.z, caught: false };
+        toast('🤫 偷偷溜出教室…只能蹲著走，別被郭教授發現！');
+      }
+      wasInClass = seated;
+      if (sneak && seated) { sneak = null; storyActions.setLive({ sneak: null }); }
+      if (sneak && !sneak.caught) {
+        const moved = Math.hypot(f.x - sneak.x, f.z - sneak.z);
+        sneak.x = f.x; sneak.z = f.z;
+        const inRoom = d.roomAt(f.x, f.y, f.z) === step.room;
+        if (!inRoom) {
+          // Out the door unseen.
+          sneak = null;
+          storyActions.setLive({ sneak: null, lecture: null });
+          unlock('skip');
+          setFlags({ skipped: (prog().flags.skipped ?? 0) + 1 });
+          open({ kind: 'vn', id: 'skipVn', lines: [
+            { who: '你', text: '（呼……成功溜出來了！）' },
+            { who: '', text: `就這樣翹掉了${PROFESSOR}教授的${COURSE}。` },
+            { who: '你', text: '下次點名會不會被抓到啊……算了，先去吃飯！' },
+          ] });
+        } else {
+          // Each second moving: a chance the professor looks up. Standing still in the aisle is safer.
+          sneak.risk = Math.min(1, sneak.risk + dt * (moved > 0.005 ? 0.11 : 0.025));
+          if (Math.random() < dt * sneak.risk * 0.9) {
+            sneak.caught = true;
+            setFlags({ badRecord: (prog().flags.badRecord ?? 0) + 1 });
+            open({ kind: 'vn', id: 'caughtVn', lines: [
+              { who: `${PROFESSOR}教授`, text: '那位蹲在走道上的同學，你要去哪裡？', shake: true },
+              { who: '你', text: '呃……我、我在找我的筆……' },
+              { who: `${PROFESSOR}教授`, text: '回座位坐好。上課不要亂跑。' },
+            ] });
+          }
+          storyActions.setLive({ sneak: { risk: sneak.risk } });
+        }
+      }
+    }
     // 上課中: seated in the classroom the lecture runs (subtitles, the bell); drowsiness comes later.
     const inClass = (step?.cond.t === 'scene' || step?.cond.t === 'class') && f.seatedIn === step.place && (!step.room || f.seatedRoom === step.room);
     if (inClass && step?.cond.t === 'scene') {
@@ -1258,9 +1318,9 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
       const f = lastFrame;
       if (!step || !f) return null;
       if (step.id === '1-1' && !wakeVnDone) return '';
-      if (step.cond.t === 'scene' && !!step.room && f.seatedIn === step.place && f.seatedRoom === step.room) return '🙅 教授正在上課，請勿離開座位！';
       return null;
     },
+    get forceCrouch() { return sneak !== null; },
     get racing() { return on() && currentStep()?.cond.t === 'run'; },
     roomGate(building: string, room: string | undefined): string | null {
       const step = currentStep();
