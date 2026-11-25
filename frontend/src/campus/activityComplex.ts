@@ -213,36 +213,70 @@ export function buildActivityComplex(b: CampusBuilding, solid: GeoBuilder, glass
     // bookshop door's platform beneath the projecting concrete balcony.
     const leftFoot=-30.9, leftTop=-27.89, leftSteps=7;
     const leftTread=(leftTop-leftFoot)/leftSteps;
+    const tile: Tint=[.55,.53,.48], reveal: Tint=[.26,.25,.23];
     for(let i=0;i<leftSteps;i++) {
-      const z=leftFoot+i*leftTread;
-      box(-1.2,1.55,z,z+leftTread,0,platformY*(i+1)/leftSteps,concrete);
+      const z=leftFoot+i*leftTread, top=platformY*(i+1)/leftSteps;
+      box(-1.2,1.12,z,z+leftTread,0,top,tile);
+      box(-1.2,1.12,z,z+.055,top-.025,.032,edge);
     }
-    box(-1.2,1.8,leftTop,-25,0,platformY);
-    box(-1.43,-1.2,leftFoot,-24.9,0,7.5);
-    section(solid,at,-1.12,-1.06,leftFoot,leftTop,1,platformY+.94,.06,metal);
-    for(let i=0;i<leftSteps;i+=3) {
-      const z=leftFoot+(i+.5)*leftTread;
-      box(-1.12,-1.06,z,z+.06,platformY*(i+1)/leftSteps,.9,metal);
+    box(-1.2,1.8,leftTop,-25,0,platformY,tile);
+    box(-1.48,-1.2,-32,-24.9,0,7.5,tile);
+    for(const x of [-1.12,1.03]) {
+      section(solid,at,x,x+.055,leftFoot,leftTop,.94,platformY+.94,.055,metal);
+      for(let i=0;i<leftSteps;i+=3) {
+        const z=leftFoot+(i+.5)*leftTread;
+        box(x,x+.055,z,z+.055,platformY*(i+1)/leftSteps,.88,metal);
+      }
     }
-    // The slab and parapet turn back toward the planting bed.
-    for(let i=0;i<10;i++) {
-      const x=-1.43+i*.36, next=x+.36;
-      const lip=(u:number)=>-30.9+.9*Math.pow(Math.max(0,(u-.75)/1.42),2);
-      strip(x,next,lip(x),lip(next),6.2,3.65,.32,concrete);
-      strip(x,next,lip(x),lip(next),.16,3.97,.71,concrete);
-      strip(x,next,lip(x),lip(next),.06,4.82,.06,steel);
-      if(i%3===0) box(x,x+.06,lip(x),lip(x)+.06,4.68,.16,steel);
+    // Shallow storage bay beside the stairs, beneath the sloping soffit.
+    box(1.12,1.25,leftFoot,leftTop,0,platformY,tile);
+    box(1.25,3.75,-28.15,-27.89,0,3.65,reveal);
+    box(3.52,3.75,-31.7,-27.89,0,7.65,tile);
+    section(solid,at,1.25,3.52,-31.7,-28.15,3.54,1.68,.14,tile);
+    // Both curved fascias share the same radius. Between them the
+    // balcony is open, with its rear doorway set back from the rail.
+    const lip=(x:number)=>-32+1.15*(1-Math.sqrt(1-Math.min(1,Math.max(0,(x-2.25)/1.5))**2));
+    for(let i=0;i<16;i++) {
+      const x=-1.48+i*5.23/16, next=x+5.23/16;
+      const z=lip(x), end=lip(next);
+      strip(x,next,z,end,7.2,3.58,.28,tile);
+      strip(x,next,z,end,.17,3.86,.90,tile);
+      for(const y of [4.84,4.99]) strip(x,next,z+.04,end+.04,.055,y,.055,metal);
+      if(i%3===0) box(x,x+.055,z+.04,z+.095,4.76,.28,metal);
+      strip(x,next,z,end,7.2,7.12,.38,tile);
+      strip(x,next,z,end,.19,7.5,.52,tile);
     }
+    box(-1.48,3.75,-28.92,-28.56,7.95,1.68,tile);
+    box(-1.48,.28,-28.92,-28.56,9.63,1.58,tile);
+    box(1.86,3.75,-28.92,-28.56,9.63,1.58,tile);
+    box(-1.48,3.75,-28.92,-28.56,11.21,1.05,tile);
+    box(-1.48,3.75,-28.56,-24.8,12.1,.16,tile);
+    box(-1.48,-1.2,-28.56,-24.8,7.95,4.15,tile);
+    box(-1.2,3.5,-25.22,-25,3.86,3.26,reveal);
+    // Rounded wing in front of the existing side facade, with two window ribbons.
+    for(let i=0;i<20;i++) {
+      const angle=i*Math.PI/40, next=(i+1)*Math.PI/40;
+      const x=-8.48+7*Math.sin(angle), xx=-8.48+7*Math.sin(next);
+      const z=-25-7*Math.cos(angle), zz=-25-7*Math.cos(next);
+      strip(x,xx,z,zz,7.05,.02,12.24,tile);
+      for(const y of [2.08,5.3]) {
+        strip(x,xx,z-.035,zz-.035,.04,y,1.0,[.16,.20,.21]);
+        strip(x,xx,z-.06,zz-.06,.065,y-.08,.08,edge);
+        if(i%3===0) box(x,x+.055,z-.075,z+.06,y,1.0,edge);
+      }
+    }
+    box(-8.48,-1.48,-25.3,-24.85,0,12.26,tile);
     // Central stair, level side bypasses and the paired stepped planting beds.
     for (let i=0;i<7;i++) box(12.5,23.5,-30.9+i*.43,-30.47+i*.43,.075,(i+1)*.15,edge);
     // Both exterior stairs terminate on one continuous first-floor platform.
     box(1.8,32.5,-27.89,.55,0,platformY,concrete);
     box(32.5,36,-20,-3,0,1.125,concrete);
     box(0,1.8,leftTop,.55,0,platformY);
-    for(const x of [1.6,24.1]) {
-      box(x,x+10.1,-29.4,-26.1,.08,.65);
-      box(x+.15,x+9.95,-28.85,-26.3,.73,.52);
-      box(x+.24,x+9.86,-28.65,-26.45,1.25,.28,[.12,.17,.064]);
+    for(const start of [1.6,24.1]) {
+      const x=start<2?3.78:start, end=start+10.1;
+      box(x,end,-29.4,-26.1,.08,.65);
+      box(x+.15,end-.15,-28.85,-26.3,.73,.52);
+      box(x+.24,end-.24,-28.65,-26.45,1.25,.28,[.12,.17,.064]);
     }
     for(const x of [12.45,23.45]) {
       section(solid,at,x,x+.065,-30.78,-27.9,1.08,2.07,.065,metal);
