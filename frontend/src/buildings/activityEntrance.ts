@@ -47,7 +47,7 @@ export function addActivityEntrance(scene: Scene, tracker: ResourceTracker) {
   apron.rotation.x=-Math.PI/2;apron.position.set(-2.45,.085,32.05);root.add(apron);
   const drum=new CylinderGeometry(.31,.30,.95,16), lid=new CylinderGeometry(.325,.325,.055,16);
   const blue=new MeshStandardMaterial({color:0x304e86}), rimBlue=new MeshStandardMaterial({color:0x283e66});
-  for(const z of [25.65,26.35]) for(const x of [1.68,2.37,3.06]) {
+  for(const z of [23.55,24.25]) for(const x of [1.68,2.37,3.06]) {
     const bin=new Mesh(drum,blue),cap=new Mesh(lid,rimBlue);
     bin.position.set(x,.565,z);cap.position.set(x,1.05,z);root.add(bin,cap);
   }
@@ -96,7 +96,7 @@ export function addActivityEntrance(scene: Scene, tracker: ResourceTracker) {
 
   const tyre = new MeshStandardMaterial({color:0x292724}), tube = new CylinderGeometry(.024,.024,1,6);
   const rim = new TorusGeometry(.34,.035,6,24), axis = new Vector3(0,1,0);
-  for (const [x,z,yaw,paint] of [[2.42,28.5,.75,0xc4c4b9],[7,30.5,.22,0x517974],[9.3,30.1,-.15,0x84564c],[27,30,.32,0x65706a]] as const) {
+  for (const [x,z,yaw,paint] of [[2.42,26.45,.75,0xc4c4b9],[7,30.5,.22,0x517974],[9.3,30.1,-.15,0x84564c],[27,30,.32,0x65706a]] as const) {
     const bike=new Group(), enamel=new MeshStandardMaterial({color:paint});
     bike.position.set(x,.09,z); bike.rotation.y=yaw;
     for(const wx of [-.56,.56]) {

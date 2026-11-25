@@ -63,8 +63,8 @@ export function buildActivityComplex(b: CampusBuilding, solid: GeoBuilder, glass
       for (const y of [3.6,7.2]) {
         if (x === 1 && y === 3.6) {
           // Leave headroom over the first treads of the inset return stair.
-          box(0,3.6,-22.5,0,y-.32,.32);
-          box(0,1.25,-24,-22.5,y-.32,.32);
+          box(-1.3,3.6,-22.5,0,y-.32,.32);
+          box(-1.3,1.25,-24,-22.5,y-.32,.32);
         } else box(x-1,x+2.6,-24,0,y-.32,.32);
         const inner = x < 10 ? x+2.4 : x-1;
         box(inner,inner+.16,x === 1 && y === 3.6 ? -22.5 : -24,0,y,.95,edge);

@@ -25,13 +25,14 @@ export function addActivityAtrium(scene: Scene, tracker: ResourceTracker) {
   // Match the platform outline around the storage recess. ShapeGeometry
   // uses metres for UVs, so normalize against the original tile repeat.
   const platform=new Shape();
-  platform.moveTo(1.8,.55).lineTo(32.5,.55).lineTo(32.5,-27.89)
-    .lineTo(3.75,-27.89).lineTo(3.75,-22.5).lineTo(1.8,-22.5).closePath();
+  platform.moveTo(-1.3,0).lineTo(0,0).lineTo(0,.55).lineTo(32.5,.55)
+    .lineTo(32.5,-27.89).lineTo(3.75,-27.89).lineTo(3.75,-22.5)
+    .lineTo(1.25,-22.5).lineTo(1.25,-25.4).lineTo(-1.3,-25.4).closePath();
   const surface=new ShapeGeometry(platform);
   const uv=surface.getAttribute('uv');
   for(let i=0;i<uv.count;i++) uv.setXY(i,(uv.getX(i)-1.8)/30.7,(uv.getY(i)+27.89)/28.44);
-  const floor=new Mesh(surface,new MeshStandardMaterial({map:tile,roughness:.88}));
-  floor.position.y=1.128; floor.rotation.x=-Math.PI/2; floor.receiveShadow=true; root.add(floor);
+  const floor=new Mesh(surface,new MeshStandardMaterial({map:tile,roughness:.88,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-2}));
+  floor.position.y=1.145; floor.rotation.x=-Math.PI/2; floor.receiveShadow=true; root.add(floor);
 
   const shadeMap=texture(128,8,c=>{
     const shade=c.createLinearGradient(0,0,128,0);
@@ -43,7 +44,7 @@ export function addActivityAtrium(scene: Scene, tracker: ResourceTracker) {
   const shade=new Mesh(new PlaneGeometry(10.5,16.8),new MeshStandardMaterial({
     map:shadeMap,transparent:true,depthWrite:false,roughness:1
   }));
-  shade.position.set(5.5,1.136,11.5);shade.rotation.x=-Math.PI/2;root.add(shade);
+  shade.position.set(5.5,1.151,11.5);shade.rotation.x=-Math.PI/2;root.add(shade);
 
   const members:{p:Vector3; q:Vector3; w:number; h:number; color:number}[]=[];
   const member=(a:number[],b:number[],w:number,h:number,color:number)=>{
