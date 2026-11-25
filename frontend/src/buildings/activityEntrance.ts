@@ -42,12 +42,12 @@ export function addActivityEntrance(scene: Scene, tracker: ResourceTracker) {
   grout.fillStyle='#81796b'; grout.fillRect(0,0,64,64);
   grout.fillStyle='#aaa194'; grout.fillRect(1,1,62,62);
   const tiles=new CanvasTexture(grid);tiles.colorSpace=SRGBColorSpace;
-  tiles.wrapS=tiles.wrapT=RepeatWrapping;tiles.repeat.set(32,24);
-  const apron=new Mesh(new PlaneGeometry(12.4,9.4),new MeshStandardMaterial({map:tiles,roughness:1}));
-  apron.rotation.x=-Math.PI/2;apron.position.set(-2.45,.085,33.8);root.add(apron);
+  tiles.wrapS=tiles.wrapT=RepeatWrapping;tiles.repeat.set(32,33);
+  const apron=new Mesh(new PlaneGeometry(12.4,12.9),new MeshStandardMaterial({map:tiles,roughness:1}));
+  apron.rotation.x=-Math.PI/2;apron.position.set(-2.45,.085,32.05);root.add(apron);
   const drum=new CylinderGeometry(.31,.30,.95,16), lid=new CylinderGeometry(.325,.325,.055,16);
   const blue=new MeshStandardMaterial({color:0x304e86}), rimBlue=new MeshStandardMaterial({color:0x283e66});
-  for(const z of [29.15,29.85]) for(const x of [1.68,2.37,3.06]) {
+  for(const z of [25.65,26.35]) for(const x of [1.68,2.37,3.06]) {
     const bin=new Mesh(drum,blue),cap=new Mesh(lid,rimBlue);
     bin.position.set(x,.565,z);cap.position.set(x,1.05,z);root.add(bin,cap);
   }
@@ -62,9 +62,9 @@ export function addActivityEntrance(scene: Scene, tracker: ResourceTracker) {
   art.fillStyle='#665f89';art.fillRect(0,330,256,54);art.fillStyle='white';art.font='bold 25px sans-serif';
   art.fillText('新生領航營',128,365);
   const print=new CanvasTexture(welcome);print.colorSpace=SRGBColorSpace;
-  const poster=new Mesh(new CylinderGeometry(7.11,7.11,4.35,12,1,true,.23,.52),
+  const poster=new Mesh(new CylinderGeometry(1,1,4.35,12,1,true,.16,.86),
     new MeshStandardMaterial({map:print,roughness:.95,side:DoubleSide}));
-  poster.position.set(-8.48,3.75,25);root.add(poster);
+  poster.scale.set(4.66,1,1.66);poster.position.set(-6.08,3.75,28.5);root.add(poster);
 
   // Clusters of narrow, pointed cordyline leaves above the clipped green hedge.
   const leaf = new PlaneGeometry(1,1,1,2);
@@ -96,7 +96,7 @@ export function addActivityEntrance(scene: Scene, tracker: ResourceTracker) {
 
   const tyre = new MeshStandardMaterial({color:0x292724}), tube = new CylinderGeometry(.024,.024,1,6);
   const rim = new TorusGeometry(.34,.035,6,24), axis = new Vector3(0,1,0);
-  for (const [x,z,yaw,paint] of [[2.42,32,.75,0xc4c4b9],[7,30.5,.22,0x517974],[9.3,30.1,-.15,0x84564c],[27,30,.32,0x65706a]] as const) {
+  for (const [x,z,yaw,paint] of [[2.42,28.5,.75,0xc4c4b9],[7,30.5,.22,0x517974],[9.3,30.1,-.15,0x84564c],[27,30,.32,0x65706a]] as const) {
     const bike=new Group(), enamel=new MeshStandardMaterial({color:paint});
     bike.position.set(x,.09,z); bike.rotation.y=yaw;
     for(const wx of [-.56,.56]) {
