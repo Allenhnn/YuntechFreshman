@@ -41,7 +41,7 @@ export interface StoryDeps {
   /** Places nothing should be put (sunken courtyards). */
   blocked(x: number, z: number): boolean;
   /** 萊爾富 in 學生活動中心: where customers stand and where the clerk stands. */
-  hilife: { counter: { x: number; z: number }; clerk: { x: number; z: number } } | null;
+  hilife: { counter: { x: number; y: number; z: number }; clerk: { x: number; y: number; z: number } } | null;
   /** Puts the player lying in a bed of `place`; false while its interior is not loaded. */
   putInBed(place: string): boolean;
   /** Walking speed (m/s) for the roll-call time limit. */
@@ -53,6 +53,7 @@ export interface StoryDeps {
 }
 
 export interface StoryFrame {
+  y: number;
   x: number;
   z: number;
   /** Area title (building name, 操場, 大門) or null outdoors. */
@@ -317,7 +318,7 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
       add('cl3', '🏀 籃球社', near(c, 3, 3), { shirt: 0xf08a24, pants: 0x1f1f24, hair: 0x1c1a19 }, true);
     }
     if (step && step.cond.t === 'quiz') add('teacher', '老師', insidePoint(step.place), LOOKS.teacher);
-    if (d.hilife) add('clerk', '萊爾富店員', d.hilife.clerk, LOOKS.clerk);
+    if (d.hilife) out.push({ key:'clerk', name:'萊爾富店員', ...d.hilife.clerk, look:LOOKS.clerk });
     if (side('lostFound')?.state === 'active' && actions.hasItem('lostCard')) {
       add('desk', '服務台人員', insidePoint('行政大樓'), LOOKS.staff, true);
       add('guard', '警衛伯伯', insidePoint('警衛室'), LOOKS.guard, true);
@@ -343,6 +344,7 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
       const n = npcsFor(step.cond.scene)[0];
       if (n) return { x: n.x, z: n.z };
     }
+    if (step.cond.t === 'buy' && step.cond.shop === 'hilife' && d.hilife) return d.hilife.counter;
     if (step.room) { const r = d.placeOf(step.room); if (r) return r; }
     return d.placeOf(step.place);
   };
@@ -841,7 +843,7 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
   };
 
   /** At the 萊爾富 counter (in front of it, on the ground floor). */
-  const atCounter = (f: StoryFrame): boolean => !!d.hilife && Math.hypot(d.hilife.counter.x - f.x, d.hilife.counter.z - f.z) < 2.2;
+  const atCounter = (f: StoryFrame): boolean => !!d.hilife && Math.abs(f.y-d.hilife.counter.y)<1.4 && Math.hypot(d.hilife.counter.x - f.x, d.hilife.counter.z - f.z) < 2.2;
   const lostFoundReady = (f: StoryFrame): boolean =>
     side('lostFound')?.state === 'active' && actions.hasItem('lostCard') && closeTo('lostFound', f);
   const prompt = (f: StoryFrame): string | null => {

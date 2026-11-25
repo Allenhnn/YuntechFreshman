@@ -262,7 +262,7 @@ async function boot(): Promise<void> {
   const dormCFacade = createDormCFacade(scene, physics, campus, sceneResources);
   const dormCourtyard = createDormCourtyard(scene, physics, sceneResources);
   const dormYard = createDormYard(scene, physics, campus, sceneResources);
-  const hilife = createHilifeStore(scene, physics, campus, sceneResources);
+  const hilife = activity ? createHilifeStore(scene, physics, activity, sceneResources) : null;
   const ponds = createPonds(scene, physics, sceneResources);
   const mgmtCourtyard = mb ? createMgmtCourtyard(scene, physics, sceneResources, mb) : null;
   const mbLobby = mb ? createMbLobby(scene, physics, sceneResources, mb) : null;
@@ -415,7 +415,7 @@ async function boot(): Promise<void> {
   let swimStroke = 0;
   let lastWake = 0;
   let lastNight = -1;
-  const storyFrame: StoryFrame = { x: 0, z: 0, area: null, minutes: 0, riding: false, sprinting: false, playing: false, viewYaw: 0, seatedIn: null, seatedRoom: null, lying: false };
+  const storyFrame: StoryFrame = { x: 0, y: 0, z: 0, area: null, minutes: 0, riding: false, sprinting: false, playing: false, viewYaw: 0, seatedIn: null, seatedRoom: null, lying: false };
   const insideBuilding = createBuildingTest(campus);
   const moveMods: MoveModifiers = { fly: false, noclip: false, speed: 1, bike: false, blocked: null };
   const joints = findMascotJoints(model.root);
@@ -1198,6 +1198,7 @@ async function boot(): Promise<void> {
       if (wasRiding && !riding) storyEvents.dismount(px, pz);
       wasRiding = riding;
       storyFrame.x = px;
+      storyFrame.y = Transform.y[eid]!;
       storyFrame.z = pz;
       storyFrame.area = areaAt(px, Transform.y[eid]!, pz)?.title ?? null;
       storyFrame.minutes = ui.gameMinutes;

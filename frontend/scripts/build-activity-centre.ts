@@ -144,7 +144,11 @@ for(const [index,[id,base]] of levels.entries()) {
     concreteBox(-29.1,13,0,.2,height,20);
     concreteBox(wingEdge-.08,12.8,0,.16,height,5.6);
     concreteBox((-2+wingEdge)/2,19,0,2+wingEdge,height,.16);
-    concreteBox((-26+wingEdge)/2,6.7,0,26+wingEdge,height,.16);
+    // The shop looks across the well toward the bookshop. Keep the
+    // corridor wall on both sides of its full-width glazed frontage.
+    space('萊爾富','lobby',[[-11,0,-3,6.7]],{});
+    concreteBox(-18.5,6.7,0,15,height,.16);
+    concreteBox((-3+wingEdge)/2,6.7,0,3+wingEdge,height,.16);
     f.blankWalls=[{a:[wingEdge,10],b:[wingEdge,15.6]}];
   }
   // The rear landing is flush with the cross passage. The opposite landing
@@ -211,6 +215,7 @@ for(const [index,[id,base]] of levels.entries()) {
   // Upper bridge edges remain open to both wings. At ground level the court
   // itself is the exterior platform, entered at the mouths of both corridors.
   if(id==='1F') {
+    open('h',6.7,-7,8,'open','萊爾富');
     open('v',36,13,4,'open','中庭');
     open('v',wingEdge,17.4,1.8,'exit','雲院書城');
     open('v',wingEdge,8.4,1.8,'exit','翼廊');
