@@ -75,7 +75,7 @@ import { createMbLobby } from './buildings/mbLobby';
 import { MAIN_GATE_GUARDHOUSE, createMainGate, gateTreeExclusions, inGateZone } from './campus/mainGate';
 import { addBoundaryZone } from './campus/boundaryZone';
 import { createBlockWallZone, createBlockWalls } from './campus/blockWall';
-import { applyBuildingFixes, copyDormCToD, reshapeDormB, divideLongtan, includeLongtanRoad, remapSplitTraced, sealBuildings, splitDormC, streetscapeFixes, widenCampusRoads, widenCentralAxis } from './campus/campusFixes';
+import { applyBuildingFixes, copyDormCToD, reshapeDormB, reshapeDormEF, divideLongtan, includeLongtanRoad, remapSplitTraced, sealBuildings, splitDormC, streetscapeFixes, widenCampusRoads, widenCentralAxis } from './campus/campusFixes';
 import { createLongtanSidewalks } from './campus/longtanRoad';
 import { createStreetscape, staffGateZone } from './campus/streetscape';
 import { SCOOTER_LOTS, createScooterLots } from './campus/scooterLots';
@@ -205,6 +205,7 @@ async function boot(): Promise<void> {
   splitDormC(campus); // 學生宿舍C 北棟：4 層中段＋3 層兩翼
   copyDormCToD(campus); // 學生宿舍D：C 區三棟的外環鏡射過去（外觀由 dormCFacade.ts 同一套做）
   reshapeDormB(campus); // 學生宿舍B：照平面圖的外環、封起來（外觀由 dormCFacade.ts site 'B' 做）
+  reshapeDormEF(campus); // 學生宿舍E.F：照平面圖的外環
   widenCampusRoads(campus);
   widenCentralAxis(campus);
   streetscapeFixes(campus);

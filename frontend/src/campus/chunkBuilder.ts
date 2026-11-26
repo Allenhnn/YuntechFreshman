@@ -623,7 +623,7 @@ export class ChunkBuilder {
       // Plan-traced buildings open where the plans have exits; others get one entrance facing the road.
       const fallback = hasInterior(b) ? buildingEntrance(b, this.data.roads, photoEdges) : null;
       // Sealed buildings keep their doors on the outside (canopy, frame) but shut: no gap in the wall.
-      const shut = b.sealed
+      const shut = b.sealed && !b.doorless
         ? this.entrances[String(b.id)]?.filter((d) => !photoEdges.has(d.edge)) ?? (enterableShape(b) ? [buildingEntrance(b, this.data.roads, photoEdges)].filter((e): e is Entrance => !!e) : [])
         : [];
       const doors = b.sealed ? [] : this.entrances[String(b.id)]?.filter((d) => !photoEdges.has(d.edge)) ?? (fallback ? [fallback] : []);

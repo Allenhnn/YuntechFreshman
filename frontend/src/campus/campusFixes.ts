@@ -461,6 +461,23 @@ export function reshapeDormB(campus: CampusData): void {
 }
 
 /**
+ * 學生宿舍E.F（使用者 2026-11-26，E、F 一樓平面圖）：兩棟外環照平面圖描（0.049 m/px，平面圖北朝下：轉 180° 再轉 −11.1°）。
+ * F 的 OSM 外形跟平面圖對得很準（四角差 1 m 內），用 F 定位；E 照平面圖跟 F 的相對位置放（比 OSM 往西約 5 m、南北深 22 m）。
+ * F：北側長條 71.4 × 12.9 m、兩翼往北伸到 23.4 m、中間入口凸出 2 m；E：兩翼 13.1 m 寬、南側長條 35.5 m、中間入口凸出 2 m。
+ * 使用者（2026-11-26）：只有兩翼之間那兩道圍牆的門是門，兩棟其他地方都沒有門——封起來、不畫門（`doorless`），沒有室內。
+ */
+const DORM_EF_RINGS: Readonly<Record<number, readonly (readonly [number, number])[]>> = {
+  296668591: [[132.71, 414.43], [61.36, 428.47], [58.87, 415.82], [66.52, 414.32], [66.9, 416.29], [71.04, 415.48], [68.32, 401.63], [80.86, 399.16], [82.31, 406.52], [80.24, 406.92], [81.56, 413.61], [88.14, 412.31], [87.77, 410.39], [101.42, 407.7], [101.8, 409.63], [108.39, 408.33], [107.07, 401.65], [105.0, 402.05], [103.56, 394.7], [116.15, 392.22], [118.88, 406.07], [122.96, 405.26], [122.58, 403.29], [130.22, 401.79]],
+  292500724: [[102.11, 382.5], [89.22, 385.03], [87.71, 377.34], [89.68, 376.95], [88.73, 372.14], [82.58, 373.36], [82.96, 375.28], [69.25, 377.97], [68.88, 376.05], [62.72, 377.26], [63.67, 382.07], [65.64, 381.68], [67.15, 389.37], [54.27, 391.91], [51.38, 377.25], [57.87, 375.97], [56.22, 367.55], [91.07, 360.7], [92.73, 369.11], [99.22, 367.83]],
+};
+export function reshapeDormEF(campus: CampusData): void {
+  for (const [id, ring] of Object.entries(DORM_EF_RINGS)) {
+    const b = campus.buildings.find((x) => x.id === Number(id));
+    if (b) { b.outer = ring.flatMap(([x, z]) => [x, z]); b.holes = []; b.sealed = true; b.doorless = true; }
+  }
+}
+
+/**
  * After `splitDormC`: the plan-traced interior that covered 296668596 now spans the three pieces, and
  * its shell doors (edge + metres along it) are moved onto whichever piece's wall they now lie on.
  * Every piece gets an entry (maybe empty), so none of them falls back to a generated interior.

@@ -131,3 +131,4 @@
 | 學生宿舍B 圍牆 A／B／C（使用者平面圖紅線＋照片） | 三道 L 形花磚圍牆（短段也有 1～2 片花磚、同色調）；A、C 同款門樓（藍門會開），B 兩墩夾藍色鐵柵雙開門（固定） | `dormYard.ts` `DORM_GATES`、`WALL_STUBS`、`barred` |
 | 學生宿舍D1 入口（使用者：整區跟 B1 一樣） | 內凹轉角照 B1 規則重做：雨遮「D」、露天六角花台、兩樘鐵柵門、方墩格柵、平台台階、坡道；舊 D 雨遮與廣場拿掉 | `customFacades.ts` `DORM_B_SPECS`（D1）、`dormCFacade.ts` site B、`dormFeatures.ts` |
 | 學生宿舍A（使用者：跟 B 一樣、方向相反） | B 區整套（三棟外形與外觀、A1 入口轉角雨遮花圃門坡道、三道圍牆與門）鏡射到 A 區 | `customFacades.ts` `dormBToA`、`DORM_B_SPECS`、`dormYard.ts` |
+| 學生宿舍E.F（使用者一樓平面圖） | 兩棟外環照平面圖比例重描（F 定位、E 照相對位置放）；兩翼之間兩道圍牆從 F 翼角接到 E 翼角，門開在牆與中間步道交叉處；兩棟其他地方都沒有門（封起來、`doorless`） | `campusFixes.ts` `reshapeDormEF`、`dormYard.ts`、`chunkBuilder.ts`、`facadeDetails.ts` |
