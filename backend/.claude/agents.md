@@ -164,6 +164,12 @@ docker compose down             # 停止（加 -v 會連資料一起刪除）
 | `.env.example` 沒被 commit | 根目錄 `.gitignore` 有 `.env*`；需要時用 `git add -f backend/.env.example` |
 
 ## 變更紀錄
+### 2026-11-26（前端：學生宿舍E.F 施工圍籬）— 分支 `feat/dorm-ef-construction`
+- 需求：把 E、F 棟外圍圍起來、寫「施工中」。
+- `frontend/src/campus/constructionFence.ts`（新）：E、F 兩棟合起來的凸包往外 3 m 一圈 2.4 m 鐵皮施工圍籬（白色浪板、底部藍帶、上緣黃黑警示帶、內側每 2.5 m 灰色立柱），外側每約 16 m 一塊黃底「施工中／閒人勿進・注意安全」告示牌；每段一個碰撞盒。`constructionSite` 給導航當沒有門的障礙、`constructionTreeFree` 讓路樹避開圍籬線。
+- `frontend/src/main.ts`：建立／dispose 圍籬，加進 keepClear 與 navObstacles。
+- `frontend/src/campus/dormYard.ts`：圍籬內的兩排腳踏車（E 西翼外側、E–F 西側）拿掉。
+
 ### 2026-11-26（前端：學生宿舍E.F 照一樓平面圖調整結構）— 分支 `feat/dorm-c-yard-walls`
 - 需求：照 E、F 一樓平面圖的比例與位置調整兩棟結構；平面圖上連接 E、F 的兩條線是圍牆，門在那裡。
 - `frontend/src/campus/campusFixes.ts`：`reshapeDormEF`（`DORM_EF_RINGS`）——平面圖 0.049 m/px，北朝下（轉 180° 再轉 −11.1°）。F 的 OSM 外形跟平面圖四角差 1 m 內，用 F 定位；E 照平面圖跟 F 的相對位置放（比 OSM 往西約 5 m）。F：北側長條 71.4 × 12.9 m、兩翼、中間入口凸出 2 m；E：兩翼、南側長條、中間入口凸出 2 m。封起來、沒有門（見下）。`main.ts` 在 `reshapeDormB` 後呼叫。

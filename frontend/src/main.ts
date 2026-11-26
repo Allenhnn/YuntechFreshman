@@ -72,6 +72,7 @@ import { createDormCUnitDecor } from './buildings/dormCUnitDecor';
 import { courtPit, createMgmtCourtyard } from './buildings/mgmtCourtyard';
 import { createDormCourtyard, dormCourtPit } from './buildings/dormCourtyard';
 import { createDormYard, dormRideables, dormYardClearings } from './campus/dormYard';
+import { constructionSite, constructionTreeFree, createConstructionFence } from './campus/constructionFence';
 import { createHilifeStore } from './buildings/hilifeStore';
 import { PONDS, WATER_Y, createPonds, pondAt } from './campus/ponds';
 import { createMbLobby } from './buildings/mbLobby';
@@ -264,7 +265,7 @@ async function boot(): Promise<void> {
   remapSplitTraced(traced, campus);
   const bikeStations = placeBikeStations(campus);
   actions.setBikeStations(bikeStations);
-  const keepClear = [...buildingFootprintRings(librarySrc), ...handBuiltSrcs.flatMap(buildingFootprintRings), ...stationClearings(bikeStations), ...gateTreeExclusions(), ...SCOOTER_LOTS.map((l) => l.ring), ...(court ? [court.treeFree] : []), ...yuntayTreeFree(), ...dormTreeFree(), ...dormCFacadeTreeFree(campus), dormPit.treeFree, ...dormYardClearings(), ...PONDS.map((p) => p.ring), [157.43, 235.45, 168.81, 233.24, 169.86, 238.64, 158.48, 240.85] /* 學生餐廳 entrance steps */];
+  const keepClear = [...buildingFootprintRings(librarySrc), ...handBuiltSrcs.flatMap(buildingFootprintRings), ...stationClearings(bikeStations), ...gateTreeExclusions(), ...SCOOTER_LOTS.map((l) => l.ring), ...(court ? [court.treeFree] : []), ...yuntayTreeFree(), ...dormTreeFree(), ...dormCFacadeTreeFree(campus), dormPit.treeFree, ...dormYardClearings(), ...constructionTreeFree(campus), ...PONDS.map((p) => p.ring), [157.43, 235.45, 168.81, 233.24, 169.86, 238.64, 158.48, 240.85] /* 學生餐廳 entrance steps */];
   campus.water = PONDS.map((p) => ({ name: p.name, ring: p.ring }));
   const env = createCampusWorld(scene, physics, renderer, campus, sceneResources, {
     treeExclusions: keepClear,
@@ -363,6 +364,8 @@ async function boot(): Promise<void> {
   const dormBFacade = createDormCFacade(scene, physics, campus, sceneResources, 'B'); // 學生宿舍B：D 區同一套風格
   const dormCourtyard = createDormCourtyard(scene, physics, sceneResources);
   const dormYard = createDormYard(scene, physics, campus, sceneResources);
+  const constructionFence = createConstructionFence(scene, physics, campus, sceneResources); // 學生宿舍E.F 施工中
+  const constructionArea = constructionSite(campus);
   const hilife = activity ? createHilifeStore(scene, physics, activity, sceneResources) : null;
   const ponds = createPonds(scene, physics, sceneResources);
   const mgmtCourtyard = mb ? createMgmtCourtyard(scene, physics, sceneResources, mb) : null;
@@ -462,6 +465,7 @@ async function boot(): Promise<void> {
     }),
     ...PONDS.map((p) => ({ ring: p.ring, door: null })),
     ...dormYard.blockers.map((ring) => ({ ring, door: null })), // dorm courtyard walls: through the gates
+    ...(constructionArea ? [{ ring: constructionArea, door: null }] : []), // 學生宿舍E.F 施工圍籬：整區繞開
   ];
   const navGraph = buildNavGraph(campus, navObstacles);
   const navLine = createNavLine(scene, sceneResources);
@@ -1812,6 +1816,7 @@ async function boot(): Promise<void> {
     unitDecor?.dispose();
     dormCourtyard.dispose();
     dormYard.dispose();
+    constructionFence.dispose();
     hilife?.dispose();
     ponds.dispose();
     mgmtCourtyard?.dispose();
