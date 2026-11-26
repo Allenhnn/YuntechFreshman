@@ -725,7 +725,7 @@ function Mixer({ who }: { who: number }): ReactNode {
   const matched = aff >= MIXER_GOAL;
   const mood = done ? (matched ? 'happy' : 'meh') : reply ? reply.mood : 'idle';
   const line = done
-    ? matched ? `今天跟你聊得很開心！${m.name === '阿哲' ? '' : '😊'} 我們加個 LINE 吧！` : aff >= 45 ? '那…今天就先這樣囉，掰掰～' : '嗯…我先去找朋友了。'
+    ? matched ? `今天跟你聊得很開心！${m.name === '阿哲' ? '' : '😊 '}我們加個 LINE 吧！` : aff >= 45 ? '那…今天就先這樣囉，掰掰～' : '嗯…我先去找朋友了。'
     : reply ? reply.text : t.say;
   return (
     <div className="mx-scene" key={who}>
@@ -745,7 +745,7 @@ function Mixer({ who }: { who: number }): ReactNode {
         <p className="mx-line">「<Rich t={line} />」</p>
         {done ? (
           <div className="mx-end">
-            <p>{matched ? `📱 和${m.name}交換了 LINE！之後可以在手機的聊天室找${m.name}聊天。` : `好感度 ${aff}，還差一點點才聊得來（${MIXER_GOAL}）。`}</p>
+            <p>{matched ? `📱 和${m.name}交換了 LINE！之後可以在手機的聊天室找${m.name}聊天。` : aff >= 45 ? `好感度 ${aff}，還差一點點才聊得來（${MIXER_GOAL}）。` : `好感度只有 ${aff}，這次沒什麼火花…（聊得來要 ${MIXER_GOAL}）`}</p>
             <button className="btn primary" onClick={() => storyEvents.finishScene({ kind: 'mixer', who, aff })}>結束聊天</button>
           </div>
         ) : reply ? (
