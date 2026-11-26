@@ -75,8 +75,8 @@ export interface Step {
   room?: string;
   /** The step begins with you lying in your dorm bed. */
   wake?: boolean;
-  /** A phone message when the step begins. */
-  msg?: { from: string; text: string };
+  /** A phone message when the step begins, with what you can answer (each gets its own reply). */
+  msg?: { from: string; text: string; replies?: { text: string; answer: string }[] };
   /** Show the message as a notification instead of popping the phone open (the tutorial asks for P). */
   quietMsg?: boolean;
 }
@@ -185,21 +185,21 @@ export const DAYS: Day[] = [
   {
     title: '遲到危機與學餐猜拳',
     steps: [
-      { id: '1-1', text: '睡過頭了！快下床', place: DORM, cond: { t: 'getUp' }, at: hm(7, 52), wake: true, quietMsg: true, msg: { from: ROOMMATE, text: '老師正準備點名！你人咧？？快來管一！' } },
+      { id: '1-1', text: '睡過頭了！快下床', place: DORM, cond: { t: 'getUp' }, at: hm(7, 52), wake: true, quietMsg: true, msg: { from: ROOMMATE, text: '老師正準備點名！你人咧？？快來管一！', replies: [{ text: '馬上到！', answer: '快點啦！老師已經點到一半了 😱' }, { text: '我睡過頭了啦…', answer: '我就知道 😂 我先幫你拖一下，快騎車過來！' }, { text: '幫我喊一下「有」🙏', answer: '老師在看我這邊啦 😰 你自己快來！MA214！' }] } },
       { id: '1-T', text: '新手教學：學會基本操作', place: DORM, cond: { t: 'tutorial' } },
       { id: '1-2', text: '衝去管理一館 2F 的 MA214 教室，找空位坐下，被點到時舉手', place: CLASS1, room: 'MA214', cond: { t: 'class' } },
       { id: '1-3', text: '教授開始上課…撐住別睡著！', place: CLASS1, room: 'MA214', cond: { t: 'scene', scene: 'stayAwake' } },
-      { id: '1-4', text: '下課了，到學生餐廳和室友同一桌吃飯：猜拳輸的人請客！', place: CAFETERIA, cond: { t: 'talk', prompt: '按 E 和室友一起吃飯（猜拳）', scene: 'lunch' }, at: hm(12, 0), msg: { from: ROOMMATE, text: '我跟小胖在學餐佔好位子了，快來！今天老規矩，猜拳輸的請客 ✊✌️🖐' } },
+      { id: '1-4', text: '下課了，到學生餐廳和室友同一桌吃飯：猜拳輸的人請客！', place: CAFETERIA, cond: { t: 'talk', prompt: '按 E 和室友一起吃飯（猜拳）', scene: 'lunch' }, at: hm(12, 0), msg: { from: ROOMMATE, text: '我跟小胖在學餐佔好位子了，快來！今天老規矩，猜拳輸的請客 ✊✌️🖐', replies: [{ text: '馬上到！', answer: '快喔，飯要冷了 🍛' }, { text: '今天換我贏 ✊', answer: '哈哈你上次連輸三把耶，等著請客吧 😏' }, { text: '可以不要猜拳嗎…', answer: '不行！老規矩就是老規矩 🤣 不過輸了可以上訴一次' }] } },
       { id: '1-5', text: '吃飽了，回宿舍 C214 寢室的床上睡覺', place: DORM, cond: { t: 'sleep', until: 'nextDay' } },
     ],
   },
   {
     title: '聯誼與跑腿',
     steps: [
-      { id: '2-1', text: '起床！今天早上有聯誼', place: DORM, cond: { t: 'getUp' }, at: hm(8, 30), wake: true, msg: { from: ROOMMATE, text: '早上十點活動中心聯誼別忘了！穿帥一點啊 😎' } },
+      { id: '2-1', text: '起床！今天早上有聯誼', place: DORM, cond: { t: 'getUp' }, at: hm(8, 30), wake: true, msg: { from: ROOMMATE, text: '早上十點活動中心聯誼別忘了！穿帥一點啊 😎', replies: [{ text: '收到，我會穿帥一點', answer: '回寢室打開衣櫃挑一套！別穿拖鞋去 🩴❌' }, { text: '聯誼要幹嘛？', answer: '就聊天玩遊戲啊，記得多找人聊幾句 😉' }, { text: '不太想去…', answer: '去啦！說不定就脫單了 💘' }] } },
       { id: '2-2', text: '回 C214 寢室打開衣櫃，換一套帥氣穿搭', place: DORM, cond: { t: 'outfit' } },
       { id: '2-3', text: '到學生活動中心參加聯誼，把好感度聊滿', place: ACTIVITY, cond: { t: 'talk', prompt: '按 E 加入聯誼', scene: 'mixer' }, at: hm(10, 0) },
-      { id: '2-4', text: '阿凱的隨身碟忘在管理二館 MB109，去幫他拿', place: CLASS2, room: 'MB109', cond: { t: 'pickup', item: 'usbDrive' }, msg: { from: ROOMMATE, text: '救命！我的隨身碟忘在管二 MB109 的桌上了，報告檔案全在裡面 😭 可以幫我拿回宿舍嗎？會給你跑腿費！' } },
+      { id: '2-4', text: '阿凱的隨身碟忘在管理二館 MB109，去幫他拿', place: CLASS2, room: 'MB109', cond: { t: 'pickup', item: 'usbDrive' }, msg: { from: ROOMMATE, text: '救命！我的隨身碟忘在管二 MB109 的桌上了，報告檔案全在裡面 😭 可以幫我拿回宿舍嗎？會給你跑腿費！', replies: [{ text: '好，我去拿', answer: '你是我的救命恩人 🙏 拿到直接回宿舍找我' }, { text: '跑腿費多少？', answer: 'NT$100！夠你吃一頓了吧 💰' }, { text: '你自己去啦', answer: '拜託～我在趕報告走不開 😭 跑腿費 NT$100，好不好？' }] } },
       { id: '2-5', text: '把隨身碟拿回宿舍交給阿凱', place: DORM, cond: { t: 'talk', prompt: '按 E 把隨身碟交給阿凱', scene: 'returnUsb' } },
       { id: '2-6', text: '回 C214 寢室的床上睡覺', place: DORM, cond: { t: 'sleep', until: 'nextDay' } },
     ],
@@ -207,7 +207,7 @@ export const DAYS: Day[] = [
   {
     title: '校園路跑',
     steps: [
-      { id: '3-1', text: '早起！今天是雲科路跑，下床', place: DORM, cond: { t: 'getUp' }, at: hm(7, 0), wake: true, give: 'raceBib', msg: { from: ROOMMATE, text: '號碼布幫你領了，在你桌上！七點半操場集合' } },
+      { id: '3-1', text: '早起！今天是雲科路跑，下床', place: DORM, cond: { t: 'getUp' }, at: hm(7, 0), wake: true, give: 'raceBib', msg: { from: ROOMMATE, text: '號碼布幫你領了，在你桌上！七點半操場集合', replies: [{ text: '謝啦！', answer: '不客氣～號碼布記得別在胸前 🏃' }, { text: '可以不要跑嗎…', answer: '報名了就要跑完啦！跑完請你喝飲料 🧋' }, { text: '要跑多遠？', answer: '繞校園一大圈，有好幾個檢查點，照路線跑就對了。不能騎車喔！' }] } },
       { id: '3-2', text: '到操場集合', place: '操場', cond: { t: 'enter' } },
       { id: '3-3', text: '跑完全程：依路線通過所有檢查點（不能騎車）', place: '路跑起點', cond: { t: 'run' } },
       { id: '3-4', text: '累死了，回 C214 寢室的床上睡一整天', place: DORM, cond: { t: 'sleep', until: 'nextDay' } },
@@ -216,7 +216,7 @@ export const DAYS: Day[] = [
   {
     title: '社團博覽會：熱音社',
     steps: [
-      { id: '4-1', text: '起床，今天活動中心有社團博覽會', place: DORM, cond: { t: 'getUp' }, at: hm(9, 30), wake: true, msg: { from: ROOMMATE, text: '活動中心今天有社團擺攤！聽說熱音社在找鼓手 🥁 去試試看？' } },
+      { id: '4-1', text: '起床，今天活動中心有社團博覽會', place: DORM, cond: { t: 'getUp' }, at: hm(9, 30), wake: true, msg: { from: ROOMMATE, text: '活動中心今天有社團擺攤！聽說熱音社在找鼓手 🥁 去試試看？', replies: [{ text: '好啊，我去看看', answer: '加油！聽說打得好有獎金 🥁' }, { text: '我不會打鼓欸', answer: '照著社長打的節奏敲就好，D F J K 四個鼓，很簡單啦' }, { text: '熱音社在哪？', answer: '學生活動中心裡面，有一套鼓的那一攤' }] } },
       { id: '4-2', text: '到學生活動中心的熱音社攤位，挑戰打鼓', place: ACTIVITY, cond: { t: 'talk', prompt: '按 E 挑戰熱音社打鼓', scene: 'drums' } },
       { id: '4-3', text: '玩夠了，回 C214 寢室的床上睡覺', place: DORM, cond: { t: 'sleep', until: 'nextDay' } },
     ],
@@ -224,7 +224,7 @@ export const DAYS: Day[] = [
   {
     title: '期中小考',
     steps: [
-      { id: '5-1', text: '起床！今天 MB109 小考', place: DORM, cond: { t: 'getUp' }, at: hm(8, 0), wake: true, msg: { from: ROOMMATE, text: '今天九點 MB109 小考！物件導向的筆記借你看 📒' } },
+      { id: '5-1', text: '起床！今天 MB109 小考', place: DORM, cond: { t: 'getUp' }, at: hm(8, 0), wake: true, msg: { from: ROOMMATE, text: '今天八點四十 MB109 小考！物件導向的筆記借你看 📒', replies: [{ text: '謝啦，救星！', answer: '考好請我吃飯 😎' }, { text: '考什麼範圍？', answer: '類別、繼承、多型、UML 那些。多型一定會考！' }, { text: '我可以偷看你的嗎', answer: '我坐你右邊…但我也在亂猜 😅 而且教授會巡堂喔！' }] } },
       { id: '5-2', text: '到管理二館 MB109 考試（10 題）', place: CLASS2, room: 'MB109', cond: { t: 'quiz' }, at: hm(8, 40) },
       { id: '5-3', text: '回宿舍，和室友聊聊這一週', place: DORM, cond: { t: 'talk', prompt: '按 E 回顧這一週', scene: 'summary' } },
     ],

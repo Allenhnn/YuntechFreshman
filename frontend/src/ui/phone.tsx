@@ -2,7 +2,8 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { actions, useGame } from '../state/store';
 import { storyActions, useStory } from '../state/story';
 import { storyEvents } from '../story/storyRuntime';
-import { FRIEND, ROOMMATE } from '../story/storyData';
+import { FRIEND, ROOMMATE, ROOMMATE2 } from '../story/storyData';
+import { CONTACTS } from '../story/chatData';
 import { deletePhoto, listPhotos, type Photo } from '../state/album';
 import { useApi } from './api';
 import { useEscape } from './escape';
@@ -80,7 +81,7 @@ function Album(): ReactNode {
   );
 }
 
-const AVATAR: Record<string, string> = { [ROOMMATE]: '🧑🏻', [FRIEND]: '👩🏻' };
+const AVATAR: Record<string, string> = { [ROOMMATE]: '🧑🏻', [ROOMMATE2]: '👦🏻', [FRIEND]: '👩🏻' };
 
 /** 聊天室: threads, then one thread with bubbles and the quick replies the story offers. */
 function Chat(): ReactNode {
@@ -88,25 +89,28 @@ function Chat(): ReactNode {
   const phone = useStory((s) => s.phone);
   const [open, setOpen] = useState<string | null>(phone.focus);
   const end = useRef<HTMLDivElement>(null);
-  const names = [...new Set([ROOMMATE, FRIEND, ...Object.keys(phone.threads)])];
+  const names = [...new Set([...CONTACTS, ...Object.keys(phone.threads)])];
   useEffect(() => { if (phone.focus) { setOpen(phone.focus); storyActions.focusThread(null); } }, [phone.focus]);
   useEscape(() => { if (!open) return false; setOpen(null); return true; }, 2); // Esc: thread → list
   useEffect(() => { if (open) storyActions.readThread(open); }, [open, phone.threads]);
   useEffect(() => { end.current?.scrollIntoView({ block: 'end' }); }, [open, phone.threads]);
   if (open) {
     const msgs = phone.threads[open] ?? [];
-    const replies = phone.replies[open] ?? [];
+    const story = phone.replies[open] ?? [];
+    const replies = story.length ? story : storyEvents.chatTopics(open);
+    const typing = storyEvents.chatTyping(open);
     return (
       <div className="chat-thread">
         <div className="chat-head"><button className="btn small" onClick={() => { api.click(); setOpen(null); }}>‹</button><b><Rich t={AVATAR[open] ?? '🙂'} /> {open}</b></div>
         <div className="chat-msgs">
           {!msgs.length && <div className="desc">還沒有訊息</div>}
           {msgs.map((m, i) => <div key={i} className={`bubble${m.me ? ' me' : ''}`}><Rich t={m.text} /></div>)}
+          {typing && <div className="bubble typing">輸入中…</div>}
           <div ref={end} />
         </div>
         <div className="chat-replies">
           {replies.length ? replies.map((r) => <button key={r.id} className="btn small" onClick={() => { api.click(); storyEvents.chat(open, r.id); }}><Rich t={r.text} /></button>)
-            : <span className="desc">（沒有可以回的話）</span>}
+            : <span className="desc">{typing ? '等對方回覆…' : '（沒有可以聊的話題）'}</span>}
         </div>
       </div>
     );

@@ -786,7 +786,8 @@ kbd {
 .chat-msgs { display: flex; flex-direction: column; gap: 6px; max-height: 300px; overflow-y: auto; padding: 6px 2px; }
 .bubble { align-self: flex-start; max-width: 80%; padding: 8px 11px; border-radius: 14px 14px 14px 4px; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.1); font-size: 14px; line-height: 1.45; animation: pop-in 0.25s ease; }
 .bubble.me { align-self: flex-end; background: #95ec69; border-radius: 14px 14px 4px 14px; }
-.chat-replies { display: flex; flex-wrap: wrap; gap: 6px; }
+.chat-replies { display: flex; flex-wrap: wrap; gap: 6px; max-height: 118px; overflow-y: auto; }
+.bubble.typing { opacity: 0.6; font-style: italic; }
 .rc { display: flex; flex-direction: column; align-items: center; gap: 10px; }
 .rc-course { font-size: 14px; color: var(--ink-soft); }
 .rc-code { display: flex; gap: 8px; }

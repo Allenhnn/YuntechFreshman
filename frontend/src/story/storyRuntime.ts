@@ -9,6 +9,7 @@ import {
   ABSENT_FINE, ACTIVITY, LECTURE, RACE_ROUTE, TUTORIAL, CAFETERIA, DAYS, DIALOGS, DORM, FRIEND, PHOTO_SPOTS, ROOMMATE, STALL_IDS, TOUR_FACTS, TOUR_STOPS,
   type SceneId, type SportKind, type Step, WAKE_VN, TUTORIAL_DONE_VN, BIKE_VN, type VnLine, MY_ROOM, PROFESSOR, COURSE, ROOMMATE2, LUNCH_EACH, MYSTERY, PROMO_LINES } from './storyData';
 import { createCritters, type CritterSpec } from './critters';
+import { CONTACTS, TOPICS, resolveAnswer, type ChatCtx, type ChatOption } from './chatData';
 import { createBeacons, type Beacon } from './beacons';
 import { createNpcs, type NpcSpec } from './npcs';
 import { insidePoint as insidePointOf } from '../campus/insidePoint';
@@ -162,6 +163,10 @@ export const storyEvents = {
   stand: (_kind: 'chair' | 'bed'): void => undefined,
   /** Tapped a quick reply in the chat app. */
   chat: (_to: string, _reply: string): void => undefined,
+  /** Things you can bring up with a contact when the story has nothing waiting for an answer. */
+  chatTopics: (_to: string): { id: string; text: string }[] => [],
+  /** The contact is typing an answer. */
+  chatTyping: (_to: string): boolean => false,
   /** Entered a code in the 點名系統 app; true when it signs you in. */
   rollcallCode: (_code: string): boolean => false,
   track: (_seconds: number): void => undefined,
@@ -207,13 +212,14 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
     if (step.give && !actions.hasItem(step.give)) actions.giveItem(step.give);
     if (step.say) toast(step.say);
     if (step.wake) { wakeFor = 20; wakeTried = true; }
+    for (const c of CONTACTS) storyActions.setReplies(c, []); // answers to the last step's message are stale
     if (step.msg) {
       const m = step.msg;
       const send = (): void => {
         if (st().scene) { window.setTimeout(send, 600); return; } // after the scene on screen
         storyActions.message(m.from, m.text, !!step.quietMsg); // quiet: a notification only (the tutorial asks for P)
         d.sound('open');
-        if (m.from === ROOMMATE) storyActions.setReplies(ROOMMATE, [{ id: 'otw', text: '馬上到！' }, { id: 'ok', text: '收到 👍' }]);
+        if (m.replies?.length) offerChat(m.from, m.replies);
         if (!step.quietMsg) d.openPhone(m.from); // the phone pops up on the chat, not a message over the game
       };
       window.setTimeout(send, step.wake ? 1500 : 400);
@@ -1047,15 +1053,48 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
   storyEvents.track = () => { sideProgress('athlete', 'track'); sportDone('track'); };
   storyEvents.sit = () => undefined;
   storyEvents.stand = () => undefined;
+  // --- Chat app: answers to the story's messages, follow-ups, and free topics -----------------------
+  const chatOpts = new Map<string, ChatOption>();
+  let chatSeq = 0;
+  const typing = new Set<string>();
+  const offerChat = (to: string, opts: readonly ChatOption[]): void => {
+    storyActions.setReplies(to, opts.map((o) => {
+      const id = `c${++chatSeq}`;
+      chatOpts.set(id, o);
+      return { id, text: o.text };
+    }));
+  };
+  const chatCtx = (): ChatCtx => {
+    const g = gameStore.getState();
+    return { p: prog(), minute: g.gameMinutes % 1440, coins: g.coins, objective: on() ? currentStep()?.text ?? null : null };
+  };
+  storyEvents.chatTyping = (to) => typing.has(to);
+  storyEvents.chatTopics = (to) => {
+    if (typing.has(to)) return [];
+    const c = chatCtx();
+    return (TOPICS[to] ?? []).flatMap((o, i) => (!o.when || o.when(c) ? [{ id: `t${i}`, text: o.text }] : []));
+  };
   storyEvents.chat = (to, reply) => {
-    const r = st().phone.replies[to]?.find((x) => x.id === reply);
-    if (!r) return;
-    storyActions.sent(to, r.text);
+    if (typing.has(to)) return;
+    if (reply === 'askCode') {
+      storyActions.sent(to, '下午點名碼多少？拜託 🙏');
+      storyActions.setReplies(to, []);
+      if (rcCode) window.setTimeout(() => { storyActions.message(to, `點名碼是 ${rcCode}，快去「點名系統」輸入！`); d.sound('open'); }, 1300);
+      return;
+    }
+    const opt = reply.startsWith('t') ? TOPICS[to]?.[Number(reply.slice(1))] : chatOpts.get(reply);
+    if (!opt) return;
+    storyActions.sent(to, opt.text);
     storyActions.setReplies(to, []);
-    const answer = (text: string): void => { window.setTimeout(() => { storyActions.message(to, text); d.sound('open'); }, 1300); };
-    if (reply === 'askCode' && rcCode) answer(`點名碼是 ${rcCode}，快去「點名系統」輸入！`);
-    else if (reply === 'otw') answer('快點啦！老師已經點到一半了 😱');
-    else if (reply === 'ok') answer('👍');
+    chatOpts.clear();
+    const text = resolveAnswer(opt.answer, chatCtx());
+    typing.add(to);
+    window.setTimeout(() => {
+      typing.delete(to);
+      storyActions.message(to, text);
+      d.sound('open');
+      if (opt.next) offerChat(to, opt.next);
+    }, Math.min(2400, 800 + text.length * 30));
   };
   storyEvents.rollcallCode = (code) => {
     const step = currentStep();
