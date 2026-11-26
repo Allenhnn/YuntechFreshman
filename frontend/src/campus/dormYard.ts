@@ -156,8 +156,7 @@ const LATTICE_STUBS: readonly (readonly [readonly [number, number], readonly [nu
 /** Bike parking rows (polylines). */
 const BIKE_ROWS: readonly (readonly number[])[] = [
   // (使用者 2026-11-26: the two rows either side of the walk between 學生宿舍C 東翼 and B are gone.)
-  [48.3, 371.0, 51.3, 386.0], // 學生宿舍E 西翼照平面圖往西長，這排沿著它外側
-  [56.8, 406.5, 59.0, 413.9],
+  // 學生宿舍E.F 施工中（constructionFence.ts）：E 西翼外側、E–F 西側那兩排在圍籬裡，拿掉。
   [-18.6, 442.2, 1.4, 438.5, 25.3, 436.3],
   [66.6, 432.6, 97.1, 427.6, 131.9, 421.7],
 ];
