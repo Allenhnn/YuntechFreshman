@@ -1417,6 +1417,9 @@ async function boot(): Promise<void> {
     Object.assign(window, {
       __game: {
         teleport,
+        /** Rapier world and module (dev checks: floor heights by ray, overlaps). */
+        physics,
+        RAPIER,
         store: gameStore,
         model: model.source,
         world: env,

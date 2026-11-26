@@ -100,7 +100,16 @@ for(const [index,[id,base]] of levels.entries()) {
   // Open stairwells in both wings. Alternating directions stack consecutive
   // flights over the same cutout. Walkable treads use exactly their visual size.
   for(const [left,right] of [[50,58]]) {
-    space('樓梯井','void',[[left,9,right,13]],{noCeiling:true,customEdge:true,ceiling:height+.1});
+    // The shaft bottom (B1) is a floor, not a hole: the first flight starts on it, and stepping off its
+    // side must not drop you out of the building.
+    if(id==='B1') space('樓梯井','corridor',[[left,9,right,13]],{noCeiling:true,group:'hall'});
+    else space('樓梯井','void',[[left,9,right,13]],{noCeiling:true,customEdge:true,ceiling:height+.1});
+    // Centre wall between the two flights (switchback stair): from this floor up to the next, so you
+    // cannot step sideways off one flight onto the other.
+    if(index<3) box((left+right)/2,11,0,right-left,height,.12,'partition');
+    // B1 shaft walls along both long sides up to the 1F slab: the campus ground runs under the
+    // building at grade, and looking down the shaft you would otherwise see it between B1 and 1F.
+    if(id==='B1') for(const y of [8.94,13.06]) box((left+right)/2,y,0,right-left,height,.12,'partition');
     if(index<3){
       const n=Math.ceil(height/.17), step=(right-left)/n;
       for(let k=0;k<n;k++){
