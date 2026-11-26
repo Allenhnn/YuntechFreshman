@@ -16,21 +16,14 @@ import {
 } from 'three';
 import { RAPIER } from '../physics/physics';
 import type { ResourceTracker } from '../core/resources';
-import type { CampusData } from '../campus/campusTypes';
-import { insidePoint } from '../campus/insidePoint';
+import type { HandBuiltBuilding } from './buildingWorld';
 
-/**
- * 萊爾富 in 學生活動中心 1F (the floor plan lists it there): a small convenience store in the lobby —
- * counter with a register and the clerk behind it, two shelves of goods and a drinks cooler at the
- * back, a snack rack at the side, a lit sign board, a floor mat in front. Shopping happens at the
- * counter (story runtime: within reach of `counter`).
- * Local frame: +z points out of the store toward the lobby centre (where customers come from).
- */
+/** The shop faces the bookshop across the activity centre's first-floor lightwell. */
 export interface HilifeStore {
   /** Where customers stand to shop (in front of the counter). */
-  counter: { x: number; z: number };
+  counter: { x: number; y: number; z: number };
   /** Where the clerk stands. */
-  clerk: { x: number; z: number };
+  clerk: { x: number; y: number; z: number };
   dispose(): void;
 }
 
@@ -44,39 +37,34 @@ function signTexture(tracker: ResourceTracker): CanvasTexture {
   if (g) {
     g.fillStyle = '#ffffff';
     g.fillRect(0, 0, 512, 112);
-    // Three colour bands along the bottom (store sign), name in the middle.
-    const bands = ['#e8352b', '#f6a21a', '#1f5fb8'];
-    bands.forEach((col, i) => { g.fillStyle = col; g.fillRect(i * (512 / 3), 92, 512 / 3 + 1, 20); });
-    g.fillStyle = '#e8352b';
-    g.font = "bold 58px 'PingFang TC', 'Noto Sans TC', system-ui, sans-serif";
-    g.textBaseline = 'middle';
-    g.textAlign = 'center';
-    g.fillText('萊爾富', 190, 48);
-    g.fillStyle = '#1f5fb8';
-    g.font = "bold 40px system-ui, sans-serif";
-    g.fillText('Hi-Life', 380, 50);
-    g.fillStyle = '#f6a21a';
-    g.font = "bold 22px system-ui, sans-serif";
-    g.fillText('24H', 475, 22);
+    g.fillStyle='#bf5575';g.fillRect(0,20,512,39);
+    g.fillStyle='#346699';g.fillRect(0,69,512,19);
+    g.fillStyle='#fcf7ea';g.fillRect(166,0,180,112);
+    g.textAlign='center';g.fillStyle='#b83450';
+    g.font='bold 40px sans-serif';g.fillText('Hi-Life',256,46);
+    g.font='bold 27px sans-serif';g.fillText('萊爾富',256,84);
   }
   const t = tracker.texture(new CanvasTexture(c));
   t.colorSpace = SRGBColorSpace;
   return t;
 }
 
-export function createHilifeStore(scene: Scene, physics: RAPIER.World, campus: CampusData, tracker: ResourceTracker): HilifeStore | null {
-  const c = insidePoint(campus, '學生活動中心');
-  if (!c) return null;
-  // Off the lobby centre, facing it.
-  const ax = c.x + 5, az = c.z - 3.5;
-  const yaw = Math.atan2(c.x - ax, c.z - az); // local +z toward the centre
+export function createHilifeStore(scene: Scene, physics: RAPIER.World, building: HandBuiltBuilding, tracker: ResourceTracker): HilifeStore {
+  const level=building.source.levels.find(l=>l.id==='1F')!;
+  const shop=building.source.floors['1F']!.spaces.find(s=>s.name==='萊爾富')!;
+  const [left,,right,front]=shop.rects[0]!;
+  const [ax,az]=building.planToWorld((left+right)/2,front-2);
+  const floorY=level.elevation+.08;
+  const [fx,fz]=building.planToWorld((left+right)/2,front);
+  const yaw=Math.atan2(fx-ax,fz-az);
   const q = new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), yaw);
-  const toWorld = (lx: number, lz: number): { x: number; z: number } => {
+  const toWorld = (lx: number, lz: number): { x: number; y: number; z: number } => {
     const v = new Vector3(lx, 0, lz).applyQuaternion(q);
-    return { x: ax + v.x, z: az + v.z };
+    return { x: ax + v.x, y: floorY, z: az + v.z };
   };
   const root = new Group();
-  root.position.set(ax, 0, az);
+  root.name = 'Hi-Life';
+  root.position.set(ax, floorY, az);
   root.quaternion.copy(q);
   scene.add(root);
   const colliders: RAPIER.Collider[] = [];
@@ -91,7 +79,7 @@ export function createHilifeStore(scene: Scene, physics: RAPIER.World, campus: C
   };
   const solid = (lx: number, lz: number, hx: number, hy: number, hz: number): void => {
     const p = toWorld(lx, lz);
-    colliders.push(physics.createCollider(RAPIER.ColliderDesc.cuboid(hx, hy, hz).setTranslation(p.x, hy, p.z).setRotation({ x: q.x, y: q.y, z: q.z, w: q.w })));
+    colliders.push(physics.createCollider(RAPIER.ColliderDesc.cuboid(hx, hy, hz).setTranslation(p.x, floorY+hy, p.z).setRotation({ x: q.x, y: q.y, z: q.z, w: q.w })));
   };
   const white = mat(0xf4f4f2);
   const red = mat(0xe8352b);
@@ -100,16 +88,15 @@ export function createHilifeStore(scene: Scene, physics: RAPIER.World, campus: C
 
   // Floor: light tiles for the shop, a mat at the entrance side.
   add(new PlaneGeometry(7, 5.4).rotateX(-Math.PI / 2), mat(0xe9e6df, { polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 }), 0, 0.012, -1.3);
-  add(new PlaneGeometry(2.4, 1.0).rotateX(-Math.PI / 2), mat(0x3c4a5a, { polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -6 }), 0, 0.016, 1.9);
+  add(new PlaneGeometry(2.4, 1.0).rotateX(-Math.PI / 2), mat(0x318887, { polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -6 }), 0, 0.016, 1.35);
 
-  // Counter (white with a red band) and the register.
-  add(new BoxGeometry(3.2, 1.0, 0.7), white, 0, 0.5, 0.6);
-  add(new BoxGeometry(3.22, 0.12, 0.72), red, 0, 0.82, 0.6);
-  add(new BoxGeometry(3.3, 0.05, 0.85), mat(0xd9d4c8), 0, 1.025, 0.6);
-  add(new BoxGeometry(0.42, 0.22, 0.34), dark, -0.8, 1.16, 0.6);
-  add(new BoxGeometry(0.34, 0.24, 0.04), mat(0x1c2a36, { emissive: 0x3a7bd5, emissiveIntensity: 0.6 }), -0.8, 1.38, 0.5);
-  add(new BoxGeometry(0.5, 0.35, 0.35), mat(0xf6a21a), 0.9, 1.2, 0.6); // hot food warmer
-  solid(0, 0.6, 1.65, 0.55, 0.4);
+  // Checkout on the right as seen through the doors, with the clerk behind it.
+  add(new BoxGeometry(.82,.98,2.15),white,1.74,.49,.17);
+  add(new BoxGeometry(.93,.07,2.23),mat(0xb6a28b),1.74,1.015,.17);
+  add(new BoxGeometry(.36,.26,.32),dark,1.74,1.19,.38);
+  add(new BoxGeometry(.34,.23,.05),mat(0x526375),1.74,1.41,.32);
+  add(new BoxGeometry(.44,.32,.4),mat(0xe1aa64),1.74,1.23,-.52);
+  solid(1.74,.17,.47,.54,1.12);
 
   // Back shelves with rows of goods (instanced boxes).
   const shelves: { x: number; z: number }[] = [{ x: -1.5, z: -2.6 }, { x: 1.0, z: -2.6 }];
@@ -144,16 +131,29 @@ export function createHilifeStore(scene: Scene, physics: RAPIER.World, campus: C
   prod.castShadow = true;
   root.add(prod);
 
-  // Sign board on two posts behind the shelves, lit.
-  const sign = new Mesh(tracker.geometry(new PlaneGeometry(3.8, 0.83)), tracker.material(new MeshStandardMaterial({ map: signTexture(tracker), emissive: 0xffffff, emissiveMap: signTexture(tracker), emissiveIntensity: 0.55, roughness: 0.5 })));
-  sign.position.set(0, 2.75, -2.86);
-  root.add(sign);
-  add(new BoxGeometry(3.95, 0.95, 0.12), white, 0, 2.75, -2.94);
-  for (const x of [-1.8, 1.8]) add(new BoxGeometry(0.1, 2.3, 0.1), steel, x, 1.15, -2.95);
-
+  const signMap=signTexture(tracker);
+  const signMat=mat(0xffffff,{map:signMap,emissive:0xffffff,emissiveMap:signMap,emissiveIntensity:.45});
+  add(new PlaneGeometry(7.96,.40),signMat,0,2.17,2.03);
+  const glass=mat(0xe1f2f4,{transparent:true,opacity:.13,depthWrite:false});
+  for(const side of [-1,1]) {
+    const cx=side*2.51;
+    add(new BoxGeometry(2.96,1.97,.045),glass,cx,.985,2);
+    solid(cx,2,1.48,.985,.023);
+    for(const x of [side*1.03,side*3.98]) add(new BoxGeometry(.055,1.97,.08),steel,x,.985,2);
+    add(new BoxGeometry(2.96,.065,.06),white,cx,.82,2);
+  }
+  // Life-ET kiosk, overhead display and rows of square ceiling lights.
+  add(new BoxGeometry(.65,1.13,.56),red,3.32,.565,1.14);
+  add(new BoxGeometry(.64,.44,.47),white,3.32,1.35,1.14);
+  add(new BoxGeometry(.47,.28,.04),dark,3.32,1.36,1.39);
+  solid(3.32,1.14,.325,.8,.28);
+  add(new BoxGeometry(.95,.47,.1),mat(0x526998,{emissive:0x45557b}),2.85,1.94,-.85);
+  const diffuser=mat(0xfff9e5,{emissive:0xfff6dc,emissiveIntensity:.85});
+  for(const x of [-2.7,0,2.7]) for(const z of [-3,-.9,1.2])
+    add(new BoxGeometry(.66,.035,.62),diffuser,x,2.12,z);
   return {
-    counter: toWorld(0, 1.6),
-    clerk: toWorld(0, -0.3),
+    counter: toWorld(.85,.3),
+    clerk: toWorld(2.65,.2),
     dispose() {
       for (const col of colliders) physics.removeCollider(col, false);
       root.removeFromParent();

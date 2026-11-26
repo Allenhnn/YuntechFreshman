@@ -17,6 +17,7 @@ import type { ResourceTracker } from '../core/resources';
 import { actions, gameStore, type SportHud } from '../state/store';
 import { TN, type Courts, type Hoop, type TennisCourt, type VolleyCourt } from './sportsCourts';
 import { createStreetball } from './streetball';
+import { FX, successFx } from '../ui/fx';
 
 /**
  * Ball games, all third person:
@@ -239,6 +240,7 @@ export function createSportsGames(scene: Scene, tracker: ResourceTracker, courts
     const coins = k === 'basketball' ? score + (score > rival ? 30 : 0) : k === 'volleyball' ? score * 2 : k === 'tennis' ? score * 4 + (score > rival ? 20 : 0) : score * 10;
     const record = score > best[k];
     if (record) { best[k] = score; saveBest(best); }
+    if (record || score > rival) window.setTimeout(() => successFx(record ? '新紀錄！' : '勝利！', { color: FX.goal, big: true }), 200);
     for (const fn of sportFinished) fn(k, score);
     const who = k === 'basketball' ? '紅隊' : RIVAL;
     const vs = score > rival ? `　🏆 贏了${who}（${score}:${rival}）` : score === rival ? `　🤝 和${who}平手` : `　😣 輸給${who}（${score}:${rival}）`;
@@ -308,7 +310,7 @@ export function createSportsGames(scene: Scene, tracker: ResourceTracker, courts
     ring.visible = true;
   };
   const tennisPoint = (you: boolean, why: string): void => {
-    if (you) score++;
+    if (you) { score++; successFx('得分！', { color: FX.score }); }
     else rival++;
     say(`${why}　${score} : ${rival}`, 1.5);
     tLive = false;
@@ -437,6 +439,7 @@ export function createSportsGames(scene: Scene, tracker: ResourceTracker, courts
             if (near) {
               score++;
               say(`好球！${score}`, 0.9);
+              successFx('好球！', { color: FX.score, calm: true });
               const back = cw(c, 2 + Math.random() * 6, (Math.random() - 0.5) * 7, BALL_R, new Vector3());
               vp.set(px, py + 1.0, pz);
               launch(vp, back, Math.max(0.9, volleyT() * 0.85), vv);
@@ -611,7 +614,7 @@ export function createSportsGames(scene: Scene, tracker: ResourceTracker, courts
             if (Math.abs(kb2) > 3.66) say('射偏了！', 1.2);
             else if (h > 2.44) say('太高了！', 1.2);
             else if (Math.abs(kb2 - keeperB) < 0.95 && h < 2.25) say('被守門員撲出！', 1.2);
-            else { score++; say('GOAL！進球！', 1.2); }
+            else { score++; say('GOAL！進球！', 1.2); successFx('GOAL！', { color: FX.goal, big: true }); }
             kickPause = 1.1;
           }
         }

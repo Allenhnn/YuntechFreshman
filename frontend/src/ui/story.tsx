@@ -10,6 +10,7 @@ import { dispatch } from '../state/commands';
 import { useApi } from './api';
 import { Icon, Rich } from './icons';
 import { Dance, Drums, Exam, Lunch } from './storyGames';
+import { FX, successFx } from './fx';
 
 /** Hints for side quests not started yet. */
 const SIDE_HINTS: Record<string, string> = {
@@ -455,6 +456,7 @@ function RollCall(): ReactNode {
     if (idx !== mine) { setEarly(true); window.setTimeout(() => setEarly(false), 900); return; }
     api.click();
     setDone('ok');
+    successFx('有！', { color: FX.score });
     storyActions.setHand(true);
   };
   const raiseRef = useRef(raise);
@@ -599,6 +601,7 @@ function Quiz(): ReactNode {
   const answer = (k: number): void => {
     api.click();
     const s = score + (k === q.answer ? 1 : 0);
+    if (k === q.answer) successFx('答對！', { color: FX.score, calm: true });
     if (i + 1 < QUIZ.length) { setScore(s); setI(i + 1); setPeek(null); }
     else storyEvents.finishScene({ kind: 'quiz', score: s, cheated, caught });
   };
@@ -697,6 +700,8 @@ function Mixer({ who }: { who: number }): ReactNode {
     setAff((a) => Math.max(0, Math.min(100, a + delta)));
     setReply({ text, delta, mood });
     setFx((n) => n + 1);
+    if (delta >= 10) successFx(`+${delta} ❤`, { color: FX.perfect, calm: true });
+    if (delta > 0 && affRef.current < MIXER_GOAL && affRef.current + delta >= MIXER_GOAL) window.setTimeout(() => successFx('聊得來！', { color: FX.perfect, big: true }), 350);
     if (delta > 0) api.click();
   };
   useEffect(() => {
@@ -807,7 +812,7 @@ function StayAwake(): ReactNode {
       out = val < SAFE[0] || val > SAFE[1] ? out + dt : Math.max(0, out - dt * 1.5);
       setV(val); setLeft(t); setDrowsy(out); setYawn(yawning > 0);
       if (val <= 0 || out >= 2.5) { setDone(false); return; }
-      if (t <= 0) { setDone(true); return; }
+      if (t <= 0) { setDone(true); successFx('撐過一整堂課！', { color: FX.goal, big: true }); return; }
       raf = requestAnimationFrame(step);
     };
     raf = requestAnimationFrame(step);

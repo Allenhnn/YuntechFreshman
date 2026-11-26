@@ -13,6 +13,7 @@ import { CONTACTS, TOPICS, resolveAnswer, type ChatCtx, type ChatOption } from '
 import { createBeacons, type Beacon } from './beacons';
 import { createNpcs, type NpcSpec } from './npcs';
 import { insidePoint as insidePointOf } from '../campus/insidePoint';
+import { FX, successFx } from '../ui/fx';
 
 /**
  * Runs the first week: checks the current step's condition against what the player does, starts
@@ -51,7 +52,7 @@ export interface StoryDeps {
   /** Places nothing should be put (sunken courtyards). */
   blocked(x: number, z: number): boolean;
   /** 萊爾富 in 學生活動中心: where customers stand and where the clerk stands. */
-  hilife: { counter: { x: number; z: number }; clerk: { x: number; z: number } } | null;
+  hilife: { counter: { x: number; y: number; z: number }; clerk: { x: number; y: number; z: number } } | null;
   /** Puts the player lying in a bed of `place`; false while its interior is not loaded. */
   putInBed(place: string): boolean;
   /** Walking speed (m/s) for the roll-call time limit. */
@@ -713,7 +714,7 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
       add('roommate2', ROOMMATE2, near(t, 1.3, 0.3), { shirt: 0xf08a24, pants: 0x34495e, hair: 0x1c1a19 }, true);
     }
     if (scene === 'drums') {
-      const c = insidePoint(ACTIVITY);
+      const c = d.placeOf('聯誼廣場'); // 使用者：熱音社移到和聯誼一樣的位置（36 週年布條下的廣場）
       add('band', '🥁 熱音社', near(c, 0, 3), { shirt: 0x1f1f24, pants: 0x1f1f24, hair: 0x8a2be2 }, true);
       add('band2', '🎸 熱音社', near(c, 1.6, 3.4), { shirt: 0xd8353a, pants: 0x1f1f24, hair: 0x151515 });
     }
@@ -734,7 +735,7 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
       add('cl3', '🏀 籃球社', near(c, 3, 3), { shirt: 0xf08a24, pants: 0x1f1f24, hair: 0x1c1a19 }, true);
     }
     if (step && step.cond.t === 'quiz') add('teacher', `${PROFESSOR}教授`, near(step.room ? d.placeOf(step.room) : insidePoint(step.place), 0, 0), LOOKS.teacher);
-    if (d.hilife) add('clerk', '萊爾富店員', d.hilife.clerk, LOOKS.clerk);
+    if (d.hilife) out.push({ key: 'clerk', name: '萊爾富店員', ...d.hilife.clerk, look: LOOKS.clerk });
     if (side('lostFound')?.state === 'active' && actions.hasItem('lostCard')) {
       add('desk', '服務台人員', insidePoint('行政大樓'), LOOKS.staff, true);
       add('guard', '警衛伯伯', insidePoint('警衛室'), LOOKS.guard, true);
@@ -758,7 +759,7 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
     }
     const step = on() ? currentStep() : null;
     if (step?.cond.t === 'talk' && step.cond.scene === 'drums') {
-      const c = near(insidePoint(ACTIVITY), -1.4, 3.6);
+      const c = near(d.placeOf('聯誼廣場'), -1.4, 3.6);
       if (c) out.push({ key: 'drumkit', kind: 'drumkit', name: '', x: c.x, z: c.z, y: d.groundAt(c.x, c.z) });
     }
     return out;
@@ -809,6 +810,7 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
       const n = npcsFor(step.cond.scene)[0];
       if (n) return { x: n.x, z: n.z };
     }
+    if (step.cond.t === 'buy' && step.cond.shop === 'hilife' && d.hilife) return d.hilife.counter;
     if (step.room) { const r = d.placeOf(step.room); if (r) return r; }
     return d.placeOf(step.place);
   };
@@ -1571,6 +1573,7 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
             p.cool = 6;
             run.boost = 3.5;
             d.sound('coin');
+            successFx('加速！', { color: FX.boost, calm: true });
             toast('⚡ 加速帶！衝啊！');
           }
         }
@@ -1583,7 +1586,7 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
             b.cool = 12;
             const r = Math.random();
             const item: ItemId = r < 0.3 ? 'energyDrink' : r < 0.52 ? 'energyGel' : r < 0.72 ? 'bananaPeel' : r < 0.9 ? 'mysteryDrink' : 'heavyShoes';
-            if (actions.giveItem(item)) { d.sound('coin'); toast(`🎁 拿到${ITEMS[item].icon} ${ITEMS[item].name}！選到快捷欄按滑鼠左鍵使用`); }
+            if (actions.giveItem(item)) { d.sound('coin'); successFx(`${ITEMS[item].icon} ${ITEMS[item].name}`, { color: FX.goal, calm: true }); toast(`🎁 拿到${ITEMS[item].icon} ${ITEMS[item].name}！選到快捷欄按滑鼠左鍵使用`); }
             else toast('🎒 背包滿了，裝不下道具');
           }
         }
@@ -1621,6 +1624,7 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
             const n = run.points[run.next];
             if (n) {
               markNext(run.next);
+              successFx(`檢查點 ${run.next}/${run.points.length}`, { color: FX.score });
               toast(`🚩 ${RACE_ROUTE[run.next]?.name ?? '檢查點'}（${run.next}/${run.points.length}）`);
               d.sound('coin');
               d.navigate(n.x, n.z, RACE_ROUTE[run.next + 1]?.name ?? `檢查點 ${run.next + 1}`, true);
@@ -1632,6 +1636,7 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
               if (t <= target) unlock('runGod');
               clearRun();
               speedFactor = 1;
+              successFx('完賽！', { color: FX.goal, big: true });
               advance();
               toast(`🏅 完賽！時間 ${Math.floor(t / 60)} 分 ${Math.round(t % 60)} 秒（目標 ${Math.floor(target / 60)} 分 ${Math.round(target % 60)} 秒）`);
             }
@@ -1670,7 +1675,7 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
   };
 
   /** At the 萊爾富 counter (in front of it, on the ground floor). */
-  const atCounter = (f: StoryFrame): boolean => !!d.hilife && Math.hypot(d.hilife.counter.x - f.x, d.hilife.counter.z - f.z) < 2.2;
+  const atCounter = (f: StoryFrame): boolean => !!d.hilife && Math.abs(f.y-d.hilife.counter.y)<1.4 && Math.hypot(d.hilife.counter.x - f.x, d.hilife.counter.z - f.z) < 2.2;
   const lostFoundReady = (f: StoryFrame): boolean =>
     side('lostFound')?.state === 'active' && actions.hasItem('lostCard') && closeTo('lostFound', f);
   const prompt = (f: StoryFrame): string | null => {

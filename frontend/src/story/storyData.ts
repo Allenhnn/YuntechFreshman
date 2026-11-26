@@ -216,8 +216,8 @@ export const DAYS: Day[] = [
   {
     title: '社團博覽會：熱音社',
     steps: [
-      { id: '4-1', text: '起床，今天活動中心有社團博覽會', place: DORM, cond: { t: 'getUp' }, at: hm(9, 30), wake: true, msg: { from: ROOMMATE, text: '活動中心今天有社團擺攤！聽說熱音社在找鼓手 🥁 去試試看？', replies: [{ text: '好啊，我去看看', answer: '加油！聽說打得好有獎金 🥁' }, { text: '我不會打鼓欸', answer: '照著社長打的節奏敲就好，D F J K 四個鼓，很簡單啦' }, { text: '熱音社在哪？', answer: '學生活動中心裡面，有一套鼓的那一攤' }] } },
-      { id: '4-2', text: '到學生活動中心的熱音社攤位，挑戰打鼓', place: ACTIVITY, cond: { t: 'talk', prompt: '按 E 挑戰熱音社打鼓', scene: 'drums' } },
+      { id: '4-1', text: '起床，今天活動中心有社團博覽會', place: DORM, cond: { t: 'getUp' }, at: hm(9, 30), wake: true, msg: { from: ROOMMATE, text: '活動中心旁邊的廣場今天有社團擺攤！聽說熱音社在找鼓手 🥁 去試試看？', replies: [{ text: '好啊，我去看看', answer: '加油！聽說打得好有獎金 🥁' }, { text: '我不會打鼓欸', answer: '照著社長打的節奏敲就好，D F J K 四個鼓，很簡單啦' }, { text: '熱音社在哪？', answer: '活動中心和表演廳中間的廣場，36 週年布條下面，有一套鼓的那一攤' }] } },
+      { id: '4-2', text: '到活動中心和表演廳中間的廣場（36 週年布條下），在熱音社攤位挑戰打鼓', place: '聯誼廣場', cond: { t: 'talk', prompt: '按 E 挑戰熱音社打鼓', scene: 'drums' } },
       { id: '4-3', text: '玩夠了，回 C214 寢室的床上睡覺', place: DORM, cond: { t: 'sleep', until: 'nextDay' } },
     ],
   },

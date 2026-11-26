@@ -11,6 +11,7 @@ import {
 import type { ResourceTracker } from '../core/resources';
 import { gameStore } from '../state/store';
 import { RIM_H, RIM_R, type Hoop } from './sportsCourts';
+import { FX, successFx } from '../ui/fx';
 
 /**
  * 3v3 鬥牛 on one basket, third person. You (blue) and two teammates against three (red); first
@@ -406,6 +407,7 @@ export function createStreetball(scene: Scene, tracker: ResourceTracker, ballMes
         const team = teamOf(ball.by);
         if (ball.make) {
           if (tut >= 4) score[team] += ball.pts;
+          if (team === 0) successFx(ball.pts === 3 ? '三分球！' : `+${ball.pts}`, { color: FX.goal, big: ball.pts === 3 });
           say(team === 0 ? (ball.by === 0 ? `${ball.pts === 3 ? '三分球' : '進了'}！+${ball.pts}` : `隊友得分 +${ball.pts}`) : `紅隊得分 +${ball.pts}`, 1.3);
           ball = { s: 'dead', t: 0, next: team === 0 ? 1 : 0 };
         } else {
