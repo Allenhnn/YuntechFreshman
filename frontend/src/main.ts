@@ -129,6 +129,8 @@ const CAFETERIA_TABLE = { x: 153.97, z: 212.18 };
 const PROMO_STAND = { x: -18.5, z: -76 };
 /** 聯誼: the covered plaza under the 36 週年校慶 banner between 學生活動中心 and 雲泰表演廳 (activityAtrium.ts). */
 const MIXER_PLAZA = { x: 108.9, z: 158.4 };
+/** 路跑道具: speed up or slow down (storyRuntime.raceItem). */
+const RACE_ITEMS: ReadonlySet<ItemId> = new Set<ItemId>(['energyDrink', 'energyGel', 'bananaPeel', 'mysteryDrink', 'heavyShoes']);
 const FOOD: ReadonlySet<ItemId> = new Set<ItemId>(['catFood', 'brunchSet', 'latte', 'waffle', 'friedRice', 'friedNoodles', 'dumplings', 'wontonSoup', 'sideDish', 'bread', 'bento', 'buffet', 'beefNoodles', 'plainNoodles', 'bubbleTea', 'soyMilk', 'onigiri', 'teaEgg', 'sportsDrink', 'cupNoodles', 'mineralWater', 'greenTea', 'cannedCoffee']);
 
 const ITEM_MESSAGES: Readonly<Record<ItemId, string>> = {
@@ -158,6 +160,7 @@ const ITEM_MESSAGES: Readonly<Record<ItemId, string>> = {
   usbDrive: '💾 阿凱的隨身碟：拿回宿舍給他',
   catFood: '嘎吱嘎吱……貓飼料的味道……意外地不差？',
   keychain: '🔑 街宣活動送的雲科鑰匙圈',
+  energyDrink: '', energyGel: '', bananaPeel: '', mysteryDrink: '', heavyShoes: '',
   brunchSet: '總匯三明治配薯餅，早午餐吃飽飽！',
   latte: '拿鐵香濃，精神來了！',
   waffle: '鬆餅好香，蜂蜜甜甜的。',
@@ -175,6 +178,11 @@ function useItem(slot: number, api: GameApi): void {
   if (stack.id === 'campusMap') {
     api.closeModal();
     api.toggleMap();
+    return;
+  }
+  if (RACE_ITEMS.has(stack.id)) {
+    // Speed items work any time (the race is where you find them).
+    if (storyEvents.raceItem(stack.id)) actions.consumeItem(slot);
     return;
   }
   if (FOOD.has(stack.id)) actions.consumeItem(slot);
@@ -1377,6 +1385,27 @@ async function boot(): Promise<void> {
   });
   const onCanvasClick = (): void => api.relock();
   canvas.addEventListener('click', onCanvasClick);
+  // Left click (mouse captured): use the item in the selected hotbar slot (使用者：道具欄的道具可以用滑鼠左鍵使用).
+  // In drag-to-look mode the mouse is never captured: a quick click (no drag) uses it instead.
+  let clickStart: { x: number; y: number; t: number } | null = null;
+  const useHeld = (): void => {
+    const st = gameStore.getState();
+    if (st.phase !== 'playing' || st.modal !== 'none' || st.mapMode !== 'mini' || st.sport || !st.inventory[st.hotbarIndex]) return;
+    dispatch({ type: 'useItem', slot: st.hotbarIndex });
+  };
+  const onCanvasDown = (e: MouseEvent): void => {
+    if (e.button !== 0) return;
+    if (lock.isLocked()) useHeld();
+    else if (gameStore.getState().lookMode === 'drag') clickStart = { x: e.clientX, y: e.clientY, t: performance.now() };
+  };
+  const onCanvasUp = (e: MouseEvent): void => {
+    if (e.button !== 0 || !clickStart) return;
+    const quick = Math.hypot(e.clientX - clickStart.x, e.clientY - clickStart.y) < 6 && performance.now() - clickStart.t < 350;
+    clickStart = null;
+    if (quick) useHeld();
+  };
+  canvas.addEventListener('mousedown', onCanvasDown);
+  canvas.addEventListener('mouseup', onCanvasUp);
 
   actions.setLoadProgress(1);
   actions.setPhase('menu');
@@ -1755,6 +1784,8 @@ async function boot(): Promise<void> {
     window.removeEventListener('pagehide', saveIfPlaying);
     document.removeEventListener('visibilitychange', onVisibility);
     canvas.removeEventListener('click', onCanvasClick);
+    canvas.removeEventListener('mousedown', onCanvasDown);
+    canvas.removeEventListener('mouseup', onCanvasUp);
     unsubscribe();
     removeHotkeys();
     uiRoot.unmount();

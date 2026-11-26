@@ -1024,7 +1024,7 @@ svg.ico-line { vertical-align: -0.2em; flex: none; }
 }
 
 /* ---------- Wardrobe v3: one centred card, preview and panel side by side ---------- */
-.wd-shell { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 12px; padding: 16px; pointer-events: none; }
+.wd-shell { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 3rem; padding: 16px; pointer-events: none; }
 .wd-shell > * { height: min(620px, calc(100vh - 64px)); animation: pop-in 0.25s ease; }
 .wd-preview { position: relative; flex: none; width: min(400px, 40vw); border-radius: 22px; box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.9), var(--shadow); cursor: grab; pointer-events: auto; touch-action: none; }
 .wd-preview:active { cursor: grabbing; }

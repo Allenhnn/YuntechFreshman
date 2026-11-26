@@ -1,4 +1,4 @@
-import { BoxGeometry, CanvasTexture, ConeGeometry, CylinderGeometry, Group, InstancedMesh, Matrix4, Mesh, MeshBasicMaterial, MeshStandardMaterial, PlaneGeometry, RepeatWrapping, SphereGeometry, SRGBColorSpace, TorusGeometry, type Object3D, type Scene } from 'three';
+import { BoxGeometry, CanvasTexture, ConeGeometry, CylinderGeometry, Group, InstancedMesh, Matrix4, Mesh, MeshBasicMaterial, MeshStandardMaterial, PlaneGeometry, RepeatWrapping, SphereGeometry, SRGBColorSpace, type Object3D, type Scene } from 'three';
 import { playerName, studentId } from '../state/playerName';
 import type { CampusData } from '../campus/campusTypes';
 import type { ResourceTracker } from '../core/resources';
@@ -172,6 +172,8 @@ export const storyEvents = {
   track: (_seconds: number): void => undefined,
   /** The story modal reports how a scene ended. */
   finishScene: (_r: SceneResult): void => undefined,
+  /** Used a 路跑道具; false when it does nothing right now (kept). */
+  raceItem: (_item: ItemId): boolean => false,
 };
 
 const dayStart = (day: number, minuteOfDay: number): number => (day - 1) * 1440 + minuteOfDay;
@@ -311,12 +313,16 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
     /** Barricades across one side of the course (centre, along-course unit, half depth / half width). */
     blocks: { x: number; z: number; ux: number; uz: number; hd: number; hw: number }[];
     /** The other runners: distance along the course, offset across it, pace, their figure. */
-    runners: { s: number; off: number; pace: number; phase: number; g: Group; legs: Mesh[] }[];
+    runners: { s: number; off: number; pace: number; phase: number; g: Group; legs: Mesh[]; slow: number }[];
+    /** ? boxes on the course: where, the spinning box, seconds until it is back. */
+    boxes: { x: number; z: number; m: Object3D; cool: number }[];
     /** Course sampler: point and direction at a distance along it, and its length. */
     at: (s: number) => { x: number; z: number; ux: number; uz: number };
     length: number;
   } | null = null;
   let speedFactor = 1;
+  /** A speed item's effect (×f for t more seconds), on top of the race pace. */
+  let effect = { t: 0, f: 1, label: '' };
   let pendingScene: SceneId | null = null;
   /** The item to pick up (step `pickup`): where it lies. */
   let pickupAt: { x: number; y: number; z: number } | null = null;
@@ -340,6 +346,7 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
     storyActions.setRollcall(null);
     clearRun();
     speedFactor = 1;
+    effect = { t: 0, f: 1, label: '' };
     pickupAt = null;
     pickupMesh.removeFromParent();
   };
@@ -353,8 +360,48 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
   // --- Race checkpoints -----------------------------------------------------------------------
   const ringMat = d.tracker.material(new MeshBasicMaterial({ color: 0xf2c230, transparent: true, opacity: 0.85 }));
   const nextMat = d.tracker.material(new MeshBasicMaterial({ color: 0x1f8f4a, transparent: true, opacity: 0.9 }));
-  const archGeo = d.tracker.geometry(new TorusGeometry(3.2, 0.18, 8, 32, Math.PI));
-  const markers: Mesh[] = [];
+  /**
+   * Checkpoint gate (使用者：記錄點不要垂直對著人): two posts and a banner across the course, square to the
+   * way you run in, so you run through it; green for the next one, yellow for the rest.
+   */
+  const GATE_W = 7.2;
+  const gatePostGeo = d.tracker.geometry(new CylinderGeometry(0.16, 0.2, 3.6, 12).translate(0, 1.8, 0));
+  const gateBannerGeo = d.tracker.geometry(new BoxGeometry(GATE_W + 0.5, 0.95, 0.12).translate(0, 3.45, 0));
+  const gateLineGeo = d.tracker.geometry(new PlaneGeometry(GATE_W, 0.5).rotateX(-Math.PI / 2).translate(0, 0.05, 0));
+  const gateLineMat = d.tracker.material(new MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.85, polygonOffset: true, polygonOffsetFactor: -3 }));
+  const bannerMat = (n: number, name: string, next: boolean): MeshStandardMaterial => {
+    const c = document.createElement('canvas');
+    c.width = 512; c.height = 64;
+    const g = c.getContext('2d')!;
+    g.fillStyle = next ? '#1f8f4a' : '#e0a800'; g.fillRect(0, 0, 512, 64);
+    g.fillStyle = '#ffffff'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.font = 'bold 34px "PingFang TC","Noto Sans TC",sans-serif';
+    g.fillText(`檢查點 ${n}　${name.replace(/（.*）/, '')}`, 256, 34);
+    const t = d.tracker.texture(new CanvasTexture(c));
+    t.colorSpace = SRGBColorSpace;
+    return d.tracker.material(new MeshStandardMaterial({ map: t, roughness: 0.7 }));
+  };
+  const markers: Group[] = [];
+  /**
+   * Shows the gates still to come, except one standing where an earlier one still waits (the course
+   * passes 檢終 twice: the finish gate appears once the first pass is done).
+   */
+  const gateVisibility = (next: number): void => {
+    markers.forEach((g, i) => {
+      g.visible = i >= next && !markers.some((o, j) => j >= next && j < i && Math.hypot(o.position.x - g.position.x, o.position.z - g.position.z) < 12);
+    });
+  };
+  /** Recolours a gate as the next one to reach. */
+  const markNext = (i: number): void => {
+    gateVisibility(i);
+    const g = markers[i];
+    if (!g) return;
+    for (const c of g.children) {
+      const m = c as Mesh;
+      if (m.userData.post) m.material = nextMat;
+      if (m.userData.banner) m.material = bannerMat(i + 1, RACE_ROUTE[i + 1]?.name ?? '', true);
+    }
+  };
   /** Cones along the course edge and the speed pads (scene objects of this run). */
   const courseProps: Object3D[] = [];
   const clearRun = (): void => {
@@ -367,7 +414,8 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
   /** How far from the course centre line you may run (m). */
   const COURSE_HALF = 10;
   // Barricade: a red-and-white striped plank on two legs, 1 m wide per unit of x scale.
-  const blockGeo = d.tracker.geometry(new BoxGeometry(1, 0.32, 0.12).translate(0, 0.85, 0));
+  // Hurdles (跨欄): low enough to jump over (使用者：跨欄可以跳過去).
+  const blockGeo = d.tracker.geometry(new BoxGeometry(1, 0.24, 0.1).translate(0, 0.58, 0));
   const blockMat = (() => {
     const c = document.createElement('canvas');
     c.width = 128; c.height = 32;
@@ -379,7 +427,7 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
     t.repeat.set(3, 1);
     return d.tracker.material(new MeshStandardMaterial({ map: t, roughness: 0.6 }));
   })();
-  const postGeo = d.tracker.geometry(new BoxGeometry(0.08, 1.0, 0.08).translate(0, 0.5, 0));
+  const postGeo = d.tracker.geometry(new BoxGeometry(0.07, 0.7, 0.07).translate(0, 0.35, 0));
   const postMat = d.tracker.material(new MeshStandardMaterial({ color: 0x3a3d42, roughness: 0.7 }));
   /** The other runners in the race (the campus walkers and drivers are taken off for it). */
   const RUNNERS = 36;
@@ -395,7 +443,8 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
     if (!run) return;
     for (const r of run.runners) {
       const moving = run.started && r.s < run.length - 3;
-      if (moving) r.s += r.pace * dt;
+      r.slow = Math.max(0, r.slow - dt);
+      if (moving) r.s += r.pace * (r.slow > 0 ? 0.35 : 1) * dt;
       const p = run.at(Math.max(0, r.s));
       const back = r.s < 0 ? -r.s : 0; // lined up behind the start
       const x = p.x - p.uz * r.off - p.ux * back, z = p.z + p.ux * r.off - p.uz * back;
@@ -422,6 +471,22 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
     const t = d.tracker.texture(new CanvasTexture(c));
     t.colorSpace = SRGBColorSpace;
     return d.tracker.material(new MeshBasicMaterial({ map: t, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }));
+  })();
+  // ? box (道具箱): a glowing cube with a question mark on every face.
+  const itemBoxGeo = d.tracker.geometry(new BoxGeometry(0.7, 0.7, 0.7));
+  const itemBoxMat = (() => {
+    const c = document.createElement('canvas');
+    c.width = 64; c.height = 64;
+    const g = c.getContext('2d')!;
+    const grd = g.createLinearGradient(0, 0, 64, 64);
+    grd.addColorStop(0, '#ffb300'); grd.addColorStop(1, '#ff6f00');
+    g.fillStyle = grd; g.fillRect(0, 0, 64, 64);
+    g.strokeStyle = '#fff3c4'; g.lineWidth = 4; g.strokeRect(3, 3, 58, 58);
+    g.fillStyle = '#ffffff'; g.font = 'bold 44px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText('?', 32, 35);
+    const t = d.tracker.texture(new CanvasTexture(c));
+    t.colorSpace = SRGBColorSpace;
+    return d.tracker.material(new MeshStandardMaterial({ map: t, emissive: 0xff8f00, emissiveIntensity: 0.35, roughness: 0.4 }));
   })();
   /** Nearest point of the course to (x, z) and how far it is. */
   const nearestOnCourse = (path: { x: number; z: number }[], x: number, z: number): { x: number; z: number; d: number } => {
@@ -522,7 +587,7 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
     }
     // Speed pads (more, and stronger than before), in the open middle lane, clear of the barricades.
     const pads: { x: number; z: number; cool: number }[] = [];
-    const count = Math.max(12, Math.round(total / 110));
+    const count = Math.max(26, Math.round(total / 50)); // 使用者：新增更多加速帶
     for (let k = 0; k < count; k++) {
       let sP = 40 + ((k + 0.2 + Math.random() * 0.6) / count) * (total - 70);
       if (blockAt.some((q) => Math.abs(q - sP) < 7)) sP += 9;
@@ -537,7 +602,7 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
       pads.push({ x, z, cool: 0 });
     }
     // The field: everyone on the campus runs it, in the middle lane, at their own pace.
-    const runners: { s: number; off: number; pace: number; phase: number; g: Group; legs: Mesh[] }[] = [];
+    const runners: { s: number; off: number; pace: number; phase: number; g: Group; legs: Mesh[]; slow: number }[] = [];
     for (let k = 0; k < RUNNERS; k++) {
       const g = new Group();
       const shirt = runnerShirts[k % runnerShirts.length]!;
@@ -548,23 +613,61 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
       for (const c of g.children) c.castShadow = true;
       d.scene.add(g);
       courseProps.push(g);
-      runners.push({ s: -2 - (k % 6) * 1.1 - Math.floor(k / 6) * 1.3, off: ((k % 6) - 2.5) * 0.45, pace: 3.6 + Math.random() * 2.2, phase: Math.random() * 6, g, legs });
+      runners.push({ s: -2 - (k % 6) * 1.1 - Math.floor(k / 6) * 1.3, off: ((k % 6) - 2.5) * 0.45, pace: 3.6 + Math.random() * 2.2, phase: Math.random() * 6, g, legs, slow: 0 });
     }
-    run = { points, next: 0, t: 0, started: false, path, pads, boost: 0, outWarned: 0, blocks, runners, at, length: total };
+    // ? boxes (道具箱) every ~120 m in the middle lane: run through one for a random 路跑道具.
+    const boxes: { x: number; z: number; m: Object3D; cool: number }[] = [];
+    for (let sQ = 90; sQ < total - 30; sQ += 100 + Math.random() * 40) {
+      if (blockAt.some((q) => Math.abs(q - sQ) < 6)) sQ += 8;
+      const p = at(sQ);
+      for (const off of [-1.6, 1.6]) {
+        const x = p.x - p.uz * off, z = p.z + p.ux * off;
+        const m = new Mesh(itemBoxGeo, itemBoxMat);
+        m.position.set(x, d.groundAt(x, z) + 1.0, z);
+        m.castShadow = true;
+        d.scene.add(m);
+        courseProps.push(m);
+        boxes.push({ x, z, m, cool: 0 });
+      }
+    }
+    run = { points, next: 0, t: 0, started: false, path, pads, boost: 0, outWarned: 0, blocks, runners, at, length: total, boxes };
     placeRunners(0);
+    // Gates: square to the way the course arrives at each checkpoint.
+    let pi = 0;
     points.forEach((p, i) => {
-      const m = new Mesh(archGeo, i === 0 ? nextMat : ringMat);
-      m.position.set(p.x, 0, p.z);
-      const nx = points[i + 1] ?? start;
-      m.rotation.y = Math.atan2(nx.x - p.x, nx.z - p.z) + Math.PI / 2;
-      d.scene.add(m);
-      markers.push(m);
+      let j = path.indexOf(p, pi);
+      if (j < 0) j = pi;
+      pi = j;
+      const prevP = path[Math.max(0, j - 1)] ?? start;
+      let ux = p.x - prevP.x, uz = p.z - prevP.z;
+      const L = Math.hypot(ux, uz);
+      if (L < 0.5) { const nx = points[i + 1] ?? start; ux = nx.x - p.x; uz = nx.z - p.z; }
+      const g = new Group();
+      g.position.set(p.x, d.groundAt(p.x, p.z), p.z);
+      g.rotation.y = Math.atan2(ux, uz); // local +z along the course: the banner (local x) spans across it
+      for (const e of [-1, 1]) {
+        const post = new Mesh(gatePostGeo, i === 0 ? nextMat : ringMat);
+        post.position.x = e * GATE_W / 2;
+        post.userData.post = true;
+        post.castShadow = true;
+        g.add(post);
+      }
+      for (const face of [0, Math.PI]) {
+        const banner = new Mesh(gateBannerGeo, bannerMat(i + 1, RACE_ROUTE[i + 1]?.name ?? '', i === 0));
+        banner.rotation.y = face;
+        banner.userData.banner = true;
+        g.add(banner);
+      }
+      g.add(new Mesh(gateLineGeo, gateLineMat));
+      d.scene.add(g);
+      markers.push(g);
     });
+    gateVisibility(0);
     run.started = false;
     const r = run;
     actions.startCountdown(() => {
       r.started = true;
-      toast('🏁 開跑！依序通過拱門，綠色是下一個');
+      toast('🏁 開跑！依序穿過檢查點（綠色是下一個）・跨欄按 Space 跳過・撞 ? 箱拿道具');
     });
     d.navigate(points[0]!.x, points[0]!.z, RACE_ROUTE[1]!.name, true);
   };
@@ -1125,6 +1228,34 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
       if (opt.next) offerChat(to, opt.next);
     }, Math.min(2400, 800 + text.length * 30));
   };
+  storyEvents.raceItem = (item) => {
+    const boost = (f: number, t: number, label: string, msg: string): boolean => {
+      effect = { t, f, label };
+      d.sound(f >= 1 ? 'coin' : 'close');
+      toast(msg);
+      return true;
+    };
+    if (item === 'energyDrink') return boost(2.0, 5, '⚡ 能量飲料', '⚡ 咕嚕咕嚕！能量飲料讓你衝刺 5 秒！');
+    if (item === 'energyGel') return boost(1.45, 9, '🟢 能量果膠', '🟢 能量果膠吸收中，9 秒小幅加速');
+    if (item === 'heavyShoes') return boost(0.6, 6, '🥾 鐵鞋', '🥾 穿上鐵鞋……好重，6 秒跑不快');
+    if (item === 'mysteryDrink') {
+      return Math.random() < 0.55
+        ? boost(2.4, 4, '❓ 神秘飲料', '❓ 神秘飲料……竟然是超級能量！爆衝 4 秒！')
+        : boost(0.55, 5, '❓ 神秘飲料', '❓ 神秘飲料……肚子痛！跑不動 5 秒 😣');
+    }
+    if (item === 'bananaPeel') {
+      if (!run || !run.started) { toast('🍌 香蕉皮要在路跑時丟才有用'); return false; }
+      let n = 0;
+      for (const r of run.runners) {
+        const dx = r.g.position.x - (lastX ?? 0), dz = r.g.position.z - (lastZ ?? 0);
+        if (Math.hypot(dx, dz) < 22) { r.slow = 6; n++; }
+      }
+      d.sound('close');
+      toast(n ? `🍌 丟出香蕉皮！附近 ${n} 位跑者滑倒，慢了下來` : '🍌 丟出香蕉皮……但附近沒有人');
+      return true;
+    }
+    return false;
+  };
   storyEvents.rollcallCode = (code) => {
     const step = currentStep();
     if (!on() || step?.cond.t !== 'phoneRollcall' || !rcCode || code !== rcCode) return false;
@@ -1443,10 +1574,25 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
             toast('⚡ 加速帶！衝啊！');
           }
         }
+        // ? boxes: a random 路跑道具 into your bag.
+        for (const b of run.boxes) {
+          b.cool = Math.max(0, b.cool - dt);
+          b.m.visible = b.cool <= 0;
+          b.m.rotation.y += dt * 1.8;
+          if (b.cool <= 0 && Math.hypot(b.x - f.x, b.z - f.z) < 1.4) {
+            b.cool = 12;
+            const r = Math.random();
+            const item: ItemId = r < 0.3 ? 'energyDrink' : r < 0.52 ? 'energyGel' : r < 0.72 ? 'bananaPeel' : r < 0.9 ? 'mysteryDrink' : 'heavyShoes';
+            if (actions.giveItem(item)) { d.sound('coin'); toast(`🎁 拿到${ITEMS[item].icon} ${ITEMS[item].name}！選到快捷欄按滑鼠左鍵使用`); }
+            else toast('🎒 背包滿了，裝不下道具');
+          }
+        }
         // Race day: everyone runs faster (×1.3), a speed pad doubles it.
         speedFactor = run.boost > 0 ? 2.1 : 1.3;
         // Barricades: you cannot run through them.
+        const lift = f.y - d.groundAt(f.x, f.z);
         for (const bl of run.blocks) {
+          if (lift > 0.45) break; // in the air: over the hurdle
           const dx = f.x - bl.x, dz = f.z - bl.z;
           const a = dx * bl.ux + dz * bl.uz, b = -dx * bl.uz + dz * bl.ux;
           const r = 0.45;
@@ -1474,7 +1620,7 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
             run.next++;
             const n = run.points[run.next];
             if (n) {
-              if (markers[run.next]) markers[run.next]!.material = nextMat;
+              markNext(run.next);
               toast(`🚩 ${RACE_ROUTE[run.next]?.name ?? '檢查點'}（${run.next}/${run.points.length}）`);
               d.sound('coin');
               d.navigate(n.x, n.z, RACE_ROUTE[run.next + 1]?.name ?? `檢查點 ${run.next + 1}`, true);
@@ -1493,6 +1639,9 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
         }
       }
     }
+    // Speed items: ×effect on top of whatever pace the race gives (or walking pace).
+    if (effect.t > 0) effect.t = Math.max(0, effect.t - dt);
+    speedFactor = (run && run.started ? (run.boost > 0 ? 2.1 : 1.3) : 1) * (effect.t > 0 ? effect.f : 1);
     tick++;
 
     // Tracker: distance and direction to the objective.
@@ -1511,7 +1660,7 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
         timer,
         countdown: classTimer ? cdOf(Math.max(0, Math.ceil(cls.t)), cls.limit, `${step!.place} ${step!.room ?? ''}`.trim()) : null,
         stamina: null,
-        note: run && run.boost > 0 ? '⚡ 加速中！' : null,
+        note: effect.t > 0 ? `${effect.label} ${Math.ceil(effect.t)}s` : run && run.boost > 0 ? '⚡ 加速中！' : null,
         place: run && step!.cond.t === 'run' ? `檢查點 ${run.next + 1}/${run.points.length}`
           : step!.cond.t === 'talk' && npcsFor(step!.cond.scene)[0] ? npcsFor(step!.cond.scene)[0]!.name : step!.place,
       });
