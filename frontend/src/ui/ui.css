@@ -1030,36 +1030,26 @@ svg.ico-line { vertical-align: -0.2em; flex: none; }
 .wd-preview:active { cursor: grabbing; }
 .wd-preview-bar { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 5px 6px; border-radius: 999px; background: rgba(255, 255, 255, 0.94); box-shadow: var(--shadow); font-size: 13px; color: var(--ink-soft); white-space: nowrap; }
 .wd-preview-bar button { width: 30px; height: 30px; border: 0; border-radius: 50%; background: var(--green); color: #fff; cursor: pointer; display: grid; place-items: center; }
-.wardrobe { width: min(360px, calc(100vw - 32px)); padding: 16px; border-radius: 22px; background: #fbf8f1; box-shadow: var(--shadow); pointer-events: auto; display: flex; flex-direction: column; gap: 10px; overflow: hidden; }
-.wd-head { display: flex; align-items: center; justify-content: space-between; }
-.wd-head h2 { margin: 0; font-size: 20px; display: flex; align-items: center; gap: 6px; }
-.wd-dots { display: flex; gap: 4px; }
-.wd-dots i { width: 9px; height: 9px; border-radius: 50%; background: var(--line); }
-.wd-dots i.on { background: var(--green); }
-.wd-parts { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; padding: 4px; border-radius: 14px; background: rgba(0, 0, 0, 0.05); }
-.wd-parts button { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 7px 0 6px; border: 0; border-radius: 10px; background: transparent; color: var(--ink-soft); font-size: 12px; cursor: pointer; }
-.wd-parts button i { font-size: 18px; font-style: normal; line-height: 1; }
-.wd-parts button.on { background: #fff; color: var(--green); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12); font-weight: 700; }
-.wd-parts button.worn::after { content: ''; position: absolute; top: 5px; right: 7px; width: 7px; height: 7px; border-radius: 50%; background: var(--green); }
-.wd-sub { display: flex; align-items: baseline; justify-content: space-between; font-size: 13px; color: var(--ink-soft); }
-.wd-sub b { font-size: 15px; color: var(--ink); }
-.wd-items { flex: 1; min-height: 0; overflow-y: auto; display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; align-content: start; }
-.wd-item { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 2px solid transparent; border-radius: 12px; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08); cursor: pointer; text-align: left; font-size: 14px; }
-.wd-item:hover { border-color: var(--line); }
-.wd-item.on { border-color: var(--green); background: var(--green-soft); }
-.wd-item.off { color: var(--ink-soft); }
-.wd-item .sw { width: 24px; height: 24px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.18); flex: none; display: flex; align-items: center; justify-content: center; }
+/* Right panel: the original wardrobe look (使用者：右邊修回原本的介面), sitting in the shell next to the preview. */
+.wardrobe { width: min(380px, calc(100vw - 32px)); max-height: calc(100vh - 48px); overflow-y: auto; box-sizing: border-box; padding: 18px; border-radius: var(--radius); background: #fffdf6; box-shadow: var(--shadow); pointer-events: auto; display: flex; flex-direction: column; gap: 12px; }
+.wd-shell > .wardrobe { height: auto; align-self: center; }
+.wardrobe h2 { margin: 0; }
+.wd-parts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.wd-parts button { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 4px; border: 2px solid var(--line); border-radius: 12px; background: #fff; cursor: pointer; }
+.wd-parts button i { font-size: 22px; font-style: normal; }
+.wd-parts button.on { border-color: var(--green); background: var(--green-soft); }
+.wd-parts button.worn::after { content: '✓'; color: var(--green); font-size: 12px; }
+.wd-items { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; max-height: 38vh; overflow-y: auto; }
+.wd-item { display: flex; align-items: center; gap: 8px; padding: 8px; border: 2px solid var(--line); border-radius: 10px; background: #fff; cursor: pointer; text-align: left; }
+.wd-item.on { border-color: var(--orange); background: #fff3e6; }
+.wd-item .sw { width: 22px; height: 22px; border-radius: 6px; border: 1px solid rgba(0,0,0,0.2); flex: none; display: flex; align-items: center; justify-content: center; font-size: 12px; }
 .wd-item .sw.none { background: #eee; }
-.wd-item .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wd-trend { margin-left: auto; padding: 1px 6px; border-radius: 6px; background: #ff7a1a; color: #fff; font-style: normal; font-size: 11px; font-weight: 800; }
-.wd-foot { display: flex; flex-direction: column; gap: 6px; }
-.wd-progress { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
-.wd-progress i { display: block; height: 100%; background: var(--green); transition: width 0.2s; }
-.wd-note { margin: 0; font-size: 12px; color: var(--ink-soft); }
+.wd-note { margin: 0; font-size: 13px; color: var(--ink-soft); }
 @media (max-width: 760px) {
   .wd-shell { flex-direction: column; align-items: stretch; }
   .wd-shell > .wd-preview { width: auto; height: 34vh; }
-  .wd-shell > .wardrobe { width: auto; height: auto; flex: 1; min-height: 0; }
+  .wd-shell > .wardrobe { width: auto; height: auto; flex: 1; min-height: 0; align-self: stretch; }
 }
 
 /* Item pictures (rendered from the 3D models) */
