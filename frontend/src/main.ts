@@ -127,6 +127,8 @@ function onlyTraced(t: TracedIndex, ids: readonly string[]): TracedIndex {
 /** Day 1 lunch: the roommates' table in 學生餐廳 (dining hall), and the 街宣 stand by 人科一館 / 龍潭路 (world). */
 const CAFETERIA_TABLE = { x: 153.97, z: 212.18 };
 const PROMO_STAND = { x: -18.5, z: -76 };
+/** 聯誼: the covered plaza under the 36 週年校慶 banner between 學生活動中心 and 雲泰表演廳 (activityAtrium.ts). */
+const MIXER_PLAZA = { x: 108.9, z: 158.4 };
 const FOOD: ReadonlySet<ItemId> = new Set<ItemId>(['catFood', 'brunchSet', 'latte', 'waffle', 'friedRice', 'friedNoodles', 'dumplings', 'wontonSoup', 'sideDish', 'bread', 'bento', 'buffet', 'beefNoodles', 'plainNoodles', 'bubbleTea', 'soyMilk', 'onigiri', 'teaEgg', 'sportsDrink', 'cupNoodles', 'mineralWater', 'greenTea', 'cannedCoffee']);
 
 const ITEM_MESSAGES: Readonly<Record<ItemId, string>> = {
@@ -284,6 +286,8 @@ async function boot(): Promise<void> {
     handBuilt.push(unitBuilding);
     unitBuilding.interactables.push(
       { id: 'dormC-unit:enter', prompt: '按 E 進入宿舍', x: lobbyDoor.x + lobbyDoor.outX * 1.0, y: lobbyDoor.floor, z: lobbyDoor.z + lobbyDoor.outZ * 1.0, radius: 2.4 },
+      // Inside the C3 lobby too (使用者：進入門後就無法進入宿舍): the whole 4.2 m deep lobby offers it.
+      { id: 'dormC-unit:enter:lobby', prompt: '按 E 進入宿舍', x: lobbyDoor.x - lobbyDoor.outX * 2.4, y: lobbyDoor.floor, z: lobbyDoor.z - lobbyDoor.outZ * 2.4, radius: 3.2 },
       (() => { const [x, z] = unitBuilding.planToWorld(unit.leave[0], unit.leave[1]); return { id: 'dormC-unit:leave', prompt: '按 E 離開宿舍', x, y: DORM_C_UNIT_FLOOR, z, radius: 1.0 }; })(),
       // Bedroom doors don't open: E at one walks you through (使用者：門不要做開關，靠近門按 E 進入房間).
       // The bedrooms are a building of their own (underground): E at a door on the flat's corridor takes you in, E inside by
@@ -494,6 +498,7 @@ async function boot(): Promise<void> {
       if (name === '熱舞社' && mb) { const [x, z] = mb.planToWorld(44.6, 50.15); return { x, z }; }
       if (name === '學餐餐桌') return { ...CAFETERIA_TABLE };
       if (name === '街宣') return { ...PROMO_STAND };
+      if (name === '聯誼廣場') return { ...MIXER_PLAZA };
       if (name === '管院貓咪') { const c = centreOf('管理一館'); return c ? snapToRoad(c.x, c.z) : null; }
       if (name === '操場黑狗' && playground) { const [x, z] = playground.pitch.toWorld(-24, 12); return { x, z }; }
       if (name === '宿舍大笨鳥') return { x: -9.5, z: 335 };
@@ -1142,10 +1147,10 @@ async function boot(): Promise<void> {
           }, 300);
           return;
         }
-        if ((target?.id === 'dormC-unit:enter' || target?.id === 'dormC-unit:leave') && unit && unitBuilding && lobbyDoor) {
+        if ((target?.id.startsWith('dormC-unit:enter') || target?.id === 'dormC-unit:leave') && unit && unitBuilding && lobbyDoor) {
           // 學生宿舍C: into the flat's living room by its front door, or back out in front of the C3 lobby.
           if (gameStore.getState().fading) return;
-          const entering = target.id === 'dormC-unit:enter';
+          const entering = target.id.startsWith('dormC-unit:enter');
           actions.setFading(true);
           window.setTimeout(() => {
             let x: number, y: number, z: number, facing: number;

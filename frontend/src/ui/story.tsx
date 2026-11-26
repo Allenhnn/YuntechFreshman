@@ -830,8 +830,10 @@ function Wardrobe(): ReactNode {
     });
   };
   const deg = Math.round((yaw * 180) / Math.PI);
+  const cur = OUTFIT_PARTS.find((p) => p.id === part)!;
+  const wornItem = (id: string): string | undefined => OUTFIT_ITEMS.find((it) => it.id === outfit[id as keyof typeof outfit])?.name;
   return (
-    <>
+    <div className="wd-shell">
       <div
         className="wd-preview"
         onPointerDown={(e) => { drag.current = { x: e.clientX, yaw }; (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); }}
@@ -845,28 +847,36 @@ function Wardrobe(): ReactNode {
         </div>
       </div>
       <div className="wardrobe">
-        <h2><Icon name="shirt" /> 衣櫃</h2>
+        <div className="wd-head">
+          <h2><Icon name="shirt" /> 衣櫃</h2>
+          <div className="wd-dots" aria-label={`已穿 ${worn} 件`}>{OUTFIT_PARTS.map((p) => <i key={p.id} className={outfit[p.id] ? 'on' : ''} />)}</div>
+        </div>
         <div className="wd-parts">
           {OUTFIT_PARTS.map((p) => (
             <button key={p.id} className={`${p.id === part ? 'on' : ''}${outfit[p.id] ? ' worn' : ''}`} onClick={() => { api.click(); setPart(p.id); }}>
-              <i><Rich t={p.icon} /></i>{p.label}
+              <i><Rich t={p.icon} /></i><span>{p.label}</span>
             </button>
           ))}
         </div>
+        <div className="wd-sub"><b>{cur.label}</b><span>{wornItem(part) ? `目前：${wornItem(part)}` : '目前沒穿'}</span></div>
         <div className="wd-items">
-          <button className={`wd-item${!outfit[part] ? ' on' : ''}`} onClick={() => wear(null)}><span className="sw none"><Icon name="close" size={14} /></span>脫下</button>
           {OUTFIT_ITEMS.filter((it) => it.part === part).map((it) => (
             <button key={it.id} className={`wd-item${outfit[part] === it.id ? ' on' : ''}`} onClick={() => wear(it.id)}>
-              <span className="sw" style={{ background: `#${it.color.toString(16).padStart(6, '0')}` }} />{it.name}{it.trend && <em className="wd-trend">潮</em>}
+              <span className="sw" style={{ background: `#${it.color.toString(16).padStart(6, '0')}` }} />
+              <span className="nm">{it.name}</span>{it.trend && <em className="wd-trend">潮</em>}
             </button>
           ))}
+          <button className={`wd-item off${!outfit[part] ? ' on' : ''}`} onClick={() => wear(null)}><span className="sw none"><Icon name="close" size={14} /></span><span className="nm">脫下</span></button>
         </div>
-        <p className="wd-note">已穿 {worn}/6 件{outfitStep ? (worn < 3 ? '・至少穿 3 件才夠帥' : '・帥！') : ''}</p>
-        {outfitStep
-          ? <button className="btn primary" disabled={worn < 3} onClick={() => storyEvents.finishScene({ kind: 'wardrobe' })}>完成造型，出門！</button>
-          : <button className="btn primary" onClick={() => { api.click(); storyEvents.finishScene({ kind: 'wardrobe' }); }}>穿好了，關上衣櫃</button>}
+        <div className="wd-foot">
+          <div className="wd-progress"><i style={{ width: `${(worn / 6) * 100}%` }} /></div>
+          <p className="wd-note">已穿 {worn}/6 件{outfitStep ? (worn < 3 ? '・至少穿 3 件才夠帥' : '・帥！') : ''}</p>
+          {outfitStep
+            ? <button className="btn primary" disabled={worn < 3} onClick={() => storyEvents.finishScene({ kind: 'wardrobe' })}>完成造型，出門！</button>
+            : <button className="btn primary" onClick={() => { api.click(); storyEvents.finishScene({ kind: 'wardrobe' }); }}>穿好了，關上衣櫃</button>}
+        </div>
       </div>
-    </>
+    </div>
   );
 }
 

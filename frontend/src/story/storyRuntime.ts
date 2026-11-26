@@ -619,7 +619,7 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
     add('promo', '📣 街宣學長', d.placeOf('街宣'), { shirt: 0xf2c230, pants: 0x2d3a5c, hair: 0x1c1a19, hat: 0xd8353a }, side('promo')?.state !== 'done');
     if (scene === 'assembly') add('principal', '校長', insidePoint('國際會議廳'), LOOKS.principal, true);
     if (scene === 'mixer') {
-      const c = insidePoint(ACTIVITY);
+      const c = d.placeOf('聯誼廣場'); // 使用者：聯誼移到活動中心和表演廳中間（36 週年校慶布條下）
       add('mx1', '小美（設計系）', near(c, -2, 2), { shirt: 0xf48fb1, pants: 0x9a8a6c, hair: 0x3d2b20 }, true);
       add('mx2', '阿哲（資工系）', near(c, 0, 3), { shirt: 0x37474f, pants: 0x2d3a5c, hair: 0x151515 }, true);
       add('mx3', '小安（企管系）', near(c, 2, 2), { shirt: 0xf2c230, pants: 0x2d3a5c, hair: 0x2b211b }, true);

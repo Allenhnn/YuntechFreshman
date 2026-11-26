@@ -196,9 +196,9 @@ export const DAYS: Day[] = [
   {
     title: '聯誼與跑腿',
     steps: [
-      { id: '2-1', text: '起床！今天早上有聯誼', place: DORM, cond: { t: 'getUp' }, at: hm(8, 30), wake: true, msg: { from: ROOMMATE, text: '早上十點活動中心聯誼別忘了！穿帥一點啊 😎', replies: [{ text: '收到，我會穿帥一點', answer: '回寢室打開衣櫃挑一套！別穿拖鞋去 🩴❌' }, { text: '聯誼要幹嘛？', answer: '就聊天玩遊戲啊，記得多找人聊幾句 😉' }, { text: '不太想去…', answer: '去啦！說不定就脫單了 💘' }] } },
+      { id: '2-1', text: '起床！今天早上有聯誼', place: DORM, cond: { t: 'getUp' }, at: hm(8, 30), wake: true, msg: { from: ROOMMATE, text: '早上十點活動中心旁邊廣場的聯誼別忘了！穿帥一點啊 😎', replies: [{ text: '收到，我會穿帥一點', answer: '回寢室打開衣櫃挑一套！別穿拖鞋去 🩴❌' }, { text: '聯誼要幹嘛？', answer: '就聊天玩遊戲啊，記得多找人聊幾句 😉' }, { text: '不太想去…', answer: '去啦！說不定就脫單了 💘' }] } },
       { id: '2-2', text: '回 C214 寢室打開衣櫃，換一套帥氣穿搭', place: DORM, cond: { t: 'outfit' } },
-      { id: '2-3', text: '到學生活動中心參加聯誼，把好感度聊滿', place: ACTIVITY, cond: { t: 'talk', prompt: '按 E 加入聯誼', scene: 'mixer' }, at: hm(10, 0) },
+      { id: '2-3', text: '到活動中心和表演廳中間的廣場（36 週年布條下）參加聯誼，把好感度聊滿', place: '聯誼廣場', cond: { t: 'talk', prompt: '按 E 加入聯誼', scene: 'mixer' }, at: hm(10, 0) },
       { id: '2-4', text: '阿凱的隨身碟忘在管理二館 MB109，去幫他拿', place: CLASS2, room: 'MB109', cond: { t: 'pickup', item: 'usbDrive' }, msg: { from: ROOMMATE, text: '救命！我的隨身碟忘在管二 MB109 的桌上了，報告檔案全在裡面 😭 可以幫我拿回宿舍嗎？會給你跑腿費！', replies: [{ text: '好，我去拿', answer: '你是我的救命恩人 🙏 拿到直接回宿舍找我' }, { text: '跑腿費多少？', answer: 'NT$100！夠你吃一頓了吧 💰' }, { text: '你自己去啦', answer: '拜託～我在趕報告走不開 😭 跑腿費 NT$100，好不好？' }] } },
       { id: '2-5', text: '把隨身碟拿回宿舍交給阿凱', place: DORM, cond: { t: 'talk', prompt: '按 E 把隨身碟交給阿凱', scene: 'returnUsb' } },
       { id: '2-6', text: '回 C214 寢室的床上睡覺', place: DORM, cond: { t: 'sleep', until: 'nextDay' } },
