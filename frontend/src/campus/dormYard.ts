@@ -25,6 +25,7 @@ import type { ResourceTracker } from '../core/resources';
 import { mulberry32 } from '../core/math';
 import type { CampusData, Ring } from './campusTypes';
 import { dormBToA, dormCToD } from './customFacades';
+import { actions } from '../state/store';
 
 /**
  * Dorm area layout from the user's marked map (2026-11-20) and Street View:
@@ -63,6 +64,11 @@ interface GateMark {
    */
   locked?: boolean;
   /**
+   * 維修中 (使用者 2026-11-26：學生宿舍E,F 改為維修中、使用者不可進入): the sliding gate stays shut (no sensor, red
+   * light), a 「維修中 暫停開放」 sign hangs on it and a striped barrier stands on both sides; coming close says so.
+   */
+  maintenance?: boolean;
+  /**
    * Fixed wall ends (campus metres) instead of probing the nearest wings. 學生宿舍C 前門 stays where it was
    * before 學生宿舍C 東翼 moved 1.6 m east (campusFixes.ts splitDormC) — 使用者：改回原本的位置; the wall now
    * meets that wing's south wall about 1.6 m short of its corner.
@@ -100,8 +106,8 @@ const BASE_GATES: readonly GateMark[] = [
   // 學生宿舍A：使用者（2026-11-25）跟 B 一樣——前門、後門、A1–A2 之間的牆換成 B 那三道圍牆轉過去（見下面 DORM_GATES）。
   // 學生宿舍E.F（使用者一樓平面圖 2026-11-26）：E、F 兩翼之間各一道圍牆（平面圖連接兩棟的兩條線），門開在牆跟中間那條步道交叉的
   // 地方——從牆的中點往 E 那頭偏 1.8 m。ends: F 翼角、E 翼角；`a` 在中庭那側。
-  { name: '學生宿舍E.F 前門', a: [69.66, 393.25], b: [64.85, 394.2], ends: [[68.65, 401.56], [66.62, 389.48]], shift: 1.84 },
-  { name: '學生宿舍E.F 後門', a: [99.81, 387.32], b: [104.62, 386.37], ends: [[103.65, 394.68], [101.77, 382.56]], shift: 1.83 },
+  { name: '學生宿舍E.F 前門', a: [69.66, 393.25], b: [64.85, 394.2], ends: [[68.65, 401.56], [66.62, 389.48]], shift: 1.84, maintenance: true },
+  { name: '學生宿舍E.F 後門', a: [99.81, 387.32], b: [104.62, 386.37], ends: [[103.65, 394.68], [101.77, 382.56]], shift: 1.83, maintenance: true },
 ];
 
 /** A C-area point on its mirrored D copy (customFacades.ts `dormCToD`). */
@@ -324,7 +330,7 @@ export function createDormYard(scene: Scene, physics: RAPIER.World, campus: Camp
   const sensorRed = mat(0xc62828, { emissive: 0xff3030, emissiveIntensity: 0.9 });
   const sensorGreen = mat(0x2e7d32, { emissive: 0x30ff60, emissiveIntensity: 0.9 });
   /** `swing` (swing gates) sets the leaves for 0..1 open; sliding gates move `leaf` by `travel` instead. */
-  interface SensorGate { x: number; z: number; leaf: Mesh; light: Mesh; block: RAPIER.Collider; open: number; target: number; travel: number; swing: ((t: number) => void) | null }
+  interface SensorGate { x: number; z: number; leaf: Mesh; light: Mesh; block: RAPIER.Collider; open: number; target: number; travel: number; swing: ((t: number) => void) | null; /** 維修中: never opens; the group's name for the notice. */ closed: string | null }
   const gates: SensorGate[] = [];
   const pavers = tracker.material(new MeshStandardMaterial({
     map: canvas(tracker, 128, 128, (g) => {
@@ -590,6 +596,25 @@ export function createDormYard(scene: Scene, physics: RAPIER.World, campus: Camp
     solid(cx, WALL_H / 2, cz, w / 2, WALL_H / 2, WALL_T / 2 + 0.05, yaw);
   }
 
+  // 維修中 sign and the striped barrier boards.
+  const repairSign = tracker.material(new MeshStandardMaterial({
+    map: canvas(tracker, 256, 128, (c) => {
+      c.fillStyle = '#ffd400'; c.fillRect(0, 0, 256, 128);
+      c.fillStyle = '#1b1b1b';
+      for (let i = -2; i < 18; i++) { c.beginPath(); c.moveTo(i * 16, 0); c.lineTo(i * 16 + 8, 0); c.lineTo(i * 16 - 8, 14); c.lineTo(i * 16 - 16, 14); c.fill(); c.beginPath(); c.moveTo(i * 16, 114); c.lineTo(i * 16 + 8, 114); c.lineTo(i * 16 - 8, 128); c.lineTo(i * 16 - 16, 128); c.fill(); }
+      c.fillStyle = '#ffffff'; c.fillRect(10, 20, 236, 88);
+      c.fillStyle = '#c62828'; c.textAlign = 'center'; c.textBaseline = 'middle';
+      c.font = 'bold 44px "PingFang TC","Noto Sans TC",sans-serif'; c.fillText('維修中', 128, 52);
+      c.fillStyle = '#1b1b1b'; c.font = 'bold 20px "PingFang TC","Noto Sans TC",sans-serif'; c.fillText('暫停開放・禁止進入', 128, 90);
+    }),
+    roughness: 0.7,
+  }));
+  repairSign.map!.wrapS = repairSign.map!.wrapT = 1001; // ClampToEdgeWrapping
+  const barrierMat = tracker.material(new MeshStandardMaterial({
+    map: canvas(tracker, 128, 16, (c) => { for (let i = 0; i < 8; i++) { c.fillStyle = i % 2 ? '#1b1b1b' : '#ffd400'; c.beginPath(); c.moveTo(i * 16, 16); c.lineTo(i * 16 + 8, 0); c.lineTo(i * 16 + 24, 0); c.lineTo(i * 16 + 16, 16); c.fill(); } }),
+    roughness: 0.6,
+  }));
+  barrierMat.map!.repeat.set(3, 1);
   for (const g of DORM_GATES) {
     const mx = (g.a[0] + g.b[0]) / 2, mz = (g.a[1] + g.b[1]) / 2;
     const br = g.ends ? { p: [g.ends[0][0], g.ends[0][1]] as [number, number], q: [g.ends[1][0], g.ends[1][1]] as [number, number] } : bridge(mx, mz);
@@ -784,7 +809,29 @@ export function createDormYard(scene: Scene, physics: RAPIER.World, campus: Camp
       .setRotation((() => { const q = new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), yaw); return { x: q.x, y: q.y, z: q.z, w: q.w }; })()));
     colliders.push(block);
     // Swing leaves travel about a quarter circle at their tips.
-    gates.push({ x: g.portal ? world(-GW / 4, 0)[0] : cx, z: g.portal ? world(-GW / 4, 0)[1] : cz, leaf, light, block, open: 0, target: 0, travel: swing ? (GW / 2) * SWING : GW + 0.55, swing });
+    gates.push({ x: g.portal ? world(-GW / 4, 0)[0] : cx, z: g.portal ? world(-GW / 4, 0)[1] : cz, leaf, light, block, open: 0, target: 0, travel: swing ? (GW / 2) * SWING : GW + 0.55, swing, closed: g.maintenance ? g.name.replace(/ .*$/, '') : null });
+    if (g.maintenance && !g.portal) {
+      // 維修中: a permanent solid across the opening (also a blocker for route planning), the sign on both faces
+      // of the gate and a striped barrier a step out on either side.
+      solid(cx, 1.0, cz, GATE_W / 2, 1.0, 0.15, yaw);
+      for (const face of [-1, 1]) {
+        const sign = add(new PlaneGeometry(1.5, 0.75), repairSign);
+        sign.position.set(0, 1.25, leafZ + face * 0.08);
+        sign.rotation.y = face > 0 ? 0 : Math.PI;
+        sign.castShadow = false;
+        // Barrier: two A-frame legs and two striped boards, 1.3 m out from the wall.
+        const bz = face * 1.3;
+        const legs: BufferGeometry[] = [];
+        for (const s of [-1, 1]) for (const t of [-1, 1]) {
+          const leg = box(0.05, 1.05, 0.05, s * (GATE_W / 2 - 0.1), 0.5, bz + t * 0.18);
+          legs.push(leg);
+        }
+        add(merged(legs), dark);
+        for (const y of [0.85, 0.5]) add(box(GATE_W - 0.1, 0.16, 0.04, 0, y, bz), barrierMat);
+        const [bx, bzw] = world(0, bz);
+        solid(bx, 0.5, bzw, GATE_W / 2, 0.5, 0.2, yaw);
+      }
+    }
     // Pavers through the gate (both sides); the portal gate's walk runs through instead.
     if (!g.portal) {
       const path = new Mesh(tracker.geometry(new PlaneGeometry(GATE_W - 0.4, 14).rotateX(-Math.PI / 2).translate(0, 0.035, 0)), pavers);
@@ -934,6 +981,13 @@ export function createDormYard(scene: Scene, physics: RAPIER.World, campus: Camp
       let started = false;
       for (const g of gates) {
         const d = Math.hypot(px - g.x, pz - g.z);
+        if (g.closed) {
+          // 維修中: stays shut; say so once each time you walk up to it.
+          const near = py < 1.5 && d < OPEN_R;
+          if (near && !g.target) actions.toast(`🚧 ${g.closed}維修中，暫停開放，禁止進入`);
+          g.target = near ? 1 : 0;
+          continue;
+        }
         const want = py < 1.5 && d < OPEN_R ? 1 : d > CLOSE_R || py >= 1.5 ? 0 : g.target;
         if (want === 1 && g.target === 0) started = true;
         g.target = want;
