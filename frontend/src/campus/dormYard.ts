@@ -31,7 +31,10 @@ import type { CampusData, Ring } from './campusTypes';
  *    open, a card reader, and red-and-grey pavers running through (Street View: 學生宿舍 gate).
  *    The wall ends are found at run time by probing from the marked centre to each wing's wall.
  *  - 腳踏車停放區 (blue lines): rows of parked bikes along the dorm roads and the south edge.
- *  - 腳踏車車棚 (blue boxes): open bike sheds with a green roof and two rows of bikes inside.
+ *  - 腳踏車車棚 (blue boxes): open bike sheds after the user's photos (2026-11-26): teal steel columns
+ *    and I-beams with exposed ribs under two corrugated roofs at different heights, an asphalt aisle
+ *    down the middle with two rows of bikes on each side, and at the entrance (north end) a yellow
+ *    hatched 禁止停車 box, a two-step granite threshold between washed-pebble curbs, and shrub beds.
  * Marks were read off the minimap (4.5975 px / m) and converted to campus metres.
  */
 interface GateMark {
@@ -80,8 +83,7 @@ const CLOSED_GAPS: readonly [number, number][] = [
 
 /** Bike parking rows (polylines). */
 const BIKE_ROWS: readonly (readonly number[])[] = [
-  [30.3, 330.8, 32.9, 349.3],
-  [41.6, 327.1, 45.3, 346.5],
+  // (使用者 2026-11-26: the two rows either side of the walk between 學生宿舍C 東翼 and B are gone.)
   [49.2, 369.9, 53.6, 385.6],
   [56.8, 406.5, 59.0, 413.9],
   [-18.6, 442.2, 1.4, 438.5, 25.3, 436.3],
@@ -93,6 +95,15 @@ const SHEDS: readonly Ring[] = [
   [9.0, 293.8, 23.1, 292.3, 24.4, 311.7, 11.4, 313.4],
   [27.0, 411.7, 39.4, 409.5, 44.4, 431.3, 32.5, 433.5],
 ];
+
+/** Shed layout across the width (local z): aisle half-width, the bike rows' centres, the column lines. */
+const SHED = { aisle: 1.25, entry: 3.3, step: 0.62, colStep: 4.6 };
+const shedRows = (W: number): number[] => [SHED.aisle + 0.95, W / 2 - 1.2];
+const shedColumnsZ = (W: number): number[] => [-W / 2 + 0.35, -SHED.aisle, SHED.aisle, W / 2 - 0.35];
+const shedColumnsX = (L: number): number[] => {
+  const n = Math.max(2, Math.round((L - 0.8) / SHED.colStep) + 1);
+  return Array.from({ length: n }, (_, i) => -L / 2 + 0.4 + (i * (L - 0.8)) / (n - 1));
+};
 
 /** Shed frame: centre, long-axis unit vector, length and width (long axis between the short sides). */
 function shedFrame(s: Ring): { cx: number; cz: number; lx: number; lz: number; L: number; W: number } {
@@ -123,10 +134,14 @@ export function dormRideables(): { x: number; z: number; yaw: number; kind: 'bik
   for (const sh of SHEDS) {
     const f = shedFrame(sh);
     const toWorld = (a: number, b: number): [number, number] => [f.cx + f.lx * a - f.lz * b, f.cz + f.lz * a + f.lx * b];
-    for (const side of [-1, 1]) {
-      const [ax, az] = toWorld(-f.L / 2 + 0.5, side * (f.W / 2 - 1.3));
-      const [bx, bz] = toWorld(f.L / 2 - 0.5, side * (f.W / 2 - 1.3));
-      row(ax, az, bx, bz, 0.7, side > 0 ? Math.PI : 0);
+    // Entrance at the north end (local −x): the hatch and shrub beds keep the first metres clear.
+    const cols = shedColumnsX(f.L);
+    for (const side of [-1, 1]) for (const zr of shedRows(f.W)) {
+      for (let a = -f.L / 2 + SHED.entry + 0.3; a < f.L / 2 - 0.4; a += SHED.step) {
+        if (rnd() < 0.08 || cols.some((c) => Math.abs(c - a) < 0.35)) continue;
+        const [x, z] = toWorld(a, side * zr);
+        out.push({ x, z, yaw: Math.atan2(-f.lz, f.lx) + Math.PI / 2 + (side > 0 ? Math.PI : 0), kind: 'bike' });
+      }
     }
   }
   // 使用者：摩托車移至警衛室旁 — on the open side of 「機車停車格（警衛室旁）」's fence, just north of the 警衛室 (技職大樓).
@@ -619,31 +634,133 @@ export function createDormYard(scene: Scene, physics: RAPIER.World, campus: Camp
     }
   }
 
-  // --- Sheds --------------------------------------------------------------------------------------
-  const roofMat = mat(0x5f9a78, { roughness: 0.4, transparent: true, opacity: 0.88 });
+  // --- Sheds (teal steel, after the user's photos) ------------------------------------------------
+  const teal = mat(0x56c2b2, { roughness: 0.6, metalness: 0.15 });
+  const tealDark = mat(0x3f9d90, { roughness: 0.6, metalness: 0.15 });
+  const sheet = tracker.material(new MeshStandardMaterial({
+    map: canvas(tracker, 64, 64, (g) => {
+      for (let x = 0; x < 64; x++) { const v = 150 + Math.round(40 * Math.sin((x / 64) * Math.PI * 8)); g.fillStyle = `rgb(${v},${v + 4},${v + 6})`; g.fillRect(x, 0, 1, 64); }
+    }),
+    roughness: 0.55, metalness: 0.3,
+  }));
+  sheet.map!.repeat.set(60, 1); // corrugation every ~35 cm along the shed
+  const asphalt = mat(0x55585a, { roughness: 0.95, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -8 });
+  const paint = mat(0xe8e6dc, { roughness: 0.8, polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -10 });
+  const granite = mat(0xc9c7c1, { roughness: 0.85 });
+  const pebble = tracker.material(new MeshStandardMaterial({
+    map: canvas(tracker, 64, 64, (g) => {
+      g.fillStyle = '#8d8a83'; g.fillRect(0, 0, 64, 64);
+      for (let i = 0; i < 700; i++) { g.fillStyle = ['#5f5c57', '#b7b3aa', '#746f68', '#d6d2c8'][i % 4]!; g.fillRect(Math.random() * 64, Math.random() * 64, 2, 2); }
+    }),
+    roughness: 0.95,
+  }));
+  const tube = mat(0xffffff, { emissive: 0xf2fff8, emissiveIntensity: 1.2 });
+  const grass = mat(0x55883c, { roughness: 1 });
+  const shrubGreen = mat(0x3f7c34, { roughness: 0.9, flatShading: true });
+  const shrubRed = mat(0x8a3a3a, { roughness: 0.9, flatShading: true });
+  const hatch = tracker.material(new MeshStandardMaterial({
+    map: (() => {
+      const t = canvas(tracker, 512, 384, (g) => {
+        g.clearRect(0, 0, 512, 384);
+        g.strokeStyle = '#e8b52a'; g.lineWidth = 12; g.lineJoin = 'round';
+        g.strokeRect(14, 14, 484, 356);
+        // Zigzags along the long sides, diagonal hatching at the ends.
+        for (const y of [70, 314]) {
+          g.beginPath();
+          for (let i = 0; i <= 8; i++) g.lineTo(110 + i * 36.5, y + (i % 2 ? (y < 192 ? -40 : 40) : 0));
+          g.stroke();
+        }
+        for (const x0 of [14, 410]) {
+          for (let k = 0; k < 4; k++) { g.beginPath(); g.moveTo(x0, 14 + k * 90); g.lineTo(x0 + 88, 104 + k * 90); g.stroke(); g.beginPath(); g.moveTo(x0 + 88, 14 + k * 90); g.lineTo(x0, 104 + k * 90); g.stroke(); }
+        }
+        g.fillStyle = '#e8b52a'; g.textAlign = 'center';
+        g.font = 'bold 58px "PingFang TC","Noto Sans TC",sans-serif';
+        g.fillText('禁 止 停 車', 256, 182);
+        g.font = 'bold 50px sans-serif';
+        g.fillText('NO PARKING', 256, 250);
+      });
+      t.wrapS = t.wrapT = 1001; // ClampToEdgeWrapping
+      return t;
+    })(),
+    transparent: true, roughness: 0.9, polygonOffset: true, polygonOffsetFactor: -8, polygonOffsetUnits: -12,
+  }));
+  const signMat = tracker.material(new MeshStandardMaterial({
+    map: canvas(tracker, 256, 96, (g) => {
+      g.fillStyle = '#7a2a28'; g.fillRect(0, 0, 256, 96);
+      g.strokeStyle = '#f1e7da'; g.lineWidth = 4; g.strokeRect(6, 6, 244, 84);
+      g.fillStyle = '#f6efe4'; g.textAlign = 'center';
+      g.font = 'bold 34px "PingFang TC","Noto Sans TC",sans-serif'; g.fillText('腳踏車停車場', 128, 50);
+      g.font = '18px sans-serif'; g.fillText('Bicycle parking area', 128, 78);
+    }),
+    roughness: 0.6,
+  }));
+  const shrubGeo = new IcosahedronGeometry(0.4, 0);
   for (const s of SHEDS) {
     const { cx, cz, lx, lz, L, W: Wd } = shedFrame(s);
+    const yaw = Math.atan2(-lz, lx);
     const grp = new Group();
     grp.position.set(cx, 0, cz);
-    grp.rotation.y = Math.atan2(-lz, lx); // local +x = long axis
+    grp.rotation.y = yaw; // local +x = long axis (south), entrance at −x
     root.add(grp);
-    const posts: BufferGeometry[] = [];
-    const nPost = Math.max(2, Math.round(L / 4) + 1);
-    for (let i = 0; i < nPost; i++) for (const side of [-1, 1]) {
-      const px = -L / 2 + (i * L) / (nPost - 1);
-      posts.push(box(0.12, 2.6, 0.12, px, 1.3, side * (Wd / 2 - 0.2)));
+    const toW = (a: number, b: number): [number, number] => [cx + lx * a - lz * b, cz + lz * a + lx * b];
+    const addM = (parts: BufferGeometry[], m: MeshStandardMaterial, shadow = true): void => {
+      const mesh = new Mesh(tracker.geometry(merged(parts)), m);
+      mesh.castShadow = shadow;
+      mesh.receiveShadow = true;
+      grp.add(mesh);
+    };
+    const X0 = -L / 2, xs = shedColumnsX(L), zs = shedColumnsZ(Wd);
+    // Two roofs: the west half lower than the east half (the photo's step between the two sheds).
+    const halves = [{ z0: -Wd / 2, z1: 0, h: 2.75 }, { z0: 0, z1: Wd / 2, h: 3.1 }];
+    const tealParts: BufferGeometry[] = [], darkParts: BufferGeometry[] = [], sheetParts: BufferGeometry[] = [], tubes: BufferGeometry[] = [];
+    for (const z of zs) {
+      const h = (z < 0 ? halves[0]! : halves[1]!).h;
+      for (const x of xs) {
+        tealParts.push(box(0.4, h, 0.4, x, h / 2, z));
+        const [wx, wz] = toW(x, z);
+        solid(wx, h / 2, wz, 0.2, h / 2, 0.2, yaw);
+      }
+      tealParts.push(box(L + 0.8, 0.42, 0.26, 0, h + 0.21, z)); // main I-beam along the shed
     }
-    posts.push(box(L, 0.1, 0.1, 0, 2.6, Wd / 2 - 0.2), box(L, 0.1, 0.1, 0, 2.6, -Wd / 2 + 0.2));
-    const frame = new Mesh(tracker.geometry(merged(posts)), iron);
-    frame.castShadow = true;
-    grp.add(frame);
-    const roof = new Mesh(tracker.geometry(box(L + 0.6, 0.06, Wd + 0.4, 0, 2.72, 0)), roofMat);
-    roof.rotation.x = 0.05;
-    roof.castShadow = true;
-    grp.add(roof);
-    const slab = new Mesh(tracker.geometry(new PlaneGeometry(L, Wd).rotateX(-Math.PI / 2).translate(0, 0.03, 0)), mat(0xa9a59d, { polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -8 }));
-    slab.receiveShadow = true;
-    grp.add(slab);
+    for (const hf of halves) {
+      const w = hf.z1 - hf.z0, zc = (hf.z0 + hf.z1) / 2;
+      for (const x of xs) darkParts.push(box(0.24, 0.34, w + 0.6, x, hf.h + 0.17, zc)); // cross girders
+      for (let x = -L / 2 - 0.3; x <= L / 2 + 0.3; x += 1.05) tealParts.push(box(0.12, 0.3, w + 1.1, x, hf.h + 0.57, zc)); // ribs
+      sheetParts.push(box(L + 1.0, 0.04, w + 1.2, 0, hf.h + 0.74, zc));
+      for (let x = -L / 2 + 2; x < L / 2 - 1; x += 4.6) tubes.push(box(1.2, 0.05, 0.08, x, hf.h - 0.02, zc));
+    }
+    addM(tealParts, teal);
+    addM(darkParts, tealDark);
+    addM(sheetParts, sheet);
+    addM(tubes, tube, false);
+    // Floor: asphalt with the aisle lines; the hatched box at the entrance.
+    const floor = new Mesh(tracker.geometry(new PlaneGeometry(L, Wd).rotateX(-Math.PI / 2).translate(0, 0.03, 0)), asphalt);
+    floor.receiveShadow = true;
+    grp.add(floor);
+    const lines: BufferGeometry[] = [];
+    for (const zl of [-SHED.aisle, SHED.aisle]) lines.push(new PlaneGeometry(L - SHED.entry, 0.1).rotateX(-Math.PI / 2).translate(SHED.entry / 2, 0.035, zl));
+    addM(lines, paint, false);
+    const hb = new Mesh(tracker.geometry(new PlaneGeometry(3.9, 2.9).rotateX(-Math.PI / 2).rotateY(-Math.PI / 2).translate(X0 + 1.85, 0.04, 0)), hatch);
+    grp.add(hb);
+    // Threshold: two granite steps between washed-pebble curbs, at the outer edge of the entrance.
+    addM([box(0.4, 0.12, 3.2, X0 + 0.2, 0.06, 0), box(0.4, 0.06, 3.2, X0 + 0.6, 0.03, 0)], granite);
+    for (const side of [-1, 1]) {
+      addM([box(0.9, 0.36, 0.7, X0 + 0.45, 0.18, side * 1.95)], pebble);
+      const [wx, wz] = toW(X0 + 0.45, side * 1.95);
+      solid(wx, 0.18, wz, 0.45, 0.18, 0.35, yaw);
+      // Shrub beds either side of the hatch: grass, green and red-leaf shrubs.
+      const z0 = 2.4, z1 = Wd / 2 - 0.2, zc = side * (z0 + z1) / 2;
+      addM([box(SHED.entry - 0.3, 0.06, z1 - z0, X0 + SHED.entry / 2, 0.03, zc)], grass, false);
+      const g1: BufferGeometry[] = [], g2: BufferGeometry[] = [];
+      for (let x = X0 + 0.6; x < X0 + SHED.entry - 0.4; x += 0.9) for (let z = z0 + 0.4; z < z1 - 0.2; z += 1.0) {
+        ((Math.round(x * 3 + z * 7) & 1) ? g1 : g2).push(shrubGeo.clone().scale(1, 0.9 + ((x * 13 + z) % 0.4), 1).translate(x, 0.4, side * z));
+      }
+      if (g1.length) addM(g1, shrubGreen);
+      if (g2.length) addM(g2, shrubRed);
+    }
+    // 「腳踏車停車場」 sign hanging off the front girder.
+    const sign = new Mesh(tracker.geometry(new PlaneGeometry(1.4, 0.52).rotateY(-Math.PI / 2).translate(X0 - 0.02 + 0.4 - 0.15, 2.3, -Wd / 4)), signMat);
+    grp.add(sign);
   }
 
   return {
