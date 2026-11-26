@@ -95,7 +95,7 @@ export const RENDER = {
  */
 export const FLOORPLAN_INTERIORS = false;
 /** Traced interiors used even while FLOORPLAN_INTERIORS is off (hand-checked against newer plans). */
-export const FLOORPLAN_INTERIOR_IDS: readonly string[] = ['plan-234786942']; // 雲泰表演廳
+export const FLOORPLAN_INTERIOR_IDS: readonly string[] = ['plan-234786942', 'plan-234786939']; // 雲泰表演廳, 員生餐廳 (學生餐廳)
 
 export const BIKE = {
   /** Cruising and sprinting speed (m/s); walking is 3.5 and running 7. */

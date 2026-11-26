@@ -20,6 +20,19 @@ export const ITEMS = {
   healthForm: { name: '健康資料表', icon: '📋', maxStack: 1, description: '新生健康檢查資料表，要交到健康中心。' },
   raceBib: { name: '號碼布', icon: '🎽', maxStack: 1, description: '雲科路跑的參賽號碼布。' },
   lostCard: { name: '撿到的學生證', icon: '🪪', maxStack: 1, description: '不是你的學生證，送到行政大樓或警衛室吧。' },
+  brunchSet: { name: '早午餐套餐', icon: '🥪', maxStack: 5, description: '猩猩複合式餐飲的總匯三明治＋薯餅，使用後消耗一個。' },
+  latte: { name: '拿鐵', icon: '☕', maxStack: 5, description: '猩猩複合式餐飲現煮的拿鐵，使用後消耗一個。' },
+  waffle: { name: '鬆餅', icon: '🧇', maxStack: 5, description: '猩猩的下午茶點心，淋上蜂蜜。使用後消耗一個。' },
+  friedRice: { name: '炒飯', icon: '🍛', maxStack: 5, description: '猴子食堂的招牌蛋炒飯，使用後消耗一個。' },
+  friedNoodles: { name: '炒麵', icon: '🍝', maxStack: 5, description: '猴子食堂的什錦炒麵，使用後消耗一個。' },
+  dumplings: { name: '水餃', icon: '🥟', maxStack: 5, description: '一盒十顆高麗菜水餃，使用後消耗一個。' },
+  wontonSoup: { name: '餛飩湯', icon: '🍲', maxStack: 5, description: '熱騰騰的餛飩湯，使用後消耗一個。' },
+  sideDish: { name: '滷味小菜', icon: '🥢', maxStack: 5, description: '豆干、海帶、滷蛋的小菜拼盤，使用後消耗一個。' },
+  broom: { name: '掃把', icon: '🧹', maxStack: 1, description: '管理一館工具室拿的掃把。選在快捷欄就拿在手上；使用＝放在地上。' },
+  mop: { name: '拖把', icon: '🧽', maxStack: 1, description: '管理一館工具室拿的拖把。選在快捷欄就拿在手上；使用＝放在地上。' },
+  usbDrive: { name: '阿凱的隨身碟', icon: '💾', maxStack: 1, description: '阿凱忘在 MB109 的隨身碟，報告檔案都在裡面。拿回宿舍給他。' },
+  catFood: { name: '貓飼料', icon: '🐟', maxStack: 5, description: '三位神秘人物給的貓飼料。沒什麼用……但好像可以吃？' },
+  keychain: { name: '雲科鑰匙圈', icon: '🔑', maxStack: 3, description: '街宣活動拍照打卡送的小禮物。' },
 } as const;
 
 export type ItemId = keyof typeof ITEMS;
@@ -48,6 +61,10 @@ export const STALL_MENUS = {
   noodles: [{ id: 'beefNoodles', price: 80 }, { id: 'plainNoodles', price: 40 }],
   bento: [{ id: 'bento', price: 60 }, { id: 'bread', price: 20 }],
   drinks: [{ id: 'bubbleTea', price: 50 }, { id: 'soyMilk', price: 20 }],
+  /** 員生餐廳 (猩猩複合式餐飲): brunch, coffee, drinks, snacks. */
+  gorilla: [{ id: 'brunchSet', price: 75 }, { id: 'latte', price: 55 }, { id: 'bubbleTea', price: 50 }, { id: 'waffle', price: 45 }],
+  /** 員生餐廳 (猴子食堂): fried rice / noodles, dumplings, noodle soup, soups, side dishes. */
+  monkey: [{ id: 'friedRice', price: 70 }, { id: 'friedNoodles', price: 70 }, { id: 'dumplings', price: 60 }, { id: 'beefNoodles', price: 95 }, { id: 'wontonSoup', price: 40 }, { id: 'sideDish', price: 35 }],
   /** 萊爾富 (學生活動中心 1F). */
   /** Drinks vending machines (dorm lobbies). */
   vending: [{ id: 'mineralWater', price: 20 }, { id: 'greenTea', price: 25 }, { id: 'sportsDrink', price: 25 }, { id: 'cannedCoffee', price: 30 }],

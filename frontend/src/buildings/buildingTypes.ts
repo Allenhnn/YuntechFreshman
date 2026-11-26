@@ -22,7 +22,11 @@ export type FurnishKind =
   | 'exhibit'
   | 'dorm'
   | 'dormLoft'
-  | 'restroom';
+  | 'restroom'
+  /** 多功能教室 (MA214, from the photo): screen and lectern at the front, tiers of long wooden desks with microphones. */
+  | 'conference'
+  /** 休息區 (from the photo): wood-panelled walls and entrance frame, wooden floor, benches and low tables. */
+  | 'lounge';
 
 export interface Space {
   id: string;
@@ -33,6 +37,8 @@ export interface Space {
   ceiling: number;
   /** Area from the official space table (m²), used to validate the trace. */
   legendArea?: number;
+  /** Plain walls all round: no clerestory glass toward corridors (store and tool rooms). */
+  solidWalls?: boolean;
   /** Open to the floor above (stair halls under a void): no ceiling quad or ceiling collider. */
   noCeiling?: boolean;
   /** Spaces sharing a group are one room split only to vary the ceiling (no wall between them). */
@@ -70,7 +76,9 @@ export interface Stall {
   facing: Vec2;
   width: number;
   /** Key into STALL_MENUS; absent for non-shop counters (tray return). */
-  menu?: 'buffet' | 'noodles' | 'bento' | 'drinks';
+  menu?: 'buffet' | 'noodles' | 'bento' | 'drinks' | 'gorilla' | 'monkey';
+  /** A restaurant's storefront (logo sign, menu board, brand colours) instead of a plain stall. */
+  brand?: 'gorilla' | 'monkey';
 }
 
 /** A hand-placed wall fitting: `at` is on the wall line, `facing` points into the room / corridor. */
@@ -80,6 +88,8 @@ export interface Fixture {
   facing: Vec2;
   /** Along the wall (m). */
   width: number;
+  /** Mirrors: glass height (m, default 2.05). */
+  height?: number;
 }
 
 export interface FloorPlan {
@@ -100,7 +110,7 @@ export interface FloorPlan {
    * stage): plan x / z, `y` above this floor's base. Colliders are axis-aligned boxes (centre, half size).
    */
   extras?: {
-    items: { kind: 'chair' | 'stage' | 'riser'; x: number; y: number; z: number; ry: number; sx: number; sy: number; sz: number; tint: number }[];
+    items: { kind: 'chair' | 'stage' | 'riser' | 'stonebox' | 'bracket'; x: number; y: number; z: number; ry: number; sx: number; sy: number; sz: number; tint: number }[];
     colliders: { c: [number, number, number]; h: [number, number, number] }[];
   };
 }

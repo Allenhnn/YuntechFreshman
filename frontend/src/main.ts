@@ -1,4 +1,7 @@
-import { ACESFilmicToneMapping, Euler, PCFShadowMap, PerspectiveCamera, Quaternion, Scene, SRGBColorSpace, Vector3, WebGLRenderer } from 'three';
+import { ACESFilmicToneMapping, Euler, Group, PCFShadowMap, PerspectiveCamera, Quaternion, Scene, SRGBColorSpace, Vector3, WebGLRenderer } from 'three';
+import { createToolProps, type ToolSpot } from './items/toolProps';
+import { MY_ROOM } from './story/storyData';
+import { createWardrobePreview, wardrobeView } from './character/wardrobePreview';
 import { playerName, studentId } from './state/playerName';
 import { createPhoneCamera } from './game/phoneCamera';
 import { addPhoto } from './state/album';
@@ -12,7 +15,7 @@ import { dispatch, drainCommands, type GameCommand } from './state/commands';
 import { bindStreetView, updateStreetView } from './tools/streetViewSync';
 import { installSurvey } from './tools/svSurvey';
 import { START_MINUTES, actions, gameStore, type GameState } from './state/store';
-import { STALL_MENUS, type ItemId } from './state/items';
+import { ITEMS, STALL_MENUS, type ItemId } from './state/items';
 import type { Settings } from './state/settings';
 import { telemetry } from './state/telemetry';
 import { createCoinSystem } from './ecs/systems/coins';
@@ -64,7 +67,7 @@ import { addActivityEntrance } from './buildings/activityEntrance';
 import { createYuntayExterior, yuntayTreeFree } from './buildings/yuntayExterior';
 import { createDormFeatures, dormTreeFree } from './buildings/dormFeatures';
 import { createDormCFacade, dormCFacadeTreeFree, dormCLobbyDoor } from './buildings/dormCFacade';
-import { DORM_C_LOFT_TOP, DORM_C_ROOMS_FLOOR, DORM_C_UNIT_FLOOR, dormCRoomBeds, dormCUnit } from './buildings/dormCUnit';
+import { DORM_C_LOFT_TOP, DORM_C_ROOMS, DORM_C_ROOMS_FLOOR, DORM_C_UNIT_FLOOR, dormCRoomBeds, dormCUnit } from './buildings/dormCUnit';
 import { createDormCUnitDecor } from './buildings/dormCUnitDecor';
 import { courtPit, createMgmtCourtyard } from './buildings/mgmtCourtyard';
 import { createDormCourtyard, dormCourtPit } from './buildings/dormCourtyard';
@@ -88,7 +91,7 @@ import { createOutfitter } from './character/outfit';
 import { createItemModel, type ItemModel } from './items/itemModels';
 import { inspectView } from './items/inspectView';
 import { RACE_ROUTE } from './story/storyData';
-import { BODY_REST_Y, CLOCK_RATE, applyPose, computeFallPose, computeLiePose, computeRidePose, computeSitPose, computeSwimPose, createPose } from './character/pose';
+import { BODY_REST_Y, CLOCK_RATE, applyPose, computeCrouchPose, computeFallPose, computeLiePose, computeRidePose, computeSitPose, computeSwimPose, createPose } from './character/pose';
 import { safeTeleportTarget } from './game/teleport';
 import { buildNavGraph, pathAhead, progressOn } from './game/navGraph';
 import { createNavLine } from './game/navLine';
@@ -121,7 +124,10 @@ function onlyTraced(t: TracedIndex, ids: readonly string[]): TracedIndex {
   return { buildings, entrances: Object.fromEntries(Object.entries(t.entrances).filter(([id]) => osm.has(id))) };
 }
 
-const FOOD: ReadonlySet<ItemId> = new Set<ItemId>(['bread', 'bento', 'buffet', 'beefNoodles', 'plainNoodles', 'bubbleTea', 'soyMilk', 'onigiri', 'teaEgg', 'sportsDrink', 'cupNoodles', 'mineralWater', 'greenTea', 'cannedCoffee']);
+/** Day 1 lunch: the roommates' table in 學生餐廳 (dining hall), and the 街宣 stand by 人科一館 / 龍潭路 (world). */
+const CAFETERIA_TABLE = { x: 153.97, z: 212.18 };
+const PROMO_STAND = { x: -18.5, z: -76 };
+const FOOD: ReadonlySet<ItemId> = new Set<ItemId>(['catFood', 'brunchSet', 'latte', 'waffle', 'friedRice', 'friedNoodles', 'dumplings', 'wontonSoup', 'sideDish', 'bread', 'bento', 'buffet', 'beefNoodles', 'plainNoodles', 'bubbleTea', 'soyMilk', 'onigiri', 'teaEgg', 'sportsDrink', 'cupNoodles', 'mineralWater', 'greenTea', 'cannedCoffee']);
 
 const ITEM_MESSAGES: Readonly<Record<ItemId, string>> = {
   bento: '排骨便當好吃！',
@@ -145,6 +151,19 @@ const ITEM_MESSAGES: Readonly<Record<ItemId, string>> = {
   healthForm: '📋 新生健康資料表：記得交到健康中心',
   raceBib: '🎽 雲科路跑 參賽號碼布',
   lostCard: '🪪 別人的學生證，送到行政大樓或警衛室',
+  broom: '',
+  mop: '',
+  usbDrive: '💾 阿凱的隨身碟：拿回宿舍給他',
+  catFood: '嘎吱嘎吱……貓飼料的味道……意外地不差？',
+  keychain: '🔑 街宣活動送的雲科鑰匙圈',
+  brunchSet: '總匯三明治配薯餅，早午餐吃飽飽！',
+  latte: '拿鐵香濃，精神來了！',
+  waffle: '鬆餅好香，蜂蜜甜甜的。',
+  friedRice: '粒粒分明的蛋炒飯，好吃！',
+  friedNoodles: '什錦炒麵，鑊氣十足！',
+  dumplings: '十顆水餃一下就吃光了。',
+  wontonSoup: '餛飩湯暖暖的。',
+  sideDish: '滷味小菜，越吃越涮嘴。',
 };
 
 /** Gameplay effect of using an inventory item (runs inside the fixed step via the command queue). */
@@ -234,7 +253,7 @@ async function boot(): Promise<void> {
   remapSplitTraced(traced, campus);
   const bikeStations = placeBikeStations(campus);
   actions.setBikeStations(bikeStations);
-  const keepClear = [...buildingFootprintRings(librarySrc), ...handBuiltSrcs.flatMap(buildingFootprintRings), ...stationClearings(bikeStations), ...gateTreeExclusions(), ...SCOOTER_LOTS.map((l) => l.ring), ...(court ? [court.treeFree] : []), ...yuntayTreeFree(), ...dormTreeFree(), ...dormCFacadeTreeFree(campus), dormPit.treeFree, ...dormYardClearings(), ...PONDS.map((p) => p.ring)];
+  const keepClear = [...buildingFootprintRings(librarySrc), ...handBuiltSrcs.flatMap(buildingFootprintRings), ...stationClearings(bikeStations), ...gateTreeExclusions(), ...SCOOTER_LOTS.map((l) => l.ring), ...(court ? [court.treeFree] : []), ...yuntayTreeFree(), ...dormTreeFree(), ...dormCFacadeTreeFree(campus), dormPit.treeFree, ...dormYardClearings(), ...PONDS.map((p) => p.ring), [157.43, 235.45, 168.81, 233.24, 169.86, 238.64, 158.48, 240.85] /* 學生餐廳 entrance steps */];
   campus.water = PONDS.map((p) => ({ name: p.name, ring: p.ring }));
   const env = createCampusWorld(scene, physics, renderer, campus, sceneResources, {
     treeExclusions: keepClear,
@@ -273,10 +292,16 @@ async function boot(): Promise<void> {
         const [ix, iz] = unitBuilding.planToWorld(d.at[0] + d.out[0] * 0.7, d.at[1] + d.out[1] * 0.7);
         const [ox, oz] = unitBuilding.planToWorld(d.inside[0], d.inside[1] - 0.7);
         return [
-          { id: `dormC-room:in:${i}`, prompt: `按 E 進入${d.name}`, x: ix, y: DORM_C_UNIT_FLOOR, z: iz, radius: 0.9 },
+          { id: `dormC-room:in:${i}`, prompt: d.name === MY_ROOM.label ? `按 E 進入你的寢室 ${MY_ROOM.number}` : `按 E 進入${d.name}`, x: ix, y: DORM_C_UNIT_FLOOR, z: iz, radius: 0.9 },
           { id: `dormC-room:out:${i}`, prompt: `按 E 離開${d.name}`, x: ox, y: DORM_C_ROOMS_FLOOR, z: oz, radius: 0.9 },
         ];
       }),
+      // Your room's wardrobe (寢室 4, door-end wardrobes): changing clothes any time from Day 2.
+      (() => {
+        const q = DORM_C_ROOMS[Number(MY_ROOM.label.replace(/\D/g, '')) - 1] ?? DORM_C_ROOMS[3]!;
+        const [x, z] = unitBuilding.planToWorld((q[0] + q[2]) / 2, q[1] + 5.6);
+        return { id: 'dormC-wardrobe', prompt: '按 E 打開衣櫃', x, y: DORM_C_ROOMS_FLOOR, z, radius: 1.3 };
+      })(),
     );
   }
   const roomsBuilding = unit ? createHandBuiltBuilding(unit.rooms, scene, physics, renderer, env.materials, sceneResources, {
@@ -299,6 +324,21 @@ async function boot(): Promise<void> {
   const ma = byId('ma'), mb = byId('mb');
   const skyBridge = ma && mb ? createSkyBridge(scene, physics, sceneResources, { building: mb, at: [50.95, -2.3] }, { building: ma, at: [76.5, 12.75] }, 3.6) : null;
   const mgmtFeatures = createMgmtFeatures(scene, physics, sceneResources, ma);
+  // 管理一館 工具室 (every floor): a broom and a mop to pick up, a bucket.
+  const toolProps = (() => {
+    const spots: ToolSpot[] = [];
+    const buckets: { x: number; y: number; z: number }[] = [];
+    if (ma) {
+      const lean = ma.planFacing([0, -1]);
+      for (const [e, x0] of [[0, 63.8], [3.6, 63.8], [7.2, 64.5]] as const) {
+        const at = (px: number, py: number): [number, number] => ma.planToWorld(px, py);
+        const [bx, bz] = at(x0 + 0.45, 0.35), [mx, mz] = at(x0 + 0.9, 0.35), [kx, kz] = at(x0 + 1.5, 0.45);
+        spots.push({ x: bx, y: e + 0.08, z: bz, yaw: lean, tool: 'broom' }, { x: mx, y: e + 0.08, z: mz, yaw: lean, tool: 'mop' });
+        buckets.push({ x: kx, y: e + 0.08, z: kz });
+      }
+    }
+    return createToolProps(scene, sceneResources, spots, buckets);
+  })();
   addActivityEntrance(scene, sceneResources);
   addActivityAtrium(scene, sceneResources);
   addActivityCorner(scene, sceneResources);
@@ -414,9 +454,11 @@ async function boot(): Promise<void> {
   const bikes = createBikeSystem(scene, bikeStations, sceneResources, dormRideables());
   const inPit = (x: number, z: number): boolean => dormPit.contains(x, z) || !!court?.contains(x, z) || !!pondAt(x, z);
   const traffic = createTraffic(scene, campus, sceneResources, inPit);
+  /** 路跑 day: the campus walkers and every vehicle are taken off (the runners own the course). */
+  let raceMode = false;
   const applyAmbient = (a: GameState['ambient']): void => {
-    traffic.setEnabled('people', a.people);
-    traffic.setEnabled('vehicles', a.vehicles);
+    traffic.setEnabled('people', a.people && !raceMode);
+    traffic.setEnabled('vehicles', a.vehicles && !raceMode);
   };
   applyAmbient(gameStore.getState().ambient);
   const centreOf = (name: string): { x: number; z: number } | null => {
@@ -448,6 +490,13 @@ async function boot(): Promise<void> {
       if (name === '足球場' && playground) { const [x, z] = playground.pitch.toWorld(playground.pitch.halfLength - 11, 0); return { x, z }; }
       if (name === '路跑起點') return snapToRoad(RACE_ROUTE[0]!.x, RACE_ROUTE[0]!.z);
       if (name === 'MA214' && ma) { const [x, z] = ma.planToWorld(47.75, 19.25); return { x, z }; }
+      if (name === 'MB109' && mb) { const [x, z] = mb.planToWorld(26, 49); return { x, z }; }
+      if (name === '熱舞社' && mb) { const [x, z] = mb.planToWorld(44.6, 50.15); return { x, z }; }
+      if (name === '學餐餐桌') return { ...CAFETERIA_TABLE };
+      if (name === '街宣') return { ...PROMO_STAND };
+      if (name === '管院貓咪') { const c = centreOf('管理一館'); return c ? snapToRoad(c.x, c.z) : null; }
+      if (name === '操場黑狗' && playground) { const [x, z] = playground.pitch.toWorld(-24, 12); return { x, z }; }
+      if (name === '宿舍大笨鳥') return { x: -9.5, z: 335 };
       if (name === '操場') return playground ? { ...playground.startSpot } : null;
       if (name === '大門') return centreOf('警衛室');
       // 學生宿舍C is three OSM parts; the story's dorm is the courtyard by the C entrance where you start.
@@ -470,7 +519,50 @@ async function boot(): Promise<void> {
     hilife: hilife ? { counter: hilife.counter, clerk: hilife.clerk } : null,
     putInBed: (place) => putInBed(place),
     standUp: () => standUp(),
+    roomAt: (x, y, z) => {
+      for (const b of buildings()) {
+        // Plan coordinates by inverting the plan → world transform (two basis points).
+        const [ax, az] = b.planToWorld(0, 0), [bx, bz] = b.planToWorld(1, 0), [cx, cz] = b.planToWorld(0, 1);
+        const ux = bx - ax, uz = bz - az, vx = cx - ax, vz = cz - az, det = ux * vz - uz * vx;
+        if (Math.abs(det) < 1e-9) continue;
+        const rx = x - ax, rz = z - az;
+        const px = (rx * vz - rz * vx) / det, py = (ux * rz - uz * rx) / det;
+        const levels = [...b.source.levels].sort((p, q) => p.elevation - q.elevation);
+        const lvl = levels.filter((l) => l.elevation <= y + 0.5).pop();
+        const plan = lvl ? b.source.floors[lvl.id] : undefined;
+        const sp = plan?.spaces.find((q) => q.rects.some(([x0, y0, x1, y1]) => px >= x0 && px <= x1 && py >= y0 && py <= y1));
+        if (sp) return sp.code ?? sp.id;
+      }
+      return null;
+    },
+    seatIn: (_building, room) => {
+      let best: Seat | null = null, bestD = Infinity;
+      for (const b of buildings()) for (const st of b.seats) {
+        if (st.kind !== 'chair' || st.room !== room) continue;
+        const d = Math.hypot(st.x - Transform.x[eid]!, st.z - Transform.z[eid]!);
+        if (d < bestD) { bestD = d; best = st; }
+      }
+      if (!best) return false;
+      sitOn(best);
+      return true;
+    },
+    goOutsideDorm: (after) => {
+      // In front of the 學生宿舍C lobby (the dorm courtyard spawn if that door isn't known).
+      actions.setFading(true);
+      window.setTimeout(() => {
+        if (seat) standUp();
+        const x = lobbyDoor ? lobbyDoor.x + lobbyDoor.outX * 2.4 : campus.spawn.x;
+        const z = lobbyDoor ? lobbyDoor.z + lobbyDoor.outZ * 2.4 : campus.spawn.z;
+        const facing = lobbyDoor ? Math.atan2(lobbyDoor.outX, lobbyDoor.outZ) : campus.spawn.facing;
+        teleport(x, lobbyDoor ? lobbyDoor.floor : 0, z, facing);
+        renderSyncSystem(world, 1);
+        rig.snap(readFocus(), facing + Math.PI);
+        actions.setFading(false);
+        after();
+      }, 350);
+    },
     shove: (dx, dz) => shiftPlayer(dx, dz),
+    teleportTo: (x, z) => { teleport(x, 0.3, z); renderSyncSystem(world, 1); },
     openPhone: (from) => {
       storyActions.focusThread(from);
       actions.setPhonePage('chat');
@@ -479,7 +571,7 @@ async function boot(): Promise<void> {
     snapToRoad,
     walkSpeed: CHARACTER.walkSpeed,
   });
-  const onSport = (kind: 'basketball' | 'volleyball' | 'soccer', score: number): void => storyEvents.sport(kind, score);
+  const onSport = (kind: 'basketball' | 'volleyball' | 'soccer' | 'tennis', score: number): void => { if (kind !== 'tennis') storyEvents.sport(kind, score); };
   const onTrack = (t: number): void => storyEvents.track(t);
   sportFinished.add(onSport);
   trackFinished.add(onTrack);
@@ -489,12 +581,17 @@ async function boot(): Promise<void> {
   let swimStroke = 0;
   let lastWake = 0;
   let lastNight = -1;
-  const storyFrame: StoryFrame = { x: 0, y: 0, z: 0, area: null, minutes: 0, riding: false, sprinting: false, playing: false, viewYaw: 0, seatedIn: null, seatedRoom: null, lying: false, jumps: 0, modal: 'none' };
+  const storyFrame: StoryFrame = { x: 0, y: 0, z: 0, area: null, minutes: 0, riding: false, sprinting: false, playing: false, viewYaw: 0, seatedIn: null, seatedRoom: null, bed: null, lying: false, jumps: 0, modal: 'none' };
   const insideBuilding = createBuildingTest(campus);
   const moveMods: MoveModifiers = { fly: false, noclip: false, speed: 1, bike: false, blocked: null };
   const joints = findMascotJoints(model.root);
   // Inspect view: the item held up in front of the camera (turned with the mouse) and in the hand.
   let held: { id: string; view: ItemModel; hand: ItemModel } | null = null;
+  /** 蹲下: held Ctrl (or the story's sneak); the duck-walk phase. */
+  let crouching = false;
+  let crouchGait = 0;
+  /** The broom or mop in the right hand (selected on the hotbar). */
+  let handTool: { id: string; g: Group } | null = null;
   const heldTurn = { yaw: 0, pitch: 0, zoom: 1 };
   const heldEuler = new Euler(0, 0, 0, 'YXZ');
   const heldQ = new Quaternion();
@@ -508,9 +605,10 @@ async function boot(): Promise<void> {
   // Wardrobe clothes follow the saved outfit; opening the wardrobe turns the camera to face you.
   const outfitter = createOutfitter(model.root);
   outfitter.apply(storyStore.getState().progress.outfit ?? {});
+  const wardrobePreview = createWardrobePreview(renderer, model.root);
   const unsubOutfit = storyStore.subscribe((st, prev) => {
-    if (st.progress.outfit !== prev.progress.outfit) outfitter.apply(st.progress.outfit ?? {});
-    if (st.scene?.kind === 'wardrobe' && prev.scene?.kind !== 'wardrobe') rig.snap(readFocus(), Transform.rotY[eid]! + 0.35);
+    if (st.progress.outfit !== prev.progress.outfit) { outfitter.apply(st.progress.outfit ?? {}); wardrobePreview.invalidate(); }
+    if (st.scene?.kind === 'wardrobe' && prev.scene?.kind !== 'wardrobe') { wardrobeView.yaw = 0; wardrobePreview.invalidate(); }
   });
   const ridePose = createPose();
 
@@ -592,13 +690,38 @@ async function boot(): Promise<void> {
   /** Getting up on purpose (E or a move key): not while the professor is lecturing. */
   let seatNagAt = 0;
   const tryStandUp = (): void => {
-    if (story.seatLocked()) {
+    const why = story.seatLock();
+    if (why !== null) {
       const now = performance.now();
-      if (now - seatNagAt > 2500) { seatNagAt = now; actions.toast('🙅 教授正在上課，請勿離開座位！'); }
+      if (why && now - seatNagAt > 2500) { seatNagAt = now; actions.toast(why); }
       return;
     }
     standUp();
   };
+  // --- Checkpoints: where 「回到上一個紀錄點」 (pause menu) puts you back if you get stuck ---------
+  // Taken when a story step begins and after every door / stair / elevator teleport, once you are
+  // standing (not seated, riding or knocked down). Kept in this browser.
+  const CHECKPOINT_KEY = 'yfm.checkpoint.v1';
+  type Checkpoint = { x: number; y: number; z: number; facing: number };
+  const loadCheckpoint = (): Checkpoint | null => {
+    try {
+      const c = JSON.parse(localStorage.getItem(CHECKPOINT_KEY) ?? 'null') as Checkpoint | null;
+      return c && [c.x, c.y, c.z, c.facing].every(Number.isFinite) ? c : null;
+    } catch { return null; }
+  };
+  let checkpointTimer = 0;
+  const takeCheckpoint = (delay = 1500): void => {
+    window.clearTimeout(checkpointTimer);
+    checkpointTimer = window.setTimeout(() => {
+      if (seat || knock || bikes.ridden >= 0 || CharacterMotor.grounded[eid] !== 1) { takeCheckpoint(2000); return; }
+      const c: Checkpoint = { x: Transform.x[eid]!, y: Transform.y[eid]!, z: Transform.z[eid]!, facing: Transform.rotY[eid]! };
+      if (![c.x, c.y, c.z].every(Number.isFinite)) return;
+      try { localStorage.setItem(CHECKPOINT_KEY, JSON.stringify(c)); } catch { /* private mode */ }
+    }, delay);
+  };
+  storyStore.subscribe((s, prev) => {
+    if (s.progress.day !== prev.progress.day || s.progress.step !== prev.progress.step) takeCheckpoint(2500);
+  });
   // --- Bumping into people and vehicles; knocked down by a car --------------------------------
   /** Knocked down: thrown along (dx, dz), sliding until `speed` dies out or a wall stops it. */
   let knock: { t: number; total: number; dx: number; dz: number; speed: number; facing: number } | null = null;
@@ -839,6 +962,7 @@ async function boot(): Promise<void> {
         }
         return;
       case 'newGame':
+        try { localStorage.removeItem(CHECKPOINT_KEY); } catch { /* private mode */ }
         introPending = true;
         actions.setNav(null);
         navLine.set(null);
@@ -851,6 +975,19 @@ async function boot(): Promise<void> {
         rig.snap(readFocus(), spawn.facing + Math.PI);
         story.restart();
         return;
+      case 'checkpoint': {
+        bikes.dismount();
+        playground?.cancel();
+        sports.cancel();
+        if (seat) standUp();
+        knock = null;
+        const p = loadCheckpoint() ?? spawn;
+        teleport(p.x, p.y, p.z, p.facing);
+        renderSyncSystem(world, 1);
+        rig.snap(readFocus(), p.facing + Math.PI);
+        actions.toast('↩️ 回到上一個紀錄點');
+        return;
+      }
       case 'toStart':
       case 'respawn': {
         bikes.dismount();
@@ -883,7 +1020,7 @@ async function boot(): Promise<void> {
           await addPhoto(blob, label);
           actions.bumpAlbum();
           actions.toast('已存到相簿');
-          storyEvents.photo(areaAt(obj.position.x, obj.position.y, obj.position.z)?.title ?? null);
+          storyEvents.photo(areaAt(obj.position.x, obj.position.y, obj.position.z)?.title ?? null, st.cameraSelfie);
         });
         return;
       }
@@ -910,6 +1047,16 @@ async function boot(): Promise<void> {
       }
       case 'useItem': {
         const item = gameStore.getState().inventory[cmd.slot]?.id;
+        if (item === 'broom' || item === 'mop') {
+          // Put it down on the floor in front of you.
+          const yaw = Transform.rotY[eid]!;
+          const fx = Transform.x[eid]! + Math.sin(yaw) * 0.8, fz = Transform.z[eid]! + Math.cos(yaw) * 0.8;
+          toolProps.drop(item, fx, Transform.y[eid]!, fz, yaw + Math.PI / 2);
+          actions.consumeItem(cmd.slot);
+          actions.toast(`放下${ITEMS[item].name}`);
+          if (gameStore.getState().modal === 'inspect') api.closeModal();
+          return;
+        }
         useItem(cmd.slot, api);
         if (item && FOOD.has(item)) storyEvents.eat(item);
         if (item === 'studentCard') actions.toast(`🪪 國立雲林科技大學・${playerName()}　學號 ${studentId(storyStore.getState().progress.studentNo)}`);
@@ -961,6 +1108,19 @@ async function boot(): Promise<void> {
           } else audio.play('click');
           return;
         }
+        if (target?.id.startsWith('tool:')) {
+          const tool = toolProps.take(target.id);
+          if (tool) {
+            if (actions.hasItem(tool)) { toolProps.drop(tool, target.x, target.y, target.z, 0); actions.toast(`你已經拿著${ITEMS[tool].name}了`); }
+            else if (actions.giveItem(tool)) { actions.toast(`🧹 拿起${ITEMS[tool].name}（快捷欄選它就拿在手上，背包裡使用＝放下）`); audio.play('click'); }
+            else { toolProps.drop(tool, target.x, target.y, target.z, 0); actions.toast('背包滿了'); }
+          }
+          return;
+        }
+        if (target?.id === 'dormC-wardrobe') {
+          story.openWardrobe();
+          return;
+        }
         if (target?.id.startsWith('dormC-room:') && unit && unitBuilding) {
           // 學生宿舍C bedroom door: fade, then stand inside the bedroom by its door (or back in the corridor), facing on.
           const [, way, index] = target.id.split(':');
@@ -977,6 +1137,7 @@ async function boot(): Promise<void> {
             renderSyncSystem(world, 1);
             rig.snap(readFocus(), facing + Math.PI);
             actions.setFading(false);
+            takeCheckpoint();
             audio.play('click');
           }, 300);
           return;
@@ -1002,6 +1163,7 @@ async function boot(): Promise<void> {
             renderSyncSystem(world, 1);
             rig.snap(readFocus(), facing + Math.PI);
             actions.setFading(false);
+            takeCheckpoint();
             actions.toast(entering ? '回到宿舍了' : '離開宿舍');
           }, 350);
           return;
@@ -1020,6 +1182,7 @@ async function boot(): Promise<void> {
             renderSyncSystem(world, 1);
             rig.snap(readFocus(), facing + Math.PI);
             actions.setFading(false);
+            takeCheckpoint();
             actions.toast(`${portal.level} 到了`);
           }, 350);
           return;
@@ -1056,6 +1219,10 @@ async function boot(): Promise<void> {
           return;
         }
         if (playground?.racing) return;
+        if (story.racing && bikes.nearest(Transform.x[eid]!, Transform.y[eid]!, Transform.z[eid]!) >= 0 && !nearestSeat()) {
+          actions.toast('🚫 路跑進行中，禁止騎乘任何車輛！');
+          return;
+        }
         // Take a cyclist's bike (they end up on foot, shouting).
         if (!target && Transform.y[eid]! < 1.5) {
           const robbed = traffic.robCyclist(Transform.x[eid]!, Transform.z[eid]!, ROB_REACH);
@@ -1143,7 +1310,7 @@ async function boot(): Promise<void> {
   const nearestInteractable = (): Interactable | null => {
     let best: Interactable | null = null;
     let bestD = Infinity;
-    for (const it of buildings().flatMap((b) => b.interactables)) {
+    for (const it of [...buildings().flatMap((b) => b.interactables), ...toolProps.interactables]) {
       const d = Math.hypot(Transform.x[eid]! - it.x, Transform.z[eid]! - it.z);
       if (d < it.radius && d < bestD && Math.abs(Transform.y[eid]! - it.y) < 1.5) {
         best = it;
@@ -1272,7 +1439,8 @@ async function boot(): Promise<void> {
       const k = ui.settings.mouseSensitivity;
       rig.rotate(mouse.dx * k, mouse.dy * k * (ui.settings.invertY ? -1 : 1));
       // Game clock: one real second = one game minute, frozen in menus.
-      clockSeconds += dt;
+      // …and stopped while a visual-novel scene is on screen.
+      if (storyStore.getState().scene?.kind !== 'vn') clockSeconds += dt;
       actions.setGameMinutes(START_MINUTES + Math.floor(clockSeconds));
     }
 
@@ -1285,8 +1453,11 @@ async function boot(): Promise<void> {
       moveMods.fly = ui.tester.fly && !riding;
       moveMods.noclip = ui.tester.noclip && !riding;
       if (seat && (input.held() & MOVE_BITS)) tryStandUp();
-      moveMods.speed = seat || knock || playground?.frozen || sports.frozen || (ui.countdown && ui.countdown.text !== '開始！') ? 0 : ui.tester.speed * story.speedFactor * sports.speedFactor * (bikes.riddenKind === 'scooter' ? SCOOTER_SPEED_FACTOR : 1) * (inWater ? 0.55 : 1);
-      moveMods.noJump = sports.active || !!knock;
+      // Not while a story scene (dialogue, mini-game) is on screen: you move again once it is closed.
+      // 蹲下 (Ctrl held, or sneaking out of class): slow and low.
+      crouching = !seat && !knock && bikes.ridden < 0 && !inWater && !sports.active && ((input.held() & Action.Crouch) !== 0 || story.forceCrouch);
+      moveMods.speed = seat || knock || storyStore.getState().scene || playground?.frozen || sports.frozen || (ui.countdown && ui.countdown.text !== '開始！') ? 0 : ui.tester.speed * story.speedFactor * sports.speedFactor * (bikes.riddenKind === 'scooter' ? SCOOTER_SPEED_FACTOR : 1) * (inWater ? 0.55 : 1) * (crouching ? 0.4 : 1);
+      moveMods.noJump = sports.active || !!knock || crouching;
       moveMods.bike = riding;
       moveMods.blocked = riding ? insideBuilding : null;
       controller.update(world, FIXED_DT, input.consumePressed(), rig.yaw, groundFilter, moveMods);
@@ -1304,8 +1475,9 @@ async function boot(): Promise<void> {
         knock.speed *= Math.exp(-3.2 * FIXED_DT);
         Transform.rotY[eid] = Transform.prevRotY[eid] = knock.facing;
         if (knock.t >= knock.total) knock = null;
-      } else if (playing && !seat && !ui.tester.noclip && !ui.tester.fly) {
+      } else if (playing && !seat && !ui.tester.noclip && !ui.tester.fly && Math.abs(Transform.y[eid]!) < 1.5) {
         // People and vehicles are solid; a moving vehicle (or running into one fast) knocks you down.
+        // Only at street level: not from upstairs (or the underground dorm rooms) above / below where they walk.
         const c = traffic.collide(Transform.x[eid]!, Transform.z[eid]!, bikes.ridden >= 0 ? 0.55 : 0.32, Velocity.x[eid]!, Velocity.z[eid]!);
         if (c.push) shiftPlayer(c.push[0], c.push[1]);
         if (c.knock) knockDown(c.knock);
@@ -1351,6 +1523,10 @@ async function boot(): Promise<void> {
       applyPose(joints, computeFallPose(knock.t, knock.total, ridePose));
     } else if (seat && joints) {
       applyPose(joints, seat.s.kind === 'bed' ? computeLiePose(time, ridePose) : computeSitPose(time, ridePose, storyStore.getState().handUp));
+    } else if (crouching && joints) {
+      const speed = Math.hypot(Velocity.x[eid]!, Velocity.z[eid]!);
+      crouchGait += dt * speed * 4.5;
+      applyPose(joints, computeCrouchPose(crouchGait, time * CLOCK_RATE, speed > 0.2, ridePose));
     } else if (bikes.ridden >= 0 && objects[eid]) {
       const o = objects[eid]!;
       bikes.update(dt, o.position.x, o.position.y, o.position.z, o.rotation.y, Math.hypot(Velocity.x[eid]!, Velocity.z[eid]!));
@@ -1374,6 +1550,11 @@ async function boot(): Promise<void> {
       }
     }
     coins.render(world, time);
+    if (story.racing !== raceMode) {
+      raceMode = story.racing;
+      applyAmbient(gameStore.getState().ambient);
+      if (raceMode && bikes.ridden >= 0) { bikes.dismount(); actions.toast('🚫 路跑進行中，禁止騎乘任何車輛！'); }
+    }
     traffic.update(dt, Transform.x[eid]!, Transform.z[eid]!);
     ponds.update(dt, time);
     {
@@ -1421,6 +1602,7 @@ async function boot(): Promise<void> {
       storyFrame.viewYaw = rig.yaw;
       storyFrame.seatedIn = seat && seat.s.kind === 'chair' ? seat.s.building : null;
       storyFrame.seatedRoom = seat && seat.s.kind === 'chair' ? seat.s.room : null;
+      storyFrame.bed = seat && seat.s.kind === 'bed' ? { building: seat.s.building, room: seat.s.room ?? '' } : null;
       storyFrame.lying = !!seat && seat.s.kind === 'bed';
       storyFrame.jumps = CharacterMotor.jumpSeq[eid]!;
       storyFrame.modal = ui.modal;
@@ -1431,6 +1613,25 @@ async function boot(): Promise<void> {
       const target = ui.nav ? { x: ui.nav.x, z: ui.nav.z, name: ui.nav.name, color: '#2f6fd0', icon: '🏁' }
         : mainPin && sst.enabled ? { x: mainPin.x, z: mainPin.z, name: sst.live.place ?? '主線目標', color: '#f08a24', icon: mainPin.icon } : null;
       navPointer.update(camera, target, px, pz, playing && ui.modal === 'none' && ui.mapMode === 'mini');
+    }
+    // A broom / mop selected on the hotbar is carried in the right hand.
+    {
+      const sel = ui.inventory[ui.hotbarIndex]?.id;
+      const want = (sel === 'broom' || sel === 'mop') && ui.modal !== 'inspect' ? sel : null;
+      if (handTool && handTool.id !== want) { handTool.g.removeFromParent(); handTool = null; }
+      if (want && !handTool) {
+        const arm = model.root.getObjectByName('armR');
+        if (arm) {
+          const g = new Group();
+          const m = toolProps.makeModel(want);
+          m.position.y = -0.8; // grip it a little above the middle of the stick
+          g.add(m);
+          g.scale.setScalar(1.6); // the arm joint is scaled down with the mascot
+          g.position.set(0, -0.3, 0.06);
+          arm.add(g);
+          handTool = { id: want, g };
+        }
+      }
     }
     // Held item (inspect view): in front of the camera, turned by the mouse; a small copy in the hand.
     {
@@ -1508,7 +1709,7 @@ async function boot(): Promise<void> {
             ?? (sports.prompt(f.x, f.y, f.z))
             ?? (sports.active ? null : (() => { const st = nearestSeat(); return st ? (st.kind === 'bed' ? '按 E 躺上床' : '按 E 坐下') : null; })())
             ?? (f.y < 1.5 && traffic.cyclistNear(f.x, f.z, ROB_REACH) ? '按 E 搶走他的腳踏車' : null)
-            ?? (playground?.canStart(f.x, f.z) ? '按 E 開始跑道計時賽' : bikes.nearest(f.x, f.y, f.z) >= 0 ? (bikes.kindOf(bikes.nearest(f.x, f.y, f.z)) === 'scooter' ? '按 E 騎機車' : '按 E 騎腳踏車') : null),
+            ?? (playground?.canStart(f.x, f.z) ? '按 E 開始跑道計時賽' : bikes.nearest(f.x, f.y, f.z) >= 0 && !raceMode ? (bikes.kindOf(bikes.nearest(f.x, f.y, f.z)) === 'scooter' ? '按 E 騎機車' : '按 E 騎腳踏車') : null),
     );
 
     telemetry.x = f.x;
@@ -1527,6 +1728,11 @@ async function boot(): Promise<void> {
       if (impact > 3) audio.play('land', Math.min(1, impact / 12));
     }
     renderer.render(scene, camera);
+    // 衣櫃: the character preview in the box the wardrobe leaves on the left.
+    if (storyStore.getState().scene?.kind === 'wardrobe') {
+      const box = document.querySelector('.wd-preview')?.getBoundingClientRect();
+      if (box) wardrobePreview.render(box);
+    }
 
     if (ui.settings.showDebug) updateDebug(dt, {
       x: f.x, y: f.y, z: f.z,

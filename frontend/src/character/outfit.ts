@@ -31,6 +31,8 @@ export interface OutfitItem {
   name: string;
   color: number;
   style?: 'cap' | 'beanie' | 'bucket' | 'long' | 'short';
+  /** 潮流單品: tagged in the wardrobe. */
+  trend?: boolean;
 }
 
 export const OUTFIT_ITEMS: readonly OutfitItem[] = [
@@ -38,24 +40,41 @@ export const OUTFIT_ITEMS: readonly OutfitItem[] = [
   { id: 'capNavy', part: 'hat', name: '深藍棒球帽', color: 0x1f2f5c, style: 'cap' },
   { id: 'beanie', part: 'hat', name: '黃色毛帽', color: 0xf2c230, style: 'beanie' },
   { id: 'bucket', part: 'hat', name: '白色漁夫帽', color: 0xf1efe6, style: 'bucket' },
+  { id: 'bucketBlack', part: 'hat', name: '黑色漁夫帽', color: 0x1e1e22, style: 'bucket', trend: true },
+  { id: 'capGreen', part: 'hat', name: '雲科綠棒球帽', color: 0x1f8f4a, style: 'cap' },
+  { id: 'beanieGrey', part: 'hat', name: '灰色針織毛帽', color: 0x8e9199, style: 'beanie', trend: true },
   { id: 'teeWhite', part: 'shirt', name: '白 T', color: 0xf4f4f0 },
   { id: 'teeBlack', part: 'shirt', name: '黑 T', color: 0x26262b },
   { id: 'shirtPink', part: 'shirt', name: '粉色襯衫', color: 0xf3a6bf },
   { id: 'poloBlue', part: 'shirt', name: '藍色 POLO', color: 0x2c6fd6 },
+  { id: 'teeOversize', part: 'shirt', name: '卡其 oversize T', color: 0xc9b48f, trend: true },
+  { id: 'teeMint', part: 'shirt', name: '薄荷綠 T', color: 0x9fe0c3, trend: true },
+  { id: 'teeDept', part: 'shirt', name: '資管系系 T', color: 0x1d3f7a },
   { id: 'denim', part: 'jacket', name: '丹寧外套', color: 0x4a6fa5 },
   { id: 'bomber', part: 'jacket', name: '黑色飛行外套', color: 0x23252b },
   { id: 'varsity', part: 'jacket', name: '綠色棒球外套', color: 0x1f8f4a },
   { id: 'hoodie', part: 'jacket', name: '灰色帽 T', color: 0x9a9ca3 },
+  { id: 'cargo', part: 'jacket', name: '軍綠工裝外套', color: 0x55613a, trend: true },
+  { id: 'windbreaker', part: 'jacket', name: '螢光橘風衣', color: 0xff7a1a, trend: true },
+  { id: 'plaid', part: 'jacket', name: '紅色格紋襯衫', color: 0xa8323a },
   { id: 'jeans', part: 'pants', name: '牛仔長褲', color: 0x35517f, style: 'long' },
   { id: 'khaki', part: 'pants', name: '卡其長褲', color: 0xc8b48a, style: 'long' },
   { id: 'shortsBlack', part: 'pants', name: '黑色短褲', color: 0x1d1d22, style: 'short' },
   { id: 'shortsRed', part: 'pants', name: '紅色運動褲', color: 0xc9363c, style: 'short' },
+  { id: 'cargoPants', part: 'pants', name: '軍綠工裝褲', color: 0x5b6a3c, style: 'long', trend: true },
+  { id: 'wideBeige', part: 'pants', name: '米色寬褲', color: 0xe3d5b8, style: 'long', trend: true },
+  { id: 'shortsGrey', part: 'pants', name: '灰色運動短褲', color: 0x8a8d93, style: 'short' },
   { id: 'sockWhite', part: 'socks', name: '白襪', color: 0xf7f7f3 },
   { id: 'sockBlack', part: 'socks', name: '黑襪', color: 0x2a2a2e },
-  { id: 'sockYellow', part: 'socks', name: '黃色長襪', color: 0xf2c230 },
+  { id: 'sockYellow', part: 'socks', name: '黃色長襪', color: 0xf2c230, style: 'long' },
+  { id: 'sockPink', part: 'socks', name: '粉紅短襪', color: 0xf48fb1 },
+  { id: 'sockGreen', part: 'socks', name: '綠色長襪', color: 0x2e9e3e, style: 'long', trend: true },
   { id: 'sneakWhite', part: 'shoes', name: '小白鞋', color: 0xf5f5f2 },
   { id: 'sneakRed', part: 'shoes', name: '紅色球鞋', color: 0xd8353a },
   { id: 'leather', part: 'shoes', name: '黑皮鞋', color: 0x1a1718 },
+  { id: 'dadShoes', part: 'shoes', name: '米白老爹鞋', color: 0xeee4d0, trend: true },
+  { id: 'highTop', part: 'shoes', name: '黑色高筒帆布鞋', color: 0x222226, trend: true },
+  { id: 'blueWhite', part: 'shoes', name: '藍白拖', color: 0x2f6fd6 },
 ];
 
 export interface Outfitter {
@@ -136,7 +155,7 @@ export function createOutfitter(root: Object3D): Outfitter {
       const socks = item('socks');
       if (socks) {
         const m = mat(socks.color);
-        for (const leg of [legL, legR]) add(leg, new CylinderGeometry(0.081, 0.081, socks.id === 'sockYellow' ? 0.12 : 0.07, 14), m, 0, socks.id === 'sockYellow' ? -0.25 : -0.27, 0);
+        for (const leg of [legL, legR]) add(leg, new CylinderGeometry(0.081, 0.081, socks.style === 'long' ? 0.12 : 0.07, 14), m, 0, socks.style === 'long' ? -0.25 : -0.27, 0);
       }
       const shoes = item('shoes');
       if (shoes) {

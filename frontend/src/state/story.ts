@@ -33,6 +33,10 @@ export interface StoryProgress {
     mixer?: number;
     badRecord?: number;
     runTime?: number;
+    /** Who paid for the Day 1 lunch. */
+    lunchPayer?: 'me' | 'kai' | 'fat';
+    drumLevel?: number;
+    danceBest?: number;
     /** Bike metres ridden since the last hit. */
     safeMetres?: number;
   };
@@ -71,6 +75,14 @@ export type StoryScene =
   | { kind: 'summary' }
   | { kind: 'stayAwake' }
   | { kind: 'wardrobe' }
+  /** Day 1 lunch: rock-paper-scissors, the loser treats (one appeal). */
+  | { kind: 'lunch' }
+  /** 熱音社: repeat the drum pattern (pads and rhythm), harder every level. */
+  | { kind: 'drums' }
+  /** MB109 小考: 10 questions, peek with Shift while the professor walks the rows. */
+  | { kind: 'exam' }
+  /** 熱舞社: arrow sequences, then Space on the beat. */
+  | { kind: 'dance' }
   /** Visual-novel scene (full screen, click through); ends like a dialog with its id. */
   | { kind: 'vn'; id: string; lines: VnLine[] };
 
@@ -82,7 +94,7 @@ export interface StoryState {
   /** Open story scene (dialog / mini-game), shown in the story modal. */
   scene: StoryScene | null;
   /** Live objective details: distance (m) and direction to the target, timers. */
-  live: { tutorial?: { i: number; done: boolean } | null; lecture?: { line: number; t: number; total: number } | null; countdown?: { label: string; left: number; total: number; where: string } | null; distance: number | null; bearing: number | null; timer: string | null; stamina: number | null; note: string | null; place: string | null; photoSpot?: string | null };
+  live: { sneak?: { risk: number } | null; tutorial?: { i: number; done: boolean } | null; lecture?: { line: number; t: number; total: number } | null; countdown?: { label: string; left: number; total: number; where: string } | null; distance: number | null; bearing: number | null; timer: string | null; stamina: number | null; note: string | null; place: string | null; photoSpot?: string | null };
   /** Achievements waiting for their popup (first = showing). */
   unlockQueue: string[];
   /** Quest targets for the minimap and full map (same as the beacons). */

@@ -786,7 +786,8 @@ kbd {
 .chat-msgs { display: flex; flex-direction: column; gap: 6px; max-height: 300px; overflow-y: auto; padding: 6px 2px; }
 .bubble { align-self: flex-start; max-width: 80%; padding: 8px 11px; border-radius: 14px 14px 14px 4px; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.1); font-size: 14px; line-height: 1.45; animation: pop-in 0.25s ease; }
 .bubble.me { align-self: flex-end; background: #95ec69; border-radius: 14px 14px 4px 14px; }
-.chat-replies { display: flex; flex-wrap: wrap; gap: 6px; }
+.chat-replies { display: flex; flex-wrap: wrap; gap: 6px; max-height: 118px; overflow-y: auto; }
+.bubble.typing { opacity: 0.6; font-style: italic; }
 .rc { display: flex; flex-direction: column; align-items: center; gap: 10px; }
 .rc-course { font-size: 14px; color: var(--ink-soft); }
 .rc-code { display: flex; gap: 8px; }
@@ -1034,3 +1035,90 @@ svg.ico-line { vertical-align: -0.2em; flex: none; }
   .vn-box { min-height: 0; bottom: 12px; padding: 26px 22px 30px; }
   .vn-buzz { top: 22%; }
 }
+
+/* ---------- Wardrobe v2: preview on the left ---------- */
+.wardrobe { max-height: calc(100vh - 48px); overflow-y: auto; }
+.wd-items { max-height: 38vh; overflow-y: auto; }
+.wd-preview { position: absolute; left: 24px; top: 50%; transform: translateY(-50%); width: min(440px, calc(100vw - 460px)); height: min(640px, calc(100vh - 140px)); border-radius: 24px; box-shadow: 0 0 0 4px #fff, var(--shadow); cursor: grab; pointer-events: auto; touch-action: none; animation: pop-in 0.25s ease; }
+.wd-preview:active { cursor: grabbing; }
+.wd-preview-bar { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 999px; background: rgba(255, 255, 255, 0.92); box-shadow: var(--shadow); font-size: 13px; color: var(--ink-soft); white-space: nowrap; }
+.wd-preview-bar button { width: 32px; height: 32px; border: 0; border-radius: 50%; background: var(--green); color: #fff; font-size: 14px; cursor: pointer; }
+.wd-trend { margin-left: auto; padding: 1px 6px; border-radius: 6px; background: #ff7a1a; color: #fff; font-style: normal; font-size: 11px; font-weight: 800; }
+@media (max-width: 760px) {
+  .wd-preview { top: 16px; left: 16px; right: 16px; width: auto; height: 34vh; transform: none; }
+  .wardrobe { top: auto; bottom: 16px; transform: none; max-height: 56vh; }
+}
+.wd-preview-bar button { display: grid; place-items: center; }
+
+/* Item pictures (rendered from the 3D models) */
+.item-pic { width: 82%; height: 82%; object-fit: contain; pointer-events: none; filter: drop-shadow(0 2px 2px rgba(0,0,0,0.18)); }
+
+/* 翹課 meter */
+.sneak-meter { position: absolute; left: 50%; bottom: 128px; transform: translateX(-50%); width: min(380px, calc(100vw - 32px)); padding: 10px 16px 12px; border-radius: 16px; background: rgba(20, 30, 25, 0.82); color: #fff; text-align: center; pointer-events: none; animation: pop-in 0.25s ease; }
+.sneak-title { font-weight: 800; margin-bottom: 6px; }
+.sneak-bar { height: 10px; border-radius: 5px; background: rgba(255,255,255,0.18); overflow: hidden; margin-bottom: 4px; }
+.sneak-bar i { display: block; height: 100%; background: linear-gradient(90deg, #ffd54f, #ff7043); transition: width 0.2s; }
+.sneak-meter.hot .sneak-bar i { background: #e53935; }
+.sneak-meter small { color: rgba(255,255,255,0.75); }
+
+/* ---------- Story mini-games: 學餐猜拳, 熱音社打鼓, MB109 小考, 熱舞社 ---------- */
+.rps-table { display: flex; justify-content: center; gap: 14px; margin: 10px 0 4px; }
+.rps-seat { flex: 1; max-width: 150px; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 6px; border-radius: 14px; background: var(--green-soft); transition: opacity 0.2s, transform 0.2s; }
+.rps-seat.me { outline: 2px solid var(--green); }
+.rps-seat.safe { opacity: 0.5; }
+.rps-seat.payer { background: #ffe0b2; transform: scale(1.06); }
+.rps-seat b { font-size: 14px; }
+.rps-seat small { min-height: 16px; font-size: 12px; color: var(--ink-soft); }
+.rps-hand { font-size: 44px; line-height: 1.1; }
+.rps-hand.show { animation: rps-pop 0.35s ease-out; }
+@keyframes rps-pop { from { transform: scale(0.4) rotate(-20deg); } to { transform: scale(1) rotate(0); } }
+.rps-msg { text-align: center; min-height: 24px; }
+.rps-picks { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.rps-pick { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 88px; }
+.rps-pick span { font-size: 34px; }
+.rps-pick kbd { font-size: 11px; }
+.rps-note { text-align: center; color: var(--ink-soft); font-size: 13px; }
+
+.drum-sheet { display: flex; flex-direction: column; gap: 6px; margin: 8px 0 12px; padding: 10px; border-radius: 12px; background: #1f2326; }
+.drum-lane { display: flex; align-items: center; gap: 8px; }
+.drum-lane-name { width: 16px; font-weight: 800; font-size: 13px; }
+.drum-lane-track { position: relative; flex: 1; height: 18px; border-bottom: 1px dashed rgba(255, 255, 255, 0.15); }
+.drum-note { position: absolute; top: 2px; width: 14px; height: 14px; margin-left: 2px; border-radius: 50%; opacity: 0.85; transition: transform 0.1s; }
+.drum-note.now { transform: scale(1.5); opacity: 1; box-shadow: 0 0 10px #fff; }
+.drum-hit { position: absolute; top: -3px; width: 4px; height: 24px; margin-left: 8px; border-radius: 2px; }
+.drum-hit.ok { background: #66ff99; }
+.drum-hit.bad { background: #ff5252; }
+.drum-pads { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 12px; }
+.drum-pad { aspect-ratio: 1; max-height: 92px; border: 4px solid var(--pad); border-radius: 50%; background: #2a2e32; color: #fff; font: inherit; font-weight: 700; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; cursor: pointer; transition: transform 0.06s, background 0.06s; }
+.drum-pad.lit { background: var(--pad); transform: scale(0.93); color: #1d1d1d; }
+.drum-pad kbd { font-size: 11px; }
+
+.exam-room { position: relative; margin: 6px 0 10px; padding: 10px; border-radius: 12px; background: #eef3ee; }
+.exam-front { position: relative; height: 40px; border-bottom: 3px solid #4e5d52; }
+.exam-prof { position: absolute; bottom: 0; transform: translateX(-50%); font-size: 26px; transition: filter 0.2s; white-space: nowrap; }
+.exam-prof i { font-style: normal; font-size: 11px; color: var(--ink-soft); }
+.exam-prof em { font-style: normal; position: absolute; top: -14px; left: 50%; font-size: 16px; }
+.exam-prof.watching { filter: drop-shadow(0 0 6px #ff5252); }
+.exam-desks { display: flex; justify-content: space-between; gap: 8px; margin-top: 10px; }
+.exam-desk { flex: 1; text-align: center; padding: 8px 4px; border-radius: 8px; background: #d7c4a3; font-size: 13px; font-weight: 700; }
+.exam-desk small { display: block; font-weight: 400; font-size: 11px; color: #5d4b33; }
+.exam-desk.me { background: #f2c230; }
+.exam-desk.look { outline: 3px solid #ff7043; }
+.exam-alert { margin-top: 8px; text-align: center; font-size: 13px; color: var(--ink-soft); }
+.exam-alert.on { color: #d32f2f; font-weight: 800; }
+.exam-peek { display: flex; justify-content: space-between; }
+.quiz-options .btn kbd { font-size: 11px; margin-right: 4px; }
+
+.dance-seq { display: flex; justify-content: center; gap: 8px; margin: 14px 0; font-size: 40px; font-weight: 900; }
+.dance-seq span { width: 54px; height: 60px; display: flex; align-items: center; justify-content: center; border-radius: 12px; background: #2b2140; color: #fff; }
+.dance-seq span.done { background: #ff4fa3; transform: scale(0.92); }
+.dance-seq.shake { animation: dance-shake 0.3s; }
+@keyframes dance-shake { 25% { transform: translateX(-8px); } 75% { transform: translateX(8px); } }
+.dance-bar { position: relative; height: 26px; margin: 10px 4px; border-radius: 13px; background: #2b2140; }
+.dance-bar .tick { position: absolute; top: 8px; width: 2px; height: 10px; background: rgba(255, 255, 255, 0.3); }
+.dance-bar .mark { position: absolute; top: -4px; width: 16px; height: 34px; margin-left: -8px; border-radius: 6px; background: rgba(242, 194, 48, 0.85); }
+.dance-bar .cursor { position: absolute; top: -2px; width: 6px; height: 30px; margin-left: -3px; border-radius: 3px; background: #fff; box-shadow: 0 0 8px #fff; }
+.dance-judge { height: 36px; text-align: center; font-size: 26px; font-weight: 900; letter-spacing: 2px; animation: rps-pop 0.3s ease-out; }
+.dance-judge.perfect { color: #ff4fa3; }
+.dance-judge.great { color: #29b6f6; }
+.dance-judge.miss { color: #9e9e9e; }

@@ -33,9 +33,10 @@ import { createPlanTransform } from './planTransform';
  * (plan +x runs south, plan +y runs west) after the handbook 1F plan and the site photos:
  *  - a white grid-tiled plaza in the crook of 二館's L, with a round emblem plaza, lawns,
  *    timber decks and planters;
- *  - a sunken garden (3.2 m deep) along its east edge: a walkway at the bottom under the plaza wall
- *    (dark doorways into the undercroft), stepped grass terraces rising east, and a terracotta
- *    stair with a half landing down from the plaza;
+ *  - a sunken moat (3.2 m deep) along its east edge under the plaza wall (dark glazed bays into the
+ *    undercroft), lawns at brick level east of it, and the crossing in the site photo: granite steps
+ *    down from the brick plaza to a landing over the moat, a red stair with red handrails up through
+ *    the wall to the plaza, and granite stairs down to the moat floor either side of the landing;
  *  - at the garden's north end a quarter-circle amphitheatre stepping down to the garden floor;
  *  - a brick-paved plaza east of the garden with drainage grates and a manhole;
  *  - a free-standing concrete colonnade along the north edge.
@@ -43,15 +44,23 @@ import { createPlanTransform } from './planTransform';
  * collider is ignored there so the player can walk down.
  */
 const D = -3.2; // garden floor
-const PIT: readonly [number, number, number, number] = [7, -6, 38, 3]; // x0, y0, x1, y1
+const PIT: readonly [number, number, number, number] = [7, -1, 38, 3]; // x0, y0, x1, y1: the moat
+/** Edge of the brick plaza; lawns run from here to the moat. */
+const BRICK_Y = -6;
+/**
+ * The crossing (photo of the east side): granite steps down from the brick plaza (`approach` steps)
+ * to a landing at height `h` over the moat (to plan y `landing`), a red stair up through the plaza
+ * wall (half-width `stair`), granite stairs down to the moat floor either side.
+ */
+const BR = { x: 23, half: 2.6, stair: 2.3, h: -0.9, landing: 1.0, approach: 5 };
 const AMP = { x: 7, y: 3, r0: 4, r1: 12.5, steps: 16 };
-const WALK_Y = 0.4; // walkway y ∈ [WALK_Y, 3]; terraces y ∈ [-6, WALK_Y]
 /** No trees anywhere in the courtyard [x0, y0, x1, y1]. */
 const COURT: readonly [number, number, number, number] = [-11, -15, 40.5, 42];
 const ARC_SEG = 24;
 
 function inPit(px: number, py: number): boolean {
   if (px >= PIT[0] && px <= PIT[2] && py >= PIT[1] && py <= PIT[3]) return true;
+  if (Math.abs(px - BR.x) <= BR.half + 0.3 && py >= BRICK_Y && py <= PIT[1]) return true; // the approach
   return px <= AMP.x && py <= AMP.y && Math.hypot(px - AMP.x, py - AMP.y) <= AMP.r1;
 }
 
@@ -62,7 +71,7 @@ function pitOutline(): [number, number][] {
     const t = Math.PI + (i / ARC_SEG) * (Math.PI / 2);
     pts.push([AMP.x + AMP.r1 * Math.cos(t), AMP.y + AMP.r1 * Math.sin(t)]);
   }
-  pts.push([AMP.x, PIT[1]]);
+  pts.push([AMP.x, PIT[1]], [BR.x - BR.half - 0.3, PIT[1]], [BR.x - BR.half - 0.3, BRICK_Y], [BR.x + BR.half + 0.3, BRICK_Y], [BR.x + BR.half + 0.3, PIT[1]]);
   return pts;
 }
 
@@ -211,7 +220,17 @@ export function createMgmtCourtyard(scene: Scene, physics: RAPIER.World, tracker
   });
   woodTex.repeat.set(1 / 1.6, 1 / 1.6);
   const wood = std({ map: woodTex, roughness: 0.75 });
-  const terracotta = std({ color: 0xb85a3c, roughness: 0.8 });
+  const terracotta = std({ color: 0xc2604a, roughness: 0.8 });
+  const nosing = std({ color: 0xe0a080, roughness: 0.8 });
+  const redSteel = std({ color: 0xa83a48, roughness: 0.45, metalness: 0.4 });
+  // Speckled granite (the approach and landing).
+  const graniteTex = canvasTex(tracker, 128, 128, (c) => {
+    c.fillStyle = '#c9c8c4';
+    c.fillRect(0, 0, 128, 128);
+    speckle(c, 128, 128, 2600, ['#3d3d3f', '#ffffff', '#86868a', '#e8e6e0'], 23);
+  });
+  const granite = std({ map: graniteTex, roughness: 0.85 });
+  const graniteEdge = std({ map: graniteTex, color: 0xdedcd6, roughness: 0.7 });
   const steel = std({ color: 0xa6abaf, roughness: 0.35, metalness: 0.7 });
   const dark = std({ color: 0x15171a, roughness: 0.9 });
   const gratingTex = canvasTex(tracker, 64, 64, (c) => {
@@ -295,65 +314,111 @@ export function createMgmtCourtyard(scene: Scene, physics: RAPIER.World, tracker
   // Tiled plaza over the crook of the L (west of the garden).
   slab([[-10, 3], [40.4, 3], [40.4, 41.8], [-10, 41.8]], 0.03, tile);
   // Brick plaza: east of the garden and round the amphitheatre to the north-east corner.
-  slab([[40.4, -14], [-9, -14], [-9, 3], ...arc(Math.PI, 1.5 * Math.PI, AMP.r1), [AMP.x, PIT[1]], [40.4, PIT[1]]], 0.03, brick);
+  slab([[40.4, -14], [-9, -14], [-9, 3], ...arc(Math.PI, 1.5 * Math.PI, AMP.r1), [AMP.x, BRICK_Y], [40.4, BRICK_Y]], 0.03, brick);
 
-  // --- Sunken garden -----------------------------------------------------------------------------
-  const [GX0, GY0, GX1] = PIT;
-  box(concrete, GX0, GX1, D - 0.3, D, GY0, PIT[3], true); // floor
-  slab([[GX0, WALK_Y], [GX1, WALK_Y], [GX1, 3], [GX0, 3]], D + 0.01, tile); // walkway paving
-  // West wall under the plaza (with parapet), stair-top gap at x 7.4–9.
-  box(concrete, AMP.x - AMP.r1, 7.4, D, 0.95, 3, 3.3, true);
-  box(concrete, 9, GX1 + 0.3, D, 0.95, 3, 3.3, true);
-  box(concrete, 7.4, 9, D, 0.03, 3, 3.3);
-  // Undercroft doorways: dark recesses in the wall.
-  for (const x of [22.5, 28.5, 34.5]) {
-    const m = add(new BoxGeometry(2.4, 2.4, 0.02).translate(x, D + 1.2, 2.985), dark, false);
+  // --- Sunken garden: a moat along the plaza wall, crossed by the granite approach and red stair ----
+  const [GX0, , GX1] = PIT;
+  const BX0 = BR.x - BR.half, BX1 = BR.x + BR.half; // landing / approach
+  const CH = 0.3; // cheek walls beside the approach
+  box(concrete, GX0, GX1, D - 0.3, D, PIT[1], PIT[3], true); // floor
+  slab([[GX0, PIT[1]], [GX1, PIT[1]], [GX1, 3], [GX0, 3]], D + 0.01, tile); // moat paving
+  // West wall under the plaza (with parapet), open where the red stair climbs through.
+  const SX0 = BR.x - BR.stair, SX1 = BR.x + BR.stair;
+  box(concrete, AMP.x - AMP.r1, SX0 - 0.3, D, 0.95, 3, 3.3, true);
+  box(concrete, SX1 + 0.3, GX1 + 0.3, D, 0.95, 3, 3.3, true);
+  // Undercroft: dark glazed bays in the wall on both sides of the stair.
+  for (const x of [11.5, 15.5, 30.5, 34.5]) {
+    const m = add(new BoxGeometry(3.2, 2.3, 0.02).translate(x, D + 1.25, 2.985), dark, false);
     m.receiveShadow = false;
-    box(concrete, x - 1.35, x - 1.2, D, D + 2.55, 2.85, 3);
-    box(concrete, x + 1.2, x + 1.35, D, D + 2.55, 2.85, 3);
-    box(concrete, x - 1.35, x + 1.35, D + 2.4, D + 2.55, 2.85, 3);
+    box(concrete, x - 1.75, x - 1.6, D, D + 2.55, 2.85, 3);
+    box(concrete, x + 1.6, x + 1.75, D, D + 2.55, 2.85, 3);
+    box(concrete, x - 1.75, x + 1.75, D + 2.4, D + 2.55, 2.85, 3);
+    for (const dx of [-0.55, 0.55]) box(steel, x + dx - 0.03, x + dx + 0.03, D + 0.1, D + 2.4, 2.95, 2.99); // mullions
   }
-  // South end wall and the east curb.
-  box(concrete, GX1, GX1 + 0.3, D, 0.95, GY0 - 0.25, 3.3, true);
-  box(concrete, GX0, GX1, -0.75, 0.12, GY0 - 0.25, GY0, true);
-  box(concrete, AMP.x - 0.25, AMP.x, D, 0.12, AMP.y - AMP.r1, GY0, true); // where the amphitheatre meets the brick plaza
-  // Grass terraces rising east: concrete boxes with a grass top inset.
-  const tiers: [number, number, number][] = [[-1.2, WALK_Y, -2.6], [-2.8, -1.2, -2.0], [-4.4, -2.8, -1.35], [GY0, -4.4, -0.7]];
-  for (const [y0, y1, top] of tiers) {
-    box(concrete, GX0, GX1, D, top, y0, y1, true);
-    box(grass, GX0 + 0.15, GX1 - 0.15, top, top + 0.04, y0 + 0.14, y1 - 0.14);
+  // South end wall, the east retaining wall (lawn above) and the amphitheatre's edge.
+  box(concrete, GX1, GX1 + 0.3, D, 0.95, PIT[1] - 0.3, 3.3, true);
+  box(concrete, GX0, BX0 - CH, D, 0.12, PIT[1] - 0.3, PIT[1], true);
+  box(concrete, BX1 + CH, GX1, D, 0.12, PIT[1] - 0.3, PIT[1], true);
+  box(concrete, AMP.x - 0.25, AMP.x, D, 0.12, AMP.y - AMP.r1, PIT[1], true);
+  // Lawns at brick level between the brick plaza and the moat, either side of the approach.
+  for (const [x0, x1] of [[GX0, BX0 - CH], [BX1 + CH, GX1]] as const) {
+    box(concrete, x0, x1, 0, 0.1, BRICK_Y, PIT[1] - 0.3);
+    box(grass, x0 + 0.12, x1 - 0.12, 0.1, 0.12, BRICK_Y + 0.12, PIT[1] - 0.42);
   }
-  // Terracotta stair against the west wall: top landing, flight, half landing, flight.
-  const SY0 = 1.6, SY1 = 2.98;
-  box(concrete, 7.4, 9, D, 0.03, SY0, SY1, true);
-  box(terracotta, 7.4, 9, -0.05, 0.03, SY0, SY1);
-  const stairs = new Soup();
-  const flight = (x0: number, h0: number, n: number): number => {
-    const tread = 0.45, rise = 1.6 / n;
-    for (let i = 0; i < n; i++) {
-      const xa = x0 + i * tread, xb = xa + tread, h = h0 - (i + 1) * rise;
-      box(terracotta, xa, xb, h - 0.08, h, SY0, SY1);
-      stairs.quad([xa, h + rise, SY0], [xa, h + rise, SY1], [xa, h, SY1], [xa, h, SY0]);
-      stairs.quad([xa, h, SY0], [xa, h, SY1], [xb, h, SY1], [xb, h, SY0]);
+  // Steel railing along the lawn edge above the moat.
+  for (const [x0, x1] of [[GX0, BX0 - CH], [BX1 + CH, GX1]] as const) {
+    for (let x = x0 + 0.1; x <= x1 - 0.05; x += 1.5) box(steel, x - 0.025, x + 0.025, 0.12, 1.05, PIT[1] - 0.2, PIT[1] - 0.15);
+    box(steel, x0 + 0.1, x1 - 0.1, 1.0, 1.05, PIT[1] - 0.21, PIT[1] - 0.14);
+  }
+
+  // Granite approach from the brick plaza: broad steps down to the landing over the moat.
+  const steps = new Soup();
+  const flat = (xa: number, xb: number, ya: number, yb: number, h: number): void => steps.quad([xa, h, ya], [xa, h, yb], [xb, h, yb], [xb, h, ya]);
+  const riser = (xa: number, xb: number, y: number, h0: number, h1: number): void => steps.quad([xa, h0, y], [xb, h0, y], [xb, h1, y], [xa, h1, y]);
+  const ARISE = -BR.h / BR.approach, ATREAD = (PIT[1] - BRICK_Y) / BR.approach;
+  for (let i = 0; i < BR.approach; i++) {
+    const ya = BRICK_Y + i * ATREAD, h = -(i + 1) * ARISE;
+    box(granite, BX0, BX1, D, h, ya, ya + ATREAD, false);
+    box(graniteEdge, BX0, BX1, h - 0.04, h + 0.003, ya, ya + 0.12);
+    riser(BX0, BX1, ya, h + ARISE, h);
+    flat(BX0, BX1, ya, ya + ATREAD, h);
+  }
+  for (const x of [BX0 - CH, BX1]) box(granite, x, x + CH, D, 0.16, BRICK_Y, PIT[1], true); // cheek walls
+  // The landing: a granite deck on a solid pier, stairs down to the moat on both sides.
+  const LY1 = BR.landing;
+  box(concrete, BX0, BX1, D, BR.h - 0.12, PIT[1], LY1, true);
+  box(granite, BX0, BX1, BR.h - 0.12, BR.h, PIT[1], LY1);
+  box(graniteEdge, BX0, BX1, BR.h - 0.12, BR.h + 0.003, LY1 - 0.12, LY1);
+  flat(BX0, BX1, PIT[1], LY1, BR.h);
+  const SIDE = { y1: PIT[1] + 1.25, n: 13, tread: 0.32 };
+  const srise = (BR.h - D) / SIDE.n;
+  for (const dir of [-1, 1] as const) {
+    const x0 = dir < 0 ? BX0 : BX1;
+    for (let i = 0; i < SIDE.n; i++) {
+      const xa = x0 + dir * i * SIDE.tread, xb = xa + dir * SIDE.tread, h = BR.h - (i + 1) * srise;
+      box(granite, Math.min(xa, xb), Math.max(xa, xb), D, h, PIT[1], SIDE.y1);
+      steps.quad([xa, h + srise, PIT[1]], [xa, h + srise, SIDE.y1], [xa, h, SIDE.y1], [xa, h, PIT[1]]);
+      steps.quad([xa, h, PIT[1]], [xa, h, SIDE.y1], [xb, h, SIDE.y1], [xb, h, PIT[1]]);
     }
-    return x0 + n * tread;
-  };
-  const midX = flight(9, 0, 10);
-  box(terracotta, midX, midX + 1.5, -1.68, -1.6, SY0, SY1);
-  box(concrete, midX, midX + 1.5, D, -1.68, SY1 - 0.3, SY1, true);
-  stairs.quad([midX, -1.6, SY0], [midX, -1.6, SY1], [midX + 1.5, -1.6, SY1], [midX + 1.5, -1.6, SY0]);
-  const endX = flight(midX + 1.5, -1.6, 10);
-  trimesh(stairs);
-  // Handrail on the open side: posts and a rail following each flight.
-  for (const [xa, xb, ha, hb] of [[7.4, 9, 0, 0], [9, midX, 0, -1.6], [midX, midX + 1.5, -1.6, -1.6], [midX + 1.5, endX, -1.6, D]] as const) {
-    const n = Math.max(1, Math.round((xb - xa) / 1.1));
+  }
+  // Red stair from the landing up through the wall to the plaza, between planted cheek walls.
+  const RN = 6, RTREAD = (3.3 - LY1) / RN, RRISE = -BR.h / RN;
+  for (let i = 0; i < RN; i++) {
+    const ya = LY1 + i * RTREAD, h = BR.h + (i + 1) * RRISE;
+    box(concrete, SX0, SX1, D, h - 0.06, ya, ya + RTREAD);
+    box(terracotta, SX0, SX1, h - 0.06, h, ya, ya + RTREAD);
+    box(nosing, SX0, SX1, h - 0.065, h + 0.004, ya, ya + 0.07);
+    riser(SX0, SX1, ya, h - RRISE, h);
+    flat(SX0, SX1, ya, ya + RTREAD, h);
+  }
+  box(terracotta, SX0, SX1, -0.06, 0.03, 3.3, 3.9); // top landing into the plaza
+  for (const x of [SX0 - 0.3, SX1]) {
+    box(concrete, x, x + 0.3, D, 0.95, LY1, 3.3, true);
+    box(concrete, x, x + 0.3, 0, 0.95, 3.3, 4.6, true);
+  }
+  for (const [x0, x1] of [[SX0 - 2.4, SX0 - 0.3], [SX1 + 0.3, SX1 + 2.4]] as const) {
+    box(concrete, x0, x1, 0, 0.7, 3.3, 4.6, true);
+    box(grass, x0 + 0.12, x1 - 0.12, 0.7, 0.72, 3.42, 4.48);
+  }
+  trimesh(steps);
+  // Red handrails: both sides of the red stair, the landing's open edges and the side stairs.
+  const rail = (xa: number, ya: number, ha: number, xb: number, yb: number, hb: number): void => {
+    const len = Math.hypot(xb - xa, yb - ya), n = Math.max(1, Math.round(len / 1.2));
     for (let i = 0; i <= n; i++) {
-      const x = xa + ((xb - xa) * i) / n, h = ha + ((hb - ha) * i) / n;
-      box(steel, x - 0.025, x + 0.025, h, h + 0.95, SY0 + 0.02, SY0 + 0.07);
+      const t = i / n, x = xa + (xb - xa) * t, y = ya + (yb - ya) * t, h = ha + (hb - ha) * t;
+      box(redSteel, x - 0.03, x + 0.03, h, h + 0.95, y - 0.03, y + 0.03);
     }
-    const len = Math.hypot(xb - xa, hb - ha), ang = Math.atan2(hb - ha, xb - xa);
-    const rail = new BoxGeometry(len, 0.05, 0.06).rotateZ(ang).translate((xa + xb) / 2, (ha + hb) / 2 + 0.95, SY0 + 0.045);
-    add(rail, steel);
+    const run = Math.hypot(xb - xa, yb - ya), geo = new BoxGeometry(Math.hypot(run, hb - ha), 0.05, 0.05)
+      .rotateZ(Math.atan2(hb - ha, run)).rotateY(-Math.atan2(yb - ya, xb - xa)).translate((xa + xb) / 2, (ha + hb) / 2 + 0.95, (ya + yb) / 2);
+    add(geo, redSteel);
+  };
+  for (const x of [SX0 + 0.1, SX1 - 0.1]) rail(x, LY1, BR.h, x, 3.3, 0);
+  for (const dir of [-1, 1] as const) {
+    const x0 = dir < 0 ? BX0 : BX1, x1 = x0 + dir * SIDE.n * SIDE.tread;
+    rail(x0, LY1 - 0.05, BR.h, x0, SIDE.y1, BR.h); // landing edge beyond the side stair
+    rail(x0, SIDE.y1, BR.h, x1, SIDE.y1, D); // open side of the side stair
+    solid(Math.min(x0, x1), Math.max(x0, x1), D, BR.h + 1, SIDE.y1, SIDE.y1 + 0.05);
+    solid(x0 - 0.03, x0 + 0.03, BR.h, BR.h + 1, SIDE.y1, LY1);
   }
 
   // --- Amphitheatre: concentric steps down to the garden floor ------------------------------------
@@ -389,13 +454,13 @@ export function createMgmtCourtyard(scene: Scene, physics: RAPIER.World, tracker
     box(concrete, x0, x1, 0, 0.12, y0, y1);
     box(grass, x0 + 0.15, x1 - 0.15, 0.12, 0.14, y0 + 0.15, y1 - 0.15);
   }
-  for (const [x0, x1, y0, y1, h] of [[10.5, 15.5, 3.4, 7.4, 0.3], [15.5, 19, 3.4, 6.2, 0.18], [26, 32, 36.5, 41, 0.3], [2.5, 6.5, 26, 31, 0.24]] as const) {
+  for (const [x0, x1, y0, y1, h] of [[10.5, 15.5, 3.4, 7.4, 0.3], [15.5, 17.8, 3.4, 6.2, 0.18], [26, 32, 36.5, 41, 0.3], [2.5, 6.5, 26, 31, 0.24]] as const) {
     box(wood, x0, x1, 0, h, y0, y1, true);
   }
   // Planters with shrubs along the garden parapet (south end, as in the photos).
   const shrubGeo = new IcosahedronGeometry(0.55, 0);
   const shrubs: BufferGeometry[] = [];
-  for (let x = 25; x < 37.5; x += 4.2) {
+  for (let x = 27.8; x < 37.5; x += 4.2) {
     box(concrete, x, x + 3.6, 0, 0.7, 3.3, 4.6, true);
     box(grass, x + 0.12, x + 3.48, 0.7, 0.72, 3.42, 4.48);
     for (let k = 0; k < 3; k++) shrubs.push(shrubGeo.clone().scale(1.1, 0.8, 1).translate(x + 0.65 + k * 1.15, 1.0, 3.95));
@@ -403,7 +468,7 @@ export function createMgmtCourtyard(scene: Scene, physics: RAPIER.World, tracker
   add(mergeGeometries(shrubs) ?? shrubGeo, shrub);
 
   // --- Drainage grates and a manhole on the brick plaza --------------------------------------------
-  box(grating, GX0 + 0.3, GX1, 0.03, 0.045, GY0 - 0.85, GY0 - 0.3);
+  box(grating, GX0 + 0.3, GX1, 0.03, 0.045, BRICK_Y - 0.85, BRICK_Y - 0.3);
   for (const x of [14, 26]) box(grating, x, x + 1.2, 0.03, 0.045, -12.6, -11.4);
   add(new CircleGeometry(0.55, 24).rotateX(-Math.PI / 2).translate(20, 0.05, -10), grating, false);
 

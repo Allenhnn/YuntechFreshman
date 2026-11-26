@@ -14,15 +14,15 @@ import { PhoneDrawer } from './phone';
 import { ElevatorModal, Fade, InteractPrompt, ShopModal } from './elevator';
 import { ChatBox } from './chat';
 import { CameraOverlay } from './camera';
-import { AchievementPopup, BigCountdown, Celebration, QuestLog, QuestTracker, StoryModal, TopCountdown, TutorialCard, LectureOverlay } from './story';
+import { SneakMeter, AchievementPopup, BigCountdown, Celebration, QuestLog, QuestTracker, StoryModal, TopCountdown, TutorialCard, LectureOverlay } from './story';
 import './ui.css';
 
 function App(): ReactNode {
   const phase = useGame((s) => s.phase);
   const modal = useGame((s) => s.modal);
   const account = useAuth((s) => s.status);
-  // A visual-novel scene takes the whole screen: the HUD steps aside.
-  const vn = useStory((s) => s.scene?.kind === 'vn');
+  // A visual-novel scene or the wardrobe takes the whole screen: the HUD steps aside.
+  const vn = useStory((s) => s.scene?.kind === 'vn' || s.scene?.kind === 'wardrobe');
   const hud = phase === 'playing' && !vn;
   return (
     <>
@@ -43,6 +43,7 @@ function App(): ReactNode {
       {hud && modal !== 'camera' && <TopCountdown />}
       {hud && modal !== 'camera' && <TutorialCard />}
       {hud && modal !== 'camera' && <LectureOverlay />}
+      {hud && <SneakMeter />}
       {hud && <InteractPrompt />}
       <Fade />
       {phase === 'loading' && <LoadingScreen />}

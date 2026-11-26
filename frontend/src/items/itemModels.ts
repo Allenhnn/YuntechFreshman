@@ -26,7 +26,7 @@ export interface ItemModel {
   dispose(): void;
 }
 
-type Shape = 'card' | 'sheet' | 'book' | 'bottle' | 'can' | 'cup' | 'carton' | 'bowl' | 'bun' | 'box' | 'rice' | 'egg';
+type Shape = 'broom' | 'mop' | 'card' | 'sheet' | 'book' | 'bottle' | 'can' | 'cup' | 'carton' | 'bowl' | 'bun' | 'box' | 'rice' | 'egg';
 
 const SHAPE: Record<ItemId, Shape> = {
   studentCard: 'card', lostCard: 'card',
@@ -41,12 +41,17 @@ const SHAPE: Record<ItemId, Shape> = {
   bento: 'box', buffet: 'box',
   onigiri: 'rice',
   teaEgg: 'egg',
+  broom: 'broom', mop: 'mop',
+  usbDrive: 'card', catFood: 'can', keychain: 'card',
+  brunchSet: 'box', latte: 'cup', waffle: 'bun', friedRice: 'bowl', friedNoodles: 'bowl', dumplings: 'box', wontonSoup: 'bowl', sideDish: 'box',
 };
 
 const COLOR: Partial<Record<ItemId, string>> = {
   studentCard: '#2c6fd6', lostCard: '#8a5bd6', healthForm: '#ffffff', raceBib: '#ffffff', campusMap: '#e9f3e1', notebook: '#d8553a',
   waterBottle: '#4fc3f7', mineralWater: '#b3e5fc', sportsDrink: '#29b6f6', greenTea: '#7cb342', cannedCoffee: '#5d4037',
   bubbleTea: '#d7b899', soyMilk: '#fff8e1', beefNoodles: '#f5f5f0', plainNoodles: '#f5f5f0', cupNoodles: '#e53935',
+  usbDrive: '#37474f', catFood: '#ff8f00', keychain: '#1f8f4a',
+  brunchSet: '#f2c230', latte: '#c8a17a', waffle: '#e3b062', friedRice: '#f5f5f0', friedNoodles: '#f5f5f0', dumplings: '#b5562b', wontonSoup: '#f5f5f0', sideDish: '#6d4c41',
   bread: '#e8a94e', bento: '#c62828', buffet: '#2e7d32', onigiri: '#fafafa', teaEgg: '#6d4c41',
 };
 
@@ -342,7 +347,7 @@ export function createItemModel(id: ItemId, who?: CardInfo): ItemModel {
       break;
     }
     case 'bun':
-      add(new SphereGeometry(0.42, 24, 16), [face], 0, 0, 0).scale.set(1, 0.62, 1);
+      add(new SphereGeometry(0.42, 24, 16), face, 0, 0, 0).scale.set(1, 0.62, 1);
       break;
     case 'box':
       add(new BoxGeometry(0.9, 0.22, 0.62), mat('#212121'), 0, -0.04, 0);
@@ -352,6 +357,14 @@ export function createItemModel(id: ItemId, who?: CardInfo): ItemModel {
       const tri = add(new CylinderGeometry(0.48, 0.48, 0.22, 3), mat('#fafafa'), 0, 0, 0);
       tri.rotation.x = Math.PI / 2;
       add(new BoxGeometry(0.34, 0.36, 0.24), mat('#1b3a2b'), 0, -0.2, 0);
+      break;
+    }
+    case 'broom':
+    case 'mop': {
+      // Long stick (scaled to fit the view), head at the bottom.
+      add(new CylinderGeometry(0.025, 0.025, 1.1, 8), mat('#c9a46a'), 0, 0.15, 0);
+      if (SHAPE[id] === 'broom') add(new CylinderGeometry(0.05, 0.22, 0.32, 10).scale(1, 1, 0.45), mat('#d9b84a'), 0, -0.55, 0);
+      else add(new CylinderGeometry(0.16, 0.22, 0.28, 12), mat('#e8e6df'), 0, -0.55, 0);
       break;
     }
     case 'egg':

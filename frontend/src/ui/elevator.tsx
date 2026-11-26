@@ -1,9 +1,10 @@
 import { storyEvents } from '../story/storyRuntime';
+import { ItemIcon } from './itemIcon';
 import type { ReactNode } from 'react';
 import { ITEMS } from '../state/items';
 import { useGame } from '../state/store';
 import { useApi } from './api';
-import { Icon, Rich } from './icons';
+import { Icon } from './icons';
 
 export function ElevatorModal(): ReactNode {
   const api = useApi();
@@ -51,7 +52,7 @@ export function ShopModal(): ReactNode {
         <div className="shop-items">
           {shop.items.map(({ id, price }) => (
             <button key={id} className="shop-item" disabled={coins < price} onClick={() => api.buy(id, price)}>
-              <span className="icon"><Rich t={ITEMS[id].icon} /></span>
+              <span className="icon"><ItemIcon id={id} /></span>
               <span className="name">{ITEMS[id].name}</span>
               <span className="price">NT$ {price}</span>
             </button>

@@ -17,6 +17,9 @@ export interface Entrance {
   edge: number;
   /** Door centre, measured along the edge from vertex i (m). */
   along: number;
+  /** Opening width / height (m); default DOOR_WIDTH × DOOR_HEIGHT. */
+  width?: number;
+  height?: number;
 }
 
 export function ringArea(r: Ring): number {

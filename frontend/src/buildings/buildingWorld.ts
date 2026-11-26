@@ -13,6 +13,8 @@ import {
   type Scene,
   type WebGLRenderer,
 } from 'three';
+import { RESTAURANTS, paintLogo, type RestaurantId } from './restaurants';
+import { ITEMS, STALL_MENUS } from '../state/items';
 import { Reflector } from 'three/addons/objects/Reflector.js';
 import { RAPIER } from '../physics/physics';
 import { ResourceTracker } from '../core/resources';
@@ -38,8 +40,76 @@ const MIRROR_RANGE = 22;
 
 const STALL_COLORS: Readonly<Record<string, string>> = { 自助餐: '#1f8f4a', 麵食: '#c0562b', 便當: '#2c6fd6', 飲料: '#d99a1f', 回收區: '#6c7a72' };
 
+/** A restaurant storefront (員生餐廳): brand-coloured walls, logo signboard, counter, menu board with hours. */
+function buildStorefront(st: Stall, brand: RestaurantId, tracker: ResourceTracker, dark: Material): Group {
+  const R = RESTAURANTS[brand];
+  const w = st.width;
+  const out = new Group();
+  const tex = (cw: number, ch: number, paint: (g: CanvasRenderingContext2D) => void): CanvasTexture => {
+    const c = document.createElement('canvas');
+    c.width = cw; c.height = ch;
+    const g = c.getContext('2d');
+    if (g) paint(g);
+    const t = tracker.texture(new CanvasTexture(c));
+    t.colorSpace = SRGBColorSpace;
+    return t;
+  };
+  const font = "'PingFang TC', 'Noto Sans TC', system-ui, sans-serif";
+  // Signboard: logo, name, what they serve.
+  const signTex = tex(1024, 192, (g) => {
+    g.fillStyle = R.color; g.fillRect(0, 0, 1024, 192);
+    g.fillStyle = R.accent; g.fillRect(0, 176, 1024, 16);
+    paintLogo(g, brand, 110, 92, 160);
+    g.fillStyle = R.ink; g.textBaseline = 'middle'; g.textAlign = 'left';
+    g.font = '900 76px ' + font; g.fillText(R.name, 220, 74, 780);
+    g.font = '500 34px ' + font; g.fillStyle = R.accent; g.fillText(R.sub + '・' + R.serves, 222, 140, 780);
+  });
+  // Menu board on the back wall: items with prices, opening hours.
+  const items = STALL_MENUS[brand];
+  const menuTex = tex(512, 512, (g) => {
+    g.fillStyle = '#23201d'; g.fillRect(0, 0, 512, 512);
+    g.strokeStyle = R.accent; g.lineWidth = 10; g.strokeRect(10, 10, 492, 492);
+    paintLogo(g, brand, 256, 78, 104);
+    g.fillStyle = R.accent; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.font = '900 40px ' + font; g.fillText('MENU 菜單', 256, 160);
+    g.font = '600 32px ' + font;
+    items.forEach((it, i) => {
+      const y = 214 + i * 42;
+      g.textAlign = 'left'; g.fillStyle = '#fffdf4'; g.fillText(ITEMS[it.id].name, 50, y);
+      g.textAlign = 'right'; g.fillStyle = R.accent; g.fillText('$' + it.price, 462, y);
+    });
+    g.fillStyle = 'rgba(255,255,255,0.75)'; g.font = '500 22px ' + font; g.textAlign = 'center';
+    g.fillText(R.serves, 256, 476, 470);
+  });
+  const brandMat = tracker.material(new MeshStandardMaterial({ color: R.color, roughness: 0.7 }));
+  const wood = tracker.material(new MeshStandardMaterial({ color: 0xb98a55, roughness: 0.55 }));
+  const top = tracker.material(new MeshStandardMaterial({ color: 0xe8e2d4, roughness: 0.3, metalness: 0.15 }));
+  const box = (sx: number, sy: number, sz: number, x: number, y: number, z: number, m: Material): void => {
+    const mesh = new Mesh(tracker.geometry(new BoxGeometry(sx, sy, sz)), m);
+    mesh.position.set(x, y, z);
+    out.add(mesh);
+  };
+  box(w, 3.1, 0.14, 0, 1.55, -1.43, brandMat); // back wall
+  box(0.16, 3.1, 2.3, -w / 2, 1.55, -0.35, brandMat);
+  box(0.16, 3.1, 2.3, w / 2, 1.55, -0.35, brandMat);
+  box(w - 0.4, 1.0, 0.7, 0, 0.5, 0.3, wood); // counter
+  box(w - 0.3, 0.06, 0.82, 0, 1.03, 0.3, top);
+  box(w + 0.2, 1.05, 0.1, 0, 2.75, 0.78, dark); // signboard backing
+  const sign = new Mesh(tracker.geometry(new PlaneGeometry(w, 0.95)), tracker.material(new MeshStandardMaterial({ map: signTex, roughness: 0.5, emissive: 0xffffff, emissiveMap: signTex, emissiveIntensity: 0.35 })));
+  sign.position.set(0, 2.75, 0.84);
+  out.add(sign);
+  // Menu boards on the back wall.
+  for (const x of [-w / 4, w / 4]) {
+    const board = new Mesh(tracker.geometry(new PlaneGeometry(1.4, 1.4)), tracker.material(new MeshStandardMaterial({ map: menuTex, roughness: 0.6, emissive: 0xffffff, emissiveMap: menuTex, emissiveIntensity: 0.25 })));
+    board.position.set(x, 1.85, -1.35);
+    out.add(board);
+  }
+  return out;
+}
+
 /** One stall, local +z toward the customers, origin at the centre of its floor footprint. */
 function buildStall(st: Stall, tracker: ResourceTracker, dark: Material): Group {
+  if (st.brand) return buildStorefront(st, st.brand, tracker, dark);
   const c = document.createElement('canvas');
   c.width = 512;
   c.height = 96;
@@ -377,12 +447,13 @@ export function createHandBuiltBuilding(
       // Full-length wall mirrors: a live reflection (rendered only while the player is close).
       for (const f of src.floors[lvl.id]?.fixtures ?? []) {
         if (f.kind !== 'mirror') continue;
-        const ratio = f.width / 2.05;
-        const mirror = new Reflector(new PlaneGeometry(f.width, 2.05), {
+        const mh = f.height ?? 2.05;
+        const ratio = f.width / mh;
+        const mirror = new Reflector(new PlaneGeometry(f.width, mh), {
           textureWidth: Math.round(Math.min(2048, 512 * ratio)), textureHeight: 512, color: 0xc4ccd0, clipBias: 0.003,
         });
         const off = WALL_T / 2 + 0.03;
-        mirror.position.set(f.at[0] + f.facing[0] * off, lvl.base + 0.12 + 1.025, f.at[1] + f.facing[1] * off);
+        mirror.position.set(f.at[0] + f.facing[0] * off, lvl.base + 0.12 + mh / 2, f.at[1] + f.facing[1] * off);
         mirror.rotation.y = Math.atan2(f.facing[0], f.facing[1]);
         mirror.visible = false;
         group.add(mirror);
@@ -455,6 +526,8 @@ export function createHandBuiltBuilding(
         if (py + 0.8 >= l.base && cellOf(l.grid, x, y) !== OUTSIDE) current = i;
       });
     }
+    // Outside the footprint but up in the air (the 2F sky bridge, a raised walkway): the floor at your height.
+    if (current < 0 && py > 1.5) meshes.levels.forEach((l, i) => { if (py + 0.8 >= l.base) current = i; });
     interior.levels.forEach((l, i) => {
       l.group.visible = current < 0 ? l.base <= 0 : Math.abs(i - current) <= 1;
     });

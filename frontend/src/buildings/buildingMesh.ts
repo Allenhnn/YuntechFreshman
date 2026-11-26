@@ -273,7 +273,7 @@ function buildModelledFloor(
     if (voidEdge && kind === 'open') continue; // stair landing into the void
     // Railing into a stairwell: glass to waist height, but nobody climbs over it.
     if (kind === 'rail') {
-      for (const side of [-1, 1] as const) wallFace(part.glass, p, p.from, p.to, base, base + RAIL_H, side, false, floorH);
+      if (stairGlass) for (const side of [-1, 1] as const) wallFace(part.glass, p, p.from, p.to, base, base + RAIL_H, side, false, floorH);
       capTop(part.paint, p, p.from, p.to, base + RAIL_H);
       part.colliders.push(wallBox(p, p.from, p.to, base, base + top));
       continue;
@@ -327,7 +327,7 @@ function buildModelledFloor(
       if (y1 - y0 <= 0.01) continue;
       // Clerestory: a high glazed strip where a room meets a corridor (the wall stays solid for collision).
       const corridorSide = (s?: Space): boolean => s?.kind === 'corridor' || s?.kind === 'lobby';
-      const roomSide = (s?: Space): boolean => s?.kind === 'room';
+      const roomSide = (s?: Space): boolean => s?.kind === 'room' && !s.solidWalls;
       const strip = clerestory && !kind && A && B && ((roomSide(A) && corridorSide(B)) || (roomSide(B) && corridorSide(A)))
         && y0 <= base + 0.01 && y1 >= base + CLERESTORY[1] + 0.1;
       // Windows: an exterior wall of a room or corridor is glazed where the facade paints its windows.
@@ -461,8 +461,9 @@ function drawFlight(part: PartBuilder, st: Stair): void {
   for (const [l, s] of [[lat0, -1], [lat1, 1]] as const) {
     const nrm: V3 = alongX ? [0, 0, s] : [s, 0, 0];
     quad(part.paint, [P(start, st.low - T, l), P(end, st.high - T, l), P(end, st.high + 0.02, l), P(start, st.low + 0.02, l)], nrm, [[0, 0], [1, 0], [1, 0.2], [0, 0.2]]);
-    // Glass balustrade along both sides, following the slope.
-    quad(part.glass, [P(start, st.low, l), P(end, st.high, l), P(end, st.high + 0.95, l), P(start, st.low + 0.95, l)], nrm, [[0, 0], [1, 0], [1, 0.5], [0, 0.5]]);
+    // Glass balustrade along both sides, following the slope (管理學院: a plain handrail, no glass).
+    if (stairGlass) quad(part.glass, [P(start, st.low, l), P(end, st.high, l), P(end, st.high + 0.95, l), P(start, st.low + 0.95, l)], nrm, [[0, 0], [1, 0], [1, 0.5], [0, 0.5]]);
+    else quad(part.paint, [P(start, st.low + 0.9, l), P(end, st.high + 0.9, l), P(end, st.high + 0.95, l), P(start, st.low + 0.95, l)], nrm, [[0, 0], [1, 0], [1, 0.05], [0, 0.05]]);
   }
 }
 
@@ -565,7 +566,11 @@ function buildStairCurtains(src: BuildingSource, levels: LevelMeshes[], part: Pa
   return portals;
 }
 
+/** Stair railings get glass panels (off in the 管理學院 buildings, which have none). */
+let stairGlass = true;
+
 export function buildBuildingMeshes(src: BuildingSource): BuildingMeshes {
+  stairGlass = !src.name.includes('管理');
   const ext = new PartBuilder();
   const stairsPart = new PartBuilder();
   const fh = src.floorHeight;

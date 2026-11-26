@@ -5,8 +5,8 @@ import { inspectView } from '../items/inspectView';
 import { useApi } from './api';
 import { Rich } from './icons';
 
-const DRINKS = new Set<ItemId>(['waterBottle', 'bubbleTea', 'soyMilk', 'sportsDrink', 'mineralWater', 'greenTea', 'cannedCoffee']);
-const FOODS = new Set<ItemId>(['bread', 'bento', 'buffet', 'beefNoodles', 'plainNoodles', 'onigiri', 'teaEgg', 'cupNoodles']);
+const DRINKS = new Set<ItemId>(['latte', 'waterBottle', 'bubbleTea', 'soyMilk', 'sportsDrink', 'mineralWater', 'greenTea', 'cannedCoffee']);
+const FOODS = new Set<ItemId>(['brunchSet', 'waffle', 'friedRice', 'friedNoodles', 'dumplings', 'wontonSoup', 'sideDish', 'bread', 'bento', 'buffet', 'beefNoodles', 'plainNoodles', 'onigiri', 'teaEgg', 'cupNoodles']);
 
 function actionLabel(id: ItemId): string {
   if (DRINKS.has(id)) return '喝掉';
@@ -14,6 +14,7 @@ function actionLabel(id: ItemId): string {
   if (id === 'campusMap') return '打開地圖';
   if (id === 'studentCard') return '看看證件';
   if (id === 'notebook') return '翻開看';
+  if (id === 'broom' || id === 'mop') return '放下';
   return '使用';
 }
 

@@ -1,13 +1,15 @@
-import { randomName, studentId, usePlayerName } from '../state/playerName';
+import { WARDROBE_YAW_LIMIT, wardrobeView } from '../character/wardrobePreview';
+import { randomName, usePlayerName } from '../state/playerName';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { actions, useGame } from '../state/store';
 import { storyActions, useStory, type StoryProgress } from '../state/story';
-import { COURSE, LECTURE, TUTORIAL, ACHIEVEMENTS, CLUBS, DAYS, MIXER, MIXER_GOAL, MIXER_START, QUIZ, SIDE_QUESTS, PHOTO_SPOTS, TOUR_STOPS, type Step, type VnLine } from '../story/storyData';
+import { COURSE, LECTURE, TUTORIAL, ACHIEVEMENTS, CLUBS, DAYS, MIXER, MIXER_GOAL, MIXER_START, QUIZ, SIDE_QUESTS, PHOTO_SPOTS, TOUR_STOPS, MY_ROOM, PROFESSOR, type Step, type VnLine } from '../story/storyData';
 import { OUTFIT_ITEMS, OUTFIT_PARTS } from '../character/outfit';
 import { storyEvents } from '../story/storyRuntime';
 import { dispatch } from '../state/commands';
 import { useApi } from './api';
 import { Icon, Rich } from './icons';
+import { Dance, Drums, Exam, Lunch } from './storyGames';
 
 /** Hints for side quests not started yet. */
 const SIDE_HINTS: Record<string, string> = {
@@ -17,6 +19,9 @@ const SIDE_HINTS: Record<string, string> = {
   photo: '用手機相機（P → 相機）拍一張照片',
   athlete: '先到籃球場玩一次投籃挑戰',
   foodie: '到學生餐廳的攤位買點東西',
+  promo: '人科一館和龍潭路的轉角好像有人在發東西',
+  mystery: '聽說校園裡住著三位神秘人物……',
+  dance: '管理二館一樓的大鏡子前常有人在練舞',
 };
 
 function sideText(id: string, p: StoryProgress): string {
@@ -27,10 +32,10 @@ function sideText(id: string, p: StoryProgress): string {
   return q.text.replace('{n}', String(s.done.length)).replace('{total}', String(q.total)).replace('{target}', s.target ?? next);
 }
 
-const STEP_ICON: Record<string, string> = { talk: '💬', buy: '🛒', eat: '🍱', sport: '🏀', class: '📚', sleep: '🛏️', run: '🏁', quiz: '📝', enter: '📍', scene: '📚', getUp: '⏰', phoneRollcall: '📱', outfit: '👕', tutorial: '🎮' };
+const STEP_ICON: Record<string, string> = { pickup: '💾', talk: '💬', buy: '🛒', eat: '🍱', sport: '🏀', class: '📚', sleep: '🛏️', run: '🏁', quiz: '📝', enter: '📍', scene: '📚', getUp: '⏰', phoneRollcall: '📱', outfit: '👕', tutorial: '🎮' };
 const WHO: Record<string, string> = {
   wakeD1: '書桌', nurse: '健康中心護理師', roommateD2: '室友阿凱', bibD3: '室友阿凱', summary: '室友阿凱', mixer: '聯誼的同學',
-  assembly: '週會座位', clubFair: '社團攤位', study: '圖書館的座位',
+  assembly: '週會座位', clubFair: '社團攤位', study: '圖書館的座位', lunch: '學餐餐桌的室友', returnUsb: '室友阿凱', drums: '熱音社攤位',
 };
 
 /** A plain instruction for the step: where to go and what to press. */
@@ -47,10 +52,11 @@ function howTo(step: Step): string {
     case 'tutorial': return '照著畫面下方的提示操作';
     case 'getUp': return '按 E 或任一移動鍵下床';
     case 'phoneRollcall': return '按 P 打開手機 →「聊天室」問小芳點名碼 →「點名系統」輸入';
-    case 'outfit': return `在${step.place}按 E 打開衣櫃，至少穿上 3 件再出門`;
-    case 'sleep': return `回到${step.place}，按 E 睡覺`;
+    case 'outfit': return `進宿舍到${MY_ROOM.number}（${MY_ROOM.label}），在衣櫃前按 E，至少穿上 3 件再出門`;
+    case 'sleep': return `進宿舍到${MY_ROOM.number}（${MY_ROOM.label}），爬上自己的床躺下就會睡著`;
     case 'run': return '跟著箭頭依序穿過拱門；Shift 衝刺會消耗體力';
-    case 'quiz': return `走進${step.place}，按 E 入座考試`;
+    case 'quiz': return `走進${step.place}${step.room ? ` 的 ${step.room}` : ''}，按 E 入座考試；考試中按左/右 Shift 可以偷看隔壁（小心教授）`;
+    case 'pickup': return `走進${step.place}${step.room ? ` 的 ${step.room}` : ''}，走到發亮的東西旁邊就會撿起來`;
     case 'enter': return `走到${step.place}`;
   }
 }
@@ -138,6 +144,20 @@ export function LectureOverlay(): ReactNode {
 }
 
 /** Top-centre countdown (the roll call): label, mm:ss, a shrinking bar that turns red, and where to. */
+/** 翹課: while sneaking out of class, how close the professor is to noticing. */
+export function SneakMeter(): ReactNode {
+  const sneak = useStory((s) => s.live.sneak);
+  if (!sneak) return null;
+  const pct = Math.round(sneak.risk * 100);
+  return (
+    <div className={`sneak-meter${pct > 60 ? ' hot' : ''}`}>
+      <div className="sneak-title">🤫 偷偷溜出教室・蹲著走到門外</div>
+      <div className="sneak-bar"><i style={{ width: `${pct}%` }} /></div>
+      <small>被發現風險 {pct}%・走動會增加，停下來比較安全</small>
+    </div>
+  );
+}
+
 export function TopCountdown(): ReactNode {
   const cd = useStory((s) => s.live.countdown);
   const modal = useGame((s) => s.modal);
@@ -312,6 +332,10 @@ export function StoryModal(): ReactNode {
         {scene.kind === 'clubFair' && <ClubFair />}
         {scene.kind === 'summary' && <Summary />}
         {scene.kind === 'stayAwake' && <StayAwake />}
+        {scene.kind === 'lunch' && <Lunch />}
+        {scene.kind === 'drums' && <Drums />}
+        {scene.kind === 'exam' && <Exam />}
+        {scene.kind === 'dance' && <Dance />}
       </div>
     </div>
   );
@@ -493,28 +517,26 @@ function RollCall(): ReactNode {
 }
 /**
  * 確認身份: after your hand goes up the professor is suspicious and asks three questions about
- * 雲科 and yourself; two right and you are marked present, otherwise it was a stand-in (absent).
+ * this class (物件導向軟體工程); two right and you are marked present, otherwise it was a stand-in (absent).
  */
 function IdentityCheck({ me, onDone }: { me: string; onDone: (ok: boolean) => void }): ReactNode {
   const api = useApi();
-  const no = useStory((s) => s.progress.studentNo);
   const qs = useMemo(() => {
-    const id = studentId(no);
+    // Easy ones about this class and yourself (使用者：簡單一點).
     const pool: { q: string; a: string; wrong: string[] }[] = [
-      { q: '雲科大在哪裡？', a: '雲林縣斗六市', wrong: ['雲林縣虎尾鎮', '嘉義縣民雄鄉', '彰化縣彰化市'] },
-      { q: '雲科大的英文簡稱是？', a: 'YunTech', wrong: ['NTUST', 'NCKU', 'NTHU'] },
-      { q: '你現在上課的這棟是？', a: '管理一館', wrong: ['工程一館', '設計學院', '圖書館'] },
-      { q: '你是哪一系的學生？', a: '資訊管理系', wrong: ['企業管理系', '財務金融系', '工業工程與管理系'] },
-      { q: '你的學號是？', a: id, wrong: [studentId(String((Number(no) + 37) % 1000)), id.replace('B114', 'B113'), id.replace('B11412', 'B11431')] },
-      { q: '這堂課是什麼課？', a: COURSE, wrong: ['微積分', '計算機概論', '會計學'] },
-      { q: '我們學校的吉祥物「雲寶寶」頭上有幾片葉子？', a: '3 片', wrong: ['1 片', '2 片', '4 片'] },
+      { q: '這堂課叫什麼名字？', a: COURSE, wrong: ['資料結構', '計算機概論', '會計學'] },
+      { q: '這堂課的教授叫什麼名字？', a: `${PROFESSOR}`, wrong: ['王大明', '林志豪', '張雅婷'] },
+      { q: '我們現在在哪間教室上課？', a: 'MA214', wrong: ['MA213', 'MA221', 'MB101'] },
+      { q: '這間教室在管理一館的幾樓？', a: '2 樓', wrong: ['1 樓', '3 樓', '4 樓'] },
+      { q: '你是哪一系的學生？', a: '資訊管理系', wrong: ['企業管理系', '財務金融系', '會計系'] },
+      { q: '我們學校的全名是？', a: '國立雲林科技大學', wrong: ['國立成功大學', '國立中正大學', '國立臺灣科技大學'] },
     ];
     return pool
       .map((q) => ({ q, k: Math.random() }))
       .sort((p, q) => p.k - q.k)
       .slice(0, 3)
       .map(({ q }) => ({ q: q.q, a: q.a, options: [q.a, ...q.wrong].map((o) => ({ o, k: Math.random() })).sort((p, q) => p.k - q.k).map(({ o }) => o) }));
-  }, [no]);
+  }, []);
   const [stage, setStage] = useState<'doubt' | number | 'pass' | 'fail'>('doubt');
   const [right, setRight] = useState(0);
   const [picked, setPicked] = useState<string | null>(null);
@@ -534,7 +556,7 @@ function IdentityCheck({ me, onDone }: { me: string; onDone: (ok: boolean) => vo
   if (stage === 'doubt') {
     return (
       <>
-        <p className="story-text">你舉起手：「有！」<br />教授推了推眼鏡：「嗯？你確定你是 <b>{me}</b> 嗎？最近代點名的很多……那我問你幾個問題。」</p>
+        <p className="story-text">你舉起手：「有！」<br />教授推了推眼鏡：「嗯？你確定你是 <b>{me}</b> 嗎？最近代點名的很多……那我問你幾個簡單的問題。」</p>
         <button className="btn primary" onClick={() => { api.click(); setStage(0); }}>好，請問（答對 2 題就算到）</button>
       </>
     );
@@ -749,7 +771,7 @@ function StayAwake(): ReactNode {
       <div className="speaker">課堂・教授講課中　<small>剩 {Math.max(0, Math.ceil(left))} 秒</small></div>
       {done === null ? (
         <>
-          <p className="story-text">「…所以這個公式非常重要，期末一定會考…」{yawn ? <b className="yawn">哈～～欠～</b> : null}</p>
+          <p className="story-text">「…所以這個 UML 類別圖非常重要，期末一定會考…」{yawn ? <b className="yawn">哈～～欠～</b> : null}</p>
           <div className={`awake-state s-${state}`}>狀態：{state}</div>
           <div className={`awake-bar${yawn ? ' yawning' : ''}`}>
             <span className="zone" style={{ left: `${SAFE[0] * 100}%`, width: `${(SAFE[1] - SAFE[0]) * 100}%` }} />
@@ -761,6 +783,7 @@ function StayAwake(): ReactNode {
             按住提神（或按住 Space）
           </button>
           <small className="awake-hint">把指針維持在綠色安全區：按住往右、放開往左；離開安全區太久或掉到最左邊就會睡著</small>
+          <button className="btn link awake-skip" onClick={() => storyEvents.finishScene({ kind: 'sneakOut' })}>🤫 撐不住了…偷偷溜出教室（翹課，可能被郭教授發現）</button>
         </>
       ) : done ? (
         <>
@@ -771,6 +794,7 @@ function StayAwake(): ReactNode {
         <>
           <p className="story-text">Zzz…「這位同學！上課睡覺？」（被教授抓包）</p>
           <button className="btn primary" onClick={() => storyEvents.finishScene({ kind: 'stayAwake', ok: false })}>重新挑戰這堂課</button>
+          <button className="btn link awake-skip" onClick={() => storyEvents.finishScene({ kind: 'sneakOut' })}>🤫 不上了，偷偷溜出教室（翹課）</button>
         </>
       )}
     </div>
@@ -778,12 +802,25 @@ function StayAwake(): ReactNode {
 }
 
 /** 衣櫃: six parts, each worn or taken off on its own; the character on screen is the preview. */
+/**
+ * 衣櫃: the character on the left (a preview drawn by the game into `.wd-preview`, drag or the
+ * arrows to turn it half a turn either way), the parts and clothes on the right. In the story's
+ * outfit step you need three things on to go; otherwise the wardrobe just closes.
+ */
 function Wardrobe(): ReactNode {
   const api = useApi();
   const saved = useStory((s) => s.progress.outfit);
+  const outfitStep = useStory((s) => DAYS[s.progress.day - 1]?.steps[s.progress.step]?.cond.t === 'outfit');
   const outfit = saved ?? {};
   const [part, setPart] = useState<(typeof OUTFIT_PARTS)[number]['id']>('hat');
+  const [yaw, setYaw] = useState(0);
+  const drag = useRef<{ x: number; yaw: number } | null>(null);
   const worn = OUTFIT_PARTS.filter((p) => outfit[p.id]).length;
+  const turn = (v: number): void => {
+    const y = Math.max(-WARDROBE_YAW_LIMIT, Math.min(WARDROBE_YAW_LIMIT, v));
+    wardrobeView.yaw = y;
+    setYaw(y);
+  };
   const wear = (id: string | null): void => {
     api.click();
     storyActions.update((p) => {
@@ -792,27 +829,44 @@ function Wardrobe(): ReactNode {
       return { ...p, outfit: o };
     });
   };
+  const deg = Math.round((yaw * 180) / Math.PI);
   return (
-    <div className="wardrobe">
-      <h2><Icon name="shirt" /> 衣櫃</h2>
-      <div className="wd-parts">
-        {OUTFIT_PARTS.map((p) => (
-          <button key={p.id} className={`${p.id === part ? 'on' : ''}${outfit[p.id] ? ' worn' : ''}`} onClick={() => { api.click(); setPart(p.id); }}>
-            <i><Rich t={p.icon} /></i>{p.label}
-          </button>
-        ))}
+    <>
+      <div
+        className="wd-preview"
+        onPointerDown={(e) => { drag.current = { x: e.clientX, yaw }; (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); }}
+        onPointerMove={(e) => { if (drag.current) turn(drag.current.yaw + (e.clientX - drag.current.x) * 0.012); }}
+        onPointerUp={() => { drag.current = null; }}
+      >
+        <div className="wd-preview-bar">
+          <button onClick={() => { api.click(); turn(yaw - Math.PI / 4); }} aria-label="向左轉"><svg viewBox="0 0 10 10" width="12" height="12"><path d="M7 1 2 5l5 4z" fill="currentColor" /></svg></button>
+          <span>{deg === 0 ? '正面' : `${deg > 0 ? '右' : '左'}轉 ${Math.abs(deg)}°`}・拖曳旋轉</span>
+          <button onClick={() => { api.click(); turn(yaw + Math.PI / 4); }} aria-label="向右轉"><svg viewBox="0 0 10 10" width="12" height="12"><path d="M3 1l5 4-5 4z" fill="currentColor" /></svg></button>
+        </div>
       </div>
-      <div className="wd-items">
-        <button className={`wd-item${!outfit[part] ? ' on' : ''}`} onClick={() => wear(null)}><span className="sw none"><Icon name="close" size={14} /></span>脫下</button>
-        {OUTFIT_ITEMS.filter((it) => it.part === part).map((it) => (
-          <button key={it.id} className={`wd-item${outfit[part] === it.id ? ' on' : ''}`} onClick={() => wear(it.id)}>
-            <span className="sw" style={{ background: `#${it.color.toString(16).padStart(6, '0')}` }} />{it.name}
-          </button>
-        ))}
+      <div className="wardrobe">
+        <h2><Icon name="shirt" /> 衣櫃</h2>
+        <div className="wd-parts">
+          {OUTFIT_PARTS.map((p) => (
+            <button key={p.id} className={`${p.id === part ? 'on' : ''}${outfit[p.id] ? ' worn' : ''}`} onClick={() => { api.click(); setPart(p.id); }}>
+              <i><Rich t={p.icon} /></i>{p.label}
+            </button>
+          ))}
+        </div>
+        <div className="wd-items">
+          <button className={`wd-item${!outfit[part] ? ' on' : ''}`} onClick={() => wear(null)}><span className="sw none"><Icon name="close" size={14} /></span>脫下</button>
+          {OUTFIT_ITEMS.filter((it) => it.part === part).map((it) => (
+            <button key={it.id} className={`wd-item${outfit[part] === it.id ? ' on' : ''}`} onClick={() => wear(it.id)}>
+              <span className="sw" style={{ background: `#${it.color.toString(16).padStart(6, '0')}` }} />{it.name}{it.trend && <em className="wd-trend">潮</em>}
+            </button>
+          ))}
+        </div>
+        <p className="wd-note">已穿 {worn}/6 件{outfitStep ? (worn < 3 ? '・至少穿 3 件才夠帥' : '・帥！') : ''}</p>
+        {outfitStep
+          ? <button className="btn primary" disabled={worn < 3} onClick={() => storyEvents.finishScene({ kind: 'wardrobe' })}>完成造型，出門！</button>
+          : <button className="btn primary" onClick={() => { api.click(); storyEvents.finishScene({ kind: 'wardrobe' }); }}>穿好了，關上衣櫃</button>}
       </div>
-      <p className="wd-note">已穿 {worn}/6 件{worn < 3 ? '・至少穿 3 件才夠帥' : '・帥！'}</p>
-      <button className="btn primary" disabled={worn < 3} onClick={() => storyEvents.finishScene({ kind: 'wardrobe' })}>完成造型，出門！</button>
-    </div>
+    </>
   );
 }
 
@@ -842,7 +896,7 @@ function Summary(): ReactNode {
       <div className="summary-grid">
         <span>點名</span><b>{p.rollcalls.ok}/{p.rollcalls.total}</b>
         <span>翹課</span><b>{f.skipped ?? 0} 次</b>
-        <span>小考</span><b>{f.quizScore !== undefined ? `${f.caught ? 0 : f.quizScore * 20} 分` : '—'}</b>
+        <span>小考</span><b>{f.quizScore !== undefined ? `${f.caught ? 0 : f.quizScore} 分` : '—'}</b>
         <span>路跑</span><b>{f.runTime ? `${Math.floor(f.runTime / 60)} 分 ${f.runTime % 60} 秒` : '未完賽'}</b>
         <span>成就</span><b>{got}/{ACHIEVEMENTS.length}</b>
         <span>零用錢</span><b>NT$ {coins}</b>

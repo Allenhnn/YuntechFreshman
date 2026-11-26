@@ -9,7 +9,7 @@ import type { ColliderBox } from './buildingMesh';
  * walls, doors, voids, cores and neighbouring rooms without hand placement. Keep-out circles protect
  * elevator landings, signs and stair ends.
  */
-export type FurnitureKind = 'shelf' | 'table' | 'chair' | 'plinth' | 'stage' | 'riser' | 'screen' | 'bed' | 'whiteboard' | 'bunk' | 'toilet' | 'sink' | 'mirror' | 'partition' | 'hydrant' | 'bins' | 'sign' | 'bracket' | 'vending' | 'loft' | 'podium' | 'student' | 'teacher' | 'head';
+export type FurnitureKind = 'shelf' | 'table' | 'chair' | 'plinth' | 'stage' | 'riser' | 'screen' | 'bed' | 'whiteboard' | 'bunk' | 'toilet' | 'sink' | 'mirror' | 'partition' | 'hydrant' | 'bins' | 'sign' | 'bracket' | 'vending' | 'loft' | 'podium' | 'student' | 'teacher' | 'head' | 'counter' | 'mic' | 'woodbox' | 'stonebox';
 
 export interface FurnitureItem {
   kind: FurnitureKind;
@@ -224,6 +224,139 @@ function seating(ctx: Ctx, r: Rect, withDesks: boolean): void {
       }
     }
   }
+}
+
+/**
+ * 多功能教室 (MA214, from the user's photo): the front is the wall across from the door — a projection
+ * screen, and a low dais with the lectern and the professor facing the class and the door. Then an open
+ * strip of floor and three tiers of long wooden desks (front panel, a microphone every other seat, black
+ * chairs behind), each tier 16 cm higher; the side blocks turn in a little, like a horseshoe. The back
+ * tier leaves an aisle along the door wall.
+ */
+function conference(ctx: Ctx, r: Rect, door: Opening | undefined): void {
+  const [x0, y0, x1, y1] = r;
+  const dm: [number, number] = door ? [(door.a[0] + door.b[0]) / 2, (door.a[1] + door.b[1]) / 2] : [(x0 + x1) / 2, y0];
+  // Front wall: the one across from the door. `a` runs from it toward the door, `b` across.
+  const alongX = Math.abs(dm[0] - (x0 + x1) / 2) / (x1 - x0) > Math.abs(dm[1] - (y0 + y1) / 2) / (y1 - y0);
+  const frontLow = alongX ? dm[0] > (x0 + x1) / 2 : dm[1] > (y0 + y1) / 2; // front at the low edge when the door is high
+  const len = alongX ? x1 - x0 : y1 - y0, wid = alongX ? y1 - y0 : x1 - x0;
+  const P = (a: number, b: number): [number, number] => {
+    const along = frontLow ? (alongX ? x0 : y0) + a : (alongX ? x1 : y1) - a;
+    return alongX ? [along, y0 + b] : [x0 + b, along];
+  };
+  const dirA: [number, number] = alongX ? [frontLow ? 1 : -1, 0] : [0, frontLow ? 1 : -1]; // toward the door
+  const toFront = yawToward(-dirA[0], -dirA[1]);
+  const toDoor = yawToward(dirA[0], dirA[1]);
+  const box = (a0: number, a1: number, b0: number, b1: number): [number, number, number, number] => {
+    const [p, q] = P(a0, b0), [s, t] = P(a1, b1);
+    return [Math.min(p, s), Math.min(q, t), Math.max(p, s), Math.max(q, t)];
+  };
+  const mid = wid / 2;
+  // Screen on the front wall.
+  const [scx, scy] = P(0.12, mid);
+  ctx.items.push({ kind: 'screen', x: scx, y: ctx.base + 0.9, z: scy, ry: alongX ? Math.PI / 2 : 0, sx: Math.min(wid - 2, 5.5), sy: 2.2, sz: 0.06, tint: 0 });
+  // Dais, lectern and professor, facing the class and the door.
+  const dais = box(0.4, 1.9, mid - 2.6, mid + 2.6);
+  ctx.items.push({ kind: 'stage', x: (dais[0] + dais[2]) / 2, y: ctx.base, z: (dais[1] + dais[3]) / 2, ry: 0, sx: dais[2] - dais[0], sy: 0.18, sz: dais[3] - dais[1], tint: 0 });
+  ctx.colliders.push({ c: [(dais[0] + dais[2]) / 2, ctx.base + 0.09, (dais[1] + dais[3]) / 2], h: [(dais[2] - dais[0]) / 2, 0.09, (dais[3] - dais[1]) / 2] });
+  const [lx, ly] = P(1.55, mid + 1.1);
+  ctx.items.push({ kind: 'podium', x: lx, y: ctx.base + 0.18, z: ly, ry: toDoor, sx: 1, sy: 1, sz: 1, tint: 0 });
+  ctx.colliders.push({ c: [lx, ctx.base + 0.18 + 0.55, ly], h: [0.32, 0.55, 0.32] });
+  const [tx, ty] = P(1.0, mid + 1.1);
+  ctx.items.push({ kind: 'teacher', x: tx, y: ctx.base + 0.18, z: ty, ry: toDoor, sx: 1.25, sy: 1.25, sz: 1.25, tint: 0.62 });
+  ctx.items.push({ kind: 'head', x: tx, y: ctx.base + 0.18 + 0.98 * 1.25, z: ty, ry: toDoor, sx: 0.34 * 1.25, sy: 0.34 * 1.25, sz: 0.34 * 1.25, tint: 0 });
+  ctx.colliders.push({ c: [tx, ctx.base + 1.0, ty], h: [0.3, 0.8, 0.3] });
+  // Tiers: desk line at `a`, chairs 0.55 behind; side blocks angled in.
+  const TIER_H = 0.16, ROW = 1.9;
+  const aisle = 1.0, sideW = Math.max(2.2, (wid - 2 * aisle - 0.8) * 0.3), centreW = wid - 2 * aisle - 2 * sideW - 0.8;
+  for (let k = 0; k < 3; k++) {
+    const a = 3.7 + k * ROW;
+    if (a + 1.5 > len - 1.2) break; // keep the aisle along the door wall
+    const h = TIER_H * k;
+    if (h > 0) {
+      // The tier's floor: from just in front of the desk to the back of the chairs (the next tier sits on top).
+      const t = box(a - 0.45, k === 2 || a + ROW + 1.5 > len - 1.2 ? a + 1.35 : a + ROW - 0.45, 0.25, wid - 0.25);
+      ctx.items.push({ kind: 'riser', x: (t[0] + t[2]) / 2, y: ctx.base, z: (t[1] + t[3]) / 2, ry: 0, sx: t[2] - t[0], sy: h, sz: t[3] - t[1], tint: 0 });
+      ctx.colliders.push({ c: [(t[0] + t[2]) / 2, ctx.base + h / 2, (t[1] + t[3]) / 2], h: [(t[2] - t[0]) / 2, h / 2, (t[3] - t[1]) / 2] });
+    }
+    const blocks: { b0: number; b1: number; turn: number }[] = [
+      { b0: 0.4, b1: 0.4 + sideW, turn: -0.18 },
+      { b0: 0.4 + sideW + aisle, b1: 0.4 + sideW + aisle + centreW, turn: 0 },
+      { b0: wid - 0.4 - sideW, b1: wid - 0.4, turn: 0.18 },
+    ];
+    for (const bl of blocks) {
+      const w = bl.b1 - bl.b0, bm = (bl.b0 + bl.b1) / 2;
+      const turn = alongX ? -bl.turn : bl.turn;
+      const [cx, cy] = P(a, bm);
+      ctx.items.push({ kind: 'counter', x: cx, y: ctx.base + h, z: cy, ry: toFront + turn, sx: w, sy: 1, sz: 1, tint: 0 });
+      // Desk collider (axis-aligned around the slightly turned desk is close enough).
+      ctx.colliders.push({ c: [cx, ctx.base + h + 0.4, cy], h: alongX ? [0.3, 0.4, w / 2] : [w / 2, 0.4, 0.3] });
+      const n = Math.max(1, Math.floor(w / 0.85));
+      for (let i = 0; i < n; i++) {
+        const b = bl.b0 + (w * (i + 0.5)) / n;
+        const [px, py] = P(a + 0.55, b);
+        const student = hash(px * 1.7, py * 2.3) < 0.68;
+        ctx.items.push({ kind: 'chair', x: px, y: ctx.base + h, z: py, ry: toFront + turn, sx: 1, sy: 1, sz: 1, tint: 0.85, ...(student ? { taken: true } : {}) });
+        if (student) {
+          ctx.items.push({ kind: 'student', x: px, y: ctx.base + h, z: py, ry: toFront + turn, sx: 1, sy: 1, sz: 1, tint: hash(py, px) });
+          ctx.items.push({ kind: 'head', x: px, y: ctx.base + h + 1.12, z: py, ry: toFront + turn, sx: 0.32, sy: 0.32, sz: 0.32, tint: 0 });
+        }
+        if (i % 2 === 0) {
+          const [mx, my] = P(a - 0.12, b);
+          ctx.items.push({ kind: 'mic', x: mx, y: ctx.base + h + 0.78, z: my, ry: toFront + turn, sx: 1, sy: 1, sz: 1, tint: 0 });
+        }
+      }
+    }
+  }
+}
+
+/**
+ * 休息區 (the user's photo): a narrow room off the corridor, reddish wood everywhere — panels up the
+ * long walls (gaps at doors), a wooden floor, a deep wooden frame round the entrance on the corridor
+ * side; low wooden benches along one wall, a long low bench-table on the other, a small table by the
+ * window at the far end. Entrance on the short side nearest the corridor (the long axis's high or low end).
+ */
+function lounge(ctx: Ctx, r: Rect, openings: readonly Opening[]): void {
+  const [x0, y0, x1, y1] = r;
+  const alongY = y1 - y0 >= x1 - x0;
+  const len = alongY ? y1 - y0 : x1 - x0, wid = alongY ? x1 - x0 : y1 - y0;
+  // Entrance end: the short side with no wall (the corridor) — taken as the high end here (y1 / x1).
+  const P = (a: number, b: number): [number, number] => (alongY ? [x0 + b, y1 - a] : [x1 - a, y0 + b]); // a from the entrance
+  const box = (a: number, b: number, la: number, lb: number, y: number, h: number, collide = true): void => {
+    const [cx, cz] = P(a, b);
+    const sx = alongY ? lb : la, sz = alongY ? la : lb;
+    ctx.items.push({ kind: 'woodbox', x: cx, y: ctx.base + y, z: cz, ry: 0, sx, sy: h, sz, tint: 0 });
+    if (collide) ctx.colliders.push({ c: [cx, ctx.base + y + h / 2, cz], h: [sx / 2, h / 2, sz / 2] });
+  };
+  // Floor (a thin layer on the tiles, inside the wall faces).
+  const inset = WALL_T / 2;
+  box(len / 2, wid / 2, len - 0.04, wid - 2 * inset, 0.07, 0.04, false); // room floors sit 8 cm up (FLOOR_Y)
+  // Panels up both long walls, skipping doorways.
+  const doorsOn = (side: 0 | 1): [number, number][] => openings
+    .filter((o) => {
+      const vx = Math.abs(o.a[0] - o.b[0]) < 0.05, wallAt = alongY ? (side ? x1 : x0) : (side ? y1 : y0);
+      return (alongY ? vx && Math.abs(o.a[0] - wallAt) < 0.06 : !vx && Math.abs(o.a[1] - wallAt) < 0.06);
+    })
+    .map((o) => {
+      const p = alongY ? [y1 - Math.max(o.a[1], o.b[1]), y1 - Math.min(o.a[1], o.b[1])] : [x1 - Math.max(o.a[0], o.b[0]), x1 - Math.min(o.a[0], o.b[0])];
+      return [p[0]! - 0.12, p[1]! + 0.12] as [number, number];
+    });
+  for (const side of [0, 1] as const) {
+    const b = side ? wid - inset - 0.025 : inset + 0.025;
+    let a0 = 0.02;
+    for (const [d0, d1] of [...doorsOn(side), [len, len] as [number, number]].sort((p, q) => p[0] - q[0])) {
+      if (d0 - a0 > 0.1) box((a0 + d0) / 2, b, d0 - a0, 0.04, 0, 2.5, false);
+      a0 = Math.max(a0, d1);
+    }
+  }
+  // Entrance frame: two deep posts and a lintel.
+  for (const b of [inset + 0.14, wid - inset - 0.14]) box(0.2, b, 0.4, 0.28, 0, 2.75);
+  box(0.2, wid / 2, 0.4, wid - 2 * inset, 2.35, 0.4, false);
+  // Benches along the low wall (b small), a long low bench-table along the other, a table by the window.
+  const n = Math.max(1, Math.floor((len - 2.6) / 1.9));
+  for (let i = 0; i < n; i++) box(1.4 + i * 1.9 + 0.8, 0.45, 1.5, 0.42, 0, 0.42);
+  box(len * 0.55, wid - 0.55, Math.min(3.2, len * 0.4), 0.6, 0, 0.45);
+  box(len - 0.9, wid / 2, 0.7, 0.9, 0, 0.72);
 }
 
 function singleDesk(ctx: Ctx, r: Rect, door: Opening | undefined): void {
@@ -526,6 +659,8 @@ export function layoutFurniture(plan: FloorPlan, grid: FloorGrid, base: number, 
         case 'carrel': singleDesk(ctx, r, door); break;
         case 'theater': seating(ctx, r, false); break;
         case 'classroom': seating(ctx, r, true); break;
+        case 'conference': conference(ctx, r, door); break;
+        case 'lounge': lounge(ctx, r, plan.openings); break;
         case 'exhibit': plinths(ctx, r); break;
         case 'dorm': dormRoom(ctx, r, door, false); break;
         case 'dormLoft': dormRoom(ctx, r, door, true); break;
@@ -607,7 +742,7 @@ function corridorProps(plan: FloorPlan, grid: FloorGrid, base: number, keepOut: 
       const x = f.at[0] + fx * (WALL_T / 2 + 0.012), y = f.at[1] + fy * (WALL_T / 2 + 0.012);
       const along = Math.abs(fx) > 0.5;
       // A dark frame; the reflecting glass is a live Reflector added by buildingWorld.
-      items.push({ kind: 'bracket', x, y: base + 0.08, z: y, ry: 0, sx: along ? 0.02 : f.width + 0.08, sy: 2.13, sz: along ? f.width + 0.08 : 0.02, tint: 0 });
+      items.push({ kind: 'bracket', x, y: base + 0.08, z: y, ry: 0, sx: along ? 0.02 : f.width + 0.08, sy: (f.height ?? 2.05) + 0.08, sz: along ? f.width + 0.08 : 0.02, tint: 0 });
       taken.push([x, y, f.width / 2]);
     }
   }

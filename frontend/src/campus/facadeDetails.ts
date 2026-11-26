@@ -139,7 +139,7 @@ export function addFacadeDetails(
     if (style.columns) {
       for (let k = 0; k <= bays; k++) {
         const a = k * bw;
-        if (doors.some((d) => d.edge === i && Math.abs(a - d.along) < DOOR_WIDTH / 2 + COLUMN_W)) continue; // keep doorways clear
+        if (doors.some((d) => d.edge === i && Math.abs(a - d.along) < (d.width ?? DOOR_WIDTH) / 2 + COLUMN_W)) continue; // keep doorways clear
         wallBox(g, w, Math.max(0, a - COLUMN_W / 2), Math.min(w.len, a + COLUMN_W / 2), 0, COLUMN_D, 0, b.height, colors.trim);
       }
     }

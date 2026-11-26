@@ -95,7 +95,7 @@ export function installHotkeys(api: GameApi, lock: PointerLock): () => void {
         else if (!lock.isLocked()) api.pause();
         return;
     }
-    if (e.code.startsWith('Digit')) {
+    if (e.code.startsWith('Digit') && s.modal !== 'story') { // story games use the number keys
       const n = Number(e.code.slice(5));
       if (n >= 1 && n <= HOTBAR_SIZE) api.selectHotbar(n - 1);
     }

@@ -1,4 +1,5 @@
 import { useEffect, type ReactNode } from 'react';
+import { ItemIcon } from './itemIcon';
 import { useStory } from '../state/story';
 import { HOTBAR_SIZE, ITEMS } from '../state/items';
 import { actions, useGame } from '../state/store';
@@ -33,7 +34,7 @@ function Hotbar(): ReactNode {
           onClick={() => api.selectHotbar(i)}
         >
           <span className="num">{i + 1}</span>
-          {stack && <Rich t={ITEMS[stack.id].icon} />}
+          {stack && <ItemIcon id={stack.id} />}
           {stack && stack.count > 1 && <span className="count">{stack.count}</span>}
         </button>
       ))}
@@ -74,26 +75,6 @@ function RaceHud(): ReactNode {
       <span>{race.testing ? '不計成績' : `最佳 ${best === null ? '—' : best.toFixed(2)}`}</span>
       {race.rival && <span>對手 阿凱 {race.rival.toFixed(1)} 秒</span>}
       {leave}
-    </div>
-  );
-}
-
-/** Navigation bar under the top edge: goal, distance left, walking time, end button. */
-function NavBar(): ReactNode {
-  const api = useApi();
-  const nav = useGame((s) => s.nav);
-  const racing = useGame((s) => s.race !== null);
-  if (!nav) return null;
-  const m = Math.round(nav.remaining);
-  const secs = Math.max(1, Math.round(nav.remaining / 3.5));
-  const eta = secs < 60 ? `${secs} 秒` : `${Math.floor(secs / 60)} 分 ${secs % 60} 秒`;
-  return (
-    <div className={`nav-bar${racing ? ' lower' : ''}`}>
-      <span className="nav-icon"><Icon name="compass" size={22} /></span>
-      <span className="nav-goal">{nav.name}</span>
-      <span className="nav-dist">{m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${m} m`}</span>
-      <span className="nav-eta">步行約 {eta}</span>
-      <button className="nav-stop interactive" onClick={api.stopNav}>結束 <kbd>X</kbd></button>
     </div>
   );
 }
@@ -164,7 +145,6 @@ export function Hud(): ReactNode {
       <RaceHud />
       <AreaBannerView />
       <PhoneNotice />
-      <NavBar />
       {mapMode === 'mini' && <Minimap />}
       {mapMode === 'mini' && <div className="osm-credit">© OpenStreetMap contributors</div>}
       <Hotbar />

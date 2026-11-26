@@ -175,6 +175,7 @@ export function MenuScreen({ paused }: { paused: boolean }): ReactNode {
         <h1 className="title">已暫停</h1>
         <div className="menu-buttons">
           <button className="btn primary" onClick={api.resume}>繼續遊戲</button>
+          <button className="btn" onClick={() => { dispatch({ type: 'checkpoint' }); api.resume(); }} title="卡住了？回到最近一次劇情進度或傳送的位置">回到上一個紀錄點</button>
           <button className="btn" onClick={() => open('controls')}>操作介紹</button>
           <button className="btn" onClick={() => open('settings')}>設定</button>
           <button className="btn" onClick={api.quitToMenu}>回主選單</button>
@@ -251,6 +252,7 @@ const CONTROLS: readonly [string, string][] = [
   ['滑鼠', '旋轉視角'],
   ['Space', '跳躍（按越久跳越高）'],
   ['Shift', '衝刺'],
+  ['Ctrl', '蹲下（按住；走得慢、比較不會被發現）'],
   ['Tab', '背包'],
   ['P', '手機'],
   ['M', '小地圖 / 全螢幕地圖'],
