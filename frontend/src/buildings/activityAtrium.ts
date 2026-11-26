@@ -1,4 +1,5 @@
-import { DoubleSide, BoxGeometry, CanvasTexture, Color, Group, InstancedMesh, Mesh, MeshStandardMaterial, Object3D, PlaneGeometry, Shape, ShapeGeometry, RepeatWrapping, SRGBColorSpace, Vector3, type Scene } from 'three';
+import { bookshopFlight, rear, turn, nose, axisZ, radius, stairLevels } from './bookshopStair';
+import { ExtrudeGeometry, DoubleSide, BoxGeometry, CanvasTexture, Color, Group, InstancedMesh, Mesh, MeshStandardMaterial, Object3D, PlaneGeometry, Shape, ShapeGeometry, RepeatWrapping, SRGBColorSpace, Vector3, type Scene } from 'three';
 import type { ResourceTracker } from '../core/resources';
 
 /** The interior references use plan-right towards room 107 (local +X)
@@ -132,15 +133,53 @@ export function addActivityAtrium(scene: Scene, tracker: ResourceTracker) {
       block(x-.97,y+1.2,10, .10,1.39,.14,0xaaa79e);
     }
   }
-  // A curved planting bed hugs the B1 stair nose. Both side entrances stay clear.
-  for(let i=0;i<18;i++){
-    const point=(j:number,y:number,r:number)=>{
-      const angle=(j/18-.5)*Math.PI*.82;
-      return [-16.5+(1.65+r)*Math.cos(angle),y,12.8+(2.8+r)*Math.sin(angle)];
-    };
-    member(point(i,-2.20,.32),point(i+1,-2.20,.32),.40,.38,0xa29c8e);
-    member(point(i,-1.99,.24),point(i+1,-1.99,.24),.26,.2,i%3?0x798757:0x94a36a);
+  // The half landings and their parapets continue around the turn as single curved faces.
+  const curvedSlab=(shape:Shape, bottom:number, thickness:number, color:number)=>{
+    const geometry=new ExtrudeGeometry(shape,{depth:thickness,bevelEnabled:false,curveSegments:24});
+    geometry.rotateX(-Math.PI/2);
+    const mesh=new Mesh(geometry,new MeshStandardMaterial({color,roughness:.88}));
+    mesh.position.y=bottom;mesh.receiveShadow=true;root.add(mesh);
+  };
+  const landing=(r:number)=>new Shape().moveTo(turn,-axisZ-r).lineTo(nose,-axisZ-r)
+    .absarc(nose,-axisZ,r,-Math.PI/2,Math.PI/2,false).lineTo(turn,-axisZ+r).closePath();
+  const rim=(r:number,width:number)=>new Shape().moveTo(turn,-axisZ-r).lineTo(nose,-axisZ-r)
+    .absarc(nose,-axisZ,r,-Math.PI/2,Math.PI/2,false).lineTo(turn,-axisZ+r)
+    .lineTo(turn,-axisZ+r-width).lineTo(nose,-axisZ+r-width)
+    .absarc(nose,-axisZ,r-width,Math.PI/2,-Math.PI/2,true).lineTo(turn,-axisZ-r+width).closePath();
+  const stone=0xb8b2a5, metal=0x646965;
+  for(let level=0;level<stairLevels.length-1;level++){
+    const base=stairLevels[level]!,height=stairLevels[level+1]!-base,half=base+height/2;
+    block((rear+turn)/2,base,axisZ,turn-rear,height,.18,stone);
+    curvedSlab(landing(radius),half-.20,.20,0x686762);
+    curvedSlab(rim(radius+.03,.14),half-.23,.94,stone);
+    for(const h of [.80,.97]) curvedSlab(rim(radius,.045),half+h,.044,metal);
+    for(let i=0;i<=8;i++){
+      const angle=Math.PI*(i/8-.5);
+      block(nose+(radius-.025)*Math.cos(angle),half+.69,axisZ+(radius-.025)*Math.sin(angle),.045,.28,.045,metal);
+    }
+    for(const returning of [false,true]){
+      const steps=bookshopFlight(height,returning);
+      const edge=axisZ+(returning?-radius:radius);
+      for(const [i,step] of steps.entries()){
+        const top=base+step.top;
+        block(step.x,top-.20,step.z,step.depth,.20,radius,0x656661);
+        block(step.x,top-.20,edge,step.depth,.91,.12,stone);
+        if(i%3===0) block(step.x,top+.70,edge,.045,.30,.045,metal);
+      }
+      const yRear=returning?base+height:base;
+      for(const h of [.86,1.0]) member([rear,yRear+h,edge],[turn,half+h,edge],.055,.055,metal);
+    }
   }
+  const ground=stairLevels[0];
+  curvedSlab(landing(radius+.38),ground+.09,.19,0x979387);
+  curvedSlab(landing(radius+.18),ground+.28,.38,stone);
+  curvedSlab(landing(radius+.07),ground+.66,.05,0x6c7452);
+  block((rear+turn)/2,ground,axisZ+radius+.34,turn-rear,.68,.65,stone);
+  for(let i=0;i<38;i++){
+    const angle=Math.PI*(i/37-.5),r=radius-.07+.09*Math.sin(i*13);
+    block(nose+r*Math.cos(angle),ground+.71,axisZ+r*Math.sin(angle),.19,.15+.13*(i%3),.22,i%2?0x70864c:0x849659);
+  }
+  for(let i=0;i<19;i++) block(rear+(i+.5)*(turn-rear)/19,ground+.67,axisZ+radius+.34,.24,.21+(i%3)*.05,.40,i%2?0x738754:0x849656);
   for(const x of [-6.8,-11.3]) {
     block(x,1.13,16.15,.42,.06,.42,0x767974);
     block(x,1.19,16.15,.07,.57,.07,0x858780);

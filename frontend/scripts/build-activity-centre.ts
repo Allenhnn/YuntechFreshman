@@ -5,7 +5,8 @@ import { writeFileSync } from 'node:fs';
 import { boundarySegments, rasterize } from '../src/buildings/floorGrid';
 import type { BuildingSource, FloorPlan, Rect, Space, Vec2 } from '../src/buildings/buildingTypes';
 
-const levels = [['B1',-2.475],['1F',1.125],['2F',3.6],['3F',7.2]] as const;
+import { bookshopFlight, rear, turn, nose, axisZ, radius, stairLevels } from '../src/buildings/bookshopStair';
+const levels = [['B1',stairLevels[0]],['1F',stairLevels[1]],['2F',stairLevels[2]],['3F',stairLevels[3]]] as const;
 const bookshopWell: Rect = [-26,10,0,15.6];
 const source: BuildingSource = {
   id:'activity-centre', name:'學生活動中心暨表演廳', osmReplaces:['學生活動中心','表演廳'],
@@ -151,37 +152,33 @@ for(const [index,[id,base]] of levels.entries()) {
     concreteBox((-3+wingEdge)/2,6.7,0,3+wingEdge,height,.16);
     f.blankWalls=[{a:[wingEdge,10],b:[wingEdge,15.6]}];
   }
-  // The rear landing is flush with the cross passage. The opposite landing
-  // has a semicircular nose and a short level connection to each side.
-  if(index%2===0) {
-    concreteBox(-17.25,12.8,-.20,1.5,.20,5.6);
-    for(let j=0;j<16;j++){
-      const z=10+(j+.5)*5.6/16;
-      const reach=1.65*Math.sqrt(1-((z-12.8)/2.8)**2);
-      concreteBox(-16.5+reach/2,z,-.20,reach,.20,5.6/16);
-      concreteBox(-16.5+reach-.05,z,0,.12,.76,5.6/16);
-      concreteBox(-16.5+reach-.05,z,.94,.065,.065,5.6/16);
+  // Both flights meet the rear gallery at storey height and share a half-storey turn.
+  const stairSolid=(x:number,z:number,bottom:number,w:number,h:number,d:number)=>
+    extras.colliders.push({c:[x,bottom+h/2,z],h:[w/2,h/2,d/2]});
+  if(index<3){
+    const half=height/2;
+    stairSolid((rear+turn)/2,axisZ,0,turn-rear,height,.18);
+    for(const returning of [false,true]) for(const step of bookshopFlight(height,returning)){
+      stairSolid(step.x,step.z,step.top-.20,step.depth,.20,radius);
+      const edge=axisZ+(returning?-radius:radius);
+      stairSolid(step.x,edge,step.top,step.depth,.92,.09);
     }
+    stairSolid((turn+nose)/2,axisZ,half-.20,nose-turn,.20,2*radius);
+    for(let i=0;i<32;i++){
+      const dz=2*radius/32, offset=-radius+(i+.5)*dz;
+      const reach=Math.sqrt(radius*radius-offset*offset);
+      stairSolid(nose+reach/2,axisZ+offset,half-.20,reach,.20,dz);
+      stairSolid(nose+reach,axisZ+offset,half,.12,.96,dz);
+    }
+    for(const side of [-1,1]) stairSolid((turn+nose)/2,axisZ+side*radius,half,nose-turn,.96,.12);
   }
-  if(index<3) {
-    const count=Math.ceil(height/.17), step=8/count;
-    const z=index%2===0?11.43:13.99;
-    for(let i=0;i<count;i++){
-      const x=index%2===0?-18-(i+.5)*step:-26+(i+.5)*step;
-      const top=(i+1)*height/count;
-      concreteBox(x,z,top-.29,step,.29,2.35);
-      concreteBox(x,z+1.14,top,.085,.85,.07);
-      concreteBox(x,z+1.14,top+.85,step,.06,.07);
-    }
-  }
-  for(const z of [10.03,15.57]){
-    // The rounded landings open onto the side galleries on B1 and 2F.
-    const spans=index%2===0?[[-26,-18],[-16.5,wingEdge]]:[[-26,wingEdge]];
-    for(const [a,b] of spans){
-      concreteBox((a+b)/2,z,0,b-a,.73,.11);
-      concreteBox((a+b)/2,z,.94,b-a,.065,.065);
-      for(let x=a+.2;x<b;x+=2.2) concreteBox(x,z,.73,.055,.22,.055);
-    }
+  if(id==='B1'){
+    stairSolid((rear+turn)/2,axisZ+radius+.32,0,turn-rear,.68,.64);
+    stairSolid(nose,axisZ,0,2.2,.50,radius*1.9);
+  } else for(const z of [10.03,15.57]){
+    concreteBox((rear+wingEdge)/2,z,0,wingEdge-rear,.73,.11);
+    concreteBox((rear+wingEdge)/2,z,.94,wingEdge-rear,.065,.065);
+    for(let x=rear+.2;x<wingEdge;x+=2.2) concreteBox(x,z,.73,.055,.22,.055);
   }
   if(id==='1F') {
     // Fixtures sit against the bookshop wall, leaving the route beside the rail clear.
