@@ -228,15 +228,38 @@ export function addActivityAtrium(scene: Scene, tracker: ResourceTracker) {
     block(exit.x,floorY+h,exit.z+.08,exit.width,.045,.075,frame);
   for(const dx of [-.94,0,.94]) block(exit.x+dx,floorY+exit.slidingHeight,exit.z+.08,.04,transom,.065,frame);
   block(exit.x,3.41,29.94,.45,.12,.075,0x90e7b0);
-  const paving=texture(256,512,c=>{
-    c.fillStyle='#a59887';c.fillRect(0,0,256,512);
-    for(let j=0;j<16;j++) for(let i=0;i<8;i++){
-      c.fillStyle=j===5?'#70847f':(i+3*j)%7===0?'#b99680':'#cebcab';
-      c.fillRect(i*32+1,j*32+1,31,31);
+  // Trace the connected 1F galleries around the open stairwell. The two ends
+  // of the cross passage include the restroom foyer and the A10 exit hall.
+  const galleryOutline=[
+    [-29,4],[-22.2,4],[-22.2,6.7],[-1.3,6.7],[-1.3,10],[-26,10],
+    [-26,15.6],[-1.3,15.6],[-1.3,19],[-23,19],[-23,30],[-29,30]
+  ] as const;
+  const galleryShape=new Shape();
+  galleryOutline.forEach(([x,z],i)=>{
+    if(i===0) galleryShape.moveTo(x,-z); else galleryShape.lineTo(x,-z);
+  });
+  galleryShape.closePath();
+
+  // Lay out equal square tiles on one plan grid so grout lines meet at the turns.
+  const tileSize=.6, cols=48, rows=44, pixels=32;
+  const paving=texture(cols*pixels,rows*pixels,c=>{
+    c.fillStyle='#9a9188';c.fillRect(0,0,cols*pixels,rows*pixels);
+    for(let row=0;row<rows;row++) for(let col=0;col<cols;col++){
+      const x=-29+(col+.5)*tileSize, z=4+(row+.5)*tileSize;
+      const crossPassage=x<-26 || z>=19 || z<6.7;
+      const stripe=crossPassage ? row%14===7 : col%14===8;
+      c.fillStyle=stripe?'#607574':(col+3*row)%7===0?'#b99680':'#c9bbae';
+      c.fillRect(col*pixels+1,row*pixels+1,pixels-1,pixels-1);
     }
   });
-  const exitFloor=new Mesh(new PlaneGeometry(5.92,10.98),new MeshStandardMaterial({map:paving,roughness:.8}));
-  exitFloor.position.set(exit.x,1.211,24.5);exitFloor.rotation.x=-Math.PI/2;root.add(exitFloor);
+  const gallerySurface=new ShapeGeometry(galleryShape);
+  const positions=gallerySurface.getAttribute('position'), tileUV=gallerySurface.getAttribute('uv');
+  for(let i=0;i<positions.count;i++){
+    tileUV.setXY(i,(positions.getX(i)+29)/(cols*tileSize),1-(-positions.getY(i)-4)/(rows*tileSize));
+  }
+  const galleryFloor=new Mesh(gallerySurface,new MeshStandardMaterial({map:paving,roughness:.86}));
+  galleryFloor.rotation.x=-Math.PI/2;galleryFloor.position.y=floorY+.086;
+  galleryFloor.receiveShadow=true;root.add(galleryFloor);
   // The half landings and their parapets continue around the turn as single curved faces.
   const curvedSlab=(shape:Shape, bottom:number, thickness:number, color:number)=>{
     const geometry=new ExtrudeGeometry(shape,{depth:thickness,bevelEnabled:false,curveSegments:24});
