@@ -3,7 +3,7 @@ import { randomName, usePlayerName } from '../state/playerName';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { actions, useGame } from '../state/store';
 import { storyActions, useStory, type StoryProgress } from '../state/story';
-import { COURSE, LECTURE, TUTORIAL, ACHIEVEMENTS, CLUBS, DAYS, MIXER, MIXER_GOAL, MIXER_START, QUIZ, SIDE_QUESTS, PHOTO_SPOTS, TOUR_STOPS, MY_ROOM, PROFESSOR, type Step, type VnLine } from '../story/storyData';
+import { COURSE, LECTURE, TUTORIAL, ACHIEVEMENTS, CLUBS, DAYS, MIXER, MIXER_GOAL, MIXER_START, type MixerOpt, type MixerPerson, QUIZ, SIDE_QUESTS, PHOTO_SPOTS, TOUR_STOPS, MY_ROOM, PROFESSOR, type Step, type VnLine } from '../story/storyData';
 import { OUTFIT_ITEMS, OUTFIT_PARTS } from '../character/outfit';
 import { storyEvents } from '../story/storyRuntime';
 import { dispatch } from '../state/commands';
@@ -320,6 +320,7 @@ export function StoryModal(): ReactNode {
   const scene = useStory((s) => s.scene);
   if (!scene) return null;
   if (scene.kind === 'wardrobe') return <Wardrobe />;
+  if (scene.kind === 'mixer') return <Mixer key={scene.who} who={scene.who} />;
   if (scene.kind === 'vn') return <VisualNovel key={scene.id} id={scene.id} lines={scene.lines} />;
   return (
     <div className="screen story-screen">
@@ -327,7 +328,6 @@ export function StoryModal(): ReactNode {
         {scene.kind === 'dialog' && <Dialog lines={scene.lines} />}
         {scene.kind === 'rollcall' && <RollCall />}
         {scene.kind === 'quiz' && <Quiz />}
-        {scene.kind === 'mixer' && <Mixer />}
 
         {scene.kind === 'clubFair' && <ClubFair />}
         {scene.kind === 'summary' && <Summary />}
@@ -630,83 +630,133 @@ function shuffled<T>(a: readonly T[]): T[] {
   return out;
 }
 
-const MIXER_TIME = 9;
+const MIXER_TIME = 12;
+const hex = (n: number): string => `#${n.toString(16).padStart(6, '0')}`;
+
+/** A big flat portrait in the game's look: the student (hair, shirt colours, mood) or 雲寶寶 (`me`). */
+function Portrait({ look, long, mood, me }: { look?: MixerPerson['look']; long?: boolean; mood: 'happy' | 'meh' | 'awkward' | 'idle'; me?: boolean }): ReactNode {
+  const mouth = mood === 'happy' ? 'M84 128 Q100 144 116 128' : mood === 'awkward' ? 'M86 136 Q100 128 114 136' : 'M88 132 L112 132';
+  if (me) {
+    return (
+      <svg viewBox="0 0 200 320" className="pt-svg">
+        <path d="M86 40 Q80 6 92 2 Q98 20 96 40Z" fill="#3fae49" /><path d="M98 38 Q100 0 108 0 Q112 20 104 40Z" fill="#2f7fd6" /><path d="M108 40 Q120 10 128 12 Q124 30 112 44Z" fill="#f2c230" />
+        <rect x="58" y="190" width="84" height="80" rx="18" fill="#22a556" stroke="#2a1d18" strokeWidth="5" />
+        <circle cx="100" cy="225" r="13" fill="#f6f4ee" />
+        <rect x="62" y="262" width="76" height="30" rx="10" fill="#1f1f24" stroke="#2a1d18" strokeWidth="5" />
+        <rect x="70" y="288" width="24" height="30" rx="10" fill="#f2f0ea" stroke="#2a1d18" strokeWidth="5" /><rect x="106" y="288" width="24" height="30" rx="10" fill="#f2f0ea" stroke="#2a1d18" strokeWidth="5" />
+        <circle cx="100" cy="110" r="72" fill="#f4f2ec" stroke="#2a1d18" strokeWidth="6" />
+        <ellipse cx="78" cy="104" rx="10" ry="13" fill="#2a120c" /><ellipse cx="122" cy="104" rx="10" ry="13" fill="#2a120c" />
+        <ellipse cx="64" cy="128" rx="10" ry="6" fill="#f4a9a9" /><ellipse cx="136" cy="128" rx="10" ry="6" fill="#f4a9a9" />
+        <path d={mouth} stroke="#2a1d18" strokeWidth="5" fill="none" strokeLinecap="round" transform="translate(0 4)" />
+      </svg>
+    );
+  }
+  const L = look!;
+  return (
+    <svg viewBox="0 0 200 320" className="pt-svg">
+      {long && <path d="M42 96 Q40 220 70 232 L130 232 Q160 220 158 96Z" fill={hex(L.hair)} />}
+      <rect x="62" y="178" width="76" height="100" rx="20" fill={hex(L.shirt)} stroke="#2a1d18" strokeWidth="5" />
+      <rect x="66" y="270" width="68" height="46" rx="10" fill={hex(L.pants)} stroke="#2a1d18" strokeWidth="5" />
+      <rect x="88" y="160" width="24" height="24" fill="#f1c9a5" stroke="#2a1d18" strokeWidth="4" />
+      <circle cx="100" cy="108" r="60" fill="#f1c9a5" stroke="#2a1d18" strokeWidth="5" />
+      <path d={long ? 'M40 104 Q42 40 100 38 Q160 40 160 104 Q140 70 100 66 Q60 70 40 104Z' : 'M42 100 Q44 40 100 40 Q156 40 158 100 Q132 64 100 64 Q66 64 42 100Z'} fill={hex(L.hair)} stroke="#2a1d18" strokeWidth="5" />
+      <ellipse cx="80" cy="110" rx="7" ry="9" fill="#2a120c" /><ellipse cx="120" cy="110" rx="7" ry="9" fill="#2a120c" />
+      {mood === 'happy' && <><ellipse cx="68" cy="128" rx="9" ry="5" fill="#f19a9a" /><ellipse cx="132" cy="128" rx="9" ry="5" fill="#f19a9a" /></>}
+      {mood === 'awkward' && <path d="M142 84 q6 12 0 18 q-6 -6 0 -18Z" fill="#7cc4ff" />}
+      <path d={mouth} stroke="#2a1d18" strokeWidth="4" fill="none" strokeLinecap="round" />
+    </svg>
+  );
+}
 
 /**
- * 聯誼: chat with three people, two questions each. Every answer moves that person's 好感度;
- * silence (the timer runs out) is awkward and costs too. Hearts float up or break, the card glows
- * or shakes. The night is a success for everyone at 60 or more.
+ * 聯誼, one on one (VN style): the person large on the left, you on the right, the dialogue box along
+ * the bottom with the four answers in two columns. Six turns; 好感度 and the reaction float over the
+ * portrait. 60 or more by the end and you swap LINE (the runtime adds the contact to the phone).
  */
-function Mixer(): ReactNode {
+function Mixer({ who }: { who: number }): ReactNode {
   const api = useApi();
-  const [aff, setAff] = useState<number[]>(() => MIXER.map(() => MIXER_START));
-  const [turn, setTurn] = useState(0); // person * 2 + question
-  const [reply, setReply] = useState<{ text: string; delta: number } | null>(null);
+  const m = MIXER[who]!;
+  const [aff, setAff] = useState(MIXER_START);
+  const [turn, setTurn] = useState(0);
+  const [reply, setReply] = useState<{ text: string; delta: number; mood: 'happy' | 'meh' | 'awkward' } | null>(null);
   const [left, setLeft] = useState(MIXER_TIME);
   const [fx, setFx] = useState(0);
-  const total = MIXER.length * 2;
-  const pi = Math.floor(turn / 2), m = MIXER[pi], q = m?.qs[turn % 2];
-  const options = useMemo(() => (q ? shuffled(q.options) : []), [q]);
-  const answer = (delta: number, text: string): void => {
-    setAff((a) => a.map((v, i) => (i === pi ? Math.max(0, Math.min(100, v + delta)) : v)));
-    setReply({ text, delta });
+  const affRef = useRef(aff);
+  affRef.current = aff;
+  const total = m.turns.length;
+  const t = m.turns[turn];
+  const options = useMemo(() => (t ? shuffled(t.options) : []), [t]);
+  const answer = (o: MixerOpt | null): void => {
+    let delta = -8, text = '（你沉默太久，氣氛有點冷…）', mood: 'happy' | 'meh' | 'awkward' = 'awkward';
+    if (o) {
+      const failed = o.need !== undefined && affRef.current < o.need;
+      delta = failed ? o.fail!.delta : o.delta;
+      text = failed ? o.fail!.reply : o.reply;
+      mood = failed ? 'awkward' : o.mood ?? (delta > 0 ? 'happy' : 'meh');
+    }
+    setAff((a) => Math.max(0, Math.min(100, a + delta)));
+    setReply({ text, delta, mood });
     setFx((n) => n + 1);
-    if (delta >= 0) api.click(); else actions.toast(delta <= -15 ? '💔 好感度大跌！' : '💧 有點尷尬…');
+    if (delta > 0) api.click();
   };
   useEffect(() => {
     if (reply || turn >= total) return;
     setLeft(MIXER_TIME);
-    const t = window.setInterval(() => setLeft((l) => {
-      if (l <= 0.1) { window.clearInterval(t); answer(-10, '（你沉默太久，氣氛有點冷…）'); return 0; }
+    const iv = window.setInterval(() => setLeft((l) => {
+      if (l <= 0.1) { window.clearInterval(iv); answer(null); return 0; }
       return l - 0.1;
     }), 100);
-    return () => window.clearInterval(t);
+    return () => window.clearInterval(iv);
   }, [turn, reply]); // eslint-disable-line react-hooks/exhaustive-deps
-  const next = (): void => {
-    api.click();
-    setReply(null);
-    setTurn((t) => t + 1);
+  const next = (): void => { api.click(); setReply(null); setTurn((n) => n + 1); };
+  const keyRef = useRef<(e: KeyboardEvent) => void>(() => undefined);
+  keyRef.current = (e) => {
+    if (e.repeat) return;
+    const n = Number(e.code.replace(/^(Digit|Numpad)/, ''));
+    if (!reply && turn < total && n >= 1 && n <= options.length) answer(options[n - 1]!);
+    else if (reply && (e.code === 'Space' || e.code === 'Enter')) { e.preventDefault(); next(); }
   };
-  const bars = (
-    <div className="mixer-people">
-      {MIXER.map((p, i) => (
-        <div key={p.who} className={`mixer-person${i === pi && turn < total ? ' now' : ''}${aff[i]! >= MIXER_GOAL ? ' good' : ''}`}>
-          <i><Rich t={p.look} /></i>
-          <b>{p.who.split('（')[0]}</b>
-          <span className="aff"><em style={{ width: `${aff[i]}%` }} /><s style={{ left: `${MIXER_GOAL}%` }} /></span>
-          <small><Icon name="heart" /> {aff[i]}</small>
-        </div>
-      ))}
-    </div>
-  );
-  if (turn >= total || !m || !q) {
-    const won = aff.filter((v) => v >= MIXER_GOAL).length;
-    return (
-      <div className="mixer">
-        <div className="speaker">聯誼結束</div>
-        {bars}
-        <p className="story-text">{won === MIXER.length ? '大成功！三個人都想跟你交換 IG' : won > 0 ? `和 ${won} 個人聊得不錯，交換了聯絡方式！` : '今晚好像沒什麼火花…下次再加油。'}</p>
-        <button className="btn primary" onClick={() => storyEvents.finishScene({ kind: 'mixer', score: won })}>回宿舍</button>
-      </div>
-    );
-  }
+  useEffect(() => {
+    const k = (e: KeyboardEvent): void => keyRef.current(e);
+    window.addEventListener('keydown', k);
+    return () => window.removeEventListener('keydown', k);
+  }, []);
+  const done = turn >= total || !t;
+  const matched = aff >= MIXER_GOAL;
+  const mood = done ? (matched ? 'happy' : 'meh') : reply ? reply.mood : 'idle';
+  const line = done
+    ? matched ? `今天跟你聊得很開心！${m.name === '阿哲' ? '' : '😊'} 我們加個 LINE 吧！` : aff >= 45 ? '那…今天就先這樣囉，掰掰～' : '嗯…我先去找朋友了。'
+    : reply ? reply.text : t.say;
   return (
-    <div className={`mixer${reply ? (reply.delta >= 0 ? ' glow' : ' shake') : ''}`} key={fx}>
-      <div className="speaker">聯誼・{m.who}　<small>第 {turn + 1}/{total} 題</small></div>
-      {bars}
-      {reply ? (
-        <>
-          <div className={`mixer-float ${reply.delta >= 0 ? 'up' : 'down'}`}>{reply.delta >= 0 ? <>+{reply.delta} <Icon name="heart" /></> : <>{reply.delta} <Icon name="heartBreak" /></>}</div>
-          <p className="story-text">{m.who.split('（')[0]}：「<Rich t={reply.text} />」</p>
-          <button className="btn primary" onClick={next}>{turn + 1 < total ? (turn % 2 === 1 ? '換下一位聊天 ▸' : '繼續聊 ▸') : '看看結果'}</button>
-        </>
-      ) : (
-        <>
-          <p className="story-text">「{q.ask}」</p>
-          <div className="mixer-timer"><i style={{ width: `${(left / MIXER_TIME) * 100}%` }} /></div>
-          <div className="quiz-options">{options.map((o) => <button key={o.text} className="btn" onClick={() => answer(o.delta, o.reply)}>{o.text}</button>)}</div>
-        </>
-      )}
+    <div className="mx-scene" key={who}>
+      <div className="vn-shade" />
+      <div className={`mx-pt them mood-${mood}${reply ? (reply.delta >= 0 ? ' glow' : ' shake') : ''}`} key={`p${fx}`}>
+        <Portrait look={m.look} long={m.long} mood={mood} />
+        {reply && <div className={`mixer-float ${reply.delta >= 0 ? 'up' : 'down'}`}>{reply.delta >= 0 ? <>+{reply.delta} <Icon name="heart" /></> : <>{reply.delta} <Icon name="heartBreak" /></>}</div>}
+      </div>
+      <div className="mx-pt me"><Portrait mood={done ? (matched ? 'happy' : 'meh') : 'idle'} me /></div>
+      <div className="mx-top">
+        <span className="mx-tag">聯誼・一對一</span>
+        <span className="mx-turn">{done ? '結束' : `${turn + 1} / ${total}`}</span>
+        <span className={`mx-aff${matched ? ' good' : ''}`}><Icon name="heart" /> 好感度 <b>{aff}</b><i><em style={{ width: `${aff}%` }} /><s style={{ left: `${MIXER_GOAL}%` }} /></i></span>
+      </div>
+      <div className="mx-box">
+        <div className="vn-name">{m.name}<small>{m.dept}</small></div>
+        <p className="mx-line">「<Rich t={line} />」</p>
+        {done ? (
+          <div className="mx-end">
+            <p>{matched ? `📱 和${m.name}交換了 LINE！之後可以在手機的聊天室找${m.name}聊天。` : `好感度 ${aff}，還差一點點才聊得來（${MIXER_GOAL}）。`}</p>
+            <button className="btn primary" onClick={() => storyEvents.finishScene({ kind: 'mixer', who, aff })}>結束聊天</button>
+          </div>
+        ) : reply ? (
+          <div className="mx-end"><button className="btn primary" onClick={next}>{turn + 1 < total ? '繼續聊 ▸' : '看看結果 ▸'}</button></div>
+        ) : (
+          <>
+            <div className="mixer-timer"><i style={{ width: `${(left / MIXER_TIME) * 100}%` }} /></div>
+            <div className="mx-opts">{options.map((o, i) => <button key={o.text} className="mx-opt" onClick={() => answer(o)}><kbd>{i + 1}</kbd><Rich t={o.text} /></button>)}</div>
+          </>
+        )}
+      </div>
     </div>
   );
 }

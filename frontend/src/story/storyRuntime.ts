@@ -7,7 +7,7 @@ import { actions, gameStore } from '../state/store';
 import { achievementById, sideById, storyActions, storyStore, type StoryProgress, type StoryScene } from '../state/story';
 import {
   ABSENT_FINE, ACTIVITY, LECTURE, RACE_ROUTE, TUTORIAL, CAFETERIA, DAYS, DIALOGS, DORM, FRIEND, PHOTO_SPOTS, ROOMMATE, STALL_IDS, TOUR_FACTS, TOUR_STOPS,
-  type SceneId, type SportKind, type Step, WAKE_VN, TUTORIAL_DONE_VN, BIKE_VN, type VnLine, MY_ROOM, PROFESSOR, COURSE, ROOMMATE2, LUNCH_EACH, MYSTERY, PROMO_LINES } from './storyData';
+  type SceneId, type SportKind, type Step, WAKE_VN, TUTORIAL_DONE_VN, BIKE_VN, type VnLine, MY_ROOM, PROFESSOR, COURSE, ROOMMATE2, LUNCH_EACH, MYSTERY, PROMO_LINES, MIXER, MIXER_GOAL } from './storyData';
 import { createCritters, type CritterSpec } from './critters';
 import { CONTACTS, TOPICS, resolveAnswer, type ChatCtx, type ChatOption } from './chatData';
 import { createBeacons, type Beacon } from './beacons';
@@ -96,7 +96,7 @@ export type SceneResult =
   | { kind: 'dialog' }
   | { kind: 'rollcall'; ok: boolean }
   | { kind: 'quiz'; score: number; cheated: boolean; caught: boolean }
-  | { kind: 'mixer'; score: number }
+  | { kind: 'mixer'; who: number; aff: number }
   | { kind: 'wake'; ok: boolean }
   | { kind: 'clubFair' }
   | { kind: 'summary' }
@@ -620,9 +620,9 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
     if (scene === 'assembly') add('principal', '校長', insidePoint('國際會議廳'), LOOKS.principal, true);
     if (scene === 'mixer') {
       const c = d.placeOf('聯誼廣場'); // 使用者：聯誼移到活動中心和表演廳中間（36 週年校慶布條下）
-      add('mx1', '小美（設計系）', near(c, -2, 2), { shirt: 0xf48fb1, pants: 0x9a8a6c, hair: 0x3d2b20 }, true);
-      add('mx2', '阿哲（資工系）', near(c, 0, 3), { shirt: 0x37474f, pants: 0x2d3a5c, hair: 0x151515 }, true);
-      add('mx3', '小安（企管系）', near(c, 2, 2), { shirt: 0xf2c230, pants: 0x2d3a5c, hair: 0x2b211b }, true);
+      const done = prog().flags.mixerAff ?? {};
+      // Spread out so you walk up to one at a time (使用者：一對一，不要一次對三個人).
+      MIXER.forEach((m, i) => add(m.key, m.who, near(c, (i - 1) * 4.5, i === 1 ? 3 : 1), m.look, done[m.key] === undefined));
     }
     if (scene === 'clubFair') {
       const c = insidePoint(ACTIVITY);
@@ -683,9 +683,21 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
   const TALK_R = 2.6;
   let lastNpcs: NpcSpec[] = [];
   const npcsFor = (scene: SceneId): NpcSpec[] => lastNpcs.filter((n) => SCENE_NPCS[scene]?.includes(n.key));
+  /** 聯誼: the person you are standing next to (index into MIXER), if you have not talked yet. */
+  const mixerPartner = (f: StoryFrame | null = lastFrame): number | null => {
+    if (!f) return null;
+    const done = prog().flags.mixerAff ?? {};
+    let best: number | null = null, bd = TALK_R;
+    for (const n of npcsFor('mixer')) {
+      const i = MIXER.findIndex((m) => m.key === n.key), dd = Math.hypot(n.x - f.x, n.z - f.z);
+      if (i >= 0 && done[n.key] === undefined && dd < bd) { best = i; bd = dd; }
+    }
+    return best;
+  };
   /** Whether you are close enough to start `scene` (always, for scenes without a character). */
   const closeTo = (scene: SceneId, f: StoryFrame): boolean => {
     if (!SCENE_NPCS[scene]) return true;
+    if (scene === 'mixer') return mixerPartner(f) !== null;
     return npcsFor(scene).some((n) => Math.hypot(n.x - f.x, n.z - f.z) < TALK_R);
   };
   /** Where the step happens: the character to talk to if there is one, else the place. */
@@ -796,7 +808,11 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
     if (id === 'lunch') return open({ kind: 'lunch' });
     if (id === 'drums') return open({ kind: 'drums' });
     if (id === 'rollcall') return; // opened by the class flow
-    if (id === 'mixer') return open({ kind: 'mixer' });
+    if (id === 'mixer') {
+      const who = mixerPartner();
+      if (who === null) { pendingScene = null; return; }
+      return open({ kind: 'mixer', who });
+    }
     if (id === 'assembly') return open({ kind: 'wake' });
     if (id === 'clubFair') return open({ kind: 'clubFair' });
     if (id === 'summary') return open({ kind: 'summary' });
@@ -903,11 +919,24 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
       case 'wardrobe':
         if (step?.cond.t === 'outfit') { advance(); toast('😎 帥！出發去聯誼'); }
         return;
-      case 'mixer':
-        setFlags({ mixer: r.score });
-        if (r.score >= 3) unlock('mixerStar');
+      case 'mixer': {
+        const m = MIXER[r.who]!;
+        const aff = { ...(prog().flags.mixerAff ?? {}), [m.key]: r.aff };
+        const friends = prog().flags.friends ?? [];
+        const matched = r.aff >= MIXER_GOAL;
+        setFlags({ mixerAff: aff, ...(matched && !friends.includes(m.name) ? { friends: [...friends, m.name] } : {}) });
+        if (matched) {
+          window.setTimeout(() => { storyActions.message(m.name, m.added); d.sound('open'); }, 1500);
+          toast(`📱 和${m.name}交換了 LINE！之後可以在手機聊天室找${m.name}聊天`);
+        }
+        const left = MIXER.filter((x) => aff[x.key] === undefined).length;
+        if (left) { toast(`還有 ${left} 位可以聊聊`); return; }
+        const won = MIXER.filter((x) => (aff[x.key] ?? 0) >= MIXER_GOAL).length;
+        setFlags({ mixer: won });
+        if (won >= MIXER.length) unlock('mixerStar');
         advance();
         return;
+      }
       case 'wake':
         advance();
         toast(r.ok ? '撐過週會了，好險沒睡著' : '還是睡著了…被教官叫醒');
@@ -1499,6 +1528,7 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
     const step = on() ? currentStep() : null;
     if (lostFoundReady(f)) return '按 E 把撿到的學生證交出去';
     if (step && inPlace(f, step.place)) {
+      if (step.cond.t === 'talk' && step.cond.scene === 'mixer' && closeTo('mixer', f)) return `按 E 和${MIXER[mixerPartner(f)!]!.name}一對一聊天`;
       if (step.cond.t === 'talk' && closeTo(step.cond.scene, f)) return step.cond.prompt;
 
       if (step.cond.t === 'quiz') return step.room && d.roomAt(f.x, f.y, f.z) !== step.room ? `考場在 ${step.room}，進教室再按 E` : '按 E 入座開始小考';
