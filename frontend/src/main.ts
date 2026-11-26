@@ -276,7 +276,7 @@ async function boot(): Promise<void> {
       const [ax, az] = b.planToWorld(o.a[0], o.a[1]), [bx, bz] = b.planToWorld(o.b[0], o.b[1]);
       const len = Math.hypot(bx - ax, bz - az);
       if (len < 0.8) continue;
-      doorSpecs.push({ x: (ax + bx) / 2, z: (az + bz) / 2, ux: (bx - ax) / len, uz: (bz - az) / len, width: len, height: 2.35, ...(level.elevation ? { baseY: level.elevation } : {}), ...(o.frame === 'dark' ? { dark: true } : {}) });
+      doorSpecs.push({ x: (ax + bx) / 2, z: (az + bz) / 2, ux: (bx - ax) / len, uz: (bz - az) / len, width: len, height: o.leafHeight ?? 2.35, ...(level.elevation ? { baseY: level.elevation } : {}), ...(o.frame === 'dark' ? { dark: true } : {}) });
     }
   }
   for (const b of campus.buildings) {

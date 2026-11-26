@@ -1,3 +1,4 @@
+import { bookshopExit } from './bookshopExit';
 import { bookshopFlight, rear, turn, nose, axisZ, radius, stairLevels } from './bookshopStair';
 import { CylinderGeometry, ExtrudeGeometry, DoubleSide, BoxGeometry, CanvasTexture, Color, Group, InstancedMesh, Mesh, MeshStandardMaterial, Object3D, PlaneGeometry, Shape, ShapeGeometry, RepeatWrapping, SRGBColorSpace, Vector3, type Scene } from 'three';
 import type { ResourceTracker } from '../core/resources';
@@ -201,13 +202,41 @@ export function addActivityAtrium(scene: Scene, tracker: ResourceTracker) {
   speaker.rotation.z=Math.PI/2;speaker.position.set(-22.52,floorY+1.98,6.52);root.add(speaker);
   for(let i=-2;i<=2;i++) block(-22.55,floorY+1.98+i*.034,6.52,.012,.011,.18-Math.abs(i)*.022,0x424745);
   // Waist-high wall finish, casework and lit lintel in the bookstore exit passage.
-  for(const x of [-28.975,-26.025]){
+  for(const x of [-28.975,-23.14]){
     block(x,1.13,24.5,.05,1.04,10.96,0xa09e93);
     block(x,2.17,24.5,.055,.045,10.96,0x786f65);
   }
-  block(-26.035,2.20,27.0,.07,.97,2.75,0x987e60);
+  block(-23.18,2.20,27.0,.07,.97,2.75,0x987e60);
   block(-28.955,2.38,27.85,.09,.76,1.26,0x9a815f);
-  block(-27.5,3.49,29.90,.48,.092,.065,0x83d896);
+  const exit=bookshopExit, frame=0x2e3030;
+  const glass=new MeshStandardMaterial({color:0x728282,transparent:true,opacity:.5,roughness:.28,side:DoubleSide});
+  const fixedPane=(x:number,y:number,w:number,h:number)=>{
+    const mesh=new Mesh(new PlaneGeometry(w,h),glass);
+    mesh.position.set(x,floorY+y,exit.z+.08);root.add(mesh);
+  };
+  const sideWidth=(exit.width-exit.slidingWidth)/2;
+  for(const side of [-1,1]){
+    const cx=exit.x+side*(exit.slidingWidth+sideWidth)/2;
+    fixedPane(cx,exit.slidingHeight/2,sideWidth,exit.slidingHeight);
+    block(cx,floorY+1.04,exit.z+.055,sideWidth,.075,.018,0xb2bfbc);
+    for(const offset of [exit.width/2,exit.slidingWidth/2])
+      block(exit.x+side*offset,floorY,exit.z+.08,.055,exit.glazingHeight,.075,frame);
+  }
+  const transom=exit.glazingHeight-exit.slidingHeight;
+  fixedPane(exit.x,exit.slidingHeight+transom/2,exit.width,transom);
+  for(const h of [0,exit.slidingHeight,exit.glazingHeight])
+    block(exit.x,floorY+h,exit.z+.08,exit.width,.045,.075,frame);
+  for(const dx of [-.94,0,.94]) block(exit.x+dx,floorY+exit.slidingHeight,exit.z+.08,.04,transom,.065,frame);
+  block(exit.x,3.41,29.94,.45,.12,.075,0x90e7b0);
+  const paving=texture(256,512,c=>{
+    c.fillStyle='#a59887';c.fillRect(0,0,256,512);
+    for(let j=0;j<16;j++) for(let i=0;i<8;i++){
+      c.fillStyle=j===5?'#70847f':(i+3*j)%7===0?'#b99680':'#cebcab';
+      c.fillRect(i*32+1,j*32+1,31,31);
+    }
+  });
+  const exitFloor=new Mesh(new PlaneGeometry(5.92,10.98),new MeshStandardMaterial({map:paving,roughness:.8}));
+  exitFloor.position.set(exit.x,1.211,24.5);exitFloor.rotation.x=-Math.PI/2;root.add(exitFloor);
   // The half landings and their parapets continue around the turn as single curved faces.
   const curvedSlab=(shape:Shape, bottom:number, thickness:number, color:number)=>{
     const geometry=new ExtrudeGeometry(shape,{depth:thickness,bevelEnabled:false,curveSegments:24});
@@ -300,7 +329,7 @@ export function addActivityAtrium(scene: Scene, tracker: ResourceTracker) {
     c.fillStyle='#d2cfbe';c.fillRect(0,0,384,128);c.fillStyle='#475069';
     c.textAlign='center';c.font='42px serif';c.fillText('雲林科技大學',192,81);
   }));
-  panel(2.62,.85,-26.08,2.685,27,-Math.PI/2,texture(640,208,c=>{
+  panel(2.62,.85,-23.23,2.685,27,-Math.PI/2,texture(640,208,c=>{
     c.fillStyle='#47716b';c.fillRect(0,0,640,208);
     c.fillStyle='#e6dfc9';c.fillRect(34,136,58,65);
     c.fillStyle='#ab9b6d';c.fillRect(58,134,12,6);
@@ -313,6 +342,10 @@ export function addActivityAtrium(scene: Scene, tracker: ResourceTracker) {
       for(let x=12;x<=372;x+=12)c.lineTo(x,ridge+13*Math.sin(x/42+ridge)+8*Math.cos(x/24));
       c.lineTo(372,204);c.fill();
     }
+  }));
+  panel(.56,.13,exit.x,floorY+exit.slidingHeight+.04,29.945,Math.PI,texture(320,80,c=>{
+    c.fillStyle='#38383d';c.fillRect(0,0,320,80);c.fillStyle='#f2eee1';
+    c.textAlign='center';c.font='bold 51px sans-serif';c.fillText('A10出口',160,60);
   }));
   // Display glazing beside the corridor mouth, facing the landing.
   panel(5.6,1.18,-1.12,2.28,12.9,Math.PI/2,texture(512,128,c=>{

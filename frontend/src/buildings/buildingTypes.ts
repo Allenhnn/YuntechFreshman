@@ -54,6 +54,8 @@ export interface Opening {
   frame?: 'dark';
   /** Sensor-operated exit on a raised entrance level. */
   automatic?: boolean;
+  /** Moving leaf height beneath a fixed transom. */
+  leafHeight?: number;
 }
 
 export interface Sign {

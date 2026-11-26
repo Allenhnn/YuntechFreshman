@@ -5,6 +5,7 @@ import { writeFileSync } from 'node:fs';
 import { boundarySegments, rasterize } from '../src/buildings/floorGrid';
 import type { BuildingSource, FloorPlan, Rect, Space, Vec2 } from '../src/buildings/buildingTypes';
 
+import { bookshopExit } from '../src/buildings/bookshopExit';
 import { bookshopFlight, rear, turn, nose, axisZ, radius, stairLevels } from '../src/buildings/bookshopStair';
 const levels = [['B1',stairLevels[0]],['1F',stairLevels[1]],['2F',stairLevels[2]],['3F',stairLevels[3]]] as const;
 const bookshopWell: Rect = [-26,10,0,15.6];
@@ -147,12 +148,18 @@ for(const [index,[id,base]] of levels.entries()) {
   space('樓梯後方橫廊','corridor',[[-29,3,-26,23]],{group:'hall'});
   if(id==='1F') {
     // The rear wall turns the bookstore aisle into a single straight exit passage.
-    space('書城出口走廊','corridor',[[-29,19,-26,30]],{group:'hall'});
+    space('書城出口走廊','corridor',[[-29,19,-23,24.5],[-29,24.5,-23,30]],{group:'hall'});
     concreteBox(-29.1,16.5,0,.2,height,27);
-    concreteBox(-25.91,24.5,0,.18,height,11);
+    // Room 131 already provides the left-hand wall up to z=28.
+    concreteBox(-22.91,29,0,.18,height,2);
+    const {x,z,width,slidingWidth}=bookshopExit;
+    const sideWidth=(width-slidingWidth)/2;
+    for(const side of [-1,1]) extras.colliders.push({
+      c:[x+side*(slidingWidth+sideWidth)/2,1.2,z+.06],h:[sideWidth/2,1.2,.04]
+    });
     // Level threshold and descending exterior steps to campus grade.
-    concreteBox(-27.5,30.56,-base,3,base,1.12);
-    for(let i=0;i<7;i++) concreteBox(-27.5,31.12+(i+.5)*.34,-base,3,base*(7-i)/8,.34);
+    concreteBox(-26,30.56,-base,6,base,1.12);
+    for(let i=0;i<7;i++) concreteBox(-26,31.12+(i+.5)*.34,-base,6,base*(7-i)/8,.34);
     // The restroom foyer is the blind end of the gallery behind the stairs.
     space('洗手間前廊','corridor',[[-29,4,-22.2,6.7]],{group:'hall'});
     space('男廁','toilet',[[-29,1,-26.8,4]]);
@@ -250,7 +257,10 @@ for(const [index,[id,base]] of levels.entries()) {
   // Upper bridge edges remain open to both wings. At ground level the court
   // itself is the exterior platform, entered at the mouths of both corridors.
   if(id==='1F') {
-    f.openings.push({kind:'exit',a:[-28.48,30],b:[-26.52,30],label:'書城出口',frame:'dark',automatic:true});
+    const {x,z,width,slidingWidth,slidingHeight}=bookshopExit;
+    f.openings.push({kind:'exit',a:[x-slidingWidth/2,z],b:[x+slidingWidth/2,z],label:'A10出口',frame:'dark',automatic:true,leafHeight:slidingHeight});
+    for(const side of [-1,1]) open('h',z,x+side*(width+slidingWidth)/4,(width-slidingWidth)/2,'open','');
+
     open('h',4,-28.2,1.05,'door','男廁');
     open('h',4,-25.35,1.18,'door','無障礙廁所');
     open('h',4,-23.2,1.05,'door','女廁');
