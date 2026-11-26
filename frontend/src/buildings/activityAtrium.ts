@@ -73,6 +73,31 @@ export function addActivityAtrium(scene: Scene, tracker: ResourceTracker) {
   // the well side of the counter, copier and glass display case.
   const block=(x:number,y:number,z:number,w:number,h:number,d:number,color:number)=>
     member([x,y,z],[x,y+h,z],w,d,color);
+  // The lower plaza follows the pond-facing setbacks of the two building wings.
+  const courtOutline=[[-32,-17.5],[56,-17.5],[56,-8],[40,-8],[40,0],[36,0],
+    [36,2],[0,2],[0,-5],[-5,-5],[-5,-10],[-16,-10],[-16,-15],[-32,-15]] as const;
+  const courtShape=new Shape();
+  courtOutline.forEach(([x,z],i)=>{if(i===0) courtShape.moveTo(x,-z);else courtShape.lineTo(x,-z);});
+  courtShape.closePath();
+  const brick=texture(256,128,c=>{
+    c.fillStyle='#866e61';c.fillRect(0,0,256,128);
+    for(let j=0;j<8;j++) for(let i=-1;i<8;i++){
+      c.fillStyle=['#ad8070','#a77c69','#ae8570','#a37d6b'][(i+8+3*j)%4]!;
+      c.fillRect(i*32+(j%2)*16+1,j*16+1,31,15);
+    }
+  });
+  brick.wrapS=brick.wrapT=RepeatWrapping;brick.repeat.set(.36,.72);
+  const plaza=new Mesh(new ShapeGeometry(courtShape),new MeshStandardMaterial({map:brick,roughness:.94}));
+  plaza.rotation.x=-Math.PI/2;plaza.position.y=stairLevels[0]+.086;plaza.receiveShadow=true;root.add(plaza);
+  for(const [left,right] of [[1.25,6.75],[7.25,12.75],[21.25,26.75],[27.25,33.75]]){
+    const mid=(left+right)/2,width=right-left;
+    block(mid,-2.39,1.84,width,.53,.17,0xa79d90);
+    block(mid,-1.86,1.84,width,1.99,.09,0x576667);
+    for(let j=0;j<=4;j++) block(left+j*width/4,-1.86,1.77,.055,2,.06,0x423f39);
+    block(mid,-.41,1.77,width,.06,.08,0x423f39);
+    block(mid,.13,1.84,width,.99,.17,0xa79d90);
+  }
+  for(const x of [5,11,17,24,31]) block(x,1.02,1.22,.58,.055,.33,0xffe8c3);
   for(let x=-17;x<=-2;x+=.28) block(x,1.26,18.89,.09,2.14,.09,0x97754f);
   block(-9.5,3.36,18.76,15.2,.07,.20,0xffe2ae);
   block(-4,1.13,18.45,2.8,.92,.78,0xbfa982);

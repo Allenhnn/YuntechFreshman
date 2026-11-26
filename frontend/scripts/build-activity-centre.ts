@@ -9,12 +9,14 @@ import { bookshopExit } from '../src/buildings/bookshopExit';
 import { bookshopFlight, rear, turn, nose, axisZ, radius, stairLevels } from '../src/buildings/bookshopStair';
 const levels = [['B1',stairLevels[0]],['1F',stairLevels[1]],['2F',stairLevels[2]],['3F',stairLevels[3]]] as const;
 const bookshopWell: Rect = [-26,10,0,15.6];
+// Pond-side grade cut, ending inland of the curved stone bank of Yunmeng Lake.
+const pondCourt:Rect=[-32,-17.5,56,2];
 const source: BuildingSource = {
   id:'activity-centre', name:'學生活動中心暨表演廳', osmReplaces:['學生活動中心','表演廳'],
   transform:{angleDeg:Math.atan2(6.28,-35.17)*180/Math.PI,planCentroid:[0,0],worldCentroid:[128.18,168.83]},
   floorHeight:3.6, levels:levels.map(([id,elevation])=>({id,elevation,built:true})),
   floors:{},shell:{},directory:[],undergroundLevel:'B1',style:{clerestory:false,windows:true},
-  groundOpenings:[[-29,6,0,19],[50,9,58,13],[7,-8,28,1.9]],
+  groundOpenings:[[-29,6,0,19],[50,9,58,13],pondCourt],
 };
 for(const [index,[id,base]] of levels.entries()) {
   const height=(levels[index+1]?.[1]??10.8)-base;
@@ -27,10 +29,12 @@ for(const [index,[id,base]] of levels.entries()) {
   // On 1F the bookshop facade continues the inside face of the plaza stair wall.
   const wingEdge=id==='1F'?-1.3:0;
   const east:Rect[]=[[-59,-5,wingEdge,25],[-55,-10,-5,-5],[-40,-15,-16,-10],[-58,25,-6,30]];
+  // Lay out the open court first so enclosed rooms and wings keep their footprint.
+  if(id==='B1') space('湖側下沉廣場','lobby',[pondCourt],{group:'hall',noCeiling:true});
   if(id==='3F') {
     space('三樓連廊','corridor',[[-33,3,0,27],[36,2,68,26]],{group:'hall'});
   } else space('兩翼走廊','corridor',[...west,...east],{group:'hall'});
-  if(id==='B1') space('地下一樓中央通廊','lobby',[[0,2,36,23],[7,-8,28,2]],{group:'hall'});
+  if(id==='B1') space('地下一樓中央通廊','lobby',[[0,2,36,23]],{group:'hall'});
   if(id==='2F'||id==='3F') {
     space('中庭前後連橋','corridor',[[0,2.5,36,5],[0,17,36,20]],{group:'hall',noCeiling:true});
   }
@@ -125,9 +129,14 @@ for(const [index,[id,base]] of levels.entries()) {
     for(let x=a+.25;x<b;x+=2) box(x,y,0,.07,.86,.07);
   }
   if(id==='B1') {
-    // Open-air pond-side court: broad terraces rise from the basement to grade.
-    space('Sunken court','lobby',[[7,-8,28,2]],{group:'hall',noCeiling:true});
-    for(let i=0;i<15;i++) box(17.5,1.75-i*.65,0,19,(i+1)*2.475/15,.65);
+    // From the shore path, descend onto the same slab as the B1 lobby.
+    const count=15,depth=.38;
+    for(let i=0;i<count;i++) box(17.5,pondCourt[1]+(i+.5)*depth,0,6.4,-base*(count-i)/count,depth);
+    // Glazed bays and structural piers below the original 1F terrace.
+    for(const x of [1,7,13,21,27,34]) box(x,1.82,0,.50,height,.5,'partition');
+    for(const [left,right] of [[1.25,6.75],[7.25,12.75],[21.25,26.75],[27.25,33.75]]){
+      extras.colliders.push({c:[(left+right)/2,height/2,1.84],h:[(right-left)/2,height/2,.09]});
+    }
   }
   if(id==='1F') {
     // Broad entrance flight at the auditorium lobby, seen from the north.
@@ -269,7 +278,7 @@ for(const [index,[id,base]] of levels.entries()) {
     open('v',wingEdge,17.4,1.8,'exit','雲院書城');
     open('v',wingEdge,8.4,1.8,'exit','翼廊');
   }
-  if(id==='B1') open('h',-8,17.5,19,'open','Courtyard');
+  if(id==='B1') open('h',pondCourt[1],17.5,6.4,'open','湖岸步道');
   if(id==='3F') open('v',36,13,1.4,'door','303');
   if(id==='2F'||id==='3F') for(const y of [2.5,5,17,20]) {
     open('h',y,18,35.8,'open','Gallery');

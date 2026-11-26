@@ -227,7 +227,7 @@ async function boot(): Promise<void> {
   remapSplitTraced(traced, campus);
   const bikeStations = placeBikeStations(campus);
   actions.setBikeStations(bikeStations);
-  const keepClear = [...buildingFootprintRings(librarySrc), ...handBuiltSrcs.flatMap(buildingFootprintRings), ...stationClearings(bikeStations), ...gateTreeExclusions(), ...SCOOTER_LOTS.map((l) => l.ring), ...(court ? [court.treeFree] : []), ...yuntayTreeFree(), ...dormTreeFree(), ...dormCFacadeTreeFree(campus), dormPit.treeFree, ...dormYardClearings(), ...PONDS.map((p) => p.ring)];
+  const keepClear = [...buildingFootprintRings(librarySrc), ...handBuiltSrcs.flatMap(buildingFootprintRings), ...handBuiltSrcs.flatMap(buildingGroundHoles), ...stationClearings(bikeStations), ...gateTreeExclusions(), ...SCOOTER_LOTS.map((l) => l.ring), ...(court ? [court.treeFree] : []), ...yuntayTreeFree(), ...dormTreeFree(), ...dormCFacadeTreeFree(campus), dormPit.treeFree, ...dormYardClearings(), ...PONDS.map((p) => p.ring)];
   campus.water = PONDS.map((p) => ({ name: p.name, ring: p.ring }));
   const env = createCampusWorld(scene, physics, renderer, campus, sceneResources, {
     treeExclusions: keepClear,
