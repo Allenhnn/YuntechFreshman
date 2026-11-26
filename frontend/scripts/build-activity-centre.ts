@@ -141,7 +141,7 @@ for(const [index,[id,base]] of levels.entries()) {
   if(id!=='B1') space('書城通高樓井','void',[[bookshopWell[0],bookshopWell[1],wingEdge,bookshopWell[3]]],
     {noCeiling:true,customEdge:true,ceiling:height+.12});
   // Retain a balcony over each shop entrance and the cross-gallery behind the stair.
-  const galleryCuts:Rect[]=[[-26,7,-11,10],[-26,15.6,-11,19],[-3,7,wingEdge,10],[-3,15.6,wingEdge,19]];
+  const galleryCuts:Rect[]=[[-26,7,-11,10],[-26,15.6,-11,19]];
   if(id==='1F') space('挑空走道','corridor',galleryCuts,{group:'hall',noCeiling:true,ceiling:height+.12});
   if(index>=2) space('走道上方挑空','void',galleryCuts,{customEdge:true,noCeiling:true,ceiling:height+.12});
   space('樓梯後方橫廊','corridor',[[-29,3,-26,23]],{group:'hall'});
@@ -188,13 +188,13 @@ for(const [index,[id,base]] of levels.entries()) {
       for(let i=0;i<n;i++) concreteBox(x0+(x1-x0)*(i+.5)/n,z0+(z1-z0)*(i+.5)/n,.73,.055,.22,.055);
     };
     for(const [edge,setback] of [[10.03,7],[15.57,19]]){
+      // Close the exposed rear lip only as far as the outer stair stringer.
+      guard(rear,edge,rear,axisZ+(edge<axisZ?-radius:radius));
       if(index===1) guard(rear,edge,wingEdge,edge);
       else {
-        guard(-11,edge,-3,edge);
+        guard(-11,edge,wingEdge,edge);
         guard(-11,edge,-11,setback);
-        guard(-3,edge,-3,setback);
         guard(rear,setback,-11,setback);
-        guard(-3,setback,wingEdge,setback);
         guard(rear,edge,rear,setback);
       }
     }

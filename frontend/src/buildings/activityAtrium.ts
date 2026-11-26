@@ -130,6 +130,10 @@ export function addActivityAtrium(scene: Scene, tracker: ResourceTracker) {
     cover.rotation.x=-Math.PI/2;cover.position.set(-13,eaves,(inner+outer)/2);root.add(cover);
     for(let x=-26;x<=0;x+=1) member([x,eaves,inner],[x,eaves,outer],.07,.07,0x6c706b);
   }
+  // Keep the upper bookstore wall visible from 1F when the third floor is culled.
+  // The inward lip overlaps the glass shoulder at z=19.
+  block(-13,7.17,19.08,26,eaves-7.17+.12,.16,0xb9b5aa);
+  block(-13,eaves-.08,19,26,.18,.26,0xa9a69b);
   for(const y of [3.6,7.2]){
     block(-13,y,6.96,26,1.20,.15,0xb9b5aa);
     block(-13,y+2.59,6.96,26,1.01,.15,0xb9b5aa);
@@ -142,7 +146,9 @@ export function addActivityAtrium(scene: Scene, tracker: ResourceTracker) {
   // Sealed glazing on the existing solid classroom wall. The panes nearest
   // Hi-Life reach the floor; the far group starts at a masonry sill.
   for(let i=0;i<8;i++){
-    const x=-23.65+i*1.38, sill=i<4 ? .65 : .055, frame=0x353a39;
+    const fullHeight=i>=4;
+    const x=-23.65+i*1.38+(fullHeight ? .72 : 0);
+    const sill=fullHeight ? .055 : .65, frame=0x353a39;
     for(const [bottom,top] of [[sill,1.84],[1.98,2.37]]){
       block(x,1.125+bottom,6.803,1.34,top-bottom,.056,frame);
       block(x,1.125+bottom+.04,6.842,1.24,top-bottom-.08,.022,i<4?0x84918e:0x626f70);
