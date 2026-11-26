@@ -713,7 +713,7 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
       add('roommate2', ROOMMATE2, near(t, 1.3, 0.3), { shirt: 0xf08a24, pants: 0x34495e, hair: 0x1c1a19 }, true);
     }
     if (scene === 'drums') {
-      const c = insidePoint(ACTIVITY);
+      const c = d.placeOf('聯誼廣場'); // 使用者：熱音社移到和聯誼一樣的位置（36 週年布條下的廣場）
       add('band', '🥁 熱音社', near(c, 0, 3), { shirt: 0x1f1f24, pants: 0x1f1f24, hair: 0x8a2be2 }, true);
       add('band2', '🎸 熱音社', near(c, 1.6, 3.4), { shirt: 0xd8353a, pants: 0x1f1f24, hair: 0x151515 });
     }
@@ -758,7 +758,7 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
     }
     const step = on() ? currentStep() : null;
     if (step?.cond.t === 'talk' && step.cond.scene === 'drums') {
-      const c = near(insidePoint(ACTIVITY), -1.4, 3.6);
+      const c = near(d.placeOf('聯誼廣場'), -1.4, 3.6);
       if (c) out.push({ key: 'drumkit', kind: 'drumkit', name: '', x: c.x, z: c.z, y: d.groundAt(c.x, c.z) });
     }
     return out;
