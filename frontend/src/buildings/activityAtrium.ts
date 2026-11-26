@@ -162,6 +162,44 @@ export function addActivityAtrium(scene: Scene, tracker: ResourceTracker) {
     block(x,1.69,7.044,.11,.16,.016,0xf0dcaf);
     member([x+.07,1.98,6.98],[x+.14,1.62,6.98],.026,.026,0x393d3c);
   }
+  // Restroom lobby: open side leaves, cream double service door on the return wall.
+  const floorY=1.125;
+  for(const x of [-28.2,-23.2]){
+    block(x-.48,floorY,3.46,.065,2.07,1.02,0x655044);
+    for(const h of [.55,1.10,1.65])
+      block(x-.44,floorY+h,3.46,.014,.32,.77,0xc0c2ac);
+  }
+  for(const [x0,x1] of [[-29,-28.75],[-27.65,-25.96],[-24.74,-23.75],[-22.65,-22.2]]){
+    block((x0+x1)/2,floorY,4.12,x1-x0,1.16,.036,0x999c91);
+    block((x0+x1)/2,floorY+1.16,4.12,x1-x0,.065,.042,0x767d76);
+  }
+  // Each cubicle has a basin and a toilet set back from the entry.
+  for(const x of [-28,-25.6,-23.25]){
+    block(x,floorY,1.47,.39,.36,.52,0xb9c1bd);
+    block(x,floorY+.37,1.65,.48,.09,.62,0xe1e4d9);
+    block(x,floorY+.41,1.28,.45,.38,.16,0xd1d8ce);
+    block(x+.69,floorY+.76,2.18,.42,.15,.48,0xd9dcd3);
+    block(x+.80,floorY+.91,2.18,.04,.12,.045,0x777f79);
+  }
+  for(const z of [4.41,5.06]){
+    block(-22.23,floorY,z,.06,2.12,.64,0xd2cfbe);
+    block(-22.273,floorY+1.02,z+(z<4.5 ? .25 : -.25),.046,.04,.08,0x545a56);
+  }
+  block(-22.48,floorY,6.03,.5,1.43,.5,0x5c6161);
+  block(-22.74,floorY+.92,6.03,.03,.32,.36,0x353b3d);
+  block(-22.76,floorY+1.15,6.03,.018,.105,.21,0xa5d3cf);
+  block(-22.76,floorY+.94,6.03,.04,.07,.075,0xb55a50);
+  block(-22.75,floorY+.74,6.03,.11,.045,.32,0x979e9c);
+  block(-22.35,floorY,6.52,.30,2.47,.32,0xc0beb2);
+  for(const z of [5.49,5.69]){
+    const tank=new Mesh(new CylinderGeometry(.078,.082,.34,12),new MeshStandardMaterial({color:0xb43830}));
+    tank.position.set(-22.32,floorY+.78,z);root.add(tank);
+    block(-22.32,floorY+.96,z,.06,.055,.10,0x514d43);
+    block(-22.40,floorY+.73,z,.015,.12,.09,0xe6dbb6);
+  }
+  const speaker=new Mesh(new CylinderGeometry(.135,.135,.045,24),new MeshStandardMaterial({color:0x747a76}));
+  speaker.rotation.z=Math.PI/2;speaker.position.set(-22.52,floorY+1.98,6.52);root.add(speaker);
+  for(let i=-2;i<=2;i++) block(-22.55,floorY+1.98+i*.034,6.52,.012,.011,.18-Math.abs(i)*.022,0x424745);
   // The half landings and their parapets continue around the turn as single curved faces.
   const curvedSlab=(shape:Shape, bottom:number, thickness:number, color:number)=>{
     const geometry=new ExtrudeGeometry(shape,{depth:thickness,bevelEnabled:false,curveSegments:24});
@@ -243,6 +281,16 @@ export function addActivityAtrium(scene: Scene, tracker: ResourceTracker) {
   panel(.68,.24,-11.93,2.31,6.815,0,texture(384,128,c=>{
     c.fillStyle='#a7302a';c.fillRect(0,0,384,128);c.fillStyle='#fff6db';
     c.textAlign='center';c.font='bold 81px sans-serif';c.fillText('滅火器',192,93);
+  }));
+  for(const [x,label] of [[-28.2,'男廁'],[-25.35,'♿ 無障礙廁所'],[-23.2,'女廁']] as const){
+    panel(.89,.22,x,3.43,4.14,0,texture(384,96,c=>{
+      c.fillStyle='#e3e4d8';c.fillRect(0,0,384,96);c.fillStyle='#344a4c';
+      c.textAlign='center';c.font='bold 50px sans-serif';c.fillText(label,192,65);
+    }));
+  }
+  panel(1.18,.46,-22.27,2.62,4.74,-Math.PI/2,texture(384,128,c=>{
+    c.fillStyle='#d2cfbe';c.fillRect(0,0,384,128);c.fillStyle='#475069';
+    c.textAlign='center';c.font='42px serif';c.fillText('雲林科技大學',192,81);
   }));
   // Display glazing beside the corridor mouth, facing the landing.
   panel(5.6,1.18,-1.12,2.28,12.9,Math.PI/2,texture(512,128,c=>{

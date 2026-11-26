@@ -147,6 +147,19 @@ for(const [index,[id,base]] of levels.entries()) {
   space('樓梯後方橫廊','corridor',[[-29,3,-26,23]],{group:'hall'});
   if(id==='1F') {
     concreteBox(-29.1,13,0,.2,height,20);
+    // The restroom foyer is the blind end of the gallery behind the stairs.
+    space('洗手間前廊','corridor',[[-29,4,-22.2,6.7]],{group:'hall'});
+    space('男廁','toilet',[[-29,1,-26.8,4]]);
+    space('無障礙廁所','room',[[-26.8,1,-24.4,4]]);
+    space('女廁','toilet',[[-24.4,1,-22.2,4]]);
+    concreteBox(-22.15,5.35,0,.1,height,2.7);
+    extras.colliders.push({c:[-22.48,.72,6.03],h:[.25,.72,.25]});
+    extras.colliders.push({c:[-22.35,height/2,6.52],h:[.15,height/2,.16]});
+    for(const x of [-28.2,-23.2]) extras.colliders.push({c:[x-.48,1.035,3.46],h:[.033,1.035,.51]});
+    for(const x of [-28,-25.6,-23.25]){
+      extras.colliders.push({c:[x,.34,1.61],h:[.24,.34,.35]});
+      extras.colliders.push({c:[x+.69,.83,2.18],h:[.21,.075,.24]});
+    }
     concreteBox(wingEdge-.08,12.8,0,.16,height,5.6);
     concreteBox((-2+wingEdge)/2,19,0,2+wingEdge,height,.16);
     // The shop looks across the well toward the bookshop. Keep the
@@ -212,7 +225,7 @@ for(const [index,[id,base]] of levels.entries()) {
   // room (e.g. 134/135) may instead connect through its adjoining parent.
   const grid=rasterize(f.spaces), edges=boundarySegments(grid);
   const connected=new Set(f.spaces.flatMap((s,i)=>s.kind==='corridor'||s.kind==='lobby'?[i]:[]));
-  const pending=new Set(f.spaces.flatMap((s,i)=>s.kind==='room'?[i]:[]));
+  const pending=new Set(f.spaces.flatMap((s,i)=>s.kind==='room'&&s.name!=='無障礙廁所'?[i]:[]));
   const open=(axis:string,at:number,mid:number,width:number,kind:'door'|'open'|'exit',label:string)=>{
     const pt=(t:number):Vec2=>axis==='v'?[at,t]:[t,at];
     f.openings.push({kind,a:pt(mid-width/2),b:pt(mid+width/2),label});
@@ -231,6 +244,9 @@ for(const [index,[id,base]] of levels.entries()) {
   // Upper bridge edges remain open to both wings. At ground level the court
   // itself is the exterior platform, entered at the mouths of both corridors.
   if(id==='1F') {
+    open('h',4,-28.2,1.05,'door','男廁');
+    open('h',4,-25.35,1.18,'door','無障礙廁所');
+    open('h',4,-23.2,1.05,'door','女廁');
     open('h',6.7,-7,8,'open','萊爾富');
     open('v',36,13,4,'open','中庭');
     open('v',wingEdge,17.4,1.8,'exit','雲院書城');
