@@ -19,6 +19,7 @@ import type { CampusData } from '../campus/campusTypes';
 import { GeoBuilder } from '../campus/chunkBuilder';
 import { toGeometry } from '../campus/campusWorld';
 import { actions, gameStore } from '../state/store';
+import { FX, successFx } from '../ui/fx';
 
 /**
  * The sports ground east of 司令台: pitch, running track, grandstand steps, flagpole, and the
@@ -409,6 +410,7 @@ export function createPlayground(scene: Scene, physics: RAPIER.World, campus: Ca
       if (Math.hypot(a - target.a, b - target.b) < GATE_REACH) {
         if (run.next < GATES) {
           run.next++;
+          successFx('', { color: FX.score, calm: true });
           placeGate(run.next);
           publish(run);
           return 0;
@@ -423,6 +425,7 @@ export function createPlayground(scene: Scene, physics: RAPIER.World, campus: Ca
         const best = gameStore.getState().raceBest;
         const record = best === null || t < best;
         if (record) actions.setRaceBest(t);
+        successFx(record ? '新紀錄！' : '完賽！', { color: FX.goal, big: true });
         const vs = t < RIVAL_TIME ? `🏆 贏過阿凱（${RIVAL_TIME.toFixed(1)} 秒）！` : `😣 輸給阿凱（${RIVAL_TIME.toFixed(1)} 秒）`;
         actions.toast(`${record ? `🏅 新紀錄 ${t.toFixed(2)} 秒！` : `完賽 ${t.toFixed(2)} 秒`}${vs}　NT$ +${FINISH_REWARD + (record ? RECORD_REWARD : 0)}`);
         return FINISH_REWARD + (record ? RECORD_REWARD : 0);

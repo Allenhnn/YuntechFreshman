@@ -1163,3 +1163,21 @@ svg.ico-line { vertical-align: -0.2em; flex: none; }
   .mx-opts { grid-template-columns: 1fr; }
   .mx-line { font-size: 17px; }
 }
+
+/* ---------- Success effect (ui/fx.ts) ---------- */
+.fx-layer { position: fixed; inset: 0; z-index: 2000; pointer-events: none; overflow: hidden; }
+.fx-burst { position: absolute; inset: 0; }
+.fx-flash { position: absolute; inset: 0; background: radial-gradient(ellipse at center, transparent 35%, color-mix(in srgb, var(--fx) 55%, transparent) 100%); animation: fx-flash 0.6s ease-out forwards; }
+.fx-burst.big .fx-flash { animation-duration: 0.9s; background: radial-gradient(ellipse at center, color-mix(in srgb, var(--fx) 18%, transparent) 20%, color-mix(in srgb, var(--fx) 65%, transparent) 100%); }
+.fx-word { position: absolute; left: 50%; top: 34%; transform: translate(-50%, -50%); font-size: 54px; font-weight: 900; letter-spacing: 2px; white-space: nowrap; color: var(--fx); -webkit-text-stroke: 3px #2a1d18; paint-order: stroke fill; text-shadow: 0 5px 0 #2a1d18, 0 0 24px color-mix(in srgb, var(--fx) 80%, #fff), 0 8px 18px rgba(0, 0, 0, 0.45); animation: fx-pop 1s cubic-bezier(.2, 1.6, .4, 1) forwards; }
+.fx-burst.big .fx-word { font-size: 84px; animation-duration: 1.4s; }
+.fx-burst i { position: absolute; left: 50%; top: 40%; width: 10px; height: 14px; border-radius: 2px; opacity: 0; animation: fx-confetti 0.95s ease-out forwards; }
+.fx-burst.big i { width: 12px; height: 18px; animation-duration: 1.35s; }
+@keyframes fx-flash { 0% { opacity: 0; } 15% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes fx-pop { 0% { opacity: 0; transform: translate(-50%, -50%) scale(0.3); } 18% { opacity: 1; transform: translate(-50%, -50%) scale(1.25); } 35% { transform: translate(-50%, -50%) scale(1); } 80% { opacity: 1; transform: translate(-50%, -62%) scale(1); } 100% { opacity: 0; transform: translate(-50%, -75%) scale(0.95); } }
+@keyframes fx-confetti { 0% { opacity: 1; transform: translate(-50%, -50%) rotate(0); } 100% { opacity: 0; transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy) + 120px)) rotate(var(--rot)); } }
+body.fx-shake { animation: fx-shake 0.36s ease; }
+body.fx-shake-big { animation: fx-shake-big 0.52s ease; }
+@keyframes fx-shake { 0%, 100% { transform: translate(0, 0); } 20% { transform: translate(-6px, 3px); } 40% { transform: translate(5px, -4px); } 60% { transform: translate(-4px, 2px); } 80% { transform: translate(3px, -2px); } }
+@keyframes fx-shake-big { 0%, 100% { transform: translate(0, 0) rotate(0); } 15% { transform: translate(-12px, 6px) rotate(-0.6deg); } 30% { transform: translate(10px, -8px) rotate(0.5deg); } 45% { transform: translate(-8px, 5px) rotate(-0.4deg); } 60% { transform: translate(6px, -4px) rotate(0.3deg); } 80% { transform: translate(-3px, 2px); } }
+@media (prefers-reduced-motion: reduce) { body.fx-shake, body.fx-shake-big { animation: none; } .fx-burst i { display: none; } }

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { EXAM, EXAM_POINTS, PROFESSOR, ROOMMATE, ROOMMATE2, LUNCH_EACH } from '../story/storyData';
 import { storyEvents } from '../story/storyRuntime';
 import { useApi } from './api';
+import { FX, successFx } from './fx';
 
 /**
  * Story mini-games shown in the story modal:
@@ -120,6 +121,7 @@ export function Lunch(): ReactNode {
       const safe = alive.filter((w) => t[w] === win);
       const left = alive.filter((w) => t[w] !== win);
       setMsg(`${safe.map((w) => WHO_NAME[w]).join('、')} 出${HAND_NAME[win]}贏了，安全！`);
+      if (safe.includes('me')) successFx('安全！', { color: FX.score });
       setRound((r) => r + 1);
       if (left.length === 1) {
         const p = left[0]!;
@@ -150,6 +152,7 @@ export function Lunch(): ReactNode {
       if (mine === other) { setMsg('平手！上訴庭要求再猜一次'); setPhase('appeal'); return; }
       const won = beats(mine, other);
       setAppealWon(won);
+      if (won) successFx('上訴成功！', { color: FX.goal, big: true });
       setPayer(won ? rival : 'me');
       setMsg(won ? `上訴成功！改判 ${WHO_NAME[rival]} 請客 ⚖️` : '上訴駁回……還是你請 😭');
       setPhase('done');
@@ -306,8 +309,8 @@ export function Drums(): ReactNode {
     if (!ok) { fail(pad !== n.pad ? `第 ${i + 1} 下打錯鼓了（應該是${PADS[n.pad]!.name}）` : dt < 0 ? `第 ${i + 1} 下太快了` : `第 ${i + 1} 下太慢了`); return; }
     if (list.length === pat.notes.length) {
       clear();
-      if (level >= DRUM_LEVELS) { setLevel(level + 1); setPhase('over'); setWhy('全部過關！'); }
-      else setPhase('pass');
+      if (level >= DRUM_LEVELS) { setLevel(level + 1); setPhase('over'); setWhy('全部過關！'); successFx('全部過關！', { color: FX.goal, big: true }); }
+      else { setPhase('pass'); successFx(`第 ${level} 關過關！`, { color: FX.score }); }
     }
   };
   useKeys((e) => {
@@ -433,7 +436,7 @@ export function Exam(): ReactNode {
     const s = score + (k === q.answer ? EXAM_POINTS[q.level] : 0);
     setScore(s);
     if (i + 1 < EXAM.length) { setI(i + 1); st.current.glance = null; setGlance(null); }
-    else { st.current.over = true; setEnded(true); }
+    else { st.current.over = true; setEnded(true); if (!caught && s >= 60) successFx(s >= 90 ? `${s} 分！太強了` : `${s} 分 及格！`, { color: FX.goal, big: s >= 90 }); }
   };
   const nb = neighbours[i];
   const lvl = q ? ({ easy: '簡單', mid: '適中', hard: '困難' } as const)[q.level] : '';
@@ -561,11 +564,13 @@ export function Dance(): ReactNode {
         setScore((s) => s + Math.round(100 * L.seq.length / 4 * (1 + L.combo * 0.1)));
         setPerfect((p) => p + 1);
         setJudge({ text: 'PERFECT', cls: 'perfect' });
+        successFx('PERFECT', { color: FX.perfect });
         drum(3);
       } else if (ready && off <= 0.18) {
         L.combo++;
         setScore((s) => s + Math.round(60 * L.seq.length / 4 * (1 + L.combo * 0.1)));
         setJudge({ text: 'GREAT', cls: 'great' });
+        successFx('GREAT', { color: FX.score, calm: true });
         drum(0);
       } else {
         L.combo = 0;

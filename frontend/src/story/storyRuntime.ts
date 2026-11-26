@@ -13,6 +13,7 @@ import { CONTACTS, TOPICS, resolveAnswer, type ChatCtx, type ChatOption } from '
 import { createBeacons, type Beacon } from './beacons';
 import { createNpcs, type NpcSpec } from './npcs';
 import { insidePoint as insidePointOf } from '../campus/insidePoint';
+import { FX, successFx } from '../ui/fx';
 
 /**
  * Runs the first week: checks the current step's condition against what the player does, starts
@@ -1571,6 +1572,7 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
             p.cool = 6;
             run.boost = 3.5;
             d.sound('coin');
+            successFx('加速！', { color: FX.boost, calm: true });
             toast('⚡ 加速帶！衝啊！');
           }
         }
@@ -1583,7 +1585,7 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
             b.cool = 12;
             const r = Math.random();
             const item: ItemId = r < 0.3 ? 'energyDrink' : r < 0.52 ? 'energyGel' : r < 0.72 ? 'bananaPeel' : r < 0.9 ? 'mysteryDrink' : 'heavyShoes';
-            if (actions.giveItem(item)) { d.sound('coin'); toast(`🎁 拿到${ITEMS[item].icon} ${ITEMS[item].name}！選到快捷欄按滑鼠左鍵使用`); }
+            if (actions.giveItem(item)) { d.sound('coin'); successFx(`${ITEMS[item].icon} ${ITEMS[item].name}`, { color: FX.goal, calm: true }); toast(`🎁 拿到${ITEMS[item].icon} ${ITEMS[item].name}！選到快捷欄按滑鼠左鍵使用`); }
             else toast('🎒 背包滿了，裝不下道具');
           }
         }
@@ -1621,6 +1623,7 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
             const n = run.points[run.next];
             if (n) {
               markNext(run.next);
+              successFx(`檢查點 ${run.next}/${run.points.length}`, { color: FX.score });
               toast(`🚩 ${RACE_ROUTE[run.next]?.name ?? '檢查點'}（${run.next}/${run.points.length}）`);
               d.sound('coin');
               d.navigate(n.x, n.z, RACE_ROUTE[run.next + 1]?.name ?? `檢查點 ${run.next + 1}`, true);
@@ -1632,6 +1635,7 @@ export function createStoryRuntime(d: StoryDeps): StoryRuntime {
               if (t <= target) unlock('runGod');
               clearRun();
               speedFactor = 1;
+              successFx('完賽！', { color: FX.goal, big: true });
               advance();
               toast(`🏅 完賽！時間 ${Math.floor(t / 60)} 分 ${Math.round(t % 60)} 秒（目標 ${Math.floor(target / 60)} 分 ${Math.round(target % 60)} 秒）`);
             }
