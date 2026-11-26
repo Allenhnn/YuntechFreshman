@@ -31,10 +31,6 @@ export interface StoryProgress {
     caught?: boolean;
     quizScore?: number;
     mixer?: number;
-    /** 聯誼 one on one: each person's final 好感度 (by MIXER key). */
-    mixerAff?: Record<string, number>;
-    /** People you swapped contacts with (chat app contacts). */
-    friends?: string[];
     badRecord?: number;
     runTime?: number;
     /** Who paid for the Day 1 lunch. */
@@ -73,7 +69,7 @@ export type StoryScene =
   | { kind: 'dialog'; id: string; lines: { who: string; text: string }[] }
   | { kind: 'rollcall'; advanced: boolean; sudden: boolean }
   | { kind: 'quiz' }
-  | { kind: 'mixer'; who: number }
+  | { kind: 'mixer' }
   | { kind: 'wake' }
   | { kind: 'clubFair' }
   | { kind: 'summary' }

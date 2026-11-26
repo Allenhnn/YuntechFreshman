@@ -32,10 +32,8 @@ const day = (c: ChatCtx): number => c.p.day;
 const weekOver = (c: ChatCtx): boolean => c.p.day > DAYS.length;
 const sideDone = (c: ChatCtx, id: string): boolean => c.p.side[id]?.state === 'done';
 
-/** Contacts in the chat app, in list order (people from the 聯誼 join after them: StoryProgress.flags.friends). */
+/** Contacts in the chat app, in list order. */
 export const CONTACTS = [ROOMMATE, ROOMMATE2, FRIEND] as const;
-/** Avatars of the 聯誼 contacts. */
-export const FRIEND_AVATAR: Record<string, string> = { 小美: '🎨', 阿哲: '💻', 小安: '💃' };
 
 /** Things you can bring up any time, per contact (the story's own messages come first). */
 export const TOPICS: Record<string, ChatOption[]> = {
@@ -160,24 +158,5 @@ export const TOPICS: Record<string, ChatOption[]> = {
       when: (c) => c.p.flags.mixer !== undefined,
       answer: (c) => (c.p.flags.mixer ?? 0) >= 3 ? '聽說你很會聊天喔～ 😏' : '聽說你全程在發呆 😂',
     },
-  ],
-  小美: [
-    { text: '最近有去拍照嗎？', answer: ['上週又去綠色隧道了！早上的光真的很美 📷', '底片用完了…在等新的寄來 😭', '昨天在雲夢湖拍了夕陽，等沖洗出來給你看！'],
-      next: [{ text: '好想看！', answer: '沖好傳給你～' }, { text: '下次帶我去', answer: '好啊！要早起喔 ⏰' }] },
-    { text: '作品還順利嗎？', answer: ['重做了一版，老師說「有進步」！謝謝你那天聽我抱怨 🥹', '還在改…設計系的期末是地獄 😵'] },
-    { text: '要不要一起吃飯？', answer: ['好呀！學餐還是外面？', '這週趕作品…下週好嗎？'] },
-    { text: '晚安 🌙', when: (c) => hour(c) >= 21 || hour(c) < 4, answer: '晚安～明天見 ✨' },
-  ],
-  阿哲: [
-    { text: 'App 做得怎樣？', answer: ['後端終於串起來了！你要不要先測測看？', '昨天 debug 到三點，草莓都枯了 🥲', '我們加了你說的今日推薦！'],
-      next: [{ text: '好啊我來測', answer: '太好了！有 bug 跟我說 🐛' }, { text: '加油，別熬夜', answer: '盡量 😂' }] },
-    { text: '草莓收成了嗎？🍓', answer: ['收了一整車！賣了好多錢（遊戲幣）', '忘記澆水全死了…'] },
-    { text: '一起去學餐？', answer: ['走！我請你奶茶（如果有的話）', '我剛吃完…晚餐約？'] },
-  ],
-  小安: [
-    { text: '成發練得怎樣？', answer: ['今天終於整首順過一次了！💃', '腳好痠…但快成功了！', '下個月 15 號晚上，記得來喔！'],
-      next: [{ text: '我一定去', answer: '說好了喔！我會在台上找你 👀' }, { text: '別太累', answer: '謝啦～練完就去吃火鍋 🍲' }] },
-    { text: '週末還在打工嗎？', answer: ['對啊～來飲料店找我，給你多加珍珠 🧋', '這週休息！終於可以睡飽'] },
-    { text: '要不要去吃火鍋？', answer: ['好啊！！我知道一家很讚的', '這週太忙了，下週約！'] },
   ],
 };

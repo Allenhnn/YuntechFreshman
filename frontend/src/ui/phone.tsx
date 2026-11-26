@@ -3,7 +3,7 @@ import { actions, useGame } from '../state/store';
 import { storyActions, useStory } from '../state/story';
 import { storyEvents } from '../story/storyRuntime';
 import { FRIEND, ROOMMATE, ROOMMATE2 } from '../story/storyData';
-import { CONTACTS, FRIEND_AVATAR } from '../story/chatData';
+import { CONTACTS } from '../story/chatData';
 import { deletePhoto, listPhotos, type Photo } from '../state/album';
 import { useApi } from './api';
 import { useEscape } from './escape';
@@ -81,16 +81,15 @@ function Album(): ReactNode {
   );
 }
 
-const AVATAR: Record<string, string> = { [ROOMMATE]: '🧑🏻', [ROOMMATE2]: '👦🏻', [FRIEND]: '👩🏻', ...FRIEND_AVATAR };
+const AVATAR: Record<string, string> = { [ROOMMATE]: '🧑🏻', [ROOMMATE2]: '👦🏻', [FRIEND]: '👩🏻' };
 
 /** 聊天室: threads, then one thread with bubbles and the quick replies the story offers. */
 function Chat(): ReactNode {
   const api = useApi();
   const phone = useStory((s) => s.phone);
-  const friends = useStory((s) => s.progress.flags.friends) ?? [];
   const [open, setOpen] = useState<string | null>(phone.focus);
   const end = useRef<HTMLDivElement>(null);
-  const names = [...new Set([...CONTACTS, ...friends, ...Object.keys(phone.threads)])];
+  const names = [...new Set([...CONTACTS, ...Object.keys(phone.threads)])];
   useEffect(() => { if (phone.focus) { setOpen(phone.focus); storyActions.focusThread(null); } }, [phone.focus]);
   useEscape(() => { if (!open) return false; setOpen(null); return true; }, 2); // Esc: thread → list
   useEffect(() => { if (open) storyActions.readThread(open); }, [open, phone.threads]);

@@ -858,6 +858,19 @@ kbd {
 .awake-hint { color: var(--ink-soft); }
 
 /* ---------- Wardrobe ---------- */
+.wardrobe { position: absolute; right: 24px; top: 50%; transform: translateY(-50%); width: min(380px, calc(100vw - 32px)); padding: 18px; border-radius: var(--radius); background: var(--glass); box-shadow: var(--shadow); pointer-events: auto; display: flex; flex-direction: column; gap: 12px; animation: pop-in 0.25s ease; }
+.wardrobe h2 { margin: 0; }
+.wd-parts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.wd-parts button { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 4px; border: 2px solid var(--line); border-radius: 12px; background: #fff; cursor: pointer; }
+.wd-parts button i { font-size: 22px; font-style: normal; }
+.wd-parts button.on { border-color: var(--green); background: var(--green-soft); }
+.wd-parts button.worn::after { content: '✓'; color: var(--green); font-size: 12px; }
+.wd-items { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
+.wd-item { display: flex; align-items: center; gap: 8px; padding: 8px; border: 2px solid var(--line); border-radius: 10px; background: #fff; cursor: pointer; text-align: left; }
+.wd-item.on { border-color: var(--orange); background: #fff3e6; }
+.wd-item .sw { width: 22px; height: 22px; border-radius: 6px; border: 1px solid rgba(0,0,0,0.2); flex: none; display: flex; align-items: center; justify-content: center; font-size: 12px; }
+.wd-item .sw.none { background: #eee; }
+.wd-note { margin: 0; font-size: 13px; color: var(--ink-soft); }
 
 /* ---------- First-person ball games ---------- */
 .crosshair { position: absolute; left: 50%; top: 50%; width: 34px; height: 34px; transform: translate(-50%, -50%); pointer-events: none; }
@@ -1023,34 +1036,19 @@ svg.ico-line { vertical-align: -0.2em; flex: none; }
   .vn-buzz { top: 22%; }
 }
 
-/* ---------- Wardrobe v3: one centred card, preview and panel side by side ---------- */
-.wd-shell { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 3rem; padding: 16px; pointer-events: none; }
-.wd-shell > * { height: min(620px, calc(100vh - 64px)); animation: pop-in 0.25s ease; }
-.wd-preview { position: relative; flex: none; width: min(400px, 40vw); border-radius: 22px; box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.9), var(--shadow); cursor: grab; pointer-events: auto; touch-action: none; }
+/* ---------- Wardrobe v2: preview on the left ---------- */
+.wardrobe { max-height: calc(100vh - 48px); overflow-y: auto; }
+.wd-items { max-height: 38vh; overflow-y: auto; }
+.wd-preview { position: absolute; left: 24px; top: 50%; transform: translateY(-50%); width: min(440px, calc(100vw - 460px)); height: min(640px, calc(100vh - 140px)); border-radius: 24px; box-shadow: 0 0 0 4px #fff, var(--shadow); cursor: grab; pointer-events: auto; touch-action: none; animation: pop-in 0.25s ease; }
 .wd-preview:active { cursor: grabbing; }
-.wd-preview-bar { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 5px 6px; border-radius: 999px; background: rgba(255, 255, 255, 0.94); box-shadow: var(--shadow); font-size: 13px; color: var(--ink-soft); white-space: nowrap; }
-.wd-preview-bar button { width: 30px; height: 30px; border: 0; border-radius: 50%; background: var(--green); color: #fff; cursor: pointer; display: grid; place-items: center; }
-/* Right panel: the original wardrobe look (使用者：右邊修回原本的介面), sitting in the shell next to the preview. */
-.wardrobe { width: min(380px, calc(100vw - 32px)); max-height: calc(100vh - 48px); overflow-y: auto; box-sizing: border-box; padding: 18px; border-radius: var(--radius); background: #fffdf6; box-shadow: var(--shadow); pointer-events: auto; display: flex; flex-direction: column; gap: 12px; }
-.wd-shell > .wardrobe { height: auto; align-self: center; }
-.wardrobe h2 { margin: 0; }
-.wd-parts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
-.wd-parts button { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 4px; border: 2px solid var(--line); border-radius: 12px; background: #fff; cursor: pointer; }
-.wd-parts button i { font-size: 22px; font-style: normal; }
-.wd-parts button.on { border-color: var(--green); background: var(--green-soft); }
-.wd-parts button.worn::after { content: '✓'; color: var(--green); font-size: 12px; }
-.wd-items { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; max-height: 38vh; overflow-y: auto; }
-.wd-item { display: flex; align-items: center; gap: 8px; padding: 8px; border: 2px solid var(--line); border-radius: 10px; background: #fff; cursor: pointer; text-align: left; }
-.wd-item.on { border-color: var(--orange); background: #fff3e6; }
-.wd-item .sw { width: 22px; height: 22px; border-radius: 6px; border: 1px solid rgba(0,0,0,0.2); flex: none; display: flex; align-items: center; justify-content: center; font-size: 12px; }
-.wd-item .sw.none { background: #eee; }
+.wd-preview-bar { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 999px; background: rgba(255, 255, 255, 0.92); box-shadow: var(--shadow); font-size: 13px; color: var(--ink-soft); white-space: nowrap; }
+.wd-preview-bar button { width: 32px; height: 32px; border: 0; border-radius: 50%; background: var(--green); color: #fff; font-size: 14px; cursor: pointer; }
 .wd-trend { margin-left: auto; padding: 1px 6px; border-radius: 6px; background: #ff7a1a; color: #fff; font-style: normal; font-size: 11px; font-weight: 800; }
-.wd-note { margin: 0; font-size: 13px; color: var(--ink-soft); }
 @media (max-width: 760px) {
-  .wd-shell { flex-direction: column; align-items: stretch; }
-  .wd-shell > .wd-preview { width: auto; height: 34vh; }
-  .wd-shell > .wardrobe { width: auto; height: auto; flex: 1; min-height: 0; align-self: stretch; }
+  .wd-preview { top: 16px; left: 16px; right: 16px; width: auto; height: 34vh; transform: none; }
+  .wardrobe { top: auto; bottom: 16px; transform: none; max-height: 56vh; }
 }
+.wd-preview-bar button { display: grid; place-items: center; }
 
 /* Item pictures (rendered from the 3D models) */
 .item-pic { width: 82%; height: 82%; object-fit: contain; pointer-events: none; filter: drop-shadow(0 2px 2px rgba(0,0,0,0.18)); }
@@ -1124,42 +1122,3 @@ svg.ico-line { vertical-align: -0.2em; flex: none; }
 .dance-judge.perfect { color: #ff4fa3; }
 .dance-judge.great { color: #29b6f6; }
 .dance-judge.miss { color: #9e9e9e; }
-
-/* ---------- 聯誼 one on one (VN style) ---------- */
-.mx-scene { position: fixed; inset: 0; z-index: 60; user-select: none; pointer-events: auto; overflow: hidden; }
-.mx-pt { position: absolute; bottom: 0; height: min(78vh, 640px); aspect-ratio: 200 / 320; pointer-events: none; }
-.mx-pt.them { left: max(2vw, calc(50% - 560px)); animation: mx-in-left 0.35s ease; }
-.mx-pt.me { right: max(2vw, calc(50% - 560px)); height: min(62vh, 520px); filter: brightness(0.82) saturate(0.85); animation: mx-in-right 0.35s ease; }
-.mx-pt .pt-svg { width: 100%; height: 100%; filter: drop-shadow(0 12px 18px rgba(0, 0, 0, 0.35)); }
-.mx-pt.glow .pt-svg { animation: mx-bob 0.6s ease; }
-.mx-pt.shake { animation: shake 0.45s; }
-.mx-pt .mixer-float { top: 12%; right: 8%; font-size: 40px; }
-@keyframes mx-in-left { from { transform: translateX(-40px); opacity: 0; } }
-@keyframes mx-in-right { from { transform: translateX(40px); opacity: 0; } }
-@keyframes mx-bob { 40% { transform: translateY(-14px); } }
-.mx-top { position: absolute; top: 18px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 8px 14px; border-radius: 999px; background: rgba(255, 255, 255, 0.94); box-shadow: var(--shadow); font-size: 14px; white-space: nowrap; }
-.mx-tag { font-weight: 800; color: #c2185b; }
-.mx-turn { color: var(--ink-soft); }
-.mx-aff { display: flex; align-items: center; gap: 6px; color: #c2185b; }
-.mx-aff b { min-width: 22px; }
-.mx-aff i { position: relative; width: 120px; height: 8px; border-radius: 4px; background: #f6d6e1; overflow: hidden; }
-.mx-aff em { position: absolute; inset: 0 auto 0 0; background: linear-gradient(90deg, #f06292, #e91e63); transition: width 0.4s; }
-.mx-aff s { position: absolute; top: -2px; bottom: -2px; width: 2px; background: #1f7a4a; }
-.mx-aff.good em { background: linear-gradient(90deg, #66bb6a, #2e9e3e); }
-.mx-box { position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%); width: min(980px, calc(100vw - 32px)); box-sizing: border-box; padding: 30px 26px 18px; border-radius: 20px; background: rgba(255, 255, 255, 0.95); box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35), inset 0 0 0 3px #e91e63; display: flex; flex-direction: column; gap: 12px; }
-.mx-box .vn-name { background: #c2185b; box-shadow: 0 3px 0 #880e4f; display: flex; align-items: baseline; gap: 8px; }
-.mx-box .vn-name small { font-size: 12px; font-weight: 600; opacity: 0.85; }
-.mx-line { margin: 0; font-size: 20px; line-height: 1.6; color: var(--ink); }
-.mx-opts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.mx-opt { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border: 2px solid #ffcc80; border-radius: 14px; background: #fff8ef; color: var(--ink); font-size: 15px; text-align: left; cursor: pointer; transition: transform 0.1s, background 0.15s; }
-.mx-opt:hover { background: #ffedd5; border-color: #ff9f43; transform: translateY(-2px); }
-.mx-opt kbd { flex: none; width: 24px; height: 24px; display: grid; place-items: center; border-radius: 6px; background: #ff9f43; color: #fff; font: 700 13px/1 inherit; }
-.mx-end { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.mx-end p { margin: 0; color: var(--ink-soft); }
-.mx-end .btn { margin-left: auto; }
-@media (max-width: 760px) {
-  .mx-pt { height: 40vh; }
-  .mx-pt.me { height: 32vh; }
-  .mx-opts { grid-template-columns: 1fr; }
-  .mx-line { font-size: 17px; }
-}
