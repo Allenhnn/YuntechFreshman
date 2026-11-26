@@ -18,6 +18,8 @@ export interface CampusBuilding {
   replacedBy?: string;
   /** Closed to visitors: exterior unchanged (doors drawn shut), no interior, no way in. */
   sealed?: boolean;
+  /** With `sealed`: not even shut doors or an entrance canopy on the outside (使用者：這棟沒有門). */
+  doorless?: boolean;
 }
 
 export type RoadKind = 'major' | 'minor' | 'service' | 'walkway';

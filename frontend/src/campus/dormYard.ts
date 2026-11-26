@@ -98,8 +98,10 @@ const BASE_GATES: readonly GateMark[] = [
   { name: '學生宿舍B B 門', a: [104.4, 331.5], b: [105.0, 337.6], portal: true, barred: true, ends: [[108.24, 334.18], [101.07, 334.99]] },
   { name: '學生宿舍B C 門', a: [111.2, 303.7], b: [117.4, 302.6], portal: true, ends: [[115.15, 307.91], [113.47, 298.45]] },
   // 學生宿舍A：使用者（2026-11-25）跟 B 一樣——前門、後門、A1–A2 之間的牆換成 B 那三道圍牆轉過去（見下面 DORM_GATES）。
-  { name: '學生宿舍E.F 前門', a: [54.6, 397.2], b: [80.7, 388.5] },
-  { name: '學生宿舍E.F 後門', a: [97.0, 388.3], b: [118.7, 380.6] },
+  // 學生宿舍E.F（使用者一樓平面圖 2026-11-26）：E、F 兩翼之間各一道圍牆（平面圖連接兩棟的兩條線），門開在牆跟中間那條步道交叉的
+  // 地方——從牆的中點往 E 那頭偏 1.8 m。ends: F 翼角、E 翼角；`a` 在中庭那側。
+  { name: '學生宿舍E.F 前門', a: [69.66, 393.25], b: [64.85, 394.2], ends: [[68.65, 401.56], [66.62, 389.48]], shift: 1.84 },
+  { name: '學生宿舍E.F 後門', a: [99.81, 387.32], b: [104.62, 386.37], ends: [[103.65, 394.68], [101.77, 382.56]], shift: 1.83 },
 ];
 
 /** A C-area point on its mirrored D copy (customFacades.ts `dormCToD`). */
@@ -154,7 +156,7 @@ const LATTICE_STUBS: readonly (readonly [readonly [number, number], readonly [nu
 /** Bike parking rows (polylines). */
 const BIKE_ROWS: readonly (readonly number[])[] = [
   // (使用者 2026-11-26: the two rows either side of the walk between 學生宿舍C 東翼 and B are gone.)
-  [49.2, 369.9, 53.6, 385.6],
+  [48.3, 371.0, 51.3, 386.0], // 學生宿舍E 西翼照平面圖往西長，這排沿著它外側
   [56.8, 406.5, 59.0, 413.9],
   [-18.6, 442.2, 1.4, 438.5, 25.3, 436.3],
   [66.6, 432.6, 97.1, 427.6, 131.9, 421.7],

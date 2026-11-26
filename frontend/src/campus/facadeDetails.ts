@@ -177,7 +177,7 @@ export function addFacadeDetails(
   });
 
   // Canopy over the entrance (or, for buildings without an interior, the wall facing the nearest road).
-  const entrance = doors[0] ?? (style.canopy ? buildingEntrance(b, roads, skipEdges) : null);
+  const entrance = doors[0] ?? (style.canopy && !b.doorless ? buildingEntrance(b, roads, skipEdges) : null);
   if (style.canopy && entrance) {
     const w = ws[entrance.edge];
     if (w && w.len >= 6) {

@@ -164,6 +164,13 @@ docker compose down             # 停止（加 -v 會連資料一起刪除）
 | `.env.example` 沒被 commit | 根目錄 `.gitignore` 有 `.env*`；需要時用 `git add -f backend/.env.example` |
 
 ## 變更紀錄
+### 2026-11-26（前端：學生宿舍E.F 照一樓平面圖調整結構）— 分支 `feat/dorm-c-yard-walls`
+- 需求：照 E、F 一樓平面圖的比例與位置調整兩棟結構；平面圖上連接 E、F 的兩條線是圍牆，門在那裡。
+- `frontend/src/campus/campusFixes.ts`：`reshapeDormEF`（`DORM_EF_RINGS`）——平面圖 0.049 m/px，北朝下（轉 180° 再轉 −11.1°）。F 的 OSM 外形跟平面圖四角差 1 m 內，用 F 定位；E 照平面圖跟 F 的相對位置放（比 OSM 往西約 5 m）。F：北側長條 71.4 × 12.9 m、兩翼、中間入口凸出 2 m；E：兩翼、南側長條、中間入口凸出 2 m。封起來、沒有門（見下）。`main.ts` 在 `reshapeDormB` 後呼叫。
+- `frontend/src/campus/dormYard.ts`：E.F 前門（西）、後門（東）改用固定 `ends`（F 翼角 → E 翼角，平面圖那兩條線），門開在牆和中間步道交叉處（`shift` 1.8 m 往 E）；E 西翼外側那排腳踏車往西移，不壓到新外形。
+- 平面圖兩棟之間的 T 形步道／入口台階先沒做。
+- 使用者：只有那兩道圍牆的門是門，其他地方沒有門——E、F 封起來、加 `doorless`（`campusTypes.ts` 新欄位：`chunkBuilder.ts` 不畫關著的門、`facadeDetails.ts` 不加入口雨遮），兩棟沒有室內、進不去。
+
 ### 2026-11-25（前端：學生宿舍A 整區照 B 區做）— 分支 `feat/dorm-c-yard-walls`
 - 需求：A 棟跟 B 棟只有方向不一樣（A 區平面圖是 B 區左右翻過來），先調整 A 區整體架構，再把整個 B 區的模型複製過去，A1 外面的花圃那一區也跟 B 一樣
 - `frontend/src/campus/customFacades.ts`：`DORM_A`、`dormBToA`（B → A 鏡射，旋轉＋平移擬合三棟中心到 OSM 的 A1／A2／A3，差 1 m 內）；`DORM_B_RINGS` 加 A 三棟（B 的外環轉過去、反轉頂點順序）；`DORM_B_SPECS` = B 那幾筆＋轉到 A 的（`specToA`：招牌 B → A、入口點、A1 入口轉角的雨遮／平台／花台／門／台階／坡道都轉過去）
