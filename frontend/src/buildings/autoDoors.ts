@@ -22,6 +22,7 @@ export interface DoorSpec {
   /** Centre of the gap at ground level and the unit direction along the wall. */
   x: number;
   z: number;
+  baseY?: number;
   ux: number;
   uz: number;
   width: number;
@@ -67,7 +68,7 @@ export function createAutoDoors(scene: Scene, physics: RAPIER.World, tracker: Re
   const doors = specs.map((d, i) => {
     const yaw = Math.atan2(-d.uz, d.ux); // local +x along the wall
     const collider = tracker.collider(physics.createCollider(
-      RAPIER.ColliderDesc.cuboid(d.width / 2, d.height / 2, 0.08).setTranslation(d.x, d.height / 2, d.z)
+      RAPIER.ColliderDesc.cuboid(d.width / 2, d.height / 2, 0.08).setTranslation(d.x, (d.baseY ?? 0) + d.height / 2, d.z)
         .setRotation((() => { const r = new Quaternion().setFromAxisAngle(up, yaw); return { x: r.x, y: r.y, z: r.z, w: r.w }; })()),
     ));
     return { d, i, yaw, open: 0, wantOpen: false, collider };
@@ -79,7 +80,7 @@ export function createAutoDoors(scene: Scene, physics: RAPIER.World, tracker: Re
     for (const side of [-1, 1] as const) {
       // Closed: each leaf fills its half; open: it slides `open` metres outward into the wall.
       const along = side * (leaf / 2 + door.open);
-      p.set(d.x + d.ux * along, 0, d.z + d.uz * along);
+      p.set(d.x + d.ux * along, d.baseY ?? 0, d.z + d.uz * along);
       m4.compose(p, q, s.set(leaf, d.height, DEPTH));
       const k = i * 2 + (side < 0 ? 0 : 1);
       frames.setMatrixAt(k, m4);
@@ -99,7 +100,7 @@ export function createAutoDoors(scene: Scene, physics: RAPIER.World, tracker: Re
       let opened = false, dirty = false;
       for (const door of doors) {
         const dist = Math.hypot(px - door.d.x, pz - door.d.z);
-        const near = py < MAX_FLOOR_Y;
+        const near = door.d.baseY === undefined ? py < MAX_FLOOR_Y : Math.abs(py - door.d.baseY) < MAX_FLOOR_Y;
         if (!door.wantOpen && near && dist < OPEN_R) {
           door.wantOpen = true;
           door.collider.setEnabled(false);

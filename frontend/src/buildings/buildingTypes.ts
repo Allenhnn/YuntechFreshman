@@ -52,6 +52,8 @@ export interface Opening {
   label?: string;
   /** Exit only: black-framed sliding leaves instead of aluminium. */
   frame?: 'dark';
+  /** Sensor-operated exit on a raised entrance level. */
+  automatic?: boolean;
 }
 
 export interface Sign {

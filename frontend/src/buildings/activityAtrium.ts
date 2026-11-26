@@ -200,6 +200,14 @@ export function addActivityAtrium(scene: Scene, tracker: ResourceTracker) {
   const speaker=new Mesh(new CylinderGeometry(.135,.135,.045,24),new MeshStandardMaterial({color:0x747a76}));
   speaker.rotation.z=Math.PI/2;speaker.position.set(-22.52,floorY+1.98,6.52);root.add(speaker);
   for(let i=-2;i<=2;i++) block(-22.55,floorY+1.98+i*.034,6.52,.012,.011,.18-Math.abs(i)*.022,0x424745);
+  // Waist-high wall finish, casework and lit lintel in the bookstore exit passage.
+  for(const x of [-28.975,-26.025]){
+    block(x,1.13,24.5,.05,1.04,10.96,0xa09e93);
+    block(x,2.17,24.5,.055,.045,10.96,0x786f65);
+  }
+  block(-26.035,2.20,27.0,.07,.97,2.75,0x987e60);
+  block(-28.955,2.38,27.85,.09,.76,1.26,0x9a815f);
+  block(-27.5,3.49,29.90,.48,.092,.065,0x83d896);
   // The half landings and their parapets continue around the turn as single curved faces.
   const curvedSlab=(shape:Shape, bottom:number, thickness:number, color:number)=>{
     const geometry=new ExtrudeGeometry(shape,{depth:thickness,bevelEnabled:false,curveSegments:24});
@@ -291,6 +299,20 @@ export function addActivityAtrium(scene: Scene, tracker: ResourceTracker) {
   panel(1.18,.46,-22.27,2.62,4.74,-Math.PI/2,texture(384,128,c=>{
     c.fillStyle='#d2cfbe';c.fillRect(0,0,384,128);c.fillStyle='#475069';
     c.textAlign='center';c.font='42px serif';c.fillText('雲林科技大學',192,81);
+  }));
+  panel(2.62,.85,-26.08,2.685,27,-Math.PI/2,texture(640,208,c=>{
+    c.fillStyle='#47716b';c.fillRect(0,0,640,208);
+    c.fillStyle='#e6dfc9';c.fillRect(34,136,58,65);
+    c.fillStyle='#ab9b6d';c.fillRect(58,134,12,6);
+  }));
+  panel(1.12,.63,-28.90,2.76,27.85,Math.PI/2,texture(384,216,c=>{
+    c.fillStyle='#d2c7aa';c.fillRect(0,0,384,216);
+    c.fillStyle='#a6b4ac';c.fillRect(12,12,360,192);
+    for(const [ridge,color] of [[80,'#81958e'],[121,'#657d70'],[151,'#53695f']] as const){
+      c.fillStyle=color;c.beginPath();c.moveTo(12,204);
+      for(let x=12;x<=372;x+=12)c.lineTo(x,ridge+13*Math.sin(x/42+ridge)+8*Math.cos(x/24));
+      c.lineTo(372,204);c.fill();
+    }
   }));
   // Display glazing beside the corridor mouth, facing the landing.
   panel(5.6,1.18,-1.12,2.28,12.9,Math.PI/2,texture(512,128,c=>{

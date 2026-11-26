@@ -146,7 +146,13 @@ for(const [index,[id,base]] of levels.entries()) {
   if(index>=2) space('走道上方挑空','void',galleryCuts,{customEdge:true,noCeiling:true,ceiling:height+.12});
   space('樓梯後方橫廊','corridor',[[-29,3,-26,23]],{group:'hall'});
   if(id==='1F') {
-    concreteBox(-29.1,13,0,.2,height,20);
+    // The rear wall turns the bookstore aisle into a single straight exit passage.
+    space('書城出口走廊','corridor',[[-29,19,-26,30]],{group:'hall'});
+    concreteBox(-29.1,16.5,0,.2,height,27);
+    concreteBox(-25.91,24.5,0,.18,height,11);
+    // Level threshold and descending exterior steps to campus grade.
+    concreteBox(-27.5,30.56,-base,3,base,1.12);
+    for(let i=0;i<7;i++) concreteBox(-27.5,31.12+(i+.5)*.34,-base,3,base*(7-i)/8,.34);
     // The restroom foyer is the blind end of the gallery behind the stairs.
     space('洗手間前廊','corridor',[[-29,4,-22.2,6.7]],{group:'hall'});
     space('男廁','toilet',[[-29,1,-26.8,4]]);
@@ -244,6 +250,7 @@ for(const [index,[id,base]] of levels.entries()) {
   // Upper bridge edges remain open to both wings. At ground level the court
   // itself is the exterior platform, entered at the mouths of both corridors.
   if(id==='1F') {
+    f.openings.push({kind:'exit',a:[-28.48,30],b:[-26.52,30],label:'書城出口',frame:'dark',automatic:true});
     open('h',4,-28.2,1.05,'door','男廁');
     open('h',4,-25.35,1.18,'door','無障礙廁所');
     open('h',4,-23.2,1.05,'door','女廁');

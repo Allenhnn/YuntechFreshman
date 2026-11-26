@@ -271,13 +271,12 @@ async function boot(): Promise<void> {
   // building with a generated interior (the same entrance the campus chunks leave open).
   const doorSpecs: DoorSpec[] = [];
   for (const b of [library, ...handBuilt]) {
-    const ground = b.source.levels.find((l) => l.elevation === 0);
-    for (const o of (ground && b.source.floors[ground.id]?.openings) ?? []) {
-      if (o.kind !== 'exit') continue;
+    for (const level of b.source.levels) for (const o of b.source.floors[level.id]?.openings ?? []) {
+      if (o.kind !== 'exit' || (level.elevation !== 0 && !o.automatic)) continue;
       const [ax, az] = b.planToWorld(o.a[0], o.a[1]), [bx, bz] = b.planToWorld(o.b[0], o.b[1]);
       const len = Math.hypot(bx - ax, bz - az);
       if (len < 0.8) continue;
-      doorSpecs.push({ x: (ax + bx) / 2, z: (az + bz) / 2, ux: (bx - ax) / len, uz: (bz - az) / len, width: len, height: 2.35, ...(o.frame === 'dark' ? { dark: true } : {}) });
+      doorSpecs.push({ x: (ax + bx) / 2, z: (az + bz) / 2, ux: (bx - ax) / len, uz: (bz - az) / len, width: len, height: 2.35, ...(level.elevation ? { baseY: level.elevation } : {}), ...(o.frame === 'dark' ? { dark: true } : {}) });
     }
   }
   for (const b of campus.buildings) {
