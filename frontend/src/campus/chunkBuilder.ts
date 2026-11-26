@@ -613,6 +613,15 @@ export class ChunkBuilder {
     const slabs = new GeoBuilder(); // collision only: storey floors between the interior and the shell wall
 
     for (const b of this.buildings.get(k) ?? []) {
+      if (b.id === STUDENT_CENTRE || b.id === PERFORMANCE_HALL) {
+        const vertexStart = details.pos.length / 3;
+        const indexStart = details.idx.length;
+        buildActivityComplex(b, details, glass);
+        // Use the same geometry for the visible steps, galleries and their colliders.
+        const indexOffset = slabs.pos.length / 3 - vertexStart;
+        slabs.pos.push(...details.pos.slice(vertexStart * 3));
+        for (let i = indexStart; i < details.idx.length; i++) slabs.idx.push(details.idx[i]! + indexOffset);
+      }
       if (b.replacedBy) continue; // drawn and collided by its hand-built model instead
       if (!b.inCampus) continue; // off campus: no-go zone, nothing built there
       const styleIndex = this.facades.building[String(STYLE_ALIAS[b.id] ?? b.id)] ?? (b.inCampus ? 0 : 1);
@@ -654,15 +663,6 @@ export class ChunkBuilder {
       const custom = CUSTOM_FACADE_EDGES[b.id];
       const detailSkip = custom ? new Set([...photoEdges, ...custom]) : photoEdges;
       addFacadeDetails(details, b, this.rawStyles[styleIndex]!, { wall: style.wall, trim: style.trim }, this.data.roads, detailSkip, b.sealed ? shut : doors);
-      if (b.id === STUDENT_CENTRE || b.id === PERFORMANCE_HALL) {
-        const vertexStart = details.pos.length / 3;
-        const indexStart = details.idx.length;
-        buildActivityComplex(b, details, glass);
-        // Use the same geometry for the visible steps, galleries and their colliders.
-        const indexOffset = slabs.pos.length / 3 - vertexStart;
-        slabs.pos.push(...details.pos.slice(vertexStart * 3));
-        for (let i = indexStart; i < details.idx.length; i++) slabs.idx.push(details.idx[i]! + indexOffset);
-      }
       for (const e of shut) addShutDoor(details, b.outer, e);
       const photoMesh = photoOut?.build();
       if (shots && photoMesh) photoWalls.push({ building: b.id, atlas: shots.atlas, mesh: photoMesh });
@@ -682,7 +682,7 @@ export class ChunkBuilder {
     // Collision = building walls + roofs only (B2: simplified, trees / cars / kerbs are walk-through).
     let collider: ChunkBuild['collider'] = null;
     const parts: { pos: ArrayLike<number>; idx: ArrayLike<number> }[] = [facade, roof, glass, slabs, ...photoWalls.map((p) => ({ pos: p.mesh.position, idx: p.mesh.index }))];
-    if (!roof.empty) {
+    if (!roof.empty || !slabs.empty) {
       const vertices = new Float32Array(parts.reduce((n, p) => n + p.pos.length, 0));
       const indices = new Uint32Array(parts.reduce((n, p) => n + p.idx.length, 0));
       let vo = 0, io = 0;

@@ -59,11 +59,15 @@ export function buildActivityComplex(b: CampusBuilding, solid: GeoBuilder, glass
     // Photos 14–16 and 23–26: two open ends, galleries down the sides,
     // overhead bridges and a glazed ridge visible from inside the court.
     for (const x of [1, 32]) {
-      for (const z of [-22,-13,-4]) box(x,x+.65,z,z+.65,0,10.8);
+      for (const z of (x === 1 ? [-4] : [-22,-13,-4])) box(x,x+.65,z,z+.65,0,10.8);
       for (const y of [3.6,7.2]) {
-        box(x-1,x+2.6,-24,0,y-.32,.32);
+        if (x === 1 && y === 3.6) {
+          // Leave headroom over the first treads of the inset return stair.
+          box(-1.3,3.6,-22.5,0,y-.32,.32);
+          box(-1.3,1.25,-24,-22.5,y-.32,.32);
+        } else box(x-1,x+2.6,-24,0,y-.32,.32);
         const inner = x < 10 ? x+2.4 : x-1;
-        box(inner,inner+.16,-24,0,y,.95,edge);
+        box(inner,inner+.16,x === 1 && y === 3.6 ? -22.5 : -24,0,y,.95,edge);
       }
     }
     for (const z of [-23.6,-2.4]) {
@@ -81,7 +85,7 @@ export function buildActivityComplex(b: CampusBuilding, solid: GeoBuilder, glass
     }
     for (const z of [-26.2,-23.8]) box(.1,35.5,z,z+.22,9.15,.41,sand);
     for (const x of [2,11.6,23.7,33]) {
-      box(x,x+.65,-25.1,-24.35,0,9.54,shadow);
+      if (x !== 2) box(x,x+.65,-25.1,-24.35,0,9.54,shadow);
       box(x-.42,x+1.07,-26.2,-23.5,8.64,.38,sand);
     }
     // The triangular glass gable presents its end to the entrance.
@@ -110,10 +114,19 @@ export function buildActivityComplex(b: CampusBuilding, solid: GeoBuilder, glass
       section(glass,at,.1,35.5,z,z+.045,9.3,9.3,1.4,metal);
       for(let x=.25;x<35.5;x+=1.75) box(x,x+.09,z-.05,z+.07,9.3,1.4,steel);
     }
-    // Ceiling and column lines over the two covered ends of the level hall.
-    for(const [a,b] of [[.1,6],[28,35.7]] as const) box(a,b,-20,-3,6.82,.38,concrete);
-    // Backing wall and fixed display doors by room 107 (plan right).
-    box(35.47,35.8,-11.55,-4.05,1.125,3.5,concrete);
+    // The hall-side gallery crosses the sightline from the north stair.
+    // Its two outer piers leave the ground-floor axis open into the wing.
+    box(0,6,-20,-3,3.34,.26);
+    box(5.65,6,-20,-3,3.6,.57);
+    for (const z of [-19.75,-4.05]) {
+      box(5.3,6,z,z+.72,1.125,8.18);
+      box(.25,.85,z,z+.62,1.125,2.22);
+    }
+    for (const y of [4.32,4.54]) box(5.78,5.84,-19.7,-3.3,y,.055,steel);
+    for (let z=-19.5;z<-3.3;z+=2) box(5.78,5.84,z,z+.055,4.17,.42,steel);
+    box(5.4,6,-20,-3,7.04,.60);
+    // The opposite wing keeps its covered upper landing.
+    box(28,35.7,-20,-3,6.82,.38,concrete);
     for(const x of [6,25.5]) {
       box(x,x+2.3,-2.15,-1.55,1.46,.12,[.36,.24,.15]);
       for(const offset of [.18,1.9]) box(x+offset,x+offset+.17,-2.1,-1.6,1.125,.34,edge);
@@ -190,17 +203,109 @@ export function buildActivityComplex(b: CampusBuilding, solid: GeoBuilder, glass
       const t=(i+.5)*tread, y=(i+1)*platformY/count;
       section(solid,stairAt,.79,.85,t,t+.055,y,y,.86,metal);
     }
+    // The opposite end of the gallery retains its original flight.
+    const eastSteps=16, eastTread=.31;
+    for(let i=0;i<eastSteps;i++) {
+      const z=-20-(eastSteps-i)*eastTread;
+      box(29,30.65,z,z+eastTread,platformY,(i+1)*(3.6-platformY)/eastSteps,edge);
+    }
+    section(solid,at,29,29.06,-20-eastSteps*eastTread,-20,platformY+1.03,4.52,.06,metal);
+    // Plaza-left entrance beside the planter. The straight flight meets the
+    // bookshop door's platform beneath the projecting concrete balcony.
+    const leftFoot=-28.41, leftTop=-25.4, leftSteps=7;
+    const leftTread=(leftTop-leftFoot)/leftSteps;
+    const tile: Tint=[.55,.53,.48], reveal: Tint=[.26,.25,.23];
+    for(let i=0;i<leftSteps;i++) {
+      const z=leftFoot+i*leftTread, top=platformY*(i+1)/leftSteps;
+      box(-1.2,1.12,z,z+leftTread,0,top,tile);
+      box(-1.2,1.12,z,z+.055,top-.025,.032,edge);
+    }
+    box(-1.3,0,leftTop,-25,0,platformY,tile);
+    box(-1.3,0,-25,0,0,platformY,tile);
+    box(-1.48,-1.2,-28.5,-25,0,7.5,tile);
+    box(-1.48,-1.2,-25,-21.4,3.6,3.9,tile);
+    for(const x of [-1.12,1.03]) {
+      section(solid,at,x,x+.055,leftFoot,leftTop,.94,platformY+.94,.055,metal);
+      for(let i=0;i<leftSteps;i+=3) {
+        const z=leftFoot+(i+.5)*leftTread;
+        box(x,x+.055,z,z+.055,platformY*(i+1)/leftSteps,.88,metal);
+      }
+    }
+    // Shallow storage bay beside the stairs, beneath the sloping soffit.
+    box(1.12,1.25,leftFoot,leftTop,0,platformY,tile);
+    // Return flight over the blue drums. Enter from the first-floor
+    // platform, climb toward the plaza and turn left onto the balcony.
+    const bottomZ=-22.5, landingZ=-27.05, balconyY=3.86, returnSteps=17;
+    const returnTread=(bottomZ-landingZ)/returnSteps, rise=(balconyY-platformY)/returnSteps;
+    box(3.52,3.75,-28.2,-24.39,0,7.65,tile);
+    for(let i=0;i<returnSteps;i++) {
+      const z=bottomZ-i*returnTread, top=platformY+(i+1)*rise;
+      box(1.25,3.52,z-returnTread,z,top-rise-.14,rise+.14,tile);
+    }
+    section(solid,at,1.25,3.52,landingZ,bottomZ,balconyY-rise-.17,platformY-.17,.07,tile);
+    for(const x of [1.27,3.44]) {
+      section(solid,at,x,x+.055,landingZ,bottomZ,balconyY+.9,platformY+.9,.055,metal);
+      for(let i=1;i<returnSteps;i+=4) {
+        const z=bottomZ-(i+.5)*returnTread, top=platformY+(i+1)*rise;
+        box(x,x+.055,z,z+.055,top,.9,metal);
+      }
+    }
+    // Both curved fascias share the same radius. Between them the
+    // balcony is open, with its rear doorway set back from the rail.
+    const lip=(x:number)=>-28.5+1.15*(1-Math.sqrt(1-Math.min(1,Math.max(0,(x-2.25)/1.5))**2));
+    for(let i=0;i<16;i++) {
+      const x=-1.48+i*5.23/16, next=x+5.23/16;
+      const z=lip(x), end=lip(next);
+      // Extend each curved front panel only to the head of the stairs.
+      strip(x,next,z,end,Math.max(landingZ-z,landingZ-end)+.01,3.58,.28,tile);
+      strip(x,next,z,end,.17,3.86,.90,tile);
+      for(const y of [4.84,4.99]) strip(x,next,z+.04,end+.04,.055,y,.055,metal);
+      if(i%3===0) box(x,x+.055,z+.04,z+.095,4.76,.28,metal);
+      strip(x,next,z,end,7.2,7.12,.38,tile);
+      strip(x,next,z,end,.19,7.5,.52,tile);
+    }
+    box(-1.48,3.75,-28.48,-28.12,7.95,1.68,tile);
+    box(-1.48,.28,-28.48,-28.12,9.63,1.58,tile);
+    box(1.86,3.75,-28.48,-28.12,9.63,1.58,tile);
+    box(-1.48,3.75,-28.48,-28.12,11.21,1.05,tile);
+    box(-1.48,3.75,-28.12,-21.3,12.1,.16,tile);
+    box(-1.48,-1.2,-28.12,-21.3,7.95,4.15,tile);
+    box(-1.48,1.25,landingZ,-22.3,3.58,.28,tile);
+    // Level out onto the existing 2F gallery (3.60 m) through the return.
+    section(solid,at,0,1.25,-22.3,-20.5,3.58,3.32,.28,tile);
+    box(-1.2,0,-21.72,-21.5,balconyY,3.26,reveal);
+    box(1.5,3.5,-21.72,-21.5,balconyY,3.26,reveal);
+    // The adjoining 1F/2F wing ends at x=-6 on the z=-30 street line.
+    // Its curved return meets the tower at x=-1.48, z=-28.5.
+    const cornerX=-6.08, cornerZ=-28.5;
+    for(let i=0;i<20;i++) {
+      const angle=i*Math.PI/40, next=(i+1)*Math.PI/40;
+      const x=cornerX+4.60*Math.sin(angle), xx=cornerX+4.60*Math.sin(next);
+      const z=cornerZ-1.55*Math.cos(angle), zz=cornerZ-1.55*Math.cos(next);
+      strip(x,xx,z,zz,.18,.02,12.24,tile);
+      strip(x,xx,z,zz,3.3,12.10,.16,tile);
+      for(const y of [2.08,5.3]) {
+        strip(x,xx,z-.035,zz-.035,.04,y,1.0,[.16,.20,.21]);
+        strip(x,xx,z-.06,zz-.06,.065,y-.08,.08,edge);
+        if(i%3===0) box(x,x+.05,z-.075,z+.06,y,1.0,edge);
+      }
+    }
+    // Close the returns up to the recessed top floor and the tower window wall.
+    box(cornerX,cornerX+.16,-30,-26.85,7.2,5.06,tile);
+    box(-1.48,-1.3,cornerZ,-24.85,.02,12.24,tile);
     // Central stair, level side bypasses and the paired stepped planting beds.
     for (let i=0;i<7;i++) box(12.5,23.5,-30.9+i*.43,-30.47+i*.43,.075,(i+1)*.15,edge);
     // Both exterior stairs terminate on one continuous first-floor platform.
-    box(1.8,32.5,-27.89,.55,0,platformY,concrete);
-    box(32.5,35.8,-20,-3,0,1.125,concrete);
-    section(solid,at,.15,1.8,-27.89,-14.9,0,1.05,.075,edge);
-    box(.15,1.8,-14.9,.55,0,1.125,concrete);
-    for(const x of [1.6,24.1]) {
-      box(x,x+10.1,-29.4,-26.1,.08,.65);
-      box(x+.15,x+9.95,-28.85,-26.3,.73,.52);
-      box(x+.24,x+9.86,-28.65,-26.45,1.25,.28,[.12,.17,.064]);
+    box(3.75,32.5,-27.89,.55,0,platformY,concrete);
+    box(1.8,3.75,bottomZ,.55,0,platformY,concrete);
+    box(32.5,36,-20,-3,0,1.125,concrete);
+    box(0,1.25,leftTop,bottomZ,0,platformY);
+    box(0,1.8,bottomZ,.55,0,platformY);
+    for(const start of [1.6,24.1]) {
+      const x=start<2?3.78:start, end=start+10.1;
+      box(x,end,-29.4,-26.1,.08,.65);
+      box(x+.15,end-.15,-28.85,-26.3,.73,.52);
+      box(x+.24,end-.24,-28.65,-26.45,1.25,.28,[.12,.17,.064]);
     }
     for(const x of [12.45,23.45]) {
       section(solid,at,x,x+.065,-30.78,-27.9,1.08,2.07,.065,metal);

@@ -62,7 +62,7 @@ export function createInteriorManager(
   const candidates: Candidate[] = [];
   for (const t of traced?.buildings ?? []) {
     const shells = t.osmIds.map((id) => byId.get(id)).filter((b): b is CampusBuilding => !!b);
-    if (!shells.length) continue;
+    if (!shells.length || shells.every(b => b.replacedBy)) continue;
     if (shells.some((b) => b.sealed)) { t.osmIds.forEach((id) => covered.add(id)); continue; } // closed: no interior
     t.osmIds.forEach((id) => covered.add(id));
     candidates.push(candidate(t.id, t.name, shells));

@@ -113,7 +113,7 @@ const PLAYER_MODEL_URL = `${import.meta.env.BASE_URL}models/mascot.glb`;
 const CAMPUS_DATA_URL = `${import.meta.env.BASE_URL}data/campus.json`;
 const LIBRARY_URL = `${import.meta.env.BASE_URL}data/buildings/library.json`;
 /** Other hand-traced buildings (scripts/floorplan/handbuilt/*.py), each replacing its OSM extrusion. */
-const HAND_BUILT_URLS = [`${import.meta.env.BASE_URL}data/buildings/ma.json`, `${import.meta.env.BASE_URL}data/buildings/mb.json`];
+const HAND_BUILT_URLS = [`${import.meta.env.BASE_URL}data/buildings/activity-centre.json`, `${import.meta.env.BASE_URL}data/buildings/ma.json`, `${import.meta.env.BASE_URL}data/buildings/mb.json`];
 const FACADES_URL = `${import.meta.env.BASE_URL}data/facades.json`;
 const TRACED_URL = `${import.meta.env.BASE_URL}data/buildings/traced.json`;
 
@@ -267,7 +267,7 @@ async function boot(): Promise<void> {
   campus.water = PONDS.map((p) => ({ name: p.name, ring: p.ring }));
   const env = createCampusWorld(scene, physics, renderer, campus, sceneResources, {
     treeExclusions: keepClear,
-    groundHoles: [...buildingGroundHoles(librarySrc), ...(court?.rings ?? []), dormPit.ring, ...PONDS.map((p) => p.ring)],
+    groundHoles: [...buildingGroundHoles(librarySrc), ...handBuiltSrcs.flatMap(buildingGroundHoles), ...(court?.rings ?? []), dormPit.ring, ...PONDS.map((p) => p.ring)],
     facades,
     entrances: traced?.entrances,
   });
@@ -333,6 +333,7 @@ async function boot(): Promise<void> {
   const unitDecor = unit && unitBuilding ? createDormCUnitDecor(scene, physics, sceneResources, unit) : null;
   // 2F sky bridge 管理二館 → 管理一館: from the door at the north end of MB's east wing to MA's west corridor end.
   const byId = (id: string): HandBuiltBuilding | undefined => handBuilt.find((b) => b.source.id === id);
+  const activity = byId('activity-centre');
   const ma = byId('ma'), mb = byId('mb');
   const skyBridge = ma && mb ? createSkyBridge(scene, physics, sceneResources, { building: mb, at: [50.95, -2.3] }, { building: ma, at: [76.5, 12.75] }, 3.6) : null;
   const mgmtFeatures = createMgmtFeatures(scene, physics, sceneResources, ma);
@@ -361,7 +362,7 @@ async function boot(): Promise<void> {
   const dormBFacade = createDormCFacade(scene, physics, campus, sceneResources, 'B'); // 學生宿舍B：D 區同一套風格
   const dormCourtyard = createDormCourtyard(scene, physics, sceneResources);
   const dormYard = createDormYard(scene, physics, campus, sceneResources);
-  const hilife = createHilifeStore(scene, physics, campus, sceneResources);
+  const hilife = activity ? createHilifeStore(scene, physics, activity, sceneResources) : null;
   const ponds = createPonds(scene, physics, sceneResources);
   const mgmtCourtyard = mb ? createMgmtCourtyard(scene, physics, sceneResources, mb) : null;
   const mbLobby = mb ? createMbLobby(scene, physics, sceneResources, mb) : null;
@@ -808,7 +809,7 @@ async function boot(): Promise<void> {
   const groundHeightAt = (x: number, z: number): number => {
     const ray = new RAPIER.Ray({ x, y: 2.5, z }, { x: 0, y: -1, z: 0 });
     const hit = physics.castRay(ray, 20, true, RAPIER.QueryFilterFlags.EXCLUDE_SENSORS, undefined, colliders[eid], undefined,
-      (c) => c.handle !== env.groundCollider.handle || !(library.isOverBasement(x, z) || !!court?.contains(x, z) || dormPit.contains(x, z) || !!pondAt(x, z)));
+      (c) => c.handle !== env.groundCollider.handle || !(library.isOverBasement(x, z) || activity?.isOverBasement(x, z) || !!court?.contains(x, z) || dormPit.contains(x, z) || !!pondAt(x, z)));
     return hit ? 2.5 - hit.timeOfImpact : 0;
   };
 
@@ -1315,7 +1316,7 @@ async function boot(): Promise<void> {
   // Over a basement the campus ground collider is ignored; the basement's own top slab takes over.
   const groundHandle = env.groundCollider.handle;
   const groundFilter = (c: { handle: number }): boolean =>
-    c.handle !== groundHandle || !(library.isOverBasement(Transform.x[eid]!, Transform.z[eid]!) || !!court?.contains(Transform.x[eid]!, Transform.z[eid]!) || dormPit.contains(Transform.x[eid]!, Transform.z[eid]!) || !!pondAt(Transform.x[eid]!, Transform.z[eid]!));
+    c.handle !== groundHandle || !(library.isOverBasement(Transform.x[eid]!, Transform.z[eid]!) || activity?.isOverBasement(Transform.x[eid]!, Transform.z[eid]!) || !!court?.contains(Transform.x[eid]!, Transform.z[eid]!) || dormPit.contains(Transform.x[eid]!, Transform.z[eid]!) || !!pondAt(Transform.x[eid]!, Transform.z[eid]!));
 
   const cameraFilter = (c: { handle: number }): boolean =>
     groundFilter(c) && !env.isBoundaryCollider(c.handle) && !buildings().some((b) => b.isCameraTransparent(c.handle));
@@ -1626,6 +1627,7 @@ async function boot(): Promise<void> {
       if (wasRiding && !riding) storyEvents.dismount(px, pz);
       wasRiding = riding;
       storyFrame.x = px;
+      storyFrame.y = Transform.y[eid]!;
       storyFrame.z = pz;
       storyFrame.y = Transform.y[eid]!;
       storyFrame.area = areaAt(px, Transform.y[eid]!, pz)?.title ?? null;

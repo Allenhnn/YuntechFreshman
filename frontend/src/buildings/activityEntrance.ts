@@ -36,6 +36,36 @@ export function addActivityEntrance(scene: Scene, tracker: ResourceTracker) {
   plaza.receiveShadow = true;
   root.add(plaza);
 
+  // Square paving distinguishes the recessed side entry from the brick plaza.
+  const grid = document.createElement('canvas'); grid.width=grid.height=64;
+  const grout=grid.getContext('2d')!;
+  grout.fillStyle='#81796b'; grout.fillRect(0,0,64,64);
+  grout.fillStyle='#aaa194'; grout.fillRect(1,1,62,62);
+  const tiles=new CanvasTexture(grid);tiles.colorSpace=SRGBColorSpace;
+  tiles.wrapS=tiles.wrapT=RepeatWrapping;tiles.repeat.set(32,33);
+  const apron=new Mesh(new PlaneGeometry(12.4,12.9),new MeshStandardMaterial({map:tiles,roughness:1}));
+  apron.rotation.x=-Math.PI/2;apron.position.set(-2.45,.085,32.05);root.add(apron);
+  const drum=new CylinderGeometry(.31,.30,.95,16), lid=new CylinderGeometry(.325,.325,.055,16);
+  const blue=new MeshStandardMaterial({color:0x304e86}), rimBlue=new MeshStandardMaterial({color:0x283e66});
+  for(const z of [23.55,24.25]) for(const x of [1.68,2.37,3.06]) {
+    const bin=new Mesh(drum,blue),cap=new Mesh(lid,rimBlue);
+    bin.position.set(x,.565,z);cap.position.set(x,1.05,z);root.add(bin,cap);
+  }
+  const welcome=document.createElement('canvas');welcome.width=256;welcome.height=384;
+  const art=welcome.getContext('2d')!;
+  art.fillStyle='#cfe2e1';art.fillRect(0,0,256,384);
+  art.fillStyle='#696292';art.font='bold 43px sans-serif';art.textAlign='center';art.fillText('YunTech',128,62);
+  for(const [x,y,color] of [[68,220,'#d5a579'],[135,244,'#9cc68b'],[199,207,'#ad95bc']] as const){
+    art.fillStyle=color;art.beginPath();art.ellipse(x,y,37,52,0,0,Math.PI*2);art.fill();
+    art.fillStyle='#50485b';for(const eye of [-11,11]){art.beginPath();art.arc(x+eye,y-6,3,0,Math.PI*2);art.fill();}
+  }
+  art.fillStyle='#665f89';art.fillRect(0,330,256,54);art.fillStyle='white';art.font='bold 25px sans-serif';
+  art.fillText('新生領航營',128,365);
+  const print=new CanvasTexture(welcome);print.colorSpace=SRGBColorSpace;
+  const poster=new Mesh(new CylinderGeometry(1,1,4.35,12,1,true,.16,.86),
+    new MeshStandardMaterial({map:print,roughness:.95,side:DoubleSide}));
+  poster.scale.set(4.66,1,1.66);poster.position.set(-6.08,3.75,28.5);root.add(poster);
+
   // Clusters of narrow, pointed cordyline leaves above the clipped green hedge.
   const leaf = new PlaneGeometry(1,1,1,2);
   const pos = leaf.attributes.position!;
@@ -50,7 +80,7 @@ export function addActivityEntrance(scene: Scene, tracker: ResourceTracker) {
   let index=0;
   for (const start of [2,24.5]) {
     for(let plant=0; plant<40; plant++) {
-      const x=start+(plant%20)*.48, z=27.5+Math.floor(plant/20)*.5;
+      const x=(start===2?4.15:start)+(plant%20)*(start===2?.37:.48), z=27.5+Math.floor(plant/20)*.5;
       for(let k=0;k<9;k++) {
         const yaw=random()*Math.PI*2, spread=.25+random()*.18;
         transform.position.set(x+Math.sin(yaw)*spread,1.78+random()*.4,z+Math.cos(yaw)*spread);
@@ -66,7 +96,7 @@ export function addActivityEntrance(scene: Scene, tracker: ResourceTracker) {
 
   const tyre = new MeshStandardMaterial({color:0x292724}), tube = new CylinderGeometry(.024,.024,1,6);
   const rim = new TorusGeometry(.34,.035,6,24), axis = new Vector3(0,1,0);
-  for (const [x,z,yaw,paint] of [[7,30.5,.22,0x517974],[9.3,30.1,-.15,0x84564c],[27,30,.32,0x65706a]] as const) {
+  for (const [x,z,yaw,paint] of [[2.42,26.45,.75,0xc4c4b9],[7,30.5,.22,0x517974],[9.3,30.1,-.15,0x84564c],[27,30,.32,0x65706a]] as const) {
     const bike=new Group(), enamel=new MeshStandardMaterial({color:paint});
     bike.position.set(x,.09,z); bike.rotation.y=yaw;
     for(const wx of [-.56,.56]) {
