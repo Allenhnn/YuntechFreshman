@@ -13,7 +13,9 @@ const source: BuildingSource = {
   transform:{angleDeg:Math.atan2(6.28,-35.17)*180/Math.PI,planCentroid:[0,0],worldCentroid:[128.18,168.83]},
   floorHeight:3.6, levels:levels.map(([id,elevation])=>({id,elevation,built:true})),
   floors:{},shell:{},directory:[],undergroundLevel:'B1',style:{clerestory:false,windows:true},
-  groundOpenings:[[-29,6,0,19],[50,9,58,13],[7,-8,28,1.9]],
+  // The rear stair's ground cut takes in both end landings (48.4–59.6): looking down the shaft you
+  // would otherwise see the campus ground at grade hanging over the B1 landings.
+  groundOpenings:[[-29,6,0,19],[48.4,8.8,59.6,13.2],[7,-8,28,1.9]],
 };
 for(const [index,[id,base]] of levels.entries()) {
   const height=(levels[index+1]?.[1]??10.8)-base;
@@ -110,6 +112,9 @@ for(const [index,[id,base]] of levels.entries()) {
     // B1 shaft walls along both long sides up to the 1F slab: the campus ground runs under the
     // building at grade, and looking down the shaft you would otherwise see it between B1 and 1F.
     if(id==='B1') for(const y of [8.94,13.06]) box((left+right)/2,y,0,right-left,height,.12,'partition');
+    // …and a deep beam under each end landing (B1 headroom 2.18 m), closing the shaft's short ends:
+    // otherwise the view down the shaft runs on under the 1F slab to that ground layer.
+    if(id==='B1') for(const x of [left-.8,right+.8]) box(x,11,height-1.425,1.6,1.425,4.4,'partition');
     if(index<3){
       const n=Math.ceil(height/.17), step=(right-left)/n;
       for(let k=0;k<n;k++){
