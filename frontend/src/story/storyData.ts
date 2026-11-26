@@ -196,9 +196,9 @@ export const DAYS: Day[] = [
   {
     title: '聯誼與跑腿',
     steps: [
-      { id: '2-1', text: '起床！今天早上有聯誼', place: DORM, cond: { t: 'getUp' }, at: hm(8, 30), wake: true, msg: { from: ROOMMATE, text: '早上十點活動中心聯誼別忘了！穿帥一點啊 😎', replies: [{ text: '收到，我會穿帥一點', answer: '回寢室打開衣櫃挑一套！別穿拖鞋去 🩴❌' }, { text: '聯誼要幹嘛？', answer: '就聊天玩遊戲啊，記得多找人聊幾句 😉' }, { text: '不太想去…', answer: '去啦！說不定就脫單了 💘' }] } },
+      { id: '2-1', text: '起床！今天早上有聯誼', place: DORM, cond: { t: 'getUp' }, at: hm(8, 30), wake: true, msg: { from: ROOMMATE, text: '早上十點活動中心旁邊廣場的聯誼別忘了！穿帥一點啊 😎', replies: [{ text: '收到，我會穿帥一點', answer: '回寢室打開衣櫃挑一套！別穿拖鞋去 🩴❌' }, { text: '聯誼要幹嘛？', answer: '就聊天玩遊戲啊，記得多找人聊幾句 😉' }, { text: '不太想去…', answer: '去啦！說不定就脫單了 💘' }] } },
       { id: '2-2', text: '回 C214 寢室打開衣櫃，換一套帥氣穿搭', place: DORM, cond: { t: 'outfit' } },
-      { id: '2-3', text: '到學生活動中心參加聯誼，把好感度聊滿', place: ACTIVITY, cond: { t: 'talk', prompt: '按 E 加入聯誼', scene: 'mixer' }, at: hm(10, 0) },
+      { id: '2-3', text: '到活動中心和表演廳中間的廣場（36 週年布條下）參加聯誼，把好感度聊滿', place: '聯誼廣場', cond: { t: 'talk', prompt: '按 E 加入聯誼', scene: 'mixer' }, at: hm(10, 0) },
       { id: '2-4', text: '阿凱的隨身碟忘在管理二館 MB109，去幫他拿', place: CLASS2, room: 'MB109', cond: { t: 'pickup', item: 'usbDrive' }, msg: { from: ROOMMATE, text: '救命！我的隨身碟忘在管二 MB109 的桌上了，報告檔案全在裡面 😭 可以幫我拿回宿舍嗎？會給你跑腿費！', replies: [{ text: '好，我去拿', answer: '你是我的救命恩人 🙏 拿到直接回宿舍找我' }, { text: '跑腿費多少？', answer: 'NT$100！夠你吃一頓了吧 💰' }, { text: '你自己去啦', answer: '拜託～我在趕報告走不開 😭 跑腿費 NT$100，好不好？' }] } },
       { id: '2-5', text: '把隨身碟拿回宿舍交給阿凱', place: DORM, cond: { t: 'talk', prompt: '按 E 把隨身碟交給阿凱', scene: 'returnUsb' } },
       { id: '2-6', text: '回 C214 寢室的床上睡覺', place: DORM, cond: { t: 'sleep', until: 'nextDay' } },
@@ -294,7 +294,7 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: 'sharpShooter', title: '三分神射', icon: '🏀', desc: '一次投籃挑戰拿到 15 分以上' },
   { id: 'safeRider', title: '交通安全模範生', icon: '🦺', desc: '騎腳踏車累計 1 公里都沒撞到人' },
   { id: 'explorer', title: '校園探險家', icon: '🧭', desc: '走進 15 棟不同的建築' },
-  { id: 'mixerStar', title: '聯誼之星', icon: '💫', desc: '聯誼時三個話題都選到最佳回答' },
+  { id: 'mixerStar', title: '聯誼之星', icon: '💫', desc: '聯誼時和三個人都聊得來、互加 LINE' },
   { id: 'selfie', title: '自拍一張', icon: '🤳', desc: '用手機相機的自拍模式拍一張照' },
   { id: 'graduateWeek', title: '第一週畢業', icon: '🎓', desc: '完成第一週的主線' },
   { id: 'treated', title: '被請客', icon: '🍱', desc: '午餐猜拳贏了，室友請客' },
@@ -348,65 +348,145 @@ export const DIALOGS: Partial<Record<SceneId, Line[]>> = {
 };
 
 /**
- * 聯誼: three people, two rounds each. Every answer moves that person's 好感度 (affinity, 0–100,
- * starting at 40); the night goes well when everyone ends at 60 or more. Wrong answers hurt more
- * than right ones help, and the second round of each person is pickier.
+ * 聯誼, one on one (使用者 2026-11-26): walk up to one of the three and talk with that person alone,
+ * six turns each. Every option is something a real person might say; what works is what works in a
+ * real conversation — answer and ask back, show interest, listen (turn 5 checks whether you remember
+ * what they told you), empathise instead of lecturing. One-upping, oversharing, unasked advice,
+ * interrogating and coming on too strong cost. 好感度 starts at 30; 60 or more and you swap
+ * contacts — the person shows up in the phone's chat app. Asking for a contact needs 55 first.
  */
-export interface MixerQ { ask: string; options: { text: string; delta: number; reply: string }[] }
-export const MIXER: { who: string; look: string; qs: MixerQ[] }[] = [
+export interface MixerOpt { text: string; delta: number; reply: string; mood?: 'happy' | 'meh' | 'awkward'; need?: number; fail?: { delta: number; reply: string } }
+export interface MixerTurn { say: string; options: MixerOpt[] }
+export interface MixerPerson { key: string; who: string; name: string; dept: string; look: { shirt: number; pants: number; hair: number }; long?: boolean; turns: MixerTurn[]; added: string }
+export const MIXER: MixerPerson[] = [
   {
-    who: '小美（設計系）', look: '🎨',
-    qs: [
-      { ask: '你平常假日都在做什麼？', options: [
-        { text: '去古坑爬山、騎腳踏車', delta: 18, reply: '哇！我也超愛戶外，下次一起去！' },
-        { text: '睡覺打電動', delta: -12, reply: '喔…這樣啊。' },
-        { text: '在宿舍追劇', delta: 4, reply: '追劇也不錯啦，最近在看什麼？' },
-        { text: '研究怎麼省錢吃學餐', delta: -6, reply: '…好務實喔。' },
+    key: 'mx1', who: '小美（設計系）', name: '小美', dept: '設計系', look: { shirt: 0xf48fb1, pants: 0x9a8a6c, hair: 0x3d2b20 }, long: true,
+    added: '嗨～我是聯誼的小美！下次一起去古坑拍照 📷',
+    turns: [
+      { say: '嗨～你也是被朋友拖來的嗎？我是設計系的小美。', options: [
+        { text: '對啊被室友硬拉來的，不過來了好像也不錯 😆', delta: 10, reply: '哈哈同病相憐！我是被學姊騙來的。' },
+        { text: '我是自己來的，想多認識一些人', delta: 6, reply: '喔～好主動！' },
+        { text: '嗯。', delta: -10, reply: '……（有點冷場）', mood: 'awkward' },
+        { text: '設計系喔？那你一定很會畫，幫我畫一張！', delta: -6, reply: '呃…很多人都這樣說欸 😅', mood: 'meh' },
       ] },
-      { ask: '你覺得我這件外套好看嗎？', options: [
-        { text: '顏色很襯你，有設計感', delta: 16, reply: '你眼光不錯嘛 😊' },
-        { text: '還好吧', delta: -18, reply: '……（表情僵住）' },
-        { text: '多少錢買的？', delta: -10, reply: '問這個幹嘛啦。' },
-        { text: '跟你很搭，是自己改的嗎？', delta: 22, reply: '對！你居然看得出來！' },
+      { say: '我最近週末都拿底片相機到處拍，上週去古坑的綠色隧道拍了一整天。', options: [
+        { text: '底片相機！拍完要等沖洗那種嗎？好有感覺', delta: 12, reply: '對！等待的過程超期待的～' },
+        { text: '用手機拍不是比較方便嗎？', delta: -8, reply: '……方便是方便啦。', mood: 'meh' },
+        { text: '我上週也去古坑！還去了劍湖山，我跟你說那個雲霄飛車…', delta: -8, reply: '喔…（話題一直繞回你身上）', mood: 'meh' },
+        { text: '綠色隧道哪個時間最好拍？我也想去看看', delta: 10, reply: '早上！光線從樹葉縫灑下來超美。' },
+      ] },
+      { say: '那你呢？什麼系的？平常都在幹嘛？', options: [
+        { text: '資管系，平常打打球，偶爾也會亂拍照，不過都用手機哈哈', delta: 12, reply: '那下次可以一起去拍！' },
+        { text: '就…上課啊，沒什麼特別的', delta: -6, reply: '這樣啊…', mood: 'meh' },
+        { text: '我從國小開始說起好了…（講了五分鐘自己的人生）', delta: -12, reply: '……（她偷偷看了一下手機）', mood: 'awkward' },
+        { text: '你猜猜看 😏', delta: -4, reply: '我不太會猜欸…', mood: 'meh' },
+      ] },
+      { say: '唉，期中作品被老師說「沒有靈魂」，有點沮喪 😞', options: [
+        { text: '被這樣說一定很難受…你自己喜歡那件作品嗎？', delta: 14, reply: '嗯…其實我很喜歡。謝謝你問 🥹' },
+        { text: '老師就那樣啦，不要想太多！', delta: 2, reply: '嗯…也是啦。', mood: 'meh' },
+        { text: '那你下次多參考一些作品，構圖要先…', delta: -10, reply: '我沒有要你教我啦…', mood: 'awkward' },
+        { text: '哈哈「沒有靈魂」，好好笑', delta: -16, reply: '……（臉色一沉）', mood: 'awkward' },
+      ] },
+      { say: '欸，你剛剛有在聽嗎？我上週去哪裡拍照？😏', options: [
+        { text: '古坑的綠色隧道！', delta: 12, reply: '哇你真的有在聽！' },
+        { text: '阿里山？', delta: -10, reply: '…不是啦 😑', mood: 'awkward' },
+        { text: '日月潭吧', delta: -10, reply: '…你根本沒在聽。', mood: 'awkward' },
+        { text: '呃…劍湖山？', delta: -12, reply: '那是你說的地方吧 😑', mood: 'awkward' },
+      ] },
+      { say: '時間差不多了～今天聊得蠻開心的！', options: [
+        { text: '我也是！可以加個 LINE 嗎？下次一起去拍照', delta: 10, reply: '好呀！我掃你 📱', need: 55, fail: { delta: -8, reply: '呃…我們再看看吧 😅' } },
+        { text: '嗯嗯，掰掰', delta: -4, reply: '掰～', mood: 'meh' },
+        { text: '可以給我你的 LINE、IG 跟電話嗎？', delta: -12, reply: '…一個就夠了吧 😳', mood: 'awkward' },
+        { text: '謝謝你陪我聊天，作品加油！你的作品一定有靈魂', delta: 8, reply: '哈哈謝謝！你也是 😊' },
       ] },
     ],
   },
   {
-    who: '阿哲（資工系）', look: '💻',
-    qs: [
-      { ask: '學校哪裡最好吃？', options: [
-        { text: '學餐自助餐，便宜大碗', delta: 16, reply: '懂吃！CP 值之王。' },
-        { text: '不知道，我都吃泡麵', delta: -8, reply: '兄弟你要吃好一點…' },
-        { text: '萊爾富的茶葉蛋', delta: 6, reply: '哈哈，宵夜首選。' },
-        { text: '我只吃外送', delta: -12, reply: '有錢人喔。' },
+    key: 'mx2', who: '阿哲（資工系）', name: '阿哲', dept: '資工系', look: { shirt: 0x37474f, pants: 0x2d3a5c, hair: 0x151515 },
+    added: '嘿！我阿哲。App 測試版出來再找你 🍓',
+    turns: [
+      { say: '欸你好，我阿哲，資工的。這裡的飲料是不是只有紅茶啊…', options: [
+        { text: '對啊，我剛剛也在找奶茶 😂', delta: 10, reply: '哈哈奶茶黨握手 🤝' },
+        { text: '你好！紅茶還不錯啦', delta: 6, reply: '還行啦～' },
+        { text: '你們資工是不是都不太出門？', delta: -12, reply: '…這是刻板印象欸。', mood: 'awkward' },
+        { text: '（點點頭，繼續滑手機）', delta: -14, reply: '……喔。', mood: 'awkward' },
       ] },
-      { ask: '期末專題要不要跟我同組？', options: [
-        { text: '好啊！我負責簡報和美術', delta: 20, reply: '太好了，我正缺會做簡報的！' },
-        { text: '你寫程式我掛名就好', delta: -22, reply: '……我考慮一下。' },
-        { text: '看狀況吧', delta: -5, reply: '嗯，好喔。' },
-        { text: '可以，但我只想做輕鬆的部分', delta: -10, reply: '大家都想啊…' },
+      { say: '我最近在玩一款農場遊戲，每天晚上都在種草莓 😂', options: [
+        { text: '療癒系那種嗎？種草莓聽起來好紓壓', delta: 12, reply: '對！睡前種一下超放鬆' },
+        { text: '那種遊戲很無聊吧，要玩就玩 FPS', delta: -10, reply: '…每個人喜好不一樣啦。', mood: 'meh' },
+        { text: '我也有玩！你第幾年了？', delta: 10, reply: '第三年秋天了！你呢？' },
+        { text: '你都不用念書喔？', delta: -8, reply: '期中考完了好嗎…', mood: 'meh' },
+      ] },
+      { say: '說到念書，我們專題在做 App，我負責後端，壓力有點大。', options: [
+        { text: '後端聽起來很硬欸，你們在做什麼 App？', delta: 12, reply: '學餐排隊預測！幾點去人最少。' },
+        { text: '加油啦，資工本來就要寫 code', delta: -2, reply: '…嗯。', mood: 'meh' },
+        { text: '我之前寫過一個更厲害的專案，我跟你說…', delta: -12, reply: '喔是喔（敷衍）', mood: 'awkward' },
+        { text: '需要人幫忙測試的話可以找我', delta: 10, reply: '真的嗎！我記下來了 📝' },
+      ] },
+      { say: '你覺得…學餐排隊預測這種東西，真的會有人用嗎？', options: [
+        { text: '會吧！中午那個隊伍真的很誇張，知道幾點人少超有用', delta: 12, reply: '對吧！你懂我！' },
+        { text: '應該不會，大家都直接去排', delta: -8, reply: '…你好直接 😅', mood: 'meh' },
+        { text: '可以再加個今日推薦菜色，應該更多人用', delta: 10, reply: '好點子！我筆記一下' },
+        { text: '這學校的人應該都懶得下載', delta: -6, reply: '也是有可能啦…', mood: 'meh' },
+      ] },
+      { say: '考你一下，我剛剛說我在遊戲裡種什麼？', options: [
+        { text: '草莓！', delta: 12, reply: '你記得欸！🍓' },
+        { text: '西瓜？', delta: -10, reply: '…是草莓啦。', mood: 'awkward' },
+        { text: '玉米吧', delta: -10, reply: '你剛剛在放空吧 😑', mood: 'awkward' },
+        { text: '奶茶？', delta: -12, reply: '那是飲料啦哈哈…', mood: 'awkward' },
+      ] },
+      { say: '那個…我好像要去幫忙收場了。', options: [
+        { text: '可以加個 LINE 嗎？之後幫你測 App', delta: 10, reply: '好啊！測試版出來第一個找你', need: 55, fail: { delta: -6, reply: '呃…我再跟你說好了' } },
+        { text: '好喔掰', delta: -4, reply: '掰。', mood: 'meh' },
+        { text: '專題加油！草莓記得收成 🍓', delta: 8, reply: '哈哈你記得欸！謝啦' },
+        { text: '等一下，我再跟你說我高中的事…', delta: -10, reply: '呃…我真的要走了', mood: 'awkward' },
       ] },
     ],
   },
   {
-    who: '小安（企管系）', look: '📊',
-    qs: [
-      { ask: '要不要一起參加社團？', options: [
-        { text: '好啊！哪個社團？', delta: 15, reply: '熱舞社！一起來！' },
-        { text: '再說吧', delta: -6, reply: '喔…好吧。' },
-        { text: '社團好麻煩', delta: -16, reply: '…………' },
-        { text: '你參加的我都參加', delta: 8, reply: '哈哈，好會講話。' },
+    key: 'mx3', who: '小安（企管系）', name: '小安', dept: '企管系', look: { shirt: 0xf2c230, pants: 0x2d3a5c, hair: 0x2b211b }, long: true,
+    added: '嗨嗨～我小安！成發下個月，記得來看 💃',
+    turns: [
+      { say: '嗨嗨！我小安，企管系～你看起來好像有點緊張？😆', options: [
+        { text: '被你發現了，第一次參加聯誼 😅', delta: 12, reply: '哈哈沒關係，我第一次也超緊張！' },
+        { text: '沒有啊，我超自在的', delta: -4, reply: '是喔～（笑）', mood: 'meh' },
+        { text: '有一點！你看起來很習慣這種場合欸', delta: 8, reply: '我臉皮比較厚啦哈哈' },
+        { text: '還好，我只是被拉來湊人數的', delta: -8, reply: '喔…這樣啊。', mood: 'meh' },
       ] },
-      { ask: '你覺得大學最重要的是什麼？', options: [
-        { text: '認識很多朋友、多嘗試', delta: 20, reply: '我也這麼覺得！' },
-        { text: '成績', delta: 2, reply: '嗯，也是很重要啦。' },
-        { text: '睡飽', delta: -10, reply: '…你是認真的嗎？' },
-        { text: '翹課不被抓', delta: -20, reply: '欸你這樣不行啦。' },
+      { say: '我在熱舞社，最近準備成發，每天練到十點 💃', options: [
+        { text: '每天練到十點！你們成發什麼時候？', delta: 12, reply: '下個月！你要來看嗎？' },
+        { text: '跳舞喔，我四肢超不協調', delta: 2, reply: '大家一開始都這樣啦～', mood: 'meh' },
+        { text: '練那麼晚，功課怎麼辦？', delta: -8, reply: '…你很像我媽欸 😂', mood: 'meh' },
+        { text: '拍影片給我看好不好', delta: 2, reply: '成發再說啦～', mood: 'meh' },
+      ] },
+      { say: '而且我週末還在飲料店打工，有時候覺得有點累…', options: [
+        { text: '又練舞又打工也太拚了，累的時候都怎麼放鬆？', delta: 14, reply: '去吃一頓好的！我最愛火鍋 🍲' },
+        { text: '累就辭職啊', delta: -10, reply: '…沒那麼簡單啦。', mood: 'awkward' },
+        { text: '我也好累，昨天報告熬夜到三點…', delta: -6, reply: '嗯嗯（話題被你搶走了）', mood: 'meh' },
+        { text: '打工能賺錢很好啊', delta: 2, reply: '是沒錯啦～', mood: 'meh' },
+      ] },
+      { say: '欸，你覺得大學一定要談戀愛嗎？🤔', options: [
+        { text: '不一定吧，遇到對的人自然就會，不用急', delta: 12, reply: '我也這麼覺得！' },
+        { text: '一定要！不然大學白念了', delta: -6, reply: '壓力好大喔哈哈…', mood: 'meh' },
+        { text: '你是在暗示什麼嗎 😏', delta: -10, reply: '…想太多了啦 😑', mood: 'awkward' },
+        { text: '看人吧，你自己怎麼想？', delta: 10, reply: '先把自己顧好比較重要～' },
+      ] },
+      { say: '考考你～我剛剛說我週末在哪裡打工？', options: [
+        { text: '飲料店！', delta: 12, reply: '答對！下次來找我買 🧋' },
+        { text: '便利商店', delta: -10, reply: '不是啦～', mood: 'awkward' },
+        { text: '火鍋店？', delta: -10, reply: '火鍋是我愛吃的啦 😂', mood: 'awkward' },
+        { text: '補習班', delta: -10, reply: '…你沒在聽吧。', mood: 'awkward' },
+      ] },
+      { say: '我要去找朋友了～今天很開心！', options: [
+        { text: '成發我會去看！可以加你 LINE 嗎？', delta: 10, reply: '好啊～到時候傳時間給你！', need: 55, fail: { delta: -6, reply: '呃…有緣再說吧 😅' } },
+        { text: '掰掰～', delta: -4, reply: '掰掰！', mood: 'meh' },
+        { text: '練舞別太累，記得去吃火鍋 🍲', delta: 8, reply: '哈哈你有記住！' },
+        { text: '可以再陪我聊一下嗎？拜託', delta: -10, reply: '呃…我朋友在等我了', mood: 'awkward' },
       ] },
     ],
   },
 ];
-export const MIXER_START = 40;
+export const MIXER_START = 30;
 export const MIXER_GOAL = 60;
 
 /** Day 5 MB109 小考 (物件導向軟體工程): 5 easy, 3 medium, 2 hard; points by difficulty (total 100). */

@@ -127,6 +127,10 @@ function onlyTraced(t: TracedIndex, ids: readonly string[]): TracedIndex {
 /** Day 1 lunch: the roommates' table in 學生餐廳 (dining hall), and the 街宣 stand by 人科一館 / 龍潭路 (world). */
 const CAFETERIA_TABLE = { x: 153.97, z: 212.18 };
 const PROMO_STAND = { x: -18.5, z: -76 };
+/** 聯誼: the covered plaza under the 36 週年校慶 banner between 學生活動中心 and 雲泰表演廳 (activityAtrium.ts). */
+const MIXER_PLAZA = { x: 108.9, z: 158.4 };
+/** 路跑道具: speed up or slow down (storyRuntime.raceItem). */
+const RACE_ITEMS: ReadonlySet<ItemId> = new Set<ItemId>(['energyDrink', 'energyGel', 'bananaPeel', 'mysteryDrink', 'heavyShoes']);
 const FOOD: ReadonlySet<ItemId> = new Set<ItemId>(['catFood', 'brunchSet', 'latte', 'waffle', 'friedRice', 'friedNoodles', 'dumplings', 'wontonSoup', 'sideDish', 'bread', 'bento', 'buffet', 'beefNoodles', 'plainNoodles', 'bubbleTea', 'soyMilk', 'onigiri', 'teaEgg', 'sportsDrink', 'cupNoodles', 'mineralWater', 'greenTea', 'cannedCoffee']);
 
 const ITEM_MESSAGES: Readonly<Record<ItemId, string>> = {
@@ -156,6 +160,7 @@ const ITEM_MESSAGES: Readonly<Record<ItemId, string>> = {
   usbDrive: '💾 阿凱的隨身碟：拿回宿舍給他',
   catFood: '嘎吱嘎吱……貓飼料的味道……意外地不差？',
   keychain: '🔑 街宣活動送的雲科鑰匙圈',
+  energyDrink: '', energyGel: '', bananaPeel: '', mysteryDrink: '', heavyShoes: '',
   brunchSet: '總匯三明治配薯餅，早午餐吃飽飽！',
   latte: '拿鐵香濃，精神來了！',
   waffle: '鬆餅好香，蜂蜜甜甜的。',
@@ -173,6 +178,11 @@ function useItem(slot: number, api: GameApi): void {
   if (stack.id === 'campusMap') {
     api.closeModal();
     api.toggleMap();
+    return;
+  }
+  if (RACE_ITEMS.has(stack.id)) {
+    // Speed items work any time (the race is where you find them).
+    if (storyEvents.raceItem(stack.id)) actions.consumeItem(slot);
     return;
   }
   if (FOOD.has(stack.id)) actions.consumeItem(slot);
@@ -285,6 +295,8 @@ async function boot(): Promise<void> {
     handBuilt.push(unitBuilding);
     unitBuilding.interactables.push(
       { id: 'dormC-unit:enter', prompt: '按 E 進入宿舍', x: lobbyDoor.x + lobbyDoor.outX * 1.0, y: lobbyDoor.floor, z: lobbyDoor.z + lobbyDoor.outZ * 1.0, radius: 2.4 },
+      // Inside the C3 lobby too (使用者：進入門後就無法進入宿舍): the whole 4.2 m deep lobby offers it.
+      { id: 'dormC-unit:enter:lobby', prompt: '按 E 進入宿舍', x: lobbyDoor.x - lobbyDoor.outX * 2.4, y: lobbyDoor.floor, z: lobbyDoor.z - lobbyDoor.outZ * 2.4, radius: 3.2 },
       (() => { const [x, z] = unitBuilding.planToWorld(unit.leave[0], unit.leave[1]); return { id: 'dormC-unit:leave', prompt: '按 E 離開宿舍', x, y: DORM_C_UNIT_FLOOR, z, radius: 1.0 }; })(),
       // Bedroom doors don't open: E at one walks you through (使用者：門不要做開關，靠近門按 E 進入房間).
       // The bedrooms are a building of their own (underground): E at a door on the flat's corridor takes you in, E inside by
@@ -495,6 +507,7 @@ async function boot(): Promise<void> {
       if (name === '熱舞社' && mb) { const [x, z] = mb.planToWorld(44.6, 50.15); return { x, z }; }
       if (name === '學餐餐桌') return { ...CAFETERIA_TABLE };
       if (name === '街宣') return { ...PROMO_STAND };
+      if (name === '聯誼廣場') return { ...MIXER_PLAZA };
       if (name === '管院貓咪') { const c = centreOf('管理一館'); return c ? snapToRoad(c.x, c.z) : null; }
       if (name === '操場黑狗' && playground) { const [x, z] = playground.pitch.toWorld(-24, 12); return { x, z }; }
       if (name === '宿舍大笨鳥') return { x: -9.5, z: 335 };
@@ -1143,10 +1156,10 @@ async function boot(): Promise<void> {
           }, 300);
           return;
         }
-        if ((target?.id === 'dormC-unit:enter' || target?.id === 'dormC-unit:leave') && unit && unitBuilding && lobbyDoor) {
+        if ((target?.id.startsWith('dormC-unit:enter') || target?.id === 'dormC-unit:leave') && unit && unitBuilding && lobbyDoor) {
           // 學生宿舍C: into the flat's living room by its front door, or back out in front of the C3 lobby.
           if (gameStore.getState().fading) return;
-          const entering = target.id === 'dormC-unit:enter';
+          const entering = target.id.startsWith('dormC-unit:enter');
           actions.setFading(true);
           window.setTimeout(() => {
             let x: number, y: number, z: number, facing: number;
@@ -1373,6 +1386,27 @@ async function boot(): Promise<void> {
   });
   const onCanvasClick = (): void => api.relock();
   canvas.addEventListener('click', onCanvasClick);
+  // Left click (mouse captured): use the item in the selected hotbar slot (使用者：道具欄的道具可以用滑鼠左鍵使用).
+  // In drag-to-look mode the mouse is never captured: a quick click (no drag) uses it instead.
+  let clickStart: { x: number; y: number; t: number } | null = null;
+  const useHeld = (): void => {
+    const st = gameStore.getState();
+    if (st.phase !== 'playing' || st.modal !== 'none' || st.mapMode !== 'mini' || st.sport || !st.inventory[st.hotbarIndex]) return;
+    dispatch({ type: 'useItem', slot: st.hotbarIndex });
+  };
+  const onCanvasDown = (e: MouseEvent): void => {
+    if (e.button !== 0) return;
+    if (lock.isLocked()) useHeld();
+    else if (gameStore.getState().lookMode === 'drag') clickStart = { x: e.clientX, y: e.clientY, t: performance.now() };
+  };
+  const onCanvasUp = (e: MouseEvent): void => {
+    if (e.button !== 0 || !clickStart) return;
+    const quick = Math.hypot(e.clientX - clickStart.x, e.clientY - clickStart.y) < 6 && performance.now() - clickStart.t < 350;
+    clickStart = null;
+    if (quick) useHeld();
+  };
+  canvas.addEventListener('mousedown', onCanvasDown);
+  canvas.addEventListener('mouseup', onCanvasUp);
 
   actions.setLoadProgress(1);
   actions.setPhase('menu');
@@ -1751,6 +1785,8 @@ async function boot(): Promise<void> {
     window.removeEventListener('pagehide', saveIfPlaying);
     document.removeEventListener('visibilitychange', onVisibility);
     canvas.removeEventListener('click', onCanvasClick);
+    canvas.removeEventListener('mousedown', onCanvasDown);
+    canvas.removeEventListener('mouseup', onCanvasUp);
     unsubscribe();
     removeHotkeys();
     uiRoot.unmount();

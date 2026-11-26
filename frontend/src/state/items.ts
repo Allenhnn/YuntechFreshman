@@ -33,6 +33,12 @@ export const ITEMS = {
   usbDrive: { name: '阿凱的隨身碟', icon: '💾', maxStack: 1, description: '阿凱忘在 MB109 的隨身碟，報告檔案都在裡面。拿回宿舍給他。' },
   catFood: { name: '貓飼料', icon: '🐟', maxStack: 5, description: '三位神秘人物給的貓飼料。沒什麼用……但好像可以吃？' },
   keychain: { name: '雲科鑰匙圈', icon: '🔑', maxStack: 3, description: '街宣活動拍照打卡送的小禮物。' },
+  // 路跑道具 (the race's ? boxes): select one in the hotbar and left-click (or 使用) to use it.
+  energyDrink: { name: '能量飲料', icon: '⚡', maxStack: 3, description: '路跑道具：喝下去衝刺 5 秒（大幅加速）。' },
+  energyGel: { name: '能量果膠', icon: '🟢', maxStack: 3, description: '路跑道具：慢慢吸收，9 秒小幅加速。' },
+  bananaPeel: { name: '香蕉皮', icon: '🍌', maxStack: 3, description: '路跑道具：丟在路上，附近的跑者踩到會滑倒、慢下來。' },
+  mysteryDrink: { name: '神秘飲料', icon: '❓', maxStack: 3, description: '路跑道具：不知道是什麼……可能衝很快，也可能肚子痛跑不動。' },
+  heavyShoes: { name: '鐵鞋', icon: '🥾', maxStack: 3, description: '路跑道具：穿上去好重……6 秒減速，但一路穩穩的不會被香蕉皮滑倒（開玩笑的，就是變慢）。' },
 } as const;
 
 export type ItemId = keyof typeof ITEMS;

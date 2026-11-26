@@ -22,7 +22,7 @@ function App(): ReactNode {
   const modal = useGame((s) => s.modal);
   const account = useAuth((s) => s.status);
   // A visual-novel scene or the wardrobe takes the whole screen: the HUD steps aside.
-  const vn = useStory((s) => s.scene?.kind === 'vn' || s.scene?.kind === 'wardrobe');
+  const vn = useStory((s) => s.scene?.kind === 'vn' || s.scene?.kind === 'wardrobe' || s.scene?.kind === 'mixer');
   const hud = phase === 'playing' && !vn;
   return (
     <>
