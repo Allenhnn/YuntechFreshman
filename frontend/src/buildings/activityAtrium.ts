@@ -1,5 +1,5 @@
 import { bookshopFlight, rear, turn, nose, axisZ, radius, stairLevels } from './bookshopStair';
-import { ExtrudeGeometry, DoubleSide, BoxGeometry, CanvasTexture, Color, Group, InstancedMesh, Mesh, MeshStandardMaterial, Object3D, PlaneGeometry, Shape, ShapeGeometry, RepeatWrapping, SRGBColorSpace, Vector3, type Scene } from 'three';
+import { CylinderGeometry, ExtrudeGeometry, DoubleSide, BoxGeometry, CanvasTexture, Color, Group, InstancedMesh, Mesh, MeshStandardMaterial, Object3D, PlaneGeometry, Shape, ShapeGeometry, RepeatWrapping, SRGBColorSpace, Vector3, type Scene } from 'three';
 import type { ResourceTracker } from '../core/resources';
 
 /** The interior references use plan-right towards room 107 (local +X)
@@ -123,15 +123,38 @@ export function addActivityAtrium(scene: Scene, tracker: ResourceTracker) {
     if(truss) member([x,eaves,10],[x,eaves,15.6],.18,.24,0xb5ad9f);
   }
   for(const z of [10,15.6]) block(-13,10.68,z,26,.16,.18,0xa9a69b);
-  // Glazed upper gallery facing the bookstore. Its lower edge sits on the parapet.
+  // The upper classroom facade sits behind the galleries. Narrow roof shoulders
+  // carry daylight across the two aisles to the existing glazed ridge.
+  for(const [inner,outer] of [[10,7],[15.6,19]]){
+    const cover=new Mesh(new PlaneGeometry(26,Math.abs(outer-inner)),roofGlass);
+    cover.rotation.x=-Math.PI/2;cover.position.set(-13,eaves,(inner+outer)/2);root.add(cover);
+    for(let x=-26;x<=0;x+=1) member([x,eaves,inner],[x,eaves,outer],.07,.07,0x6c706b);
+  }
   for(const y of [3.6,7.2]){
-    block(-13,y,9.97,26,1.20,.15,0xb9b5aa);
-    block(-13,y+2.59,9.97,26,1.01,.15,0xb9b5aa);
+    block(-13,y,6.96,26,1.20,.15,0xb9b5aa);
+    block(-13,y+2.59,6.96,26,1.01,.15,0xb9b5aa);
     for(let x=-25;x<0;x+=2){
-      block(x,y+1.2,9.97,1.94,1.39,.08,0x526268);
-      block(x,y+1.2,10.025,.055,1.39,.045,0x383e40);
-      block(x-.97,y+1.2,10, .10,1.39,.14,0xaaa79e);
+      block(x,y+1.2,6.96,1.94,1.39,.08,0x526268);
+      block(x,y+1.2,7.015,.055,1.39,.045,0x383e40);
+      block(x-.97,y+1.2,6.99,.10,1.39,.14,0xaaa79e);
     }
+  }
+  // Sealed glazing on the existing solid classroom wall. The panes nearest
+  // Hi-Life reach the floor; the far group starts at a masonry sill.
+  for(let i=0;i<8;i++){
+    const x=-23.65+i*1.38, sill=i<4 ? .65 : .055, frame=0x353a39;
+    for(const [bottom,top] of [[sill,1.84],[1.98,2.37]]){
+      block(x,1.125+bottom,6.803,1.34,top-bottom,.056,frame);
+      block(x,1.125+bottom+.04,6.842,1.24,top-bottom-.08,.022,i<4?0x84918e:0x626f70);
+    }
+  }
+  for(const x of [-12.12,-11.73]){
+    const tank=new Mesh(new CylinderGeometry(.104,.108,.43,12),new MeshStandardMaterial({color:0xb53930,roughness:.47}));
+    tank.position.set(x,1.72,6.94);root.add(tank);
+    block(x,1.94,6.94,.07,.08,.07,0x574f42);
+    block(x+.025,2.02,6.94,.14,.032,.045,0x9c3932);
+    block(x,1.69,7.044,.11,.16,.016,0xf0dcaf);
+    member([x+.07,1.98,6.98],[x+.14,1.62,6.98],.026,.026,0x393d3c);
   }
   // The half landings and their parapets continue around the turn as single curved faces.
   const curvedSlab=(shape:Shape, bottom:number, thickness:number, color:number)=>{
@@ -211,6 +234,10 @@ export function addActivityAtrium(scene: Scene, tracker: ResourceTracker) {
     const flag=new Mesh(new PlaneGeometry(.88,2.9),new MeshStandardMaterial({map:banner,side:DoubleSide}));
     flag.position.set(x,top-1.45,z);flag.rotation.y=Math.PI*.43;root.add(flag);
   }
+  panel(.68,.24,-11.93,2.31,6.815,0,texture(384,128,c=>{
+    c.fillStyle='#a7302a';c.fillRect(0,0,384,128);c.fillStyle='#fff6db';
+    c.textAlign='center';c.font='bold 81px sans-serif';c.fillText('滅火器',192,93);
+  }));
   // Display glazing beside the corridor mouth, facing the landing.
   panel(5.6,1.18,-1.12,2.28,12.9,Math.PI/2,texture(512,128,c=>{
     c.fillStyle='#494740'; c.fillRect(0,0,512,128);

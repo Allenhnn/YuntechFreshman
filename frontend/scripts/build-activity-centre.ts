@@ -140,6 +140,10 @@ for(const [index,[id,base]] of levels.entries()) {
   // the far end has a cross passage, behind the paired stair flights.
   if(id!=='B1') space('書城通高樓井','void',[[bookshopWell[0],bookshopWell[1],wingEdge,bookshopWell[3]]],
     {noCeiling:true,customEdge:true,ceiling:height+.12});
+  // Retain a balcony over each shop entrance and the cross-gallery behind the stair.
+  const galleryCuts:Rect[]=[[-26,7,-11,10],[-26,15.6,-11,19],[-3,7,wingEdge,10],[-3,15.6,wingEdge,19]];
+  if(id==='1F') space('挑空走道','corridor',galleryCuts,{group:'hall',noCeiling:true,ceiling:height+.12});
+  if(index>=2) space('走道上方挑空','void',galleryCuts,{customEdge:true,noCeiling:true,ceiling:height+.12});
   space('樓梯後方橫廊','corridor',[[-29,3,-26,23]],{group:'hall'});
   if(id==='1F') {
     concreteBox(-29.1,13,0,.2,height,20);
@@ -175,10 +179,25 @@ for(const [index,[id,base]] of levels.entries()) {
   if(id==='B1'){
     stairSolid((rear+turn)/2,axisZ+radius+.32,0,turn-rear,.68,.64);
     stairSolid(nose,axisZ,0,2.2,.50,radius*1.9);
-  } else for(const z of [10.03,15.57]){
-    concreteBox((rear+wingEdge)/2,z,0,wingEdge-rear,.73,.11);
-    concreteBox((rear+wingEdge)/2,z,.94,wingEdge-rear,.065,.065);
-    for(let x=rear+.2;x<wingEdge;x+=2.2) concreteBox(x,z,.73,.055,.22,.055);
+  } else {
+    const guard=(x0:number,z0:number,x1:number,z1:number)=>{
+      const w=Math.abs(x1-x0),d=Math.abs(z1-z0),x=(x0+x1)/2,z=(z0+z1)/2;
+      concreteBox(x,z,0,w||.11,.73,d||.11);
+      concreteBox(x,z,.94,w||.065,.065,d||.065);
+      const n=Math.ceil((w+d)/2.2);
+      for(let i=0;i<n;i++) concreteBox(x0+(x1-x0)*(i+.5)/n,z0+(z1-z0)*(i+.5)/n,.73,.055,.22,.055);
+    };
+    for(const [edge,setback] of [[10.03,7],[15.57,19]]){
+      if(index===1) guard(rear,edge,wingEdge,edge);
+      else {
+        guard(-11,edge,-3,edge);
+        guard(-11,edge,-11,setback);
+        guard(-3,edge,-3,setback);
+        guard(rear,setback,-11,setback);
+        guard(-3,setback,wingEdge,setback);
+        guard(rear,edge,rear,setback);
+      }
+    }
   }
   if(id==='1F') {
     // Fixtures sit against the bookshop wall, leaving the route beside the rail clear.
