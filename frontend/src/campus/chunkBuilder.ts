@@ -618,7 +618,7 @@ export class ChunkBuilder {
         buildActivityComplex(b, details, glass);
         // Use the same geometry for the visible steps, galleries and their colliders.
         const indexOffset = slabs.pos.length / 3 - vertexStart;
-        slabs.pos.push(...details.pos.slice(vertexStart * 3));
+        for (let i = vertexStart * 3; i < details.pos.length; i++) slabs.pos.push(details.pos[i]!);
         for (let i = indexStart; i < details.idx.length; i++) slabs.idx.push(details.idx[i]! + indexOffset);
       }
       if (b.replacedBy) continue; // drawn and collided by its hand-built model instead

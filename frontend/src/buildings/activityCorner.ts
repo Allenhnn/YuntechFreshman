@@ -23,7 +23,8 @@ export function addActivityCorner(scene: Scene, tracker: ResourceTracker) {
     for (let i=0; i<=32; i++) {
       const t=i/32, angle=(start+(end-start)*t)*Math.PI*.49;
       for (const [r,y,v] of [[inner,low,0],[outer,high,1]]) {
-        p.push(-r!*Math.sin(angle),y!,r!*Math.cos(angle)-radius);
+        // The wing turns into the outer stair jamb without crossing the entrance flight.
+        p.push(-2.66*r!/radius*Math.sin(angle),y!,0.48*(r!*Math.cos(angle)-radius));
         uv.push(1-t,v!);
       }
       const k=i*2;
@@ -103,7 +104,7 @@ export function addActivityCorner(scene: Scene, tracker: ResourceTracker) {
   for(let i=0;i<positions.count;i++) {
     const x=positions.getX(i)+2.1;
     if(positions.getY(i)>0 && x<0) {
-      const front=-radius+Math.sqrt(Math.max(0,radius*radius-x*x));
+      const front=.48*radius*(-1+Math.sqrt(Math.max(0,1-(x/2.66)**2)));
       positions.setY(i,3.85-front);
     }
   }

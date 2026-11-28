@@ -1,4 +1,5 @@
-import { CanvasTexture, Color, CylinderGeometry, DoubleSide, Group, InstancedMesh, Mesh, MeshStandardMaterial, Object3D, PlaneGeometry, RepeatWrapping, SRGBColorSpace, TextureLoader, TorusGeometry, Vector3, type Scene } from 'three';
+import { rightEntranceFront } from "../campus/activityComplex";
+import { BufferGeometry, Float32BufferAttribute, CanvasTexture, Color, CylinderGeometry, DoubleSide, Group, InstancedMesh, Mesh, MeshStandardMaterial, Object3D, PlaneGeometry, RepeatWrapping, SRGBColorSpace, TextureLoader, TorusGeometry, Vector3, type Scene } from 'three';
 import type { ResourceTracker } from '../core/resources';
 import { mulberry32 } from '../core/math';
 
@@ -45,6 +46,43 @@ export function addActivityEntrance(scene: Scene, tracker: ResourceTracker) {
   tiles.wrapS=tiles.wrapT=RepeatWrapping;tiles.repeat.set(32,33);
   const apron=new Mesh(new PlaneGeometry(12.4,12.9),new MeshStandardMaterial({map:tiles,roughness:1}));
   apron.rotation.x=-Math.PI/2;apron.position.set(-2.45,.085,32.05);root.add(apron);
+  const rightApron=new Mesh(new PlaneGeometry(8.25,4.45),new MeshStandardMaterial({map:tiles,roughness:1}));
+  rightApron.rotation.x=-Math.PI/2;rightApron.position.set(36.625,.088,31.125);root.add(rightApron);
+
+  // Small mottled ceramic tiles wrap the two curved fascias and the stair jamb.
+  const mosaic=document.createElement('canvas'); mosaic.width=mosaic.height=256;
+  const ceramic=mosaic.getContext('2d')!, glaze=mulberry32(89576);
+  ceramic.fillStyle='#8b867e';ceramic.fillRect(0,0,256,256);
+  for(let row=0;row<32;row++) for(let col=0;col<32;col++) {
+    const value=Math.round(170+glaze()*26);
+    ceramic.fillStyle='rgb('+value+','+(value-3)+','+(value-10)+')';
+    ceramic.fillRect(col*8+.4,row*8+.4,7.2,7.2);
+  }
+  const enamel=new CanvasTexture(mosaic);enamel.colorSpace=SRGBColorSpace;
+  enamel.wrapS=enamel.wrapT=RepeatWrapping;
+  const positions:number[]=[],coords:number[]=[],indices:number[]=[];
+  function tiledFace(x:number,z:number,endX:number,endZ:number,base:number,top:number,u:number) {
+    const k=positions.length/3, end=u+Math.hypot(endX-x,endZ-z);
+    positions.push(x,base,z,endX,base,endZ,endX,top,endZ,x,top,z);
+    coords.push(u,base,end,base,end,top,u,top);
+    indices.push(k,k+1,k+2,k,k+2,k+3);
+    return end;
+  }
+  let distance=0;
+  for(let i=0;i<32;i++) {
+    const x=32.5+i*8.25/32,endX=32.5+(i+1)*8.25/32;
+    const z=-rightEntranceFront(x)+.008,endZ=-rightEntranceFront(endX)+.008;
+    tiledFace(x,z,endX,endZ,7.36,8.50,distance);
+    distance=tiledFace(x,z,endX,endZ,3.61,4.71,distance);
+  }
+  tiledFace(40.74,31.45,40.74,26.22,.09,3.55,0);
+  tiledFace(40.74,26.22,40.74,18.5,1.125,3.55,5.23);
+  tiledFace(40.74,31.45,40.74,25.1,3.86,7.32,0);
+  const facing=new BufferGeometry();
+  facing.setAttribute('position',new Float32BufferAttribute(positions,3));
+  facing.setAttribute('uv',new Float32BufferAttribute(coords,2));
+  facing.setIndex(indices);facing.computeVertexNormals();
+  root.add(new Mesh(facing,new MeshStandardMaterial({map:enamel,side:DoubleSide,roughness:.93})));
   const drum=new CylinderGeometry(.31,.30,.95,16), lid=new CylinderGeometry(.325,.325,.055,16);
   const blue=new MeshStandardMaterial({color:0x304e86}), rimBlue=new MeshStandardMaterial({color:0x283e66});
   for(const z of [23.55,24.25]) for(const x of [1.68,2.37,3.06]) {

@@ -49,6 +49,11 @@ function section(g: GeoBuilder, at: ReturnType<typeof frame>, x0: number, x1: nu
   }
 }
 
+export function rightEntranceFront(x:number) {
+  const t=Math.min(1,Math.max(0,(x-32.5)/2.65));
+  return -28.95-2.5*Math.sqrt(1-(1-t)**2);
+}
+
 export function buildActivityComplex(b: CampusBuilding, solid: GeoBuilder, glass: GeoBuilder) {
   const centre = b.id === STUDENT_CENTRE;
   // The centre's open court spans its old east wing to the shared hall wall.
@@ -149,60 +154,67 @@ export function buildActivityComplex(b: CampusBuilding, solid: GeoBuilder, glass
         quad(solid,[bottom[i]!,bottom[j]!,top[j]!,top[i]!],c);
       }
     };
-    const front = (x:number) => {
-      const t=Math.min(1,(x-32.5)/3);
-      return -28.8-2.7*Math.sqrt(Math.max(0,1-(1-t)*(1-t)));
-    };
-    for(let i=0;i<18;i++) {
-      const x=32.5+i*.5, next=x+.5, z=front(x), end=front(next);
-      strip(x,next,z,end,1.05,3.28,.32,concrete);
-      strip(x,next,z,end,.18,3.6,.61,concrete);
-      for(const y of [4.31,4.53]) strip(x,next,z+.05,end+.05,.055,y,.055,steel);
-      if(i%3===0) box(x,x+.055,z+.05,z+.11,4.21,.37,steel);
-      strip(x,next,z,end,3.9,7.42,.4,concrete);
-    }
-    box(32.5,33.45,-29.5,-22.4,3.28,.32);
-    box(39.9,41.5,-30.55,-28.7,3.28,.32);
-    // Square opening cut through the high front wall, with deep reveals.
-    const face=-30.0, back=-27.5;
-    box(33.6,41.5,face,back,7.82,1.64);
-    box(33.6,36.1,face,back,9.46,1.85);
-    box(38.0,41.5,face,back,9.46,1.85);
-    box(33.6,41.5,face,back,11.31,1.05);
-    box(33.6,41.5,face+.04,-24.6,12.36,.16,edge);
-    // Recessed walls behind the open balcony mouth, against the adjoining wing.
-    box(37.65,40.65,-27.05,-26.77,0,7.43,edge);
-    box(40.75,41.5,-31.4,-27.0,0,7.82,concrete);
-    box(36.55,37.10,-27.55,-27.05,4.4,.1,steel);
-    box(36.57,37.08,-27.52,-27.08,4.35,.05,[.8,.79,.64]);
-    // Looking in from the forecourt the flight climbs left and away.
-    // Use the central stair's landing elevation for the whole side approach.
     const platformY = 1.125;
-    const stairAt = (a:number,y:number,t:number) =>
-      at(37.9 + .8*a - .6*t, y, -29.45 + .6*a + .8*t);
-    const count = 7, tread = .43, run = count*tread, halfWidth = .85;
-    for(let i=0;i<count;i++) {
-      section(solid,stairAt,-halfWidth,halfWidth,i*tread,(i+1)*tread,0,0,
-        (i+1)*platformY/count,edge);
+    const stone: Tint = [.54,.52,.48], trim: Tint = [.39,.38,.35];
+    const stairFoot = -28.9, stairHead = -26.1, rightBalconyY = 3.86;
+    const wingWall = 40.75;
+    // Both balcony edges curl back towards the planter on the plaza side.
+    for (let i=0; i<32; i++) {
+      const x=32.5+i*8.25/32, next=32.5+(i+1)*8.25/32;
+      const z=rightEntranceFront(x), end=rightEntranceFront(next);
+      strip(x,next,z,end,Math.max(stairFoot-z,stairFoot-end)+.03,3.55,.31,stone);
+      strip(x,next,z,end,.18,rightBalconyY,.85,stone);
+      strip(x,next,z-.025,end-.025,.22,4.71,.08,trim);
+      for (const y of [4.9,5.07]) strip(x,next,z+.045,end+.045,.055,y,.055,metal);
+      if(i%5===0) box(x,x+.055,z+.045,z+.1,4.79,.33,metal);
+      strip(x,next,z,end,4.5,7.32,.33,stone);
+      strip(x,next,z,end,.22,7.65,.85,stone);
     }
-    // Splay the level landing into the existing slab. The two inside
-    // corners land on its x=32.5 edge, so walking straight reaches the hall.
-    const join = (a:number) => (37.9 + .8*a - 32.5)/.6;
-    const plan = [[-halfWidth,run],[halfWidth,run],[halfWidth,join(halfWidth)],[-halfWidth,join(-halfWidth)]];
-    const lower=plan.map(([a,t])=>stairAt(a!,0,t!));
-    const upper=plan.map(([a,t])=>stairAt(a!,platformY,t!));
-    quad(solid,upper,concrete);
-    for(let i=0;i<4;i++) {
-      const j=(i+1)%4;
-      quad(solid,[lower[i]!,lower[j]!,upper[j]!,upper[i]!],concrete);
+    // Continuous right jamb and a wide recessed window over the open balcony.
+    box(wingWall,41.12,-31.45,-18.5,0,12.16,stone);
+    box(32.5,wingWall,-29.05,-25.1,7.65,1.73,stone);
+    box(32.5,35.2,-29.05,-25.1,9.38,1.32,stone);
+    box(38.28,wingWall,-29.05,-25.1,9.38,1.32,stone);
+    box(32.5,wingWall,-29.05,-25.1,10.70,1.46,stone);
+    box(35.2,38.28,-28.70,-28.64,9.38,1.32,[.13,.16,.17]);
+    box(36.72,36.78,-28.76,-28.70,9.38,1.32,steel);
+    // The short right flight runs straight in beneath the balcony.
+    const stairLeft=37.65, tread=(stairHead-stairFoot)/7;
+    for(let i=0;i<7;i++) {
+      const z=stairFoot+i*tread, top=platformY*(i+1)/7;
+      box(stairLeft,wingWall,z,z+tread,0,top,stone);
+      box(stairLeft,wingWall,z-.015,z+.05,top-.035,.035,trim);
     }
-    // A recessed cheek wall and a continuous handrail frame the small opening.
-    section(solid,stairAt,.94,1.09,0,run+.4,0,0,3.25,concrete);
-    section(solid,stairAt,.79,.85,.12,run,.99,platformY+.88,.055,metal);
-    for(const i of [0,3,6]) {
-      const t=(i+.5)*tread, y=(i+1)*platformY/count;
-      section(solid,stairAt,.79,.85,t,t+.055,y,y,.86,metal);
+    for(const x of [stairLeft+.05,wingWall-.12]) {
+      section(solid,at,x,x+.055,stairFoot,stairHead,.86,platformY+.86,.055,metal);
+      for(const i of [0,3,6]) {
+        const z=stairFoot+(i+.5)*tread;
+        box(x,x+.055,z,z+.06,platformY*(i+1)/7,.85,metal);
+      }
     }
+    box(stairLeft,wingWall,stairHead,-18.5,0,platformY,stone);
+    box(32.5,stairLeft,-22.5,-20,0,platformY,stone);
+    box(36,stairLeft,-20,-18.5,0,platformY,stone);
+    // Left-hand return flight above the storage alcove, accessed from the
+    // common landing at the back. Its underside slopes down into the recess.
+    const returnRun=-22.5-stairFoot, rightRise=(rightBalconyY-platformY)/17;
+    for(let i=0;i<17;i++) {
+      const z=-22.5-i*returnRun/17;
+      box(33.35,stairLeft,z-returnRun/17,z,platformY+i*rightRise-.14,rightRise+.14,stone);
+    }
+    section(solid,at,33.35,stairLeft,stairFoot,-22.5,rightBalconyY-rightRise-.2,platformY-.2,.07,stone);
+    section(solid,at,stairLeft-.06,stairLeft,stairFoot,-22.5,rightBalconyY+.89,platformY+.89,.06,metal);
+    box(32.5,33.35,stairFoot,-22.5,3.55,.31,stone);
+    section(solid,at,32.5,33.35,-22.5,-21,3.55,3.29,.31,stone);
+    box(stairLeft,wingWall,stairFoot,-18.5,3.55,.31,stone);
+    box(32.5,33.35,-29.05,-28.65,0,3.55,stone);
+    // Alcove bin, recessed fire cabinet, soffit lights and the corner downpipe.
+    box(32.5,stairLeft,stairFoot,-22.5,0,.09,stone);
+    box(33.65,34.52,-27.7,-27.15,.04,.96,[.16,.39,.37]);
+    box(33.60,34.57,-27.76,-27.1,1,.09,trim);
+    box(wingWall-.09,wingWall,-26.2,-25.64,1.9,1.05,[.42,.12,.10]);
+    for(const y of [3.48,7.25]) box(37.6,38.7,-30.12,-29.97,y,.065,[.78,.77,.66]);
+    box(40.96,41.08,-31.59,-31.45,.1,12,metal);
     // The opposite end of the gallery retains its original flight.
     const eastSteps=16, eastTread=.31;
     for(let i=0;i<eastSteps;i++) {

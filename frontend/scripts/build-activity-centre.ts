@@ -25,7 +25,11 @@ for(const [index,[id,base]] of levels.entries()) {
     f.spaces.push({id:id+'-'+f.spaces.length,name,kind,ceiling:height,rects,...other});
   };
   // The auditorium and club wings have different depths on the pond side.
-  const west:Rect[]=[[36,0,88,25],[40,-8,75,0],[46,25,86,29],[39,0,82,28]];
+  // The right stair enters alongside the wing. Its covered approach and
+  // lateral landing occupy the recess up to the tiled jamb at plan x=41.
+  const west:Rect[]=id==='1F'
+    ? [[36,0,88,18.5],[41,18.5,88,25],[40,-8,75,0],[46,25,86,29],[41,25,82,28]]
+    : [[36,0,88,25],[40,-8,75,0],[46,25,86,29],[39,0,82,28]];
   // On 1F the bookshop facade continues the inside face of the plaza stair wall.
   const wingEdge=id==='1F'?-1.3:0;
   const east:Rect[]=[[-59,-5,wingEdge,25],[-55,-10,-5,-5],[-40,-15,-16,-10],[-58,25,-6,30]];
@@ -59,8 +63,8 @@ for(const [index,[id,base]] of levels.entries()) {
     room('107',[38,-3,59,6]);room('109',[60,-3,65,6]);
     room('110',[67,-4,74,1]);room('108',[66,2,82,8]);
     row(['111','112','113','114','115'],66,87,10,14);
-    room('106',[65,17,86,25]);room('101',[42,18,54,25]);
-    column(['102','103'],37,41,18,24);row(['104','105'],43,54,25,28);
+    room('106',[65,17,86,25]);room('101',[45,18,54,25]);
+    column(['102','103'],41,45,18,24);row(['104','105'],43,54,25,28);
     row(['117','116'],55,60,19,27);
   } else if(id==='2F'){
     row(['209','210','211','212','213','214','215','216','217','218'],40,75,-7,-1);
