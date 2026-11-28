@@ -16,7 +16,7 @@ const source: BuildingSource = {
   transform:{angleDeg:Math.atan2(6.28,-35.17)*180/Math.PI,planCentroid:[0,0],worldCentroid:[128.18,168.83]},
   floorHeight:3.6, levels:levels.map(([id,elevation])=>({id,elevation,built:true})),
   floors:{},shell:{},directory:[],undergroundLevel:'B1',style:{clerestory:false,windows:true},
-  groundOpenings:[[-29,6,0,19],[50,9,58,13],pondCourt],
+  groundOpenings:[[-29,6,0,19],[50,9,58,13]],
 };
 for(const [index,[id,base]] of levels.entries()) {
   const height=(levels[index+1]?.[1]??10.8)-base;
@@ -129,9 +129,7 @@ for(const [index,[id,base]] of levels.entries()) {
     for(let x=a+.25;x<b;x+=2) box(x,y,0,.07,.86,.07);
   }
   if(id==='B1') {
-    // From the shore path, descend onto the same slab as the B1 lobby.
-    const count=15,depth=.38;
-    for(let i=0;i<count;i++) box(17.5,pondCourt[1]+(i+.5)*depth,0,6.4,-base*(count-i)/count,depth);
+    // The lakeside lawn continues at plaza level.
     // Glazed bays and structural piers below the original 1F terrace.
     for(const x of [1,7,13,21,27,34]) box(x,1.82,0,.50,height,.5,'partition');
     for(const [left,right] of [[1.25,6.75],[7.25,12.75],[21.25,26.75],[27.25,33.75]]){
@@ -278,7 +276,7 @@ for(const [index,[id,base]] of levels.entries()) {
     open('v',wingEdge,17.4,1.8,'exit','雲院書城');
     open('v',wingEdge,8.4,1.8,'exit','翼廊');
   }
-  if(id==='B1') open('h',pondCourt[1],17.5,6.4,'open','湖岸步道');
+  if(id==='B1') open('h',pondCourt[1],(pondCourt[0]+pondCourt[2])/2,pondCourt[2]-pondCourt[0],'open','湖岸草地');
   if(id==='3F') open('v',36,13,1.4,'door','303');
   if(id==='2F'||id==='3F') for(const y of [2.5,5,17,20]) {
     open('h',y,18,35.8,'open','Gallery');

@@ -1,4 +1,5 @@
 import {
+  DoubleSide,
   BufferAttribute,
   BufferGeometry,
   CanvasTexture,
@@ -19,6 +20,8 @@ import {
 import { RAPIER } from '../physics/physics';
 import type { ResourceTracker } from '../core/resources';
 import { mulberry32 } from '../core/math';
+import { createPlanTransform } from '../buildings/planTransform';
+import type { BuildingSource } from '../buildings/buildingTypes';
 import type { Ring } from './campusTypes';
 
 /**
@@ -91,9 +94,58 @@ export function pondAt(x: number, z: number): Pond | null {
   return PONDS.find((p) => inRing(x, z, p.ring)) ?? null;
 }
 
-/** Bottom height at (x, z) inside a pond. */
-function bottomY(x: number, z: number, r: Ring): number {
-  return -Math.min(MAX_DEPTH, edgeDist(x, z, r) * BANK_SLOPE);
+/** A single ground cut for the lake, the grass bank and the paved B1 courtyard.
+ * Sample both bank edges at the shoreline bends, tapering back to grade at the ends. */
+export function activityLakeBank(src: BuildingSource) {
+  const level=src.levels.find(l=>l.id==='B1')!;
+  const rect=src.floors[level.id]!.spaces.find(s=>s.name==='湖側下沉廣場')!.rects[0]!;
+  const [a,b,c,d]=rect, xf=createPlanTransform(src);
+  const left=xf.toWorld(c,b), right=xf.toWorld(a,b);
+  const start=left[0]-7, end=right[0]+7, ring=PONDS[0]!.ring;
+  const floorY=level.elevation+.08;
+  // The first arm of the ring runs west to east along the activity-centre shore.
+  const northZ=(x:number)=>{
+    for(let i=2;i<ring.length && ring[i]!>ring[i-2]!;i+=2){
+      if(x<=ring[i]!)return ring[i-1]!+(ring[i+1]!-ring[i-1]!)*(x-ring[i-2]!)/(ring[i]!-ring[i-2]!);
+    }
+    return ring[1]!;
+  };
+  const weight=(x:number)=>Math.max(0,Math.min(1,(x-start)/7,(end-x)/7));
+  const shoreY=(x:number,z:number)=>floorY*weight(x)*Math.max(0,1-Math.max(0,z-northZ(x)-1.5)/4);
+  const cuts=[start,left[0],right[0],end];
+  let first=0,last=0;
+  for(let i=0;i<ring.length;i+=2){
+    const x=ring[i]!;
+    if(x<=start){first=i+2;continue;}
+    if(x>=end){last=i;break;}
+    cuts.push(x);
+  }
+  cuts.sort((u,v)=>u-v);
+  const grassRing:Ring=[], pos:number[]=[], indices:number[]=[];
+  const bankEdge=(x:number)=>{
+    const t=(x-left[0])/(right[0]-left[0]);
+    if(t<0)return northZ(start)+(left[1]-northZ(start))*weight(x);
+    if(t>1)return northZ(end)+(right[1]-northZ(end))*weight(x);
+    return left[1]+t*(right[1]-left[1]);
+  };
+  for(const x of cuts){
+    const i=pos.length/3, y=floorY*weight(x);
+    pos.push(x,y,bankEdge(x),x,y,northZ(x));grassRing.push(x,bankEdge(x));
+    if(i)indices.push(i-2,i-1,i,i,i-1,i+1);
+  }
+  // Join the tapered ends to the surrounding campus ground.
+  for(const [outer,inner] of [[start,left[0]],[end,right[0]]]){
+    const i=pos.length/3;
+    pos.push(outer,0,northZ(outer),inner,0,bankEdge(inner),inner,floorY,bankEdge(inner));
+    indices.push(i,i+1,i+2);
+  }
+  for(const x of [...cuts].reverse())grassRing.push(x,northZ(x));
+  const hole=[...ring.slice(0,first),start,northZ(start),...left,...xf.toWorld(c,d),...xf.toWorld(a,d),...right,end,northZ(end),...ring.slice(last)];
+  return {hole,grassRing,pos,indices,shoreY,floorY,contains:(x:number,z:number)=>inRing(x,z,grassRing)};
+}
+type LakeBank=ReturnType<typeof activityLakeBank>;
+export function waterLevel(pond:Pond|null,bank:LakeBank):number {
+  return WATER_Y+(pond===PONDS[0]?bank.floorY:0);
 }
 
 export interface Ponds {
@@ -103,7 +155,7 @@ export interface Ponds {
   dispose(): void;
 }
 
-export function createPonds(scene: Scene, physics: RAPIER.World, tracker: ResourceTracker): Ponds {
+export function createPonds(scene: Scene, physics: RAPIER.World, tracker: ResourceTracker, bank:LakeBank): Ponds {
   const colliders: RAPIER.Collider[] = [];
   const meshes: Mesh[] = [];
   // Ripple texture (scrolled each frame) used as a bump map on the water.
@@ -140,12 +192,24 @@ export function createPonds(scene: Scene, physics: RAPIER.World, tracker: Resour
   const flowers: Matrix4[] = [];
   const up = new Vector3(0, 1, 0);
 
+  const grassGeo=new BufferGeometry();
+  grassGeo.setAttribute('position',new BufferAttribute(new Float32Array(bank.pos),3));
+  grassGeo.setIndex(bank.indices);grassGeo.computeVertexNormals();
+  const grass=new Mesh(tracker.geometry(grassGeo),tracker.material(new MeshStandardMaterial({color:0x84a860,roughness:1,side:DoubleSide})));
+  grass.receiveShadow=true;scene.add(grass);meshes.push(grass);
+  colliders.push(physics.createCollider(RAPIER.ColliderDesc.trimesh(new Float32Array(bank.pos),new Uint32Array(bank.indices))));
   for (const pond of PONDS) {
-    const r = pond.ring;
+    const r = pond.ring, waterY=waterLevel(pond,bank);
+    const shore=(x:number,z:number)=>pond===PONDS[0]?bank.shoreY(x,z):0;
+    const bed=(x:number,z:number)=>{
+      const edge=shore(x,z), depth=edgeDist(x,z,r);
+      const bottom=waterY+0.3-MAX_DEPTH;
+      return Math.max(bottom,edge-depth*(BANK_SLOPE+(edge-bottom-MAX_DEPTH)*.32));
+    };
     // Water surface (shape in x, −z, laid flat facing up).
     const shape = new Shape();
     for (let i = 0; i < r.length; i += 2) (i === 0 ? shape.moveTo(r[i]!, -r[i + 1]!) : shape.lineTo(r[i]!, -r[i + 1]!));
-    const water = new Mesh(tracker.geometry(new ShapeGeometry(shape).rotateX(-Math.PI / 2).translate(0, WATER_Y, 0)), waterMat);
+    const water = new Mesh(tracker.geometry(new ShapeGeometry(shape).rotateX(-Math.PI / 2).translate(0, waterY, 0)), waterMat);
     water.renderOrder = 2;
     scene.add(water);
     meshes.push(water);
@@ -162,7 +226,9 @@ export function createPonds(scene: Scene, physics: RAPIER.World, tracker: Resour
       const key = k * nx + i;
       if (vid[key]! >= 0) return vid[key]!;
       const x = x0 + i, z = z0 + k;
-      const y = inRing(x, z, r) ? bottomY(x, z, r) : 0.02;
+      // Tuck the lake-bed mesh below the lawn where the two surfaces meet.
+      const overlap = pond === PONDS[0] && bank.contains(x,z);
+      const y = inRing(x, z, r) ? bed(x, z) : shore(x,z) + (overlap ? -.06 : .01);
       vid[key] = pos.length / 3;
       pos.push(x, y, z);
       return vid[key]!;
@@ -194,7 +260,7 @@ export function createPonds(scene: Scene, physics: RAPIER.World, tracker: Resour
       const len = Math.hypot(dx, dz);
       for (let t = 0; t < len && kn < 2000; t += 0.55) {
         const k = 0.8 + rnd() * 0.5;
-        kerb.setMatrixAt(kn++, m4.compose(new Vector3(ax + (dx * t) / len, 0, az + (dz * t) / len), q.setFromAxisAngle(up, rnd() * 6), s.set(k, 0.8 + rnd() * 0.6, k)));
+        kerb.setMatrixAt(kn++, m4.compose(new Vector3(ax + (dx * t) / len, shore(ax+dx*t/len,az+dz*t/len), az + (dz * t) / len), q.setFromAxisAngle(up, rnd() * 6), s.set(k, 0.8 + rnd() * 0.6, k)));
       }
     }
     kerb.count = kn;
@@ -209,10 +275,10 @@ export function createPonds(scene: Scene, physics: RAPIER.World, tracker: Resour
       const x = x0 + rnd() * (x1 - x0), z = z0 + rnd() * (z1 - z0);
       if (!inRing(x, z, r)) continue;
       const e = edgeDist(x, z, r);
-      if (e < 1.5 || (pond.lotus < 2 && e > 7)) continue; // the big lake: lotus near its edges only
+      if (bed(x,z)>waterY-.08 || e < 1.5 || (pond.lotus < 2 && e > 7)) continue; // the big lake: lotus near its edges only
       const k = 0.5 + rnd() * 0.7;
-      leaves.push(new Matrix4().compose(new Vector3(x, WATER_Y + 0.02, z), new Quaternion().setFromAxisAngle(up, rnd() * 6), new Vector3(k, 1, k)));
-      if (rnd() < 0.18) flowers.push(new Matrix4().compose(new Vector3(x + 0.2, WATER_Y + 0.25, z), new Quaternion(), new Vector3(1, 1, 1).multiplyScalar(0.8 + rnd() * 0.4)));
+      leaves.push(new Matrix4().compose(new Vector3(x, waterY + 0.02, z), new Quaternion().setFromAxisAngle(up, rnd() * 6), new Vector3(k, 1, k)));
+      if (rnd() < 0.18) flowers.push(new Matrix4().compose(new Vector3(x + 0.2, waterY + 0.25, z), new Quaternion(), new Vector3(1, 1, 1).multiplyScalar(0.8 + rnd() * 0.4)));
       made++;
     }
   }
@@ -242,9 +308,10 @@ export function createPonds(scene: Scene, physics: RAPIER.World, tracker: Resour
       }
     },
     splash(x, z) {
+      const waterY=waterLevel(pondAt(x,z),bank);
       for (let k = 0; k < 2; k++) {
         const mesh = new Mesh(splashGeo, splashMat.clone());
-        mesh.position.set(x, WATER_Y + 0.05, z);
+        mesh.position.set(x, waterY + 0.05, z);
         scene.add(mesh);
         splashes.push({ mesh, t: -k * 0.18 });
       }

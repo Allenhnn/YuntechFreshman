@@ -67,7 +67,7 @@ import { courtPit, createMgmtCourtyard } from './buildings/mgmtCourtyard';
 import { createDormCourtyard, dormCourtPit } from './buildings/dormCourtyard';
 import { createDormYard, dormRideables, dormYardClearings } from './campus/dormYard';
 import { createHilifeStore } from './buildings/hilifeStore';
-import { PONDS, WATER_Y, createPonds, pondAt } from './campus/ponds';
+import { PONDS, activityLakeBank, waterLevel, createPonds, pondAt } from './campus/ponds';
 import { createMbLobby } from './buildings/mbLobby';
 import { MAIN_GATE_GUARDHOUSE, createMainGate, gateTreeExclusions, inGateZone } from './campus/mainGate';
 import { addBoundaryZone } from './campus/boundaryZone';
@@ -206,6 +206,7 @@ async function boot(): Promise<void> {
   const librarySrc = await loadBuildingSource(LIBRARY_URL);
   const handBuiltSrcs = await Promise.all(HAND_BUILT_URLS.map((url) => loadBuildingSource(url)));
   // 管理學院中庭: the sunken garden cuts the ground open; no trees anywhere in the courtyard.
+  const lakeBank=activityLakeBank(handBuiltSrcs.find(s=>s.id==='activity-centre')!);
   const mbSrc = handBuiltSrcs.find((s) => s.id === 'mb');
   const court = mbSrc ? courtPit(mbSrc) : null;
   // 學生宿舍 C / D 之間的下沉中庭: also cut into the ground.
@@ -227,11 +228,11 @@ async function boot(): Promise<void> {
   remapSplitTraced(traced, campus);
   const bikeStations = placeBikeStations(campus);
   actions.setBikeStations(bikeStations);
-  const keepClear = [...buildingFootprintRings(librarySrc), ...handBuiltSrcs.flatMap(buildingFootprintRings), ...handBuiltSrcs.flatMap(buildingGroundHoles), ...stationClearings(bikeStations), ...gateTreeExclusions(), ...SCOOTER_LOTS.map((l) => l.ring), ...(court ? [court.treeFree] : []), ...yuntayTreeFree(), ...dormTreeFree(), ...dormCFacadeTreeFree(campus), dormPit.treeFree, ...dormYardClearings(), ...PONDS.map((p) => p.ring)];
+  const keepClear = [...buildingFootprintRings(librarySrc), ...handBuiltSrcs.flatMap(buildingFootprintRings), ...handBuiltSrcs.flatMap(buildingGroundHoles), ...stationClearings(bikeStations), ...gateTreeExclusions(), ...SCOOTER_LOTS.map((l) => l.ring), ...(court ? [court.treeFree] : []), ...yuntayTreeFree(), ...dormTreeFree(), ...dormCFacadeTreeFree(campus), dormPit.treeFree, ...dormYardClearings(), lakeBank.hole, ...PONDS.slice(1).map((p) => p.ring)];
   campus.water = PONDS.map((p) => ({ name: p.name, ring: p.ring }));
   const env = createCampusWorld(scene, physics, renderer, campus, sceneResources, {
     treeExclusions: keepClear,
-    groundHoles: [...buildingGroundHoles(librarySrc), ...handBuiltSrcs.flatMap(buildingGroundHoles), ...(court?.rings ?? []), dormPit.ring, ...PONDS.map((p) => p.ring)],
+    groundHoles: [...buildingGroundHoles(librarySrc), ...handBuiltSrcs.flatMap(buildingGroundHoles), ...(court?.rings ?? []), dormPit.ring, lakeBank.hole, ...PONDS.slice(1).map((p) => p.ring)],
     facades,
     entrances: traced?.entrances,
   });
@@ -263,7 +264,7 @@ async function boot(): Promise<void> {
   const dormCourtyard = createDormCourtyard(scene, physics, sceneResources);
   const dormYard = createDormYard(scene, physics, campus, sceneResources);
   const hilife = activity ? createHilifeStore(scene, physics, activity, sceneResources) : null;
-  const ponds = createPonds(scene, physics, sceneResources);
+  const ponds = createPonds(scene, physics, sceneResources, lakeBank);
   const mgmtCourtyard = mb ? createMgmtCourtyard(scene, physics, sceneResources, mb) : null;
   const mbLobby = mb ? createMbLobby(scene, physics, sceneResources, mb) : null;
 
@@ -339,7 +340,7 @@ async function boot(): Promise<void> {
   const navGraph = buildNavGraph(campus);
   const navLine = createNavLine(scene, sceneResources);
   const bikes = createBikeSystem(scene, bikeStations, sceneResources, dormRideables());
-  const inPit = (x: number, z: number): boolean => dormPit.contains(x, z) || !!court?.contains(x, z) || !!pondAt(x, z);
+  const inPit = (x: number, z: number): boolean => dormPit.contains(x, z) || !!court?.contains(x, z) || lakeBank.contains(x,z) || !!pondAt(x, z);
   const traffic = createTraffic(scene, campus, sceneResources, inPit);
   const applyAmbient = (a: GameState['ambient']): void => {
     traffic.setEnabled('people', a.people);
@@ -528,7 +529,7 @@ async function boot(): Promise<void> {
   const groundHeightAt = (x: number, z: number): number => {
     const ray = new RAPIER.Ray({ x, y: 2.5, z }, { x: 0, y: -1, z: 0 });
     const hit = physics.castRay(ray, 20, true, RAPIER.QueryFilterFlags.EXCLUDE_SENSORS, undefined, colliders[eid], undefined,
-      (c) => c.handle !== env.groundCollider.handle || !(library.isOverBasement(x, z) || activity?.isOverBasement(x, z) || !!court?.contains(x, z) || dormPit.contains(x, z) || !!pondAt(x, z)));
+      (c) => c.handle !== env.groundCollider.handle || !(library.isOverBasement(x, z) || activity?.isOverBasement(x, z) || !!court?.contains(x, z) || dormPit.contains(x, z) || lakeBank.contains(x,z) || !!pondAt(x, z)));
     return hit ? 2.5 - hit.timeOfImpact : 0;
   };
 
@@ -945,7 +946,7 @@ async function boot(): Promise<void> {
   // Over a basement the campus ground collider is ignored; the basement's own top slab takes over.
   const groundHandle = env.groundCollider.handle;
   const groundFilter = (c: { handle: number }): boolean =>
-    c.handle !== groundHandle || !(library.isOverBasement(Transform.x[eid]!, Transform.z[eid]!) || activity?.isOverBasement(Transform.x[eid]!, Transform.z[eid]!) || !!court?.contains(Transform.x[eid]!, Transform.z[eid]!) || dormPit.contains(Transform.x[eid]!, Transform.z[eid]!) || !!pondAt(Transform.x[eid]!, Transform.z[eid]!));
+    c.handle !== groundHandle || !(library.isOverBasement(Transform.x[eid]!, Transform.z[eid]!) || activity?.isOverBasement(Transform.x[eid]!, Transform.z[eid]!) || !!court?.contains(Transform.x[eid]!, Transform.z[eid]!) || dormPit.contains(Transform.x[eid]!, Transform.z[eid]!) || lakeBank.contains(Transform.x[eid]!, Transform.z[eid]!) || !!pondAt(Transform.x[eid]!, Transform.z[eid]!));
 
   const cameraFilter = (c: { handle: number }): boolean =>
     groundFilter(c) && !env.isBoundaryCollider(c.handle) && !buildings().some((b) => b.isCameraTransparent(c.handle));
@@ -1149,7 +1150,7 @@ async function boot(): Promise<void> {
     } else if (joints && objects[eid] && inWater) {
       // Deep enough to swim: crawl when moving, tread water when still (hips at the water line).
       const footY = Transform.y[eid]!;
-      const depth = WATER_Y - footY;
+      const depth = waterLevel(pondAt(Transform.x[eid]!,Transform.z[eid]!),lakeBank) - footY;
       if (depth > 0.3) {
         const speed = Math.hypot(Velocity.x[eid]!, Velocity.z[eid]!);
         const moving = speed > 0.4;
@@ -1170,7 +1171,7 @@ async function boot(): Promise<void> {
       // In the water: slow wading; a splash (and the story hears of it) on the way in.
       const px = Transform.x[eid]!, pz = Transform.z[eid]!;
       const pond = pondAt(px, pz);
-      const wet = !!pond && Transform.y[eid]! < WATER_Y + 0.15;
+      const wet = !!pond && Transform.y[eid]! < waterLevel(pond,lakeBank) + 0.15;
       if (wet && !inWater && pond) {
         ponds.splash(px, pz);
         audio.play('close');
