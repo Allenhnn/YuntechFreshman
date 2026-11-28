@@ -311,7 +311,42 @@ export function buildActivityComplex(b: CampusBuilding, solid: GeoBuilder, glass
       section(solid,at,x,x+.065,-30.78,-27.9,1.08,2.07,.065,metal);
       for(const [z,y] of [[-30.7,.23],[-29.35,.68],[-27.95,1.08]]) box(x,x+.065,z,z+.065,y,.91,metal);
     }
-    for (let i=0; i<6; i++) box(9,26,2.8-i*.45,3.25-i*.45,0,(i+1)*1.125/6,edge);
+    // Lake elevation: a round-ended bay over the B1 entry. The straight
+    // chord is open to the existing platform at the same finished level.
+    const bayCentre = 17.5, bayRadius = 3.1, baySegments = 32;
+    const bayPoint = (segment: number) => {
+      const angle = Math.PI * segment / baySegments;
+      return { x: bayCentre - bayRadius * Math.cos(angle), z: .78 + 2.2 * Math.sin(angle) };
+    };
+    const grout: Tint = [.37,.40,.38];
+    const blocks: Tint[] = [[.50,.58,.55],[.54,.61,.58],[.48,.56,.54]];
+    for (let i = 0; i < baySegments; i++) {
+      const a = bayPoint(i), b = bayPoint(i + 1);
+      // Each slice runs from the platform edge to the curved outer face.
+      for (const [back, base, height] of [[.55,.74,platformY-.74],[-.1,6.8,.4]]) {
+        const bottom = [at(a.x,base,back), at(b.x,base,back), at(b.x,base,b.z), at(a.x,base,a.z)];
+        const top = bottom.map(([x,y,z]): Point => [x,y+height,z]);
+        quad(solid,top,concrete);
+        quad(solid,[...bottom].reverse(),concrete);
+        for (const side of [2,...(i===0?[3]:[]),...(i===baySegments-1?[1]:[])]) {
+          const next=(side+1)%4;
+          quad(solid,[bottom[side]!,bottom[next]!,top[next]!,top[side]!],concrete);
+        }
+      }
+      strip(a.x,b.x,a.z-.14,b.z-.14,.14,platformY,.80,concrete);
+      strip(a.x,b.x,a.z-.14,b.z-.14,.14,1.925,3.20,grout);
+      strip(a.x,b.x,a.z-.14,b.z-.14,.14,5.125,1.675,concrete);
+      // Set individual glass blocks proud of the continuous mortar backing.
+      for (let row=0; row<14; row++) {
+        const y=1.925+row*3.2/14+.012, h=3.2/14-.024;
+        const panel = (t:number,level:number) => at(a.x+(b.x-a.x)*t,level,a.z+(b.z-a.z)*t+.008);
+        quad(glass,[panel(.045,y),panel(.955,y),panel(.955,y+h),panel(.045,y+h)].reverse(),blocks[(i+row*2)%3]!);
+      }
+    }
+    for (const x of [bayCentre-bayRadius,bayCentre+bayRadius]) {
+      box(x-.07,x+.07,.55,.78,platformY,5.675);
+    }
+    for(let slat=0;slat<5;slat++) box(16.82,18.18,2.98,3.04,5.75+slat*.095,.047,steel);
   } else {
     // Photos 40–44: the east return has a concrete flight against the
     // solid auditorium wall, a projecting landing, and pale metal rails.
